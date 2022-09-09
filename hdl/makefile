@@ -10,7 +10,7 @@ SRCS+= UlpiIO.vhd UlpiIOTb.vhd
 SRCS+= Usb2PktRx.vhd UsbCrcTbl.vhd UsbCrcTblTb.vhd
 SRCS+= Usb2PktTx.vhd
 SRCS+= Usb2PktProc.vhd
-SRCS+= Bram.vhd
+SRCS+= Usb2Bram.vhd
 SRCS+= Usb2StdCtlEp.vhd
 SRCS+= Usb2Core.vhd
 SRCS+= Usb2PktProcTb.vhd
@@ -37,7 +37,7 @@ Usb2PktTxTb.o Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2Pk
 Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
 Usb2PktProcTb.o: Usb2TstPkg.o Usb2PktProc.o Usb2StdCtlEp.o
-Usb2PktProc.o: Bram.o
+Usb2PktProc.o: Usb2Bram.o
 
 Usb2Core.o: UlpiIO.o Usb2PktProc.o Usb2PktRx.o Usb2PktTx.o Usb2StdCtlEp.o
 

@@ -724,7 +724,7 @@ begin
       end if;
    end process P_SEQ;
 
-   U_BUF : entity work.Bram
+   U_BUF : entity work.Usb2Bram
       generic map (
          DATA_WIDTH_G => BUF_WIDTH_C,
          ADDR_WIDTH_G => LD_BUFSZ_C,
