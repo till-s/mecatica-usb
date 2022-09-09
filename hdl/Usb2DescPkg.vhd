@@ -51,6 +51,21 @@ package Usb2DescPkg is
       constant t : Usb2StdDescriptorTypeType
    ) return natural;
 
+   constant USB2_DEV_CLASS_NONE_C                         : Usb2ByteType := x"00";
+   constant USB2_DEV_CLASS_CDC_C                          : Usb2ByteType := x"02";
+
+   constant USB2_IFC_CLASS_CDC_C                          : Usb2ByteType := x"02";
+   constant USB2_IFC_CLASS_DAT_C                          : Usb2ByteType := x"0A";
+
+   constant USB2_CDC_SUB_CLASS_NONE_C                     : Usb2ByteType := x"00";
+   constant USB2_CDC_SUB_CLASS_ACM_C                      : Usb2ByteType := x"02";
+   constant USB2_CDC_SUB_CLASS_ECM_C                      : Usb2ByteType := x"06";
+
+   constant USB2_DAT_SUB_CLASS_NONE_C                     : Usb2ByteType := x"00";
+
+   constant USB2_CDC_PROTO_NONE_C                         : Usb2ByteType := x"00";
+   constant USB2_DAT_PROTO_NONE_C                         : Usb2ByteType := x"00";
+
    constant USB2_DESC_IDX_LENGTH_C                        : natural := 0;
    constant USB2_DESC_IDX_TYPE_C                          : natural := 1;
    constant USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C             : natural := 7;
