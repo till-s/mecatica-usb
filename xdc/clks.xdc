@@ -1,16 +1,15 @@
-create_clock -name refClk -period 20.0 [get_ports {HDMI_CLK_P}]
-create_generated_clock -name outClk -source [get_pins */U_OCLK/Q] -multiply_by 1 [all_fanout -flat -endpoints_only [get_pins */U_OCLK/Q]]
+# ulpiClk must be defined by user (clock at input/output pin that receives/drives the ulpi clock
 
-set_input_delay -min 0.5 -clock outClk [all_fanin -flat -startpoints_only [get_pins {*/din_r*/D}]]
-set_input_delay -min 0.5 -clock outClk [all_fanin -flat -startpoints_only [get_pins {*/nxt_r*/D}]]
-set_input_delay -min 0.5 -clock outClk [all_fanin -flat -startpoints_only [get_pins {*/dir_r*/D}]]
+set_input_delay -min 0.5 -clock ulpiClk [all_fanin -flat -startpoints_only [get_pins {*/din_r*/D}]]
+set_input_delay -min 0.5 -clock ulpiClk [all_fanin -flat -startpoints_only [get_pins {*/nxt_r*/D}]]
+set_input_delay -min 0.5 -clock ulpiClk [all_fanin -flat -startpoints_only [get_pins {*/dir_r*/D}]]
 
-set_input_delay -max 7   -clock outClk [all_fanin -flat -startpoints_only [get_pins {*/din_r*/D}]]
-set_input_delay -max 7   -clock outClk [all_fanin -flat -startpoints_only [get_pins {*/nxt_r*/D}]]
-set_input_delay -max 7   -clock outClk [all_fanin -flat -startpoints_only [get_pins {*/dir_r*/D}]]
+set_input_delay -max 7   -clock ulpiClk [all_fanin -flat -startpoints_only [get_pins {*/din_r*/D}]]
+set_input_delay -max 7   -clock ulpiClk [all_fanin -flat -startpoints_only [get_pins {*/nxt_r*/D}]]
+set_input_delay -max 7   -clock ulpiClk [all_fanin -flat -startpoints_only [get_pins {*/dir_r*/D}]]
 
-set_output_delay -min 0.5 -clock outClk [all_fanout -flat -endpoints_only [get_pins {*/dou_r*/Q}]]
-set_output_delay -max 3.5 -clock outClk [all_fanout -flat -endpoints_only [get_pins {*/dou_r*/Q}]]
+set_output_delay -min 0.5 -clock ulpiClk [all_fanout -flat -endpoints_only [get_pins {*/dou_r*/Q}]]
+set_output_delay -max 3.5 -clock ulpiClk [all_fanout -flat -endpoints_only [get_pins {*/dou_r*/Q}]]
 
 #delay from DIR until outputs are high-z (or back on)
 #note that the output delay of the data outputs is 'included' in the max_delay - however, there is no 'setup' requirement
