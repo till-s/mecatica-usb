@@ -4,7 +4,7 @@ VIVADO=/opt/ghdl/v1.0.0-gcc/vivado-2018.03/
 
 SRCS+= UlpiIO.vhd UlpiPkg.vhd UlpiIOTb.vhd
 
-PROG=upliiotb
+PROG=ulpiiotb
 
 all: $(PROG)
 
