@@ -185,6 +185,9 @@ begin
    end process P_TST;
 
    U_DUT : entity work.UlpiIO
+      generic map (
+         GEN_ILA_G   => false
+      )
       port map (
          rst         => rst,
          clk         => clk,

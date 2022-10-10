@@ -8,6 +8,9 @@ use     unisim.vcomponents.all;
 use     work.UlpiPkg.all;
 
 entity UlpiIO is
+   generic (
+      GEN_ILA_G   : boolean          := true
+   );
    port (
       rst         :  in    std_logic := '0';
       clk         :  in    std_logic;
@@ -25,6 +28,7 @@ architecture Impl of UlpiIO is
 
    attribute IOB      : string;
    attribute IOBDELAY : string;
+   attribute KEEP     : string;
 
    type TxStateType   is (INIT, IDLE, TX1, TX2, WR, RD1, RD2, DON);
 
@@ -51,18 +55,21 @@ architecture Impl of UlpiIO is
    signal din_r   : std_logic_vector(dat'range);
    signal dou_r   : std_logic_vector(dat'range);
    signal nxt_r   : std_logic;
+   signal stp_r   : std_logic                   := '0';
    signal dat_o   : std_logic_vector(dat'range) := (others => '0');
    signal dat_t   : std_logic_vector(dat'range);
 
    signal dirCtl  : std_logic;
    signal dir_r   : std_logic := '1';
    signal dou_ce  : std_logic := '0';
+   signal dou_rst : std_logic := '0';
 
    attribute IOB of dir_r        : signal is "TRUE";
    attribute IOB of din_r        : signal is "TRUE";
    attribute IOBDELAY of din_r   : signal is "NONE";
    attribute IOB of dou_r        : signal is "TRUE";
    attribute IOB of nxt_r        : signal is "TRUE";
+   attribute IOB of stp_r        : signal is "TRUE";
 
    signal txData     : std_logic_vector(7 downto 0);
    signal txDataRst  : std_logic;
@@ -73,6 +80,21 @@ architecture Impl of UlpiIO is
    signal rTx     : TxRegType := TX_REG_INIT_C;
    signal rinTx   : TxRegType;
    signal dou_tx  : std_logic_vector(7 downto 0) := (others => '0');
+   signal stp_tx  : std_logic := '0';
+
+   component Ila_256 is
+      port (
+         clk          : in  std_logic;
+         probe0       : in  std_logic_vector(63 downto 0) := (others => '0');
+         probe1       : in  std_logic_vector(63 downto 0) := (others => '0');
+         probe2       : in  std_logic_vector(63 downto 0) := (others => '0');
+         probe3       : in  std_logic_vector(63 downto 0) := (others => '0');
+         trig_in      : in  std_logic := '0';
+         trig_in_ack  : out std_logic;
+         trig_out     : out std_logic;
+         trig_out_ack : in  std_logic := '0'
+      );
+   end component Ila_256;
 
 begin
 
@@ -83,7 +105,7 @@ begin
       dou_tx     <= (others => '0');
       dou_ce     <= '1';
       v.rep.ack  := '0';
-      v.stp      := '0';
+      stp_tx     <= '0';
 
       case ( rTx.state ) is
 
@@ -135,7 +157,7 @@ begin
             if ( dir_r = '1' ) then
                ABRT( v );
             elsif ( nxt = '1' ) then
-               v.stp   := '1';
+               stp_tx  <= '1';
                v.state := DON;
             end if;
 
@@ -214,14 +236,16 @@ begin
 --   );
 --
 
-   dirCtl <= dir or dir_r;
+   dirCtl  <= dir or dir_r;
 
-   dat_o  <= dou_r;
+   dat_o   <= dou_r;
+
+   dou_rst <= rst or dir_r;
 
    P_DOU  : process ( clk ) is
    begin
       if ( rising_edge( clk ) ) then
-         if ( ( rst or dir_r ) = '1' ) then
+         if ( dou_rst = '1' ) then
             dou_r <= (others => '0');
          elsif ( dou_ce = '1' ) then
             dou_r <= dou_tx;
@@ -236,10 +260,12 @@ begin
             dir_r   <= '1';
             din_r   <= (others => '0');
             nxt_r   <= '0';
+            stp_r   <= '0';
          else
             dir_r   <= dir;
             din_r   <= dat_i;
             nxt_r   <= nxt;
+            stp_r   <= stp_tx;
          end if;
       end if;
    end process P_DIR;
@@ -248,7 +274,53 @@ begin
       U_BUF : IOBUF port map ( IO => dat(i), I => dat_o(i), T => dirCtl, O => dat_i(i) );
    end generate G_DATB;
 
-   stp    <= rTx.stp;
+   stp    <= stp_r;
    regRep <= rTx.rep;
+
+   G_ILA : if ( GEN_ILA_G ) generate
+      signal stateVec  : unsigned(2 downto 0);
+      signal regReqDbg : UlpiRegReqType;
+
+      attribute KEEP   of stateVec  : signal is "TRUE";
+      attribute KEEP   of regReqDbg : signal is "TRUE";
+   begin
+
+      regReqDbg <= regReq;
+      stateVec  <= to_unsigned( TxStateType'pos( rTx.state ), stateVec'length );
+
+      U_ULPI_ILA : component Ila_256
+         port map (
+            clk                  => clk,
+            trig_in              => '0',
+            trig_out_ack         => '1',
+
+            probe0( 7 downto  0) => din_r,
+            probe0(15 downto  8) => dou_tx,
+            probe0(          16) => dou_rst,
+            probe0(          17) => dou_ce,
+            probe0(          18) => dir_r,
+            probe0(          19) => nxt_r,
+            probe0(          20) => stp_tx,
+            probe0(          21) => regReqDbg.valid,
+            probe0(          22) => regReqDbg.extnd,
+            probe0(23 downto 23) => (others => '0'),
+            probe0(31 downto 24) => regReqDbg.addr,
+            probe0(63 downto 32) => (others => '0'),
+
+            probe1( 7 downto  0) => regReqDbg.wdat,
+            probe1(10 downto  8) => std_logic_vector( stateVec ),
+            probe1(          11) => '0',
+            probe1(          12) => rTx.rep.ack,
+            probe1(          13) => rTx.rep.err,
+            probe1(15 downto 14) => (others => '0'),
+            probe1(23 downto 16) => rTx.rep.rdat,
+            probe1(63 downto 24) => (others => '0'),
+
+            probe2(63 downto  0) => (others => '0'),
+
+            probe3(63 downto  0) => (others => '0')
+
+         );
+   end generate G_ILA;
 
 end architecture Impl;
