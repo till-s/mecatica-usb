@@ -6,7 +6,7 @@ use     ieee.math_real.all;
 use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 
-entity Usb2Pkt is
+entity Usb2PktRx is
    --generic (
    --);
    port (
@@ -15,9 +15,9 @@ entity Usb2Pkt is
       ulpiRx         : in  UlpiRxType;
       token          : out Usb2TokenPktType
    );
-end entity Usb2Pkt;
+end entity Usb2PktRx;
 
-architecture Impl of Usb2Pkt is
+architecture Impl of Usb2PktRx is
 
    type StateType is (WAIT_FOR_START, WAIT_FOR_EOP, WAIT_FOR_PID, T1, T2);
 

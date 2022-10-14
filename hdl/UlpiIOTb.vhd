@@ -252,7 +252,7 @@ begin
          ulpiRx      => ulpiRx
       );
 
-   U_PKTDUT : entity work.Usb2Pkt
+   U_PKTDUT : entity work.Usb2PktRx
       port map (
          clk         => clk,
          rst         => rst,
