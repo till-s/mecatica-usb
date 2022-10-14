@@ -3,6 +3,7 @@ use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
 use     work.UlpiPkg.all;
+use     work.Usb2Pkg.all;
 
 entity UlpiIOTb is
 end entity UlpiIOTb;
@@ -29,7 +30,17 @@ architecture Sim of UlpiIOTb is
 
    signal jamdir          : std_logic := '0';
 
-   type StateType is (RESET, IDLE, ADD, ADDLY, WR, RD, JAMMED);
+   signal ulpiRx          : UlpiRxType;
+   signal usbToken        : Usb2TokenPktType;
+
+   signal checkRx         : natural   := 0;
+   signal startTx         : integer   := -1;
+   signal startTxBB       : integer   := -1;
+   signal tokSeen         : natural   := 0;
+
+   type Slv9Array         is array ( natural range <> ) of std_logic_vector(8 downto 0);
+
+   type StateType is (RESET, IDLE, ADD, ADDLY, WR, RD, JAMMED, RXCMD, TX);
 
    type RegType   is record
          state       : StateType;
@@ -41,6 +52,7 @@ architecture Sim of UlpiIOTb is
          jam         : integer;
          ext         : boolean;
          isRd        : boolean;
+         txIdx       : natural;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -52,7 +64,17 @@ architecture Sim of UlpiIOTb is
       add   => 0,
       jam   => -1,
       ext   => false,
-      isRd  => true
+      isRd  => true,
+      txIdx => 0
+   );
+
+   constant txVec : Slv9Array := (
+      '0' & x"5a",
+      '0' & x"bf",
+      '1' & x"bb",
+      '0' & x"1e",
+      '0' & x"c9",
+      '1' & x"fd"
    );
 
    function toSl(constant x : in boolean) return std_logic is
@@ -75,6 +97,11 @@ architecture Sim of UlpiIOTb is
       eo.valid <= '1';
    end procedure ad;
 
+   procedure tick is
+   begin
+      wait until rising_edge( clk );
+   end procedure tick;
+
    procedure wr(
       signal   eo: inout UlpiRegReqType;
       signal   ei: in    UlpiRegRepType;
@@ -87,11 +114,11 @@ architecture Sim of UlpiIOTb is
       eo.wdat  <= v;
       eo.rdnwr <= '0';
       while ( (eo.valid and ei.ack) = '0' ) loop
-         wait until rising_edge( clk );
+         tick;
       end loop;
       assert ( ei.err = e ) report "Write Error" severity failure;
       eo.valid <= '0';
-      wait until rising_edge( clk );
+      tick;
    end procedure wr;
 
    procedure rd(
@@ -105,12 +132,12 @@ architecture Sim of UlpiIOTb is
       ad(eo, a);
       eo.rdnwr <= '1';
       while ( (eo.valid and ei.ack) = '0' ) loop
-         wait until rising_edge( clk );
+         tick;
       end loop;
       v := ei.rdat;
       assert ( ei.err = e ) report "Read Error" severity failure;
       eo.valid <= '0';
-      wait until rising_edge( clk );
+      tick;
    end procedure rd;
 
 begin
@@ -131,7 +158,7 @@ begin
          adly    <= i;
          a2dly   <= j;
          wdly    <= k;
-         wait until rising_edge( clk );
+         tick;
          regClr  <= false;
 
          wr(regReq, regRep, 12, x"ab");  passed := passed + 1;
@@ -151,8 +178,8 @@ begin
          passed := passed + 1;
          assert res = x"00" report "Extended Readback not zero" severity failure;
          passed := passed + 1;
-         wait until rising_edge( clk );
-         wait until rising_edge( clk );
+         tick;
+         tick;
       end loop;
       end loop;
       end loop;
@@ -165,7 +192,7 @@ begin
          adly  <= j;
          a2dly <= k;
          wdly  <= l;
-         wait until rising_edge( clk );
+         tick;
          wr(regReq, regRep, 12, x"ab", toSl(jam < 3 + adly +         wdly));
          passed := passed + 1;
          wr(regReq, regRep, 65, x"ab", toSl(jam < 4 + adly + a2dly + wdly));
@@ -178,6 +205,31 @@ begin
       end loop;
       end loop;
       end loop;
+      jam   <= -1;
+      adly  <= 0;
+      a2dly <= 0;
+      wdly  <= 0;
+      tick;
+
+      startTx <= 0;
+      checkRx <= checkRx + 1;
+      tick;
+      startTx <= -1;
+      for i in 0 to 8 loop
+         tick;
+      end loop;
+      -- start a back-to-back read/TX operation
+      startTxBB <= 3;
+      checkRx   <= checkRx + 1;
+      rd(regReq, regRep, 0, res);
+      startTxBB <= -1;
+      for i in 0 to 10 loop
+         tick;
+      end loop;
+
+      assert checkRx = tokSeen report "Token count mismatch" severity failure;
+      passed := passed + checkRx;
+
       run <= false;
 
       report integer'image(passed) & " TESTS PASSED" severity note;
@@ -196,7 +248,16 @@ begin
          nxt         => nxt,
          dat         => dat,
          regReq      => regReq,
-         regRep      => regRep
+         regRep      => regRep,
+         ulpiRx      => ulpiRx
+      );
+
+   U_PKTDUT : entity work.Usb2Pkt
+      port map (
+         clk         => clk,
+         rst         => rst,
+         ulpiRx      => ulpiRx,
+         token       => usbToken
       );
 
    P_FAKE : process ( clk ) is
@@ -212,6 +273,16 @@ begin
             v.jam := v.jam - 1;
          end if;
       end procedure PROCJAM;
+
+      procedure doStartTx(variable v : inout RegType) is
+      begin
+         v       := v;
+         v.dir   := '1';
+         v.nxt   := '1';
+         v.state := RXCMD;
+         v.txIdx := startTx;
+         v.dat   := (others => 'Z');
+      end procedure doStartTx;
 
       variable v : RegType;
    begin
@@ -246,7 +317,9 @@ begin
                end if;
               
             when IDLE  =>
-               if ( dat(7) = '1' ) then
+               if ( startTx >= 0 ) then
+                  doStartTx( v );
+               elsif ( dat(7) = '1' ) then
                   v.add   := to_integer( unsigned( dat(5 downto 0) ) );
                   v.ext   := (dat(5 downto 0) = "101111");
                   v.isRd  := (dat(6) = '1');
@@ -326,7 +399,40 @@ begin
                   v.state := IDLE;
                   v.jam   := 0;
                else
+                  if ( v.cnt = 1 ) then
+                     v.dat   := (others => 'Z');
+                     if ( startTxBB >= 0 ) then
+                        -- a fake back-to-back read/TX; in reality TX and register access should be driven
+                        -- by parallel processes but we use just one (legacy reasons, the test bed was augmented
+                        -- post factum...
+                        v.dat   := x"11";
+                        v.state := RXCMD;
+                        v.txIdx := startTxBB;
+                     end if;
+                  end if;
                   v.cnt   := v.cnt - 1;
+               end if;
+
+            when RXCMD =>
+               if ( v.nxt = '1' ) then
+                  v.nxt   := '0';
+                  v.dat   := x"11"; -- rxActive and bogus line state
+               else
+                  v.nxt   := '1';
+                  v.dat   := txVec( v.txIdx )(7 downto 0);
+                  v.state := TX;
+               end if;
+
+            when TX =>
+               if ( txVec( v.txIdx )(8) = '1' ) then
+                  v.nxt   := '0';
+                  v.state := IDLE;
+                  v.dir   := '0';
+                  v.dat   := (others => 'Z');
+               else
+                  v.nxt   := '1';
+                  v.txIdx := v.txIdx + 1;
+                  v.dat   := txVec(v.txIdx)(7 downto 0);
                end if;
          
          end case;
@@ -359,5 +465,27 @@ begin
          dat <= (others => 'Z');
       end if;
    end process P_DAT;
+
+   P_RX : process ( clk ) is
+      constant CMP1_C : std_logic_vector := txVec(2)(2 downto 0) & txVec(1)(7 downto 0);
+      constant CMP2_C : std_logic_vector := txVec(5)(2 downto 0) & txVec(4)(7 downto 0);
+   begin
+      if ( rising_edge( clk ) ) then
+         if ( checkRx = 0 ) then
+            assert usbToken.valid = '0' report "Unexpectedly valid token" severity failure;
+         else
+            if ( usbToken.valid = '1' ) then
+               tokSeen <= tokSeen + 1;
+               if ( checkRx = 1 ) then
+                  assert usbToken.token = TOK_SOF      report "unexpected token1"      severity failure;
+                  assert usbToken.data  = CMP1_C report "unexpected token1 data" severity failure;
+               elsif ( checkRx = 2 ) then
+                  assert usbToken.token = TOK_OUT      report "unexpected token2"      severity failure;
+                  assert usbToken.data  = CMP2_C report "unexpected token2 data" severity failure;
+               end if;
+            end if;
+         end if;
+      end if;
+   end process P_RX;
 
 end architecture Sim;

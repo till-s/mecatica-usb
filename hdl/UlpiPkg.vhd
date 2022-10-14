@@ -31,6 +31,13 @@ package UlpiPkg is
       err   => '0'
    );
 
+   type UlpiRxType is record
+      dat   :  std_logic_vector(7 downto 0);
+      dir   :  std_logic;
+      nxt   :  std_logic;
+      trn   :  std_logic;
+   end record UlpiRxType;
+
    type UlpiStrmMstType is record
       dat   : std_logic_vector(7 downto 0);
       vld   : std_logic;

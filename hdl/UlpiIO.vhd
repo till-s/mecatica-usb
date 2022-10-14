@@ -19,6 +19,8 @@ entity UlpiIO is
       nxt         :  in    std_logic;
       dat         :  inout std_logic_vector(7 downto 0);
 
+      ulpiRx      :  out   UlpiRxType;
+
       regReq      :  in    UlpiRegReqType;
       regRep      :  out   UlpiRegRepType
    );
@@ -58,6 +60,7 @@ architecture Impl of UlpiIO is
    signal stp_r   : std_logic                   := '0';
    signal dat_o   : std_logic_vector(dat'range) := (others => '0');
    signal dat_t   : std_logic_vector(dat'range);
+   signal trn_r   : std_logic                   := '0';
 
    signal dirCtl  : std_logic;
    signal dir_r   : std_logic := '1';
@@ -81,6 +84,9 @@ architecture Impl of UlpiIO is
    signal rinTx   : TxRegType;
    signal dou_tx  : std_logic_vector(7 downto 0) := (others => '0');
    signal stp_tx  : std_logic := '0';
+
+   -- blank DIR for the RX channel during register-RX back-to-back cycle
+   signal blank   : std_logic := '0';
 
    component Ila_256 is
       port (
@@ -106,6 +112,7 @@ begin
       dou_ce     <= '1';
       v.rep.ack  := '0';
       stp_tx     <= '0';
+      blank      <= '0';
 
       case ( rTx.state ) is
 
@@ -173,6 +180,7 @@ begin
                ABRT( v );
             else
                v.state := DON;
+               blank   <= '1';
             end if;
 
          when DON =>
@@ -207,35 +215,6 @@ begin
       end if;
    end process P_SEQ_TX;
 
---   type UlpiRegReqType is record
---      addr  : std_logic_vector(7 downto 0);
---      wdat  : std_logic_vector(7 downto 0);
---      extnd : std_logic;
---      valid : std_logic;
---      rdnwr : std_logic;
---   end record UlpiRegReqType;
---
---   constant ULPI_REG_REQ_INIT_C : UlpiRegReqType := (
---      addr  => (others => '0'),
---      wdat  => (others => '0'),
---      extnd => '0',
---      valid => '0',
---      rdnwr => '0'
---   );
---
---   type UlpiRegRepType is record
---      rdat  : std_logic_vector(7 downto 0);
---      ack   : std_logic;
---      err   : std_logic;
---   end record UlpiRegRepType;
---
---   constant ULPI_REG_REP_INIT_C : UlpiRegRepType := (
---      rdat  => (others => '0'),
---      ack   => '0',
---      err   => '0'
---   );
---
-
    dirCtl  <= dir or dir_r;
 
    dat_o   <= dou_r;
@@ -261,11 +240,14 @@ begin
             din_r   <= (others => '0');
             nxt_r   <= '0';
             stp_r   <= '0';
+            trn_r   <= '0';
          else
             dir_r   <= dir;
             din_r   <= dat_i;
             nxt_r   <= nxt;
             stp_r   <= stp_tx;
+            -- is the registered cycle a turn-around cycle?
+            trn_r   <= ( dir xor dir_r );
          end if;
       end if;
    end process P_DIR;
@@ -276,6 +258,11 @@ begin
 
    stp    <= stp_r;
    regRep <= rTx.rep;
+
+   ulpiRx.dat <= din_r;
+   ulpiRx.nxt <= nxt_r;
+   ulpiRx.dir <= dir_r and not blank;
+   ulpiRx.trn <= trn_r;
 
    G_ILA : if ( GEN_ILA_G ) generate
       signal stateVec  : unsigned(2 downto 0);
@@ -303,13 +290,13 @@ begin
             probe0(          20) => stp_tx,
             probe0(          21) => regReqDbg.valid,
             probe0(          22) => regReqDbg.extnd,
-            probe0(23 downto 23) => (others => '0'),
+            probe0(          23) => trn_r,
             probe0(31 downto 24) => regReqDbg.addr,
             probe0(63 downto 32) => (others => '0'),
 
             probe1( 7 downto  0) => regReqDbg.wdat,
             probe1(10 downto  8) => std_logic_vector( stateVec ),
-            probe1(          11) => '0',
+            probe1(          11) => blank,
             probe1(          12) => rTx.rep.ack,
             probe1(          13) => rTx.rep.err,
             probe1(15 downto 14) => (others => '0'),
