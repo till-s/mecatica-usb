@@ -38,26 +38,5 @@ package UlpiPkg is
       trn   :  std_logic;
    end record UlpiRxType;
 
-   type UlpiStrmMstType is record
-      dat   : std_logic_vector(7 downto 0);
-      vld   : std_logic;
-      lst   : std_logic;
-   end record UlpiStrmMstType;
-
-   constant ULPI_STRM_MST_INIT_C : UlpiStrmMstType := (
-      dat   => (others => '0'),
-      vld   => '0',
-      lst   => '0'
-   );
-
-   type UlpiStrmSubType is record
-      rdy   : std_logic;
-      err   : std_logic;
-   end record UlpiStrmSubType;
-
-   constant ULPI_STRM_SUB_INIT_C : UlpiStrmSubType := (
-      rdy   => '0',
-      err   => '0'
-   );
-  
+ 
 end package UlpiPkg;
