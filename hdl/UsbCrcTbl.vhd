@@ -13,16 +13,22 @@ entity UsbCrcTbl is
 end entity UsbCrcTbl;
 
 architecture Impl of UsbCrcTbl is
+   function max(constant a,b: in natural) return natural is
+   begin
+      if ( a > b ) then return a; else return b; end if;
+   end function max;
 begin
 
    P_COMB : process ( x ) is
-      variable v : std_logic_vector(7 downto 0);
+      constant M : natural := max(POLY_G'length, x'length);
+      variable v : std_logic_vector(M - 1 downto 0);
       variable s : std_logic;
    begin
-      v := x;
+      v          := (others => '0');
+      v(x'range) := x;
       for i in 1 to 8 loop
          s := v(0);
-         v := '0' & v(7 downto 1);
+         v := '0' & v(v'left downto 1);
          if ( s = '1' ) then
             v(POLY_G'range) := v(POLY_G'range) xor POLY_G;
          end if;
