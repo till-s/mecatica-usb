@@ -3,24 +3,49 @@ use     ieee.std_logic_1164.all;
 
 package Usb2Pkg is
 
-   type Usb2TokenType is (TOK_OUT, TOK_SOF, TOK_IN, TOK_SETUP);
+   subtype Usb2PidType is std_logic_vector(3 downto 0);
 
-   type Usb2TokenPktType is record
-      token   : Usb2TokenType;
-      data    : std_logic_vector(10 downto 0);
+   function usb2PidIsTok(constant x : in Usb2PidType) return boolean;
+   function usb2PidIsDat(constant x : in Usb2PidType) return boolean;
+   function usb2PidIsHsk(constant x : in Usb2PidType) return boolean;
+   function usb2PidIsSpc(constant x : in Usb2PidType) return boolean;
+
+   constant USB_PID_TOK_OUT    : Usb2PidType := x"1";
+   constant USB_PID_TOK_SOF    : Usb2PidType := x"5";
+   constant USB_PID_TOK_IN     : Usb2PidType := x"9";
+   constant USB_PID_TOK_SETUP  : Usb2PidType := x"D";
+
+   constant USB_PID_DAT_DATA0  : Usb2PidType := x"3";
+   constant USB_PID_DAT_DATA2  : Usb2PidType := x"7";
+   constant USB_PID_DAT_DATA1  : Usb2PidType := x"B";
+   constant USB_PID_DAT_MDATA  : Usb2PidType := x"F";
+
+   constant USB_PID_HSK_ACK    : Usb2PidType := x"2";
+   constant USB_PID_HSK_NYET   : Usb2PidType := x"6";
+   constant USB_PID_HSK_NAK    : Usb2PidType := x"A";
+   constant USB_PID_HSK_STALL  : Usb2PidType := x"E";
+
+   constant USB_PID_SPC_PRE    : Usb2PidType := x"C";
+   constant USB_PID_SPC_ERR    : Usb2PidType := x"C"; -- reused
+   constant USB_PID_SPC_SPLIT  : Usb2PidType := x"8";
+   constant USB_PID_SPC_PING   : Usb2PidType := x"4";
+
+   type Usb2PktHdrType is record
+      pid     : Usb2PidType;
+      tokDat  : std_logic_vector(10 downto 0);
       valid   : std_logic; -- asserted for 1 cycle
-   end record Usb2TokenPktType;
+   end record Usb2PktHdrType;
 
-   constant USB2_TOKEN_PKT_INIT_C : Usb2TokenPktType := (
-      token   => TOK_SETUP,
-      data    => (others => '0'),
+   constant USB2_PKT_HDR_INIT_C : Usb2PktHdrType := (
+      pid     => (others => '0'),
+      tokDat  => (others => '0'),
       valid   => '0'
    );
 
-   function usb2TokenPktAddr(constant x : in Usb2TokenPktType)
+   function usb2TokenPktAddr(constant x : in Usb2PktHdrType)
       return std_logic_vector;
 
-   function usb2TokenPktEndp(constant x : in Usb2TokenPktType)
+   function usb2TokenPktEndp(constant x : in Usb2PktHdrType)
       return std_logic_vector;
 
    type Usb2StrmMstType is record
@@ -49,16 +74,37 @@ end package Usb2Pkg;
 
 package body Usb2Pkg is
 
-   function usb2TokenPktAddr(constant x : in Usb2TokenPktType)
+   function usb2TokenPktAddr(constant x : in Usb2PktHdrType)
       return std_logic_vector is
    begin
-      return x.data(10 downto 4);
+      return x.tokDat(10 downto 4);
    end function usb2TokenPktAddr;
 
-   function usb2TokenPktEndp(constant x : in Usb2TokenPktType)
+   function usb2TokenPktEndp(constant x : in Usb2PktHdrType)
       return std_logic_vector is
    begin
-      return x.data(10 downto 4);
+      return x.tokDat(10 downto 4);
    end function usb2TokenPktEndp;
+
+   function usb2PidIsTok(constant x : in Usb2PidType) return boolean is
+   begin
+      return x(1 downto 0) = "01";
+   end function usb2PidIsTok;
+
+   function usb2PidIsDat(constant x : in Usb2PidType) return boolean is
+   begin
+      return x(1 downto 0) = "11";
+   end function usb2PidIsDat;
+
+   function usb2PidIsHsk(constant x : in Usb2PidType) return boolean is
+   begin
+      return x(1 downto 0) = "10";
+   end function usb2PidIsHsk;
+
+   function usb2PidIsSpc(constant x : in Usb2PidType) return boolean is
+   begin
+      return x(1 downto 0) = "00";
+   end function usb2PidIsSpc;
+
 
 end package body Usb2Pkg;

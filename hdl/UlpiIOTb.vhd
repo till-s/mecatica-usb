@@ -31,7 +31,7 @@ architecture Sim of UlpiIOTb is
    signal jamdir          : std_logic := '0';
 
    signal ulpiRx          : UlpiRxType;
-   signal usbToken        : Usb2TokenPktType;
+   signal pktHdr          : Usb2PktHdrType;
 
    signal checkRx         : natural   := 0;
    signal startTx         : integer   := -1;
@@ -257,7 +257,7 @@ begin
          clk         => clk,
          rst         => rst,
          ulpiRx      => ulpiRx,
-         token       => usbToken
+         pktHdr      => pktHdr
       );
 
    P_FAKE : process ( clk ) is
@@ -472,16 +472,16 @@ begin
    begin
       if ( rising_edge( clk ) ) then
          if ( checkRx = 0 ) then
-            assert usbToken.valid = '0' report "Unexpectedly valid token" severity failure;
+            assert pktHdr.valid = '0' report "Unexpectedly valid token" severity failure;
          else
-            if ( usbToken.valid = '1' ) then
+            if ( pktHdr.valid = '1' ) then
                tokSeen <= tokSeen + 1;
                if ( checkRx = 1 ) then
-                  assert usbToken.token = TOK_SOF      report "unexpected token1"      severity failure;
-                  assert usbToken.data  = CMP1_C report "unexpected token1 data" severity failure;
+                  assert pktHdr.pid = USB_PID_TOK_SOF report "unexpected token1"      severity failure;
+                  assert pktHdr.tokDat = CMP1_C report "unexpected token1 data" severity failure;
                elsif ( checkRx = 2 ) then
-                  assert usbToken.token = TOK_OUT      report "unexpected token2"      severity failure;
-                  assert usbToken.data  = CMP2_C report "unexpected token2 data" severity failure;
+                  assert pktHdr.pid = USB_PID_TOK_OUT report "unexpected token2"      severity failure;
+                  assert pktHdr.tokDat = CMP2_C report "unexpected token2 data" severity failure;
                end if;
             end if;
          end if;

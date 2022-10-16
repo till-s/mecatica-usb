@@ -13,7 +13,7 @@ entity Usb2PktRx is
       clk            : in  std_logic;
       rst            : in  std_logic := '0';
       ulpiRx         : in  UlpiRxType;
-      token          : out Usb2TokenPktType
+      pktHdr         : out Usb2PktHdrType
    );
 end entity Usb2PktRx;
 
@@ -41,13 +41,13 @@ architecture Impl of Usb2PktRx is
 
    type RegType   is record
       state       : StateType;
-      token       : Usb2TokenPktType;
+      pktHdr      : Usb2PktHdrType;
       crc         : std_logic_vector(CRC5_POLY_C'range);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       state       => WAIT_FOR_START,
-      token       => USB2_TOKEN_PKT_INIT_C,
+      pktHdr      => USB2_PKT_HDR_INIT_C,
       crc         => (others => '1')
    );
 
@@ -63,7 +63,7 @@ begin
       variable rxAct    : boolean;
    begin
       v             := r;
-      v.token.valid := '0';
+      v.pktHdr.valid := '0';
       rxAct         := rxActive( ulpiRx );
 
       if ( not rxAct and r.state /= WAIT_FOR_START ) then
@@ -89,16 +89,11 @@ begin
                   v.state := WAIT_FOR_EOP;
                   -- FIXME ERROR
                else
-                  if ( ulpiRx.dat(5 downto 4) = "01" ) then
+                  v.pktHdr.pid := ulpiRx.dat(7 downto 4);
+                  if ( usb2PidIsTok( ulpiRx.dat(7 downto 4) ) ) then
                      -- TOKEN PID
                      v.state := T1;
                      v.crc   := CRC5_INIT_C;
-                     case ( ulpiRx.dat(7 downto 6) ) is
-                        when "00"   => v.token.token := TOK_OUT;
-                        when "01"   => v.token.token := TOK_SOF;
-                        when "10"   => v.token.token := TOK_IN;
-                        when others => v.token.token := TOK_SETUP;
-                     end case;
                   else
                      -- FIXME not implemented
                      v.state := WAIT_FOR_EOP;
@@ -108,17 +103,17 @@ begin
 
          when T1 =>
             if ( ulpiRx.nxt = '1' ) then
-               v.token.data(7 downto 0) := ulpiRx.dat;
-               v.state                  := T2;
-               v.crc                    := crc5Out;
+               v.pktHdr.tokDat(7 downto 0) := ulpiRx.dat;
+               v.state                     := T2;
+               v.crc                       := crc5Out;
             end if;
 
          when T2 =>
             if ( ulpiRx.nxt = '1' ) then
-               v.token.data(10 downto 8) := ulpiRx.dat(2 downto 0);
-               v.state                   := WAIT_FOR_EOP;
+               v.pktHdr.tokDat(10 downto 8) := ulpiRx.dat(2 downto 0);
+               v.state                      := WAIT_FOR_EOP;
                if ( crc5Out(CRC5_CHCK_C'range) = CRC5_CHCK_C ) then
-                  v.token.valid := '1';
+                  v.pktHdr.valid := '1';
                end if;
             end if;
                 
@@ -150,6 +145,6 @@ begin
          y   => crc5Out
       );
 
-   token <= r.token;
+   pktHdr <= r.pktHdr;
 
 end architecture Impl;
