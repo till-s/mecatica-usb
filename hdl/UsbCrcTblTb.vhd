@@ -2,18 +2,20 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
+use     work.Usb2Pkg.all;
+
 entity UsbCrcTblTb is
 end entity UsbCrcTblTb;
 
 architecture Sim of UsbCrcTblTb is
    signal clk : std_logic := '0';
 
-   constant POLY_C : std_logic_vector(4 downto 0) := "10100";
-   constant CHCK_C : std_logic_vector(4 downto 0) := "00110";
+   constant POLY_C : std_logic_vector(4 downto 0) := USB2_CRC5_POLY_C(4 downto 0);
+   constant CHCK_C : std_logic_vector(4 downto 0) := USB2_CRC5_CHCK_C(4 downto 0);
 
    constant PO05_C : std_logic_vector(15 downto 0) := x"00" & "000" & POLY_C;
-   constant PO16_C : std_logic_vector(15 downto 0) := x"A001";
-   constant CH16_C : std_logic_vector(15 downto 0) := x"B001";
+   constant PO16_C : std_logic_vector(15 downto 0) := USB2_CRC16_POLY_C;
+   constant CH16_C : std_logic_vector(15 downto 0) := USB2_CRC16_CHCK_C;
 
    signal   x      : std_logic_vector(7 downto 0) := (others => 'X');
    signal   y      : std_logic_vector(POLY_C'range);
@@ -75,18 +77,18 @@ begin
       variable v16 : std_logic_vector(PO16_C'range);
    begin
       tick;
-      x               <= tstVec1(0) xor x"1f";
+      x               <= tstVec1(0) xor USB2_CRC5_INIT_C(7 downto 0);
       tick;
       x               <= tstVec1(1) xor ( "000" & y );
       tick;
       assert y = CHCK_C report "CRC5 1 mismatch" severity failure;
       tick;
-      x               <= tstVec2(0) xor x"1f";
+      x               <= tstVec2(0) xor USB2_CRC5_INIT_C(7 downto 0);
       tick;
       x               <= tstVec2(1) xor ( "000" & y );
       tick;
       assert y = CHCK_C report "CRC5 2 mismatch" severity failure;
-      v16             := (others => '1');
+      v16             := USB2_CRC16_INIT_C;
       x               <= v16(7 downto 0) xor tstVec3(0);
       c16             <= v16;
       tick;

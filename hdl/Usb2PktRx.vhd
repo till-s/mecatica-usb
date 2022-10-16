@@ -19,11 +19,7 @@ end entity Usb2PktRx;
 
 architecture Impl of Usb2PktRx is
 
-   type StateType is (WAIT_FOR_START, WAIT_FOR_EOP, WAIT_FOR_PID, T1, T2);
-
-   constant CRC5_POLY_C : std_logic_vector(15 downto 0) := x"0014";
-   constant CRC5_CHCK_C : std_logic_vector(15 downto 0) := x"0006";
-   constant CRC5_INIT_C : std_logic_vector(15 downto 0) := x"001F";
+   type StateType is (WAIT_FOR_START, WAIT_FOR_EOP, WAIT_FOR_PID, T1, T2, D1, D2, D3);
 
    constant RXCMD_RX_ACTIVE_BIT_C : natural := 4;
 
@@ -42,13 +38,15 @@ architecture Impl of Usb2PktRx is
    type RegType   is record
       state       : StateType;
       pktHdr      : Usb2PktHdrType;
-      crc         : std_logic_vector(CRC5_POLY_C'range);
+      crc         : std_logic_vector(USB2_CRC5_POLY_C'range);
+      extraDat    : boolean;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       state       => WAIT_FOR_START,
       pktHdr      => USB2_PKT_HDR_INIT_C,
-      crc         => (others => '1')
+      crc         => (others => '1'),
+      extraDat    => false
    );
 
    signal r             : RegType := REG_INIT_C;
@@ -62,12 +60,20 @@ begin
       variable v        : RegType;
       variable rxAct    : boolean;
    begin
-      v             := r;
-      v.pktHdr.valid := '0';
-      rxAct         := rxActive( ulpiRx );
+      v              := r;
+      if ( r.pktHdr.valid = '1' ) then
+         v.pktHdr.valid := '0';
+         v.pktHdr.pid   := USB_PID_SPC_NONE;
+      end if;
+      rxAct          := rxActive( ulpiRx );
 
       if ( not rxAct and r.state /= WAIT_FOR_START ) then
-         if ( r.state /= WAIT_FOR_EOP ) then
+         if ( r.state = WAIT_FOR_EOP ) then
+            if ( usb2PidIsHsk( r.pktHdr.pid ) and not r.extraDat ) then
+               -- handshake is only valid if delimited by EOP
+               v.pktHdr.valid := '1'; 
+            end if;
+         else
          -- FIXME unexpected EOP
          end if;
          v.state := WAIT_FOR_START;
@@ -81,6 +87,9 @@ begin
 
          when WAIT_FOR_EOP =>
             -- state changed when not rxActive
+            if ( ulpiRx.nxt = '1' ) then
+               v.extraDat := true;
+            end if;
             
          when WAIT_FOR_PID =>
             if ( ulpiRx.nxt = '1' ) then
@@ -90,14 +99,21 @@ begin
                   -- FIXME ERROR
                else
                   v.pktHdr.pid := ulpiRx.dat(7 downto 4);
-                  if ( usb2PidIsTok( ulpiRx.dat(7 downto 4) ) ) then
-                     -- TOKEN PID
-                     v.state := T1;
-                     v.crc   := CRC5_INIT_C;
-                  else
-                     -- FIXME not implemented
-                     v.state := WAIT_FOR_EOP;
-                  end if;
+                  case ( usb2PidGroup( v.pktHdr.pid ) ) is
+                     when USB_PID_GROUP_TOK =>
+                        -- TOKEN PID
+                        v.state := T1;
+                        v.crc   := USB2_CRC5_INIT_C;
+                     when USB_PID_GROUP_HSK =>
+                        v.extraDat := false;
+                        v.state    := WAIT_FOR_EOP;
+                     when USB_PID_GROUP_DAT =>
+                        v.state := D1;
+                        v.crc   := USB2_CRC16_INIT_C;
+                     when others =>
+                        -- FIXME not implemented
+                        v.state := WAIT_FOR_EOP;
+                  end case;
                end if;
             end if;
 
@@ -112,10 +128,12 @@ begin
             if ( ulpiRx.nxt = '1' ) then
                v.pktHdr.tokDat(10 downto 8) := ulpiRx.dat(2 downto 0);
                v.state                      := WAIT_FOR_EOP;
-               if ( crc5Out(CRC5_CHCK_C'range) = CRC5_CHCK_C ) then
+               if ( crc5Out(USB2_CRC5_CHCK_C'range) = USB2_CRC5_CHCK_C ) then
                   v.pktHdr.valid := '1';
                end if;
             end if;
+
+         when D1 | D2 | D3 =>
                 
       end case;
       end if;
@@ -138,7 +156,7 @@ begin
 
    U_CRC5 : entity work.UsbCrcTbl
       generic map (
-         POLY_G => CRC5_POLY_C
+         POLY_G => USB2_CRC5_POLY_C
       )
       port map (
          x   => crc5Inp,

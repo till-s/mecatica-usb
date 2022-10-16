@@ -3,12 +3,20 @@ use     ieee.std_logic_1164.all;
 
 package Usb2Pkg is
 
-   subtype Usb2PidType is std_logic_vector(3 downto 0);
+   subtype Usb2PidType      is std_logic_vector(3 downto 0);
+   subtype Usb2PidGroupType is std_logic_vector(1 downto 0);
 
    function usb2PidIsTok(constant x : in Usb2PidType) return boolean;
    function usb2PidIsDat(constant x : in Usb2PidType) return boolean;
    function usb2PidIsHsk(constant x : in Usb2PidType) return boolean;
    function usb2PidIsSpc(constant x : in Usb2PidType) return boolean;
+
+   function usb2PidGroup(constant x : in Usb2PidType) return Usb2PidGroupType;
+
+   constant USB_PID_GROUP_TOK  : Usb2PidGroupType := "01";
+   constant USB_PID_GROUP_DAT  : Usb2PidGroupType := "11";
+   constant USB_PID_GROUP_HSK  : Usb2PidGroupType := "10";
+   constant USB_PID_GROUP_SPC  : Usb2PidGroupType := "00";
 
    constant USB_PID_TOK_OUT    : Usb2PidType := x"1";
    constant USB_PID_TOK_SOF    : Usb2PidType := x"5";
@@ -30,6 +38,8 @@ package Usb2Pkg is
    constant USB_PID_SPC_SPLIT  : Usb2PidType := x"8";
    constant USB_PID_SPC_PING   : Usb2PidType := x"4";
 
+   constant USB_PID_SPC_NONE   : Usb2PidType := x"0"; -- reserved
+
    type Usb2PktHdrType is record
       pid     : Usb2PidType;
       tokDat  : std_logic_vector(10 downto 0);
@@ -37,7 +47,7 @@ package Usb2Pkg is
    end record Usb2PktHdrType;
 
    constant USB2_PKT_HDR_INIT_C : Usb2PktHdrType := (
-      pid     => (others => '0'),
+      pid     => USB_PID_SPC_NONE,
       tokDat  => (others => '0'),
       valid   => '0'
    );
@@ -69,6 +79,14 @@ package Usb2Pkg is
       rdy   => '0',
       err   => '0'
    );
+
+   constant USB2_CRC5_POLY_C  : std_logic_vector(15 downto 0) := x"0014";
+   constant USB2_CRC5_CHCK_C  : std_logic_vector(15 downto 0) := x"0006";
+   constant USB2_CRC5_INIT_C  : std_logic_vector(15 downto 0) := x"001F";
+
+   constant USB2_CRC16_POLY_C : std_logic_vector(15 downto 0) := x"A001";
+   constant USB2_CRC16_CHCK_C : std_logic_vector(15 downto 0) := x"B001";
+   constant USB2_CRC16_INIT_C : std_logic_vector(15 downto 0) := x"FFFF";
  
 end package Usb2Pkg;
 
@@ -106,5 +124,9 @@ package body Usb2Pkg is
       return x(1 downto 0) = "00";
    end function usb2PidIsSpc;
 
+   function usb2PidGroup(constant x : in Usb2PidType) return Usb2PidGroupType is
+   begin
+      return x(1 downto 0);
+   end function usb2PidGroup;
 
 end package body Usb2Pkg;
