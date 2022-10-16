@@ -21,9 +21,9 @@ architecture Impl of Usb2PktRx is
 
    type StateType is (WAIT_FOR_START, WAIT_FOR_EOP, WAIT_FOR_PID, T1, T2);
 
-   constant CRC5_POLY_C : std_logic_vector(4 downto 0) := "10100";
-   constant CRC5_CHCK_C : std_logic_vector(4 downto 0) := "00110";
-   constant CRC5_INIT_C : std_logic_vector(4 downto 0) := "11111";
+   constant CRC5_POLY_C : std_logic_vector(15 downto 0) := x"0014";
+   constant CRC5_CHCK_C : std_logic_vector(15 downto 0) := x"0006";
+   constant CRC5_INIT_C : std_logic_vector(15 downto 0) := x"001F";
 
    constant RXCMD_RX_ACTIVE_BIT_C : natural := 4;
 
@@ -42,20 +42,20 @@ architecture Impl of Usb2PktRx is
    type RegType   is record
       state       : StateType;
       token       : Usb2TokenPktType;
-      crc5        : std_logic_vector(CRC5_POLY_C'range);
+      crc         : std_logic_vector(CRC5_POLY_C'range);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       state       => WAIT_FOR_START,
       token       => USB2_TOKEN_PKT_INIT_C,
-      crc5        => (others => '1')
+      crc         => (others => '1')
    );
 
    signal r             : RegType := REG_INIT_C;
    signal rin           : RegType;
 
    signal crc5Inp       : std_logic_vector( 7 downto 0 ); 
-   signal crc5Out       : std_logic_vector( CRC5_POLY_C'range);
+   signal crc5Out       : std_logic_vector(15 downto 0 );
 begin
 
    P_COMB : process ( r, ulpiRx, crc5Out ) is
@@ -92,7 +92,7 @@ begin
                   if ( ulpiRx.dat(5 downto 4) = "01" ) then
                      -- TOKEN PID
                      v.state := T1;
-                     v.crc5  := CRC5_INIT_C;
+                     v.crc   := CRC5_INIT_C;
                      case ( ulpiRx.dat(7 downto 6) ) is
                         when "00"   => v.token.token := TOK_OUT;
                         when "01"   => v.token.token := TOK_SOF;
@@ -110,14 +110,14 @@ begin
             if ( ulpiRx.nxt = '1' ) then
                v.token.data(7 downto 0) := ulpiRx.dat;
                v.state                  := T2;
-               v.crc5                   := crc5Out;
+               v.crc                    := crc5Out;
             end if;
 
          when T2 =>
             if ( ulpiRx.nxt = '1' ) then
                v.token.data(10 downto 8) := ulpiRx.dat(2 downto 0);
                v.state                   := WAIT_FOR_EOP;
-               if ( crc5Out = CRC5_CHCK_C ) then
+               if ( crc5Out(CRC5_CHCK_C'range) = CRC5_CHCK_C ) then
                   v.token.valid := '1';
                end if;
             end if;
@@ -139,15 +139,15 @@ begin
       end if;
    end process P_SEQ;
 
-   crc5Inp <= ulpiRx.dat xor std_logic_vector(resize(unsigned(r.crc5), 8));
+   crc5Inp <= ulpiRx.dat xor r.crc(7 downto 0);
 
    U_CRC5 : entity work.UsbCrcTbl
       generic map (
          POLY_G => CRC5_POLY_C
       )
       port map (
-         x => crc5Inp,
-         y => crc5Out
+         x   => crc5Inp,
+         y   => crc5Out
       );
 
    token <= r.token;

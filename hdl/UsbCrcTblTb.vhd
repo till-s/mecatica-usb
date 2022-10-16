@@ -11,11 +11,13 @@ architecture Sim of UsbCrcTblTb is
    constant POLY_C : std_logic_vector(4 downto 0) := "10100";
    constant CHCK_C : std_logic_vector(4 downto 0) := "00110";
 
+   constant PO05_C : std_logic_vector(15 downto 0) := x"00" & "000" & POLY_C;
    constant PO16_C : std_logic_vector(15 downto 0) := x"A001";
    constant CH16_C : std_logic_vector(15 downto 0) := x"B001";
 
    signal   x      : std_logic_vector(7 downto 0) := (others => 'X');
    signal   y      : std_logic_vector(POLY_C'range);
+   signal   y05    : std_logic_vector(15 downto 0);
    signal   y16    : std_logic_vector(PO16_C'range);
    signal   c16    : std_logic_vector(PO16_C'range);
 
@@ -90,7 +92,6 @@ begin
       tick;
       for i in 1 to tstVec3'length-1 loop
          v16 := (x"00" & c16(15 downto 8)) xor y16;
-report "I " & integer'image(i) & " -> " & integer'image(to_integer(unsigned(v16)));
          x   <= v16(7 downto 0) xor tstVec3(i);
          c16 <= v16;
          tick;
@@ -108,12 +109,13 @@ report "I " & integer'image(i) & " -> " & integer'image(to_integer(unsigned(v16)
 
    U_DUT : entity work.UsbCrcTbl
       generic map (
-         POLY_G => POLY_C
+         POLY_G => PO05_C
       )
       port map (
          x      => x,
-         y      => y
+         y      => y05
       );
+   y <= y05(4 downto 0);
 
    U_DUT16 : entity work.UsbCrcTbl
       generic map (

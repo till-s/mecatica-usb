@@ -4,24 +4,19 @@ use     ieee.numeric_std.all;
 
 entity UsbCrcTbl is
    generic (
-      POLY_G         : std_logic_vector
+      POLY_G : std_logic_vector(15 downto 0)
    );
    port (
-      x : in  std_logic_vector(7 downto 0);
-      y : out std_logic_vector(POLY_G'range)
+      x   : in  std_logic_vector( 7 downto 0);
+      y   : out std_logic_vector(15 downto 0)
    );
 end entity UsbCrcTbl;
 
 architecture Impl of UsbCrcTbl is
-   function max(constant a,b: in natural) return natural is
-   begin
-      if ( a > b ) then return a; else return b; end if;
-   end function max;
 begin
 
    P_COMB : process ( x ) is
-      constant M : natural := max(POLY_G'length, x'length);
-      variable v : std_logic_vector(M - 1 downto 0);
+      variable v : std_logic_vector(15 downto 0);
       variable s : std_logic;
    begin
       v          := (others => '0');
@@ -30,11 +25,11 @@ begin
          s := v(0);
          v := '0' & v(v'left downto 1);
          if ( s = '1' ) then
-            v(POLY_G'range) := v(POLY_G'range) xor POLY_G;
+            v := v xor POLY_G;
          end if;
       end loop;
 
-      y <= v(POLY_G'range);
+      y <= v;
    end process P_COMB;
 
 end architecture Impl;
