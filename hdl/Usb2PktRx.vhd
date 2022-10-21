@@ -69,7 +69,7 @@ architecture Impl of Usb2PktRx is
    signal r             : RegType := REG_INIT_C;
    signal rin           : RegType;
 
-   signal crcInp        : std_logic_vector( 7 downto 0 ); 
+   signal crcInp        : std_logic_vector( 7 downto 0 );
    signal crc5Out       : std_logic_vector(15 downto 0 );
    signal crc16Out      : std_logic_vector(15 downto 0 );
 
@@ -93,7 +93,7 @@ begin
          if ( r.state = WAIT_FOR_EOP ) then
             if ( usb2PidIsHsk( r.pktHdr.pid ) and not r.extraDat ) then
                -- handshake is only valid if delimited by EOP
-               v.pktHdr.valid := '1'; 
+               v.pktHdr.valid := '1';
             end if;
          else
          -- FIXME unexpected EOP
@@ -121,7 +121,7 @@ begin
             if ( ulpiRx.nxt = '1' ) then
                v.extraDat := true;
             end if;
-            
+
          when WAIT_FOR_PID =>
             if ( ulpiRx.nxt = '1' ) then
                -- got it
@@ -133,11 +133,11 @@ begin
                   case ( usb2PidGroup( v.pktHdr.pid ) ) is
                      when USB_PID_GROUP_TOK_C =>
                         -- TOKEN PID
-                        v.state := TOK1;
-                        v.crc   := USB2_CRC5_INIT_C;
+                        v.state        := TOK1;
+                        v.crc          := USB2_CRC5_INIT_C;
                      when USB_PID_GROUP_HSK_C =>
-                        v.extraDat := false;
-                        v.state    := WAIT_FOR_EOP;
+                        v.extraDat     := false;
+                        v.state        := WAIT_FOR_EOP;
                      when USB_PID_GROUP_DAT_C =>
                         v.state        := DAT;
                         v.crc          := USB2_CRC16_INIT_C;
@@ -145,7 +145,7 @@ begin
                         v.pktHdr.valid := '1';
                      when others =>
                         -- FIXME not implemented
-                        v.state := WAIT_FOR_EOP;
+                        v.state        := WAIT_FOR_EOP;
                   end case;
                end if;
             end if;
