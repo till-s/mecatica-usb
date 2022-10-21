@@ -13,32 +13,32 @@ package Usb2Pkg is
 
    function usb2PidGroup(constant x : in Usb2PidType) return Usb2PidGroupType;
 
-   constant USB_PID_GROUP_TOK  : Usb2PidGroupType := "01";
-   constant USB_PID_GROUP_DAT  : Usb2PidGroupType := "11";
-   constant USB_PID_GROUP_HSK  : Usb2PidGroupType := "10";
-   constant USB_PID_GROUP_SPC  : Usb2PidGroupType := "00";
+   constant USB_PID_GROUP_TOK_C: Usb2PidGroupType := "01";
+   constant USB_PID_GROUP_DAT_C: Usb2PidGroupType := "11";
+   constant USB_PID_GROUP_HSK_C: Usb2PidGroupType := "10";
+   constant USB_PID_GROUP_SPC_C: Usb2PidGroupType := "00";
 
-   constant USB_PID_TOK_OUT    : Usb2PidType := x"1";
-   constant USB_PID_TOK_SOF    : Usb2PidType := x"5";
-   constant USB_PID_TOK_IN     : Usb2PidType := x"9";
-   constant USB_PID_TOK_SETUP  : Usb2PidType := x"D";
+   constant USB_PID_TOK_OUT_C  : Usb2PidType := x"1";
+   constant USB_PID_TOK_SOF_C  : Usb2PidType := x"5";
+   constant USB_PID_TOK_IN_C   : Usb2PidType := x"9";
+   constant USB_PID_TOK_SETUP_C: Usb2PidType := x"D";
 
-   constant USB_PID_DAT_DATA0  : Usb2PidType := x"3";
-   constant USB_PID_DAT_DATA2  : Usb2PidType := x"7";
-   constant USB_PID_DAT_DATA1  : Usb2PidType := x"B";
-   constant USB_PID_DAT_MDATA  : Usb2PidType := x"F";
+   constant USB_PID_DAT_DATA0_C: Usb2PidType := x"3";
+   constant USB_PID_DAT_DATA2_C: Usb2PidType := x"7";
+   constant USB_PID_DAT_DATA1_C: Usb2PidType := x"B";
+   constant USB_PID_DAT_MDATA_C: Usb2PidType := x"F";
 
-   constant USB_PID_HSK_ACK    : Usb2PidType := x"2";
-   constant USB_PID_HSK_NYET   : Usb2PidType := x"6";
-   constant USB_PID_HSK_NAK    : Usb2PidType := x"A";
-   constant USB_PID_HSK_STALL  : Usb2PidType := x"E";
+   constant USB_PID_HSK_ACK_C  : Usb2PidType := x"2";
+   constant USB_PID_HSK_NYET_C : Usb2PidType := x"6";
+   constant USB_PID_HSK_NAK_C  : Usb2PidType := x"A";
+   constant USB_PID_HSK_STALL_C: Usb2PidType := x"E";
 
-   constant USB_PID_SPC_PRE    : Usb2PidType := x"C";
-   constant USB_PID_SPC_ERR    : Usb2PidType := x"C"; -- reused
-   constant USB_PID_SPC_SPLIT  : Usb2PidType := x"8";
-   constant USB_PID_SPC_PING   : Usb2PidType := x"4";
+   constant USB_PID_SPC_PRE_C  : Usb2PidType := x"C";
+   constant USB_PID_SPC_ERR_C  : Usb2PidType := x"C"; -- reused
+   constant USB_PID_SPC_SPLIT_C: Usb2PidType := x"8";
+   constant USB_PID_SPC_PING_C : Usb2PidType := x"4";
 
-   constant USB_PID_SPC_NONE   : Usb2PidType := x"0"; -- reserved
+   constant USB_PID_SPC_NONE_C : Usb2PidType := x"0"; -- reserved
 
    type Usb2PktHdrType is record
       pid     : Usb2PidType;
@@ -47,7 +47,7 @@ package Usb2Pkg is
    end record Usb2PktHdrType;
 
    constant USB2_PKT_HDR_INIT_C : Usb2PktHdrType := (
-      pid     => USB_PID_SPC_NONE,
+      pid     => USB_PID_SPC_NONE_C,
       tokDat  => (others => '0'),
       valid   => '0'
    );

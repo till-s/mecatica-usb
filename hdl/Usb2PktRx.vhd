@@ -84,7 +84,7 @@ begin
       v              := r;
       if ( r.pktHdr.valid = '1' ) then
          v.pktHdr.valid := '0';
-         v.pktHdr.pid   := USB_PID_SPC_NONE;
+         v.pktHdr.pid   := USB_PID_SPC_NONE_C;
       end if;
       rxAct          := rxActive( ulpiRx );
       v.datDon       := '0';
@@ -128,14 +128,14 @@ begin
                else
                   v.pktHdr.pid := ulpiRx.dat(3 downto 0);
                   case ( usb2PidGroup( v.pktHdr.pid ) ) is
-                     when USB_PID_GROUP_TOK =>
+                     when USB_PID_GROUP_TOK_C =>
                         -- TOKEN PID
                         v.state := TOK1;
                         v.crc   := USB2_CRC5_INIT_C;
-                     when USB_PID_GROUP_HSK =>
+                     when USB_PID_GROUP_HSK_C =>
                         v.extraDat := false;
                         v.state    := WAIT_FOR_EOP;
-                     when USB_PID_GROUP_DAT =>
+                     when USB_PID_GROUP_DAT_C =>
                         v.state        := DAT;
                         v.crc          := USB2_CRC16_INIT_C;
                         v.datErr       := '1'; -- reset when OK checksum is in

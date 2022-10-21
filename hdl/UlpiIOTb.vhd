@@ -69,10 +69,10 @@ architecture Sim of UlpiIOTb is
    );
 
    constant txVec : Slv9Array := (
-      '0' & not USB_PID_TOK_SOF & USB_PID_TOK_SOF,
+      '0' & not USB_PID_TOK_SOF_C & USB_PID_TOK_SOF_C,
       '0' & x"bf",
       '1' & x"bb",
-      '0' & not USB_PID_TOK_OUT & USB_PID_TOK_OUT,
+      '0' & not USB_PID_TOK_OUT_C & USB_PID_TOK_OUT_C,
       '0' & x"c9",
       '1' & x"fd"
    );
@@ -477,10 +477,10 @@ begin
             if ( pktHdr.valid = '1' ) then
                tokSeen <= tokSeen + 1;
                if ( checkRx = 1 ) then
-                  assert pktHdr.pid = USB_PID_TOK_SOF report "unexpected token1"      severity failure;
+                  assert pktHdr.pid = USB_PID_TOK_SOF_C report "unexpected token1"      severity failure;
                   assert pktHdr.tokDat = CMP1_C report "unexpected token1 data" severity failure;
                elsif ( checkRx = 2 ) then
-                  assert pktHdr.pid = USB_PID_TOK_OUT report "unexpected token2"      severity failure;
+                  assert pktHdr.pid = USB_PID_TOK_OUT_C report "unexpected token2"      severity failure;
                   assert pktHdr.tokDat = CMP2_C report "unexpected token2 data" severity failure;
                end if;
             end if;
