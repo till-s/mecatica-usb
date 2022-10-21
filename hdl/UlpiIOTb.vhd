@@ -31,6 +31,8 @@ architecture Sim of UlpiIOTb is
    signal jamdir          : std_logic := '0';
 
    signal ulpiRx          : UlpiRxType;
+   signal ulpiTxReq       : UlpiTxReqType := ULPI_TX_REQ_INIT_C;
+   signal ulpiTxRep       : UlpiTxRepType;
    signal pktHdr          : Usb2PktHdrType;
 
    signal checkRx         : natural   := 0;
@@ -40,11 +42,12 @@ architecture Sim of UlpiIOTb is
 
    type Slv9Array         is array ( natural range <> ) of std_logic_vector(8 downto 0);
 
-   type StateType is (RESET, IDLE, ADD, ADDLY, WR, RD, JAMMED, RXCMD, TX);
+   type StateType is (RESET, IDLE, ADD, ADDLY, WR, RD, JAMMED, RXCMD, TX, RX);
 
    type RegType   is record
          state       : StateType;
          cnt         : natural;
+         dly         : natural;
          dir         : std_logic;
          nxt         : std_logic;
          dat         : std_logic_vector(7 downto 0);
@@ -53,11 +56,13 @@ architecture Sim of UlpiIOTb is
          ext         : boolean;
          isRd        : boolean;
          txIdx       : natural;
+         rxIdx       : natural;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       state => RESET,
       cnt   => 10,
+      dly   =>  0,
       dir   => '1',
       nxt   => '0',
       dat   => (others => '0'),
@@ -65,7 +70,8 @@ architecture Sim of UlpiIOTb is
       jam   => -1,
       ext   => false,
       isRd  => true,
-      txIdx => 0
+      txIdx => 0,
+      rxIdx => 0
    );
 
    constant txVec : Slv9Array := (
@@ -76,6 +82,43 @@ architecture Sim of UlpiIOTb is
       '0' & x"c9",
       '1' & x"fd"
    );
+
+   constant rxVec : Slv9Array := (
+      '0' & x"44",
+      '0' & x"a1",
+      '1' & x"ff",
+      '0' & x"00"
+   );
+
+   signal sndIdx : natural := 0;
+
+   procedure tick is
+   begin
+      wait until rising_edge( clk );
+   end procedure tick;
+
+   procedure sndPkt(
+     signal idx : inout natural;
+     signal req : inout ulpiTxReqType
+   ) is
+   begin
+      req.vld <= '1';
+      req.dat <= rxVec( idx )(7 downto 0);
+      idx     <= idx + 1;
+      tick;
+      while ( ulpiTxRep.don = '0' ) loop
+         if ( ulpiTxRep.nxt = '1' ) then
+            if ( req.vld = '1' ) then
+              idx     <= idx + 1;
+              req.dat <= rxVec( idx )(7 downto 0);
+              req.vld <= not rxVec( idx )(8);
+            else
+              req.dat <= (others => '0');
+            end if;
+         end if;
+         tick;
+      end loop;
+   end procedure sndPkt;
 
    function toSl(constant x : in boolean) return std_logic is
    begin
@@ -96,11 +139,6 @@ architecture Sim of UlpiIOTb is
       eo.addr  <= std_logic_vector( to_unsigned(a mod 64, 8) );
       eo.valid <= '1';
    end procedure ad;
-
-   procedure tick is
-   begin
-      wait until rising_edge( clk );
-   end procedure tick;
 
    procedure wr(
       signal   eo: inout UlpiRegReqType;
@@ -230,6 +268,8 @@ begin
       assert checkRx = tokSeen report "Token count mismatch" severity warning;
       passed := passed + checkRx;
 
+      sndPkt( sndIdx, ulpiTxReq );
+
       run <= false;
 
       report integer'image(passed) & " TESTS PASSED" severity note;
@@ -249,7 +289,9 @@ begin
          dat         => dat,
          regReq      => regReq,
          regRep      => regRep,
-         ulpiRx      => ulpiRx
+         ulpiRx      => ulpiRx,
+         ulpiTxReq   => ulpiTxReq,
+         ulpiTxRep   => ulpiTxRep
       );
 
    U_PKTDUT : entity work.Usb2PktRx
@@ -336,6 +378,12 @@ begin
                      v.cnt   := v.cnt - 1;
                   end if;
                   PROCJAM(v);
+               elsif ( dat(6) = '1' ) then
+                  -- TXCMD
+                  v.nxt   := '1';
+                  v.state := RX;
+                  v.dly   := 0;
+                  v.cnt   := v.dly;
                end if;
 
             when ADDLY =>
@@ -433,6 +481,22 @@ begin
                   v.nxt   := '1';
                   v.txIdx := v.txIdx + 1;
                   v.dat   := txVec(v.txIdx)(7 downto 0);
+               end if;
+
+            when RX =>
+               if ( v.cnt = 0 ) then
+                  v.nxt   := '1';
+                  v.cnt   := v.dly;
+               else
+                  v.cnt   := v.cnt - 1;
+               end if;
+               if ( (nxt or stp) = '1' ) then
+                  assert dat = rxVec(v.rxIdx)(7 downto 0) report "TXCMD mismatch" severity failure;
+                  v.rxIdx := v.rxIdx + 1;
+               end if;
+               if ( stp = '1' ) then
+                  v.state := IDLE;
+                  v.nxt   := '0';
                end if;
          
          end case;

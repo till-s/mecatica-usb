@@ -207,6 +207,8 @@ begin
                   if ( ulpiTxReq.vld = '0' ) then
                      -- transmission done; the last cycle registers the TX status
                      v.pktState := LAST;
+                     stp_tx <= '1';
+                     v.state := DON;
                   end if;
                else
                   stp_tx  <= '1';
@@ -246,10 +248,6 @@ begin
                v.rep.ack   := '1';
             end if;
       end case;
-
-      ulpiTxRep.nxt <= dou_ce;
-      ulpiTxRep.err <= rTx.rep.err;
-      ulpiTxRep.don <= toSl( ( rTx.state = DON ) and (rTx.pktState /= IDLE ) );
 
       rinTx         <= v;
    end process P_COMB_TX;
@@ -350,5 +348,9 @@ begin
 
          );
    end generate G_ILA;
+
+   ulpiTxRep.nxt <= dou_ce;
+   ulpiTxRep.err <= rTx.rep.err;
+   ulpiTxRep.don <= toSl( ( rTx.state = DON ) and (rTx.pktState /= IDLE ) );
 
 end architecture Impl;
