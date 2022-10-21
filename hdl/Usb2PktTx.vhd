@@ -43,11 +43,14 @@ architecture Impl of Usb2PktTx is
       err         => '0'
    );
 
-   signal r      : RegType := REG_INIT_C;
-   signal rin    : RegType;
+   signal r            : RegType := REG_INIT_C;
+   signal rin          : RegType;
 
-   signal crcInp : std_logic_vector(7 downto 0);
-   signal crcOut : std_logic_vector(USB2_CRC16_POLY_C'range);
+   signal crcInp       : std_logic_vector(7 downto 0);
+   signal crcOut       : std_logic_vector(USB2_CRC16_POLY_C'range);
+
+   signal ulpiTxReqLoc : UlpiTxReqType;
+
 begin
 
    P_COMB : process ( r, ulpiTxRep, txDataMst, crcOut ) is
@@ -68,14 +71,31 @@ begin
                -- buffer the first item
                txDataSub.rdy    <= '1';
                v.ulpiReq.dat    := txDataMst.dat;
-               v.ulpiReq.vld    := '1';
                v.state          := RUN;
                v.err            := '0';
                -- the PID byte is not covered by the checksum
                v.crc            := USB2_CRC16_INIT_C;
             end if;
 
+-- pipeline for sending status
+--  nxt   nxtr   stat   dout  dreg    val  stp    sending
+--   0     1     CHK2   cshi           1            cshi
+--         0     WAI    stat  cshi     1            cshi
+--         0     WAI    stat  cshi     1            cshi
+--   1     0     WAI    stat  cshi     1            cshi
+--         1     WAI    stat           0    1       stat
+--
+--  nxt   nxtr   stat   dout  dreg    val  stp
+--   1     1     CHK2   cshi           1            cshi
+--         1     WAI    stat  cshi     0    1       stat
+--
+--   0     1     CHK2   cshi           1            cshi
+--   1     0     WAI    stat  cshi     1            cshi
+--         1     WAI    stat  cshi     0    1       stat
+--
         when RUN | CHK1 | CHK2 =>
+
+           v.ulpiReq.vld    := '1';
 
            if ( r.state = RUN ) then
               txDataSub.rdy        <= r.nxtr;
@@ -119,9 +139,17 @@ begin
            end if;
 
         when WAI =>
+           if ( r.nxtr = '1' ) then
+              -- send status during this cycle
+              v.ulpiReq.vld     := '0';
+           end if;
            if ( ulpiTxRep.don = '1' ) then
               v.don             := '1';
-              v.ulpiReq.vld     := '0';
+              if ( v.ulpiReq.vld = '1' ) then
+                 -- aborted before sending the last byte!
+                 v.ulpiReq.vld  := '0';
+                 v.err          := '1';
+              end if;
               v.state           := DONE;
            end if;
 
@@ -129,21 +157,28 @@ begin
            v.state := IDLE;
       end case;
 
+      -- need the pre-computed (v) 'vld' flag
+      -- for correct timing of the status byte
+      ulpiTxReqLoc.vld <= v.ulpiReq.vld;
+
       rin <= v;
    end process P_COMB;
 
-   P_MUX : process ( r, txDataMst ) is
+   P_MUX : process ( r, txDataMst, ulpiTxReqLoc.vld ) is
    begin
       if ( r.nxtr = '1' ) then
-         if ( r.state = CHK2 ) then
-            ulpiTxReq.dat <= not r.crc(15 downto 8);
+         if ( ulpiTxReqLoc.vld = '0' ) then
+            -- valid was just turned off -- send status
+            ulpiTxReqLoc.dat <= (others => r.err);
+         elsif ( r.state = CHK2 ) then
+            ulpiTxReqLoc.dat <= not r.crc(15 downto 8);
          elsif ( txDataMst.vld = '0' ) then
-            ulpiTxReq.dat <= not r.crc( 7 downto 0);
+            ulpiTxReqLoc.dat <= not r.crc( 7 downto 0);
          else
-            ulpiTxReq.dat <= txDataMst.dat;
+            ulpiTxReqLoc.dat <= txDataMst.dat;
          end if;
       else
-         ulpiTxReq.dat <= r.ulpiReq.dat;
+         ulpiTxReqLoc.dat <= r.ulpiReq.dat;
       end if;
    end process P_MUX;
 
@@ -173,9 +208,9 @@ begin
          y      => crcOut
       );
 
-   ulpiTxReq.vld <= r.ulpiReq.vld;
-
    txDataSub.don <= r.don;
    txDataSub.err <= r.err;
+
+   ulpiTxReq     <= ulpiTxReqLoc;
 
 end architecture Impl;

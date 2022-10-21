@@ -207,8 +207,8 @@ begin
                   if ( ulpiTxReq.vld = '0' ) then
                      -- transmission done; the last cycle registers the TX status
                      v.pktState := LAST;
-                     stp_tx <= '1';
-                     v.state := DON;
+                     stp_tx     <= '1';
+                     v.state    := DON;
                   end if;
                else
                   stp_tx  <= '1';
