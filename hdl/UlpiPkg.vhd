@@ -38,5 +38,28 @@ package UlpiPkg is
       trn   :  std_logic;
    end record UlpiRxType;
 
+   -- The first data byte must be a TXCMD byte.
+   -- The first cycle after 'vld' is deasserted
+   -- generates a 'stop' cycle on ULPI; the
+   -- data during this cycle must be driven!
+   -- x"00" -> OK, x"FF" -> Error
+   type UlpiTxReqType is record
+      dat   :  std_logic_vector(7 downto 0);
+      vld   :  std_logic;
+   end record UlpiTxReqType;
+
+   constant ULPI_TX_REQ_INIT_C : UlpiTxReqType := (
+      dat   => (others => '0'),
+      vld   => '0'
+   );
+   
+   type UlpiTxRepType is record
+      nxt   :  std_logic;
+      -- error is asserted if the PHY aborted
+      -- the transaction
+      err   :  std_logic;
+      don   :  std_logic;
+   end record UlpiTxRepType;
+
  
 end package UlpiPkg;

@@ -18,6 +18,7 @@ architecture Sim of UsbCrcTblTb is
    constant CH16_C : std_logic_vector(15 downto 0) := USB2_CRC16_CHCK_C;
 
    signal   x      : std_logic_vector(7 downto 0) := (others => 'X');
+   signal   x16    : std_logic_vector(7 downto 0);
    signal   y      : std_logic_vector(POLY_C'range);
    signal   y05    : std_logic_vector(15 downto 0);
    signal   y16    : std_logic_vector(PO16_C'range);
@@ -34,6 +35,8 @@ architecture Sim of UsbCrcTblTb is
       x"c9",
       x"fd"
    );
+
+   signal tst3      : natural   := 0;
 
    constant tstVec3 : Slv8Array := (
       x"c7",
@@ -54,7 +57,8 @@ architecture Sim of UsbCrcTblTb is
       x"ab",
       -- last two bytes are one's complement of CRC (seeded all ones) up to here
       x"a2",
-      x"c1"
+      x"c1",
+      "XXXXXXXX" -- dummy terminator to avoid index overflow
    );
 
    signal done : boolean := false;
@@ -74,7 +78,6 @@ begin
    end process P_CLK;
 
    P_TST : process is
-      variable v16 : std_logic_vector(PO16_C'range);
    begin
       tick;
       x               <= tstVec1(0) xor USB2_CRC5_INIT_C(7 downto 0);
@@ -88,19 +91,13 @@ begin
       x               <= tstVec2(1) xor ( "000" & y );
       tick;
       assert y = CHCK_C report "CRC5 2 mismatch" severity failure;
-      v16             := USB2_CRC16_INIT_C;
-      x               <= v16(7 downto 0) xor tstVec3(0);
-      c16             <= v16;
+      c16             <= USB2_CRC16_INIT_C;
       tick;
-      for i in 1 to tstVec3'length-1 loop
-         v16 := (x"00" & c16(15 downto 8)) xor y16;
-         x   <= v16(7 downto 0) xor tstVec3(i);
-         c16 <= v16;
+      while ( tst3 < tstVec3'high ) loop
+         c16  <= y16 xor (x"00" & c16(15 downto 8));
+         tst3 <= tst3 + 1;
          tick;
       end loop;
-         v16 := (x"00" & c16(15 downto 8)) xor y16;
-         c16 <= v16;
-         tick;
       
       assert (c16 = CH16_C) report "CRC16  mismatch" severity failure;
       
@@ -119,12 +116,14 @@ begin
       );
    y <= y05(4 downto 0);
 
+   x16 <= tstVec3(tst3) xor c16(7 downto 0);
+
    U_DUT16 : entity work.UsbCrcTbl
       generic map (
          POLY_G => PO16_C
       )
       port map (
-         x      => x,
+         x      => x16,
          y      => y16
       );
 end architecture Sim;

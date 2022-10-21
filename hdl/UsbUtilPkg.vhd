@@ -8,6 +8,9 @@ package UsbUtilPkg is
    attribute MARK_DEBUG : string;
 
    function toStr(constant x : in boolean) return string;
+
+   function toSl(constant x : in boolean) return std_logic;
+
 end package UsbUtilPkg;
 
 package body UsbUtilPkg is
@@ -16,5 +19,10 @@ package body UsbUtilPkg is
    begin
       if ( x ) then return "TRUE"; else return "FALSE"; end if;
    end function toStr;
+
+   function toSl(constant x : in boolean) return std_logic is
+   begin
+      if ( x ) then return '1'; else return '0'; end if;
+   end function toSl;
 
 end package body UsbUtilPkg;

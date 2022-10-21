@@ -2,7 +2,9 @@ GHDL=ghdl
 
 VIVADO=/opt/ghdl/v2.0.0-gcc/vivado-2021.2/
 
-SRCS+= UlpiIO.vhd UlpiPkg.vhd UlpiIOTb.vhd Usb2Pkg.vhd
+SRCS+= UsbUtilPkg.vhd
+SRCS+= UlpiPkg.vhd Usb2Pkg.vhd
+SRCS+= UlpiIO.vhd UlpiIOTb.vhd
 SRCS+= Usb2PktRx.vhd UsbCrcTbl.vhd UsbCrcTblTb.vhd
 
 PROG=ulpiiotb usbcrctbltb
@@ -19,8 +21,8 @@ $(PROG): $(SRCS:%.vhd=%.o)
 	$(GHDL) -e $(addprefix -P,$(VIVADO)) -Wl,-no-pie $@
 
 UlpiIOTb.o: UlpiIO.o UlpiPkg.o Usb2Pkg.o Usb2PktRx.o
-UlpiIO.o Usb2PktRx.o: UlpiPkg.o Usb2Pkg.o
-Usb2PktRx.o: UsbCrcTbl.o
+UlpiIO.o Usb2PktRx.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o
+Usb2PktRx.o: UsbUtilPkg.o UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
 
 .PHONY: all build clean

@@ -6,44 +6,51 @@ library unisim;
 use     unisim.vcomponents.all;
 
 use     work.UlpiPkg.all;
+use     work.UsbUtilPkg.all;
 
 entity UlpiIO is
    generic (
-      GEN_ILA_G   : boolean          := true
+      MARK_DEBUG_G  : boolean          := true;
+      GEN_ILA_G     : boolean          := false
    );
    port (
-      rst         :  in    std_logic := '0';
-      clk         :  in    std_logic;
-      stp         :  out   std_logic := '0';
-      dir         :  in    std_logic;
-      nxt         :  in    std_logic;
-      dat         :  inout std_logic_vector(7 downto 0);
+      rst           :  in    std_logic := '0';
+      clk           :  in    std_logic;
+      stp           :  out   std_logic := '0';
+      dir           :  in    std_logic;
+      nxt           :  in    std_logic;
+      dat           :  inout std_logic_vector(7 downto 0);
 
-      ulpiRx      :  out   UlpiRxType;
+      ulpiRx        :  out   UlpiRxType;
+      ulpiTxReq     :  in    UlpiTxReqType := ULPI_TX_REQ_INIT_C;
+      ulpiTxRep     :  out   UlpiTxRepType;
 
-      regReq      :  in    UlpiRegReqType;
-      regRep      :  out   UlpiRegRepType
+      regReq        :  in    UlpiRegReqType;
+      regRep        :  out   UlpiRegRepType
    );
 end entity UlpiIO;
 
 architecture Impl of UlpiIO is
 
-   attribute IOB      : string;
-   attribute IOBDELAY : string;
-   attribute KEEP     : string;
+   attribute IOB        : string;
+   attribute IOBDELAY   : string;
 
-   type TxStateType   is (INIT, IDLE, TX1, TX2, WR, RD1, RD2, DON);
+   type TxStateType       is (INIT, IDLE, TX1, TX2, WR, RD1, RD2, DON);
+
+   type TxPktStateType    is (IDLE, RUN, LAST);
 
    type TxRegType is record
       state       : TxStateType;
       rep         : UlpiRegRepType;
       stp         : std_logic;
+      pktState    : TxPktStateType;
    end record TxRegType;
 
    constant TX_REG_INIT_C : TxRegType := (
       state       => INIT,
       rep         => ULPI_REG_REP_INIT_C,
-      stp         => '0'
+      stp         => '0',
+      pktState    => IDLE
    );
 
    procedure ABRT(variable v : inout TxRegType) is
@@ -102,13 +109,37 @@ architecture Impl of UlpiIO is
       );
    end component Ila_256;
 
+   signal stateVec  : unsigned(2 downto 0);
+   signal regReqDbg : UlpiRegReqType;
+
+   attribute KEEP       of stateVec  : signal is toStr( GEN_ILA_G );
+   attribute KEEP       of regReqDbg : signal is toStr( GEN_ILA_G );
+
+   
+   attribute MARK_DEBUG of  din_r          : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  dou_tx         : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  dou_rst        : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  dou_ce         : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  dir_r          : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  nxt_r          : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  stp_tx         : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  regReqDbg      : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  trn_r          : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  stateVec       : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  blank          : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of  rTx            : signal is toStr( MARK_DEBUG_G );
+
 begin
 
-   P_COMB_TX : process ( rTx, regReq, dir_r, din_r, nxt_r, nxt ) is
+   regReqDbg <= regReq;
+   stateVec  <= to_unsigned( TxStateType'pos( rTx.state ), stateVec'length );
+
+
+   P_COMB_TX : process ( rTx, regReq, dir_r, din_r, nxt_r, nxt, ulpiTxReq ) is
       variable v : TxRegType;
    begin
       v          := rTx;
-      dou_tx     <= (others => '0');
+      dou_tx     <= ulpiTxReq.dat;
       dou_ce     <= '1';
       v.rep.ack  := '0';
       stp_tx     <= '0';
@@ -120,18 +151,25 @@ begin
             v.state := IDLE;
 
          when IDLE =>
-            if ( ( dir_r = '0' ) and ( regReq.valid = '1' ) ) then
-               v.rep.err := '0';
-               dou_tx(7 downto 6) <= "1" & regReq.rdnwr;
-               if ( regReq.extnd = '1' ) then
-                  dou_tx(5 downto 0)  <= "101111";
-                  v.state             := TX1;
-               else
-                  -- assume addr /= 101111
-                  dou_tx(5 downto 0)  <= regReq.addr(5 downto 0);
-                  v.state             := TX2;
+            v.pktState := IDLE;
+            v.rep.err  := '0';
+            if ( ( dir_r = '0' ) ) then
+               if    ( ulpiTxReq.vld = '1' ) then
+                  v.pktState   := RUN;
+                  v.state      := WR;
+                  dou_ce       <= '1';
+               elsif ( regReq.valid = '1' ) then
+                  dou_tx(7 downto 6) <= "1" & regReq.rdnwr;
+                  if ( regReq.extnd = '1' ) then
+                     dou_tx(5 downto 0)  <= "101111";
+                     v.state             := TX1;
+                  else
+                     -- assume addr /= 101111
+                     dou_tx(5 downto 0)  <= regReq.addr(5 downto 0);
+                     v.state             := TX2;
+                  end if;
+                  dou_ce <= '1';
                end if;
-               dou_ce <= '1';
             end if;
 
          when TX1  =>
@@ -164,8 +202,16 @@ begin
             if ( dir_r = '1' ) then
                ABRT( v );
             elsif ( nxt = '1' ) then
-               stp_tx  <= '1';
-               v.state := DON;
+               if ( rTx.pktState = RUN ) then
+                  -- this is a packet data transmission
+                  if ( ulpiTxReq.vld = '0' ) then
+                     -- transmission done; the last cycle registers the TX status
+                     v.pktState := LAST;
+                  end if;
+               else
+                  stp_tx  <= '1';
+                  v.state := DON;
+               end if;
             end if;
 
          when RD1 =>
@@ -184,7 +230,7 @@ begin
             end if;
 
          when DON =>
-            if ( rTx.rep.ack = '1' ) then
+            if ( rTx.rep.ack = '1' or ( rTx.pktState /= IDLE ) ) then
                v.state := IDLE;
             else
                if ( regReq.rdnwr = '1' ) then
@@ -201,7 +247,11 @@ begin
             end if;
       end case;
 
-      rinTx  <= v;
+      ulpiTxRep.nxt <= dou_ce;
+      ulpiTxRep.err <= rTx.rep.err;
+      ulpiTxRep.don <= toSl( ( rTx.state = DON ) and (rTx.pktState /= IDLE ) );
+
+      rinTx         <= v;
    end process P_COMB_TX;
 
    P_SEQ_TX : process ( clk ) is
@@ -265,15 +315,7 @@ begin
    ulpiRx.trn <= trn_r;
 
    G_ILA : if ( GEN_ILA_G ) generate
-      signal stateVec  : unsigned(2 downto 0);
-      signal regReqDbg : UlpiRegReqType;
-
-      attribute KEEP   of stateVec  : signal is "TRUE";
-      attribute KEEP   of regReqDbg : signal is "TRUE";
    begin
-
-      regReqDbg <= regReq;
-      stateVec  <= to_unsigned( TxStateType'pos( rTx.state ), stateVec'length );
 
       U_ULPI_ILA : component Ila_256
          port map (
@@ -292,16 +334,15 @@ begin
             probe0(          22) => regReqDbg.extnd,
             probe0(          23) => trn_r,
             probe0(31 downto 24) => regReqDbg.addr,
-            probe0(63 downto 32) => (others => '0'),
+            probe0(39 downto 32) => regReqDbg.wdat,
+            probe0(42 downto 40) => std_logic_vector( stateVec ), 
+            probe0(          43) => blank,
+            probe0(          44) => rTx.rep.ack,
+            probe0(          45) => rTx.rep.err,
+            probe0(53 downto 46) => rTx.rep.rdat,
+            probe0(63 downto 54) => (others => '0'),
 
-            probe1( 7 downto  0) => regReqDbg.wdat,
-            probe1(10 downto  8) => std_logic_vector( stateVec ),
-            probe1(          11) => blank,
-            probe1(          12) => rTx.rep.ack,
-            probe1(          13) => rTx.rep.err,
-            probe1(15 downto 14) => (others => '0'),
-            probe1(23 downto 16) => rTx.rep.rdat,
-            probe1(63 downto 24) => (others => '0'),
+            probe1(63 downto  0) => (others => '0'),
 
             probe2(63 downto  0) => (others => '0'),
 
