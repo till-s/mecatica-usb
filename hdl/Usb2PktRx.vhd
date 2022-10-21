@@ -100,6 +100,9 @@ begin
          end if;
          if ( r.state = DAT ) then
             v.datDon := '1';
+            for i in r.datPipe'range loop
+               v.datPipe(i).nxt := '0';
+            end loop;
             if ( r.crc = USB2_CRC16_CHCK_C ) then
                v.datErr := '0';
             end if;
@@ -140,9 +143,6 @@ begin
                         v.crc          := USB2_CRC16_INIT_C;
                         v.datErr       := '1'; -- reset when OK checksum is in
                         v.pktHdr.valid := '1';
-                        for i in r.datPipe'range loop
-                           v.datPipe(i).nxt := '0';
-                        end loop;
                      when others =>
                         -- FIXME not implemented
                         v.state := WAIT_FOR_EOP;

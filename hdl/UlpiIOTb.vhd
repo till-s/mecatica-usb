@@ -34,6 +34,7 @@ architecture Sim of UlpiIOTb is
    signal ulpiTxReq       : UlpiTxReqType := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep       : UlpiTxRepType;
    signal pktHdr          : Usb2PktHdrType;
+   signal rxData          : Usb2StrmMstType;
 
    signal checkRx         : natural   := 0;
    signal startTx         : integer   := -1;
@@ -74,13 +75,34 @@ architecture Sim of UlpiIOTb is
       rxIdx => 0
    );
 
+   constant DATA0_START_IDX_C : natural := 6;
+
    constant txVec : Slv9Array := (
       '0' & not USB_PID_TOK_SOF_C & USB_PID_TOK_SOF_C,
       '0' & x"bf",
       '1' & x"bb",
       '0' & not USB_PID_TOK_OUT_C & USB_PID_TOK_OUT_C,
       '0' & x"c9",
-      '1' & x"fd"
+      '1' & x"fd",
+      '0' & not USB_PID_DAT_DATA0_C & USB_PID_DAT_DATA0_C,
+      '0' & x"c7",
+      '0' & x"3d",
+      '0' & x"25",
+      '0' & x"93",
+      '0' & x"ba",
+      '0' & x"bb",
+      '0' & x"b3",
+      '0' & x"5e",
+      '0' & x"54",
+      '0' & x"5a",
+      '0' & x"ac",
+      '0' & x"5a",
+      '0' & x"6c",
+      '0' & x"ee",
+      '0' & x"00",
+      '0' & x"ab",
+      '0' & x"a2", --checksum: crc16 (poly 0xa001, seed 0xffff, one's complement of crc attached here)
+      '1' & x"c1"
    );
 
    constant rxVec : Slv9Array := (
@@ -265,6 +287,15 @@ begin
          tick;
       end loop;
 
+      -- DATA0 transaction (crc16 verification)
+      startTx <= DATA0_START_IDX_C;
+      checkRx <= checkRx + 1;
+      tick;
+      startTx <= -1;
+      for i in 0 to 30 loop
+         tick;
+      end loop;
+
       assert checkRx = tokSeen report "Token count mismatch" severity warning;
       passed := passed + checkRx;
 
@@ -299,7 +330,8 @@ begin
          clk         => clk,
          rst         => rst,
          ulpiRx      => ulpiRx,
-         pktHdr      => pktHdr
+         pktHdr      => pktHdr,
+         rxData      => rxData
       );
 
    P_FAKE : process ( clk ) is
@@ -531,8 +563,9 @@ begin
    end process P_DAT;
 
    P_RX : process ( clk ) is
-      constant CMP1_C : std_logic_vector := txVec(2)(2 downto 0) & txVec(1)(7 downto 0);
-      constant CMP2_C : std_logic_vector := txVec(5)(2 downto 0) & txVec(4)(7 downto 0);
+      constant CMP1_C  : std_logic_vector := txVec(2)(2 downto 0) & txVec(1)(7 downto 0);
+      constant CMP2_C  : std_logic_vector := txVec(5)(2 downto 0) & txVec(4)(7 downto 0);
+      variable dataIdx : integer          := -1;
    begin
       if ( rising_edge( clk ) ) then
          if ( checkRx = 0 ) then
@@ -546,7 +579,21 @@ begin
                elsif ( checkRx = 2 ) then
                   assert pktHdr.pid = USB_PID_TOK_OUT_C report "unexpected token2"      severity failure;
                   assert pktHdr.tokDat = CMP2_C report "unexpected token2 data" severity failure;
+               elsif ( checkRx = 3 ) then
+                  assert pktHdr.pid = USB_PID_DAT_DATA0_C report "unexpected pid /= DATA0"      severity failure;
+                  dataIdx := DATA0_START_IDX_C + 1;
                end if;
+            end if;
+            if ( dataIdx >= 0 ) then
+               if ( rxData.don = '1' ) then
+                  assert rxData.err = '0' report "DATA0 reception error" severity failure;
+                  dataIdx := -1;
+               elsif ( rxData.vld = '1' ) then
+                  assert txVec(dataIdx)(7 downto 0) = rxData.dat report "DATA0 reception mismatch" severity failure;
+                  dataIdx := dataIdx + 1;
+               end if;
+            else
+               assert rxData.vld = '0' report "rxData unexpectedly valid" severity failure;
             end if;
          end if;
       end if;

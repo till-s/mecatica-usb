@@ -74,12 +74,16 @@ package Usb2Pkg is
 
    type Usb2StrmSubType is record
       rdy   : std_logic;
+      -- if an error occurs then the stream is aborted (sender must stop)
+      -- i.e., 'don' may be asserted before all the data are sent!
       err   : std_logic;
+      don   : std_logic;
    end record Usb2StrmSubType;
 
    constant USB2_STRM_SUB_INIT_C : Usb2StrmSubType := (
       rdy   => '0',
-      err   => '0'
+      err   => '0',
+      don   => '0'
    );
 
    constant USB2_CRC5_POLY_C  : std_logic_vector(15 downto 0) := x"0014";
