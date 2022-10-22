@@ -53,6 +53,9 @@ architecture Impl of Usb2PktTx is
 
    signal ulpiTxReqLoc : UlpiTxReqType;
 
+   attribute MARK_DEBUG of r            : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of ulpiTxReqLoc : signal is toStr(MARK_DEBUG_G);
+
 begin
 
    P_COMB : process ( r, ulpiTxRep, txDataMst, crcOut ) is
