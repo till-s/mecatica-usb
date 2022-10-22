@@ -60,6 +60,7 @@ package Usb2Pkg is
 
    type Usb2StrmMstType is record
       dat   : std_logic_vector(7 downto 0);
+      usr   : std_logic_vector(3 downto 0);
       vld   : std_logic;
       don   : std_logic;
       err   : std_logic; -- when asserted with 'don' then there was e.g., a bad checksum
@@ -67,6 +68,7 @@ package Usb2Pkg is
 
    constant USB2_STRM_MST_INIT_C : Usb2StrmMstType := (
       dat   => (others => '0'),
+      usr   => (others => '0'),
       vld   => '0',
       don   => '0',
       err   => '0'

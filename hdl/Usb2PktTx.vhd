@@ -27,18 +27,20 @@ architecture Impl of Usb2PktTx is
 
    type RegType   is record
       state       : StateType;
+      -- register ulpi 'nxt' and use a local buffer; we don't
+      -- want to propagate a combinatorial 'nxt' out of this module
+      nxtr        : std_logic;
       ulpiReq     : UlpiTxReqType;
       crc         : std_logic_vector(USB2_CRC16_POLY_C'range);
-      nxtr        : std_logic;
       don         : std_logic;
       err         : std_logic;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       state       => IDLE,
+      nxtr        => '0',
       ulpiReq     => ULPI_TX_REQ_INIT_C,
       crc         => (others => '0'),
-      nxtr        => '0',
       don         => '0',
       err         => '0'
    );
@@ -61,19 +63,21 @@ begin
 
       txDataSub.rdy <= '0';
 
-      -- register ulpi 'nxt' and use a local buffer; we don't
-      -- want to propagate a combinatorial 'nxt' out of this module
-      v.nxtr        := ulpiTxRep.nxt;
+      if ( r.state = RUN ) then
+         txDataSub.rdy <= r.nxtr;
+      end if;
+
+      v.nxtr           := ulpiTxRep.nxt;
 
       case ( r.state ) is
          when IDLE =>
+            v.nxtr := '0';
             if ( txDataMst.vld = '1' ) then
-               -- buffer the first item
-               txDataSub.rdy    <= '1';
-               v.ulpiReq.dat    := txDataMst.dat;
+               -- buffer the PID
+               v.ulpiReq.dat    := ULPI_TXCMD_TX_C & txDataMst.usr(3 downto 0);
                v.state          := RUN;
                v.err            := '0';
-               -- the PID byte is not covered by the checksum
+               -- the PID byte / TXCMD is not covered by the checksum
                v.crc            := USB2_CRC16_INIT_C;
             end if;
 
@@ -95,23 +99,27 @@ begin
 --
         when RUN | CHK1 | CHK2 =>
 
-           v.ulpiReq.vld    := '1';
-
-           if ( r.state = RUN ) then
-              txDataSub.rdy        <= r.nxtr;
-           end if;
+           v.ulpiReq.vld        := '1';
 
            if ( ulpiTxRep.don = '1' ) then
+              -- aborted by PHY
               v.don             := '1';
               v.err             := '1';
               v.ulpiReq.vld     := '0';
+              v.ulpiReq.dat     := (others => '0');
+              v.nxtr            := '0';
               v.state           := DONE;
-           elsif ( txDataMst.vld = '0' ) then
+           elsif ( txDataMst.vld = '0'  or  r.state /= RUN ) then
+              -- we can end up here with 'vld=1' if there was a vld=0
+              -- cycle that caused us to send corrupted crc and abort
               if ( txDataMst.don /= '1' and r.state = RUN ) then
                  -- underrun
                  v.err          := '1';
-                 v.don          := '1';
-                 v.state        := DONE;
+                 v.state        := CHK1;
+                 v.crc          := not r.crc;
+                 -- if r.nxtr = '1' we would normall latch into
+                 -- ulpiReq.dat but since we are aborting we don't
+                 -- care what we send...
               elsif ( r.nxtr = '1' ) then
                  if    ( r.state = CHK2 ) then
                     v.state       := WAI;
@@ -124,6 +132,9 @@ begin
                     v.ulpiReq.dat := not r.crc(7  downto 0);
                  end if;
               elsif ( r.state = RUN ) then
+                 -- vld has just been deasserted but ULPI has
+                 -- not yet fetchd the last data which are in ulpiReq.dat
+                 -- append the crc as soon as they are ready
                  v.state := CHK1;
               end if;
            else
@@ -132,7 +143,7 @@ begin
                  v.err          := '1';
               end if;
               if ( r.nxtr = '1' ) then
-                 -- store input data in our local register
+                 -- store input data in our local register and run crc
                  v.ulpiReq.dat  := txDataMst.dat;
                  v.crc          := crcOut xor ( x"00" & r.crc(15 downto 8 ) );
               end if;
@@ -142,9 +153,17 @@ begin
            if ( r.nxtr = '1' ) then
               -- send status during this cycle
               v.ulpiReq.vld     := '0';
+              v.ulpiReq.dat     := (others => '0'); -- drive the bus idle
+           end if;
+           if ( v.ulpiReq.vld = '0' ) then
+              -- make sure the data mux drives the registered all-zero
+              -- byte on the bus
+              v.nxtr := '0';
            end if;
            if ( ulpiTxRep.don = '1' ) then
               v.don             := '1';
+              v.ulpiReq.dat     := (others => '0'); -- drive the bus idle
+              v.nxtr            := '0';
               if ( v.ulpiReq.vld = '1' ) then
                  -- aborted before sending the last byte!
                  v.ulpiReq.vld  := '0';
@@ -154,6 +173,7 @@ begin
            end if;
 
         when DONE => -- allow 'don' flag to reset
+           v.nxtr  := '0';
            v.state := IDLE;
       end case;
 

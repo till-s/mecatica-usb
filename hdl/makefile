@@ -6,6 +6,7 @@ SRCS+= UsbUtilPkg.vhd
 SRCS+= UlpiPkg.vhd Usb2Pkg.vhd
 SRCS+= UlpiIO.vhd UlpiIOTb.vhd
 SRCS+= Usb2PktRx.vhd UsbCrcTbl.vhd UsbCrcTblTb.vhd
+SRCS+= Usb2PktTx.vhd
 
 PROG=ulpiiotb usbcrctbltb
 
@@ -20,7 +21,7 @@ build: $(PROG)
 $(PROG): $(SRCS:%.vhd=%.o)
 	$(GHDL) -e $(addprefix -P,$(VIVADO)) -Wl,-no-pie $@
 
-UlpiIOTb.o: UlpiIO.o UlpiPkg.o Usb2Pkg.o Usb2PktRx.o
+UlpiIOTb.o: UlpiIO.o UlpiPkg.o Usb2Pkg.o Usb2PktRx.o Usb2PktTx.o
 UlpiIO.o Usb2PktRx.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o
 Usb2PktRx.o: UsbUtilPkg.o UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o

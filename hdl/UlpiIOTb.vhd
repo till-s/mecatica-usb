@@ -41,6 +41,9 @@ architecture Sim of UlpiIOTb is
    signal startTxBB       : integer   := -1;
    signal tokSeen         : natural   := 0;
 
+   signal txDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
+   signal txDataSub       : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
+
    type Slv9Array         is array ( natural range <> ) of std_logic_vector(8 downto 0);
 
    type StateType is (RESET, IDLE, ADD, ADDLY, WR, RD, JAMMED, RXCMD, TX, RX);
@@ -106,13 +109,18 @@ architecture Sim of UlpiIOTb is
    );
 
    constant rxVec : Slv9Array := (
+      '0' & x"43", -- not sent! used for comparison only
       '0' & x"44",
       '0' & x"a1",
-      '1' & x"ff",
-      '0' & x"00"
+      '0' & x"ff",
+      '1' & x"f7", -- checksum lo
+      '1' & x"fa", -- checksum hi
+      '1' & x"00"  -- status
    );
 
    signal sndIdx : natural := 0;
+   signal chkIdx : natural := 0;
+   signal chkDly : natural := 0;
 
    procedure tick is
    begin
@@ -120,26 +128,51 @@ architecture Sim of UlpiIOTb is
    end procedure tick;
 
    procedure sndPkt(
-     signal idx : inout natural;
-     signal req : inout ulpiTxReqType
+     constant strt     : in    natural;
+     signal   idx      : inout natural;
+     signal   cid      : inout integer;
+     signal   jm       : inout integer;
+     signal   mst      : inout Usb2StrmMstType;
+     constant underrun : in    integer         := -1;
+     constant jamidx   : in    integer         := -1
    ) is
    begin
-      req.vld <= '1';
-      req.dat <= rxVec( idx )(7 downto 0);
-      idx     <= idx + 1;
+      if ( underrun >= 0 ) then
+         cid  <= -1;
+      else
+        cid   <= strt;
+      end if;
+      mst.usr <= "0011";
+      mst.dat <= rxVec( strt + 1 )(7 downto 0);
+      mst.err <= '0';
+      mst.don <= '0';
+      mst.vld <= '1';
+      idx     <= strt + 2;
       tick;
-      while ( ulpiTxRep.don = '0' ) loop
-         if ( ulpiTxRep.nxt = '1' ) then
-            if ( req.vld = '1' ) then
-              idx     <= idx + 1;
-              req.dat <= rxVec( idx )(7 downto 0);
-              req.vld <= not rxVec( idx )(8);
-            else
-              req.dat <= (others => '0');
+      while ( txDataSub.don = '0' ) loop
+         if ( txDataSub.rdy = '1' ) then
+            if ( mst.vld = '1' ) then
+              if ( rxVec( idx )(8) = '1' ) then
+                 mst.vld <= '0';
+                 mst.don <= '1';
+              else
+                 idx     <= idx + 1;
+                 mst.dat <= rxVec( idx )(7 downto 0);
+              end if;
+              if ( idx = underrun ) then
+                mst.vld <= '0';
+              end if;
+            elsif ( mst.don = '0' ) then
+              mst.vld <= '1';
             end if;
+         end if;
+         jm <= -1;
+         if ( jamidx = idx ) then
+            jm <= 0;
          end if;
          tick;
       end loop;
+      assert (txDataSub.err = '0') = ( (underrun < 0) and ( jamidx < 0 ) ) report "sndPkt return status unexpected" severity failure;
    end procedure sndPkt;
 
    function toSl(constant x : in boolean) return std_logic is
@@ -299,9 +332,30 @@ begin
       assert checkRx = tokSeen report "Token count mismatch" severity warning;
       passed := passed + checkRx;
 
-      sndPkt( sndIdx, ulpiTxReq );
+      for i in 0 to 3 loop
+         chkDly <= i;
+         sndPkt( 0, sndIdx, chkIdx, jam, txDataMst );
+         passed := passed + 1;
+      end loop;
+
+      -- underrun should produce an error and abort
+      chkDly <= 0;
+      sndPkt( 0, sndIdx, chkIdx, jam, txDataMst, underrun => 2 );
+      passed := passed + 1;
+
+      -- jam should produce an error and abort
+      chkDly <= 0;
+      sndPkt( 0, sndIdx, chkIdx, jam, txDataMst, jamidx => 3 );
+      passed := passed + 1;
+
+
+      tick; tick; tick;
 
       run <= false;
+
+      assert dbg1.state = IDLE report "Test state machine not idle" severity failure;
+
+      assert passed = 927      report "passing count mismatch" severity failure;
 
       report integer'image(passed) & " TESTS PASSED" severity note;
       wait;
@@ -325,7 +379,7 @@ begin
          ulpiTxRep   => ulpiTxRep
       );
 
-   U_PKTDUT : entity work.Usb2PktRx
+   U_RXPKTDUT : entity work.Usb2PktRx
       port map (
          clk         => clk,
          rst         => rst,
@@ -333,6 +387,17 @@ begin
          pktHdr      => pktHdr,
          rxData      => rxData
       );
+
+   U_TXPKTDUT : entity work.Usb2PktTx
+      port map (
+         clk         => clk,
+         rst         => rst,
+         ulpiTxReq   => ulpiTxReq,
+         ulpiTxRep   => ulpiTxRep,
+         txDataMst   => txDataMst,
+         txDataSub   => txDataSub
+      );
+
 
    P_FAKE : process ( clk ) is
       procedure PROCJAM(variable v : inout RegType) is
@@ -414,8 +479,8 @@ begin
                   -- TXCMD
                   v.nxt   := '1';
                   v.state := RX;
-                  v.dly   := 0;
-                  v.cnt   := v.dly;
+                  v.rxIdx := chkIdx;
+                  v.cnt   := chkDly;
                end if;
 
             when ADDLY =>
@@ -516,15 +581,33 @@ begin
                end if;
 
             when RX =>
+               -- should not send stop when aborted by dir = 1
+               assert v.dir = '0' or stp = '0' report "unexpected STP after DIR changed" severity failure;
+               if ( jam >= 0 ) then
+                  v.dir   := '1';
+                  v.cnt   :=  3;
+               end if;
                if ( v.cnt = 0 ) then
                   v.nxt   := '1';
-                  v.cnt   := v.dly;
+                  if ( v.dir = '1' ) then
+                     v.state := IDLE;
+                     v.dir   := '0';
+                  else
+                     v.cnt   := chkDly;
+                  end if;
                else
                   v.cnt   := v.cnt - 1;
                end if;
-               if ( (nxt or stp) = '1' ) then
-                  assert dat = rxVec(v.rxIdx)(7 downto 0) report "TXCMD mismatch" severity failure;
-                  v.rxIdx := v.rxIdx + 1;
+               if ( v.rxIdx >= 0 ) then
+                  if ( (nxt or stp) = '1' ) then
+                     assert dat = rxVec(v.rxIdx)(7 downto 0) report "TXCMD mismatch" severity failure;
+                     v.rxIdx := v.rxIdx + 1;
+                  end if;
+               else
+                  -- underrun
+                  if ( stp = '1' ) then
+                     assert dat = x"FF" report "error status mismatch" severity failure;
+                  end if;
                end if;
                if ( stp = '1' ) then
                   v.state := IDLE;
