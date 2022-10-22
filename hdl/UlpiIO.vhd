@@ -158,7 +158,7 @@ begin
                   v.pktState   := RUN;
                   v.state      := WR;
                   dou_ce       <= '1';
-               elsif ( regReq.valid = '1' ) then
+               elsif ( regReq.vld = '1' ) then
                   dou_tx(7 downto 6) <= "1" & regReq.rdnwr;
                   if ( regReq.extnd = '1' ) then
                      dou_tx(5 downto 0)  <= "101111";
@@ -328,7 +328,7 @@ begin
             probe0(          18) => dir_r,
             probe0(          19) => nxt_r,
             probe0(          20) => stp_tx,
-            probe0(          21) => regReqDbg.valid,
+            probe0(          21) => regReqDbg.vld,
             probe0(          22) => regReqDbg.extnd,
             probe0(          23) => trn_r,
             probe0(31 downto 24) => regReqDbg.addr,

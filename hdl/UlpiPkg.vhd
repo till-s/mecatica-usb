@@ -9,7 +9,7 @@ package UlpiPkg is
       addr  : std_logic_vector(7 downto 0);
       wdat  : std_logic_vector(7 downto 0);
       extnd : std_logic;
-      valid : std_logic;
+      vld   : std_logic;
       rdnwr : std_logic;
    end record UlpiRegReqType;
 
@@ -17,7 +17,7 @@ package UlpiPkg is
       addr  => (others => '0'),
       wdat  => (others => '0'),
       extnd => '0',
-      valid => '0',
+      vld   => '0',
       rdnwr => '0'
    );
 

@@ -192,7 +192,7 @@ architecture Sim of UlpiIOTb is
          eo.extnd <= '1';
       end if;
       eo.addr  <= std_logic_vector( to_unsigned(a mod 64, 8) );
-      eo.valid <= '1';
+      eo.vld   <= '1';
    end procedure ad;
 
    procedure wr(
@@ -206,11 +206,11 @@ architecture Sim of UlpiIOTb is
       ad(eo, a);
       eo.wdat  <= v;
       eo.rdnwr <= '0';
-      while ( (eo.valid and ei.ack) = '0' ) loop
+      while ( (eo.vld and ei.ack) = '0' ) loop
          tick;
       end loop;
       assert ( ei.err = e ) report "Write Error" severity failure;
-      eo.valid <= '0';
+      eo.vld <= '0';
       tick;
    end procedure wr;
 
@@ -224,12 +224,12 @@ architecture Sim of UlpiIOTb is
    begin
       ad(eo, a);
       eo.rdnwr <= '1';
-      while ( (eo.valid and ei.ack) = '0' ) loop
+      while ( (eo.vld and ei.ack) = '0' ) loop
          tick;
       end loop;
       v := ei.rdat;
       assert ( ei.err = e ) report "Read Error" severity failure;
-      eo.valid <= '0';
+      eo.vld <= '0';
       tick;
    end procedure rd;
 
@@ -448,7 +448,7 @@ begin
             when JAMMED =>
                v.dir := '1';
                v.nxt := '1';
-               if ( ( regReq.valid and regRep.ack ) = '1' ) then
+               if ( ( regReq.vld and regRep.ack ) = '1' ) then
                   v.dir   := '0';
                   v.nxt   := '0';
                   v.state := IDLE;
@@ -652,9 +652,9 @@ begin
    begin
       if ( rising_edge( clk ) ) then
          if ( checkRx = 0 ) then
-            assert pktHdr.valid = '0' report "Unexpectedly valid token" severity failure;
+            assert pktHdr.vld = '0' report "Unexpectedly valid token" severity failure;
          else
-            if ( pktHdr.valid = '1' ) then
+            if ( pktHdr.vld = '1' ) then
                tokSeen <= tokSeen + 1;
                if ( checkRx = 1 ) then
                   assert pktHdr.pid = USB_PID_TOK_SOF_C report "unexpected token1"      severity failure;

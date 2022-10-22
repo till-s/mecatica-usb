@@ -82,9 +82,9 @@ begin
       variable rxAct    : boolean;
    begin
       v              := r;
-      if ( r.pktHdr.valid = '1' ) then
-         v.pktHdr.valid := '0';
-         v.pktHdr.pid   := USB_PID_SPC_NONE_C;
+      if ( r.pktHdr.vld = '1' ) then
+         v.pktHdr.vld := '0';
+         v.pktHdr.pid := USB_PID_SPC_NONE_C;
       end if;
       rxAct          := rxActive( ulpiRx );
       v.datDon       := '0';
@@ -93,7 +93,7 @@ begin
          if ( r.state = WAIT_FOR_EOP ) then
             if ( usb2PidIsHsk( r.pktHdr.pid ) and not r.extraDat ) then
                -- handshake is only valid if delimited by EOP
-               v.pktHdr.valid := '1';
+               v.pktHdr.vld := '1';
             end if;
          else
          -- FIXME unexpected EOP
@@ -142,7 +142,7 @@ begin
                         v.state        := DAT;
                         v.crc          := USB2_CRC16_INIT_C;
                         v.datErr       := '1'; -- reset when OK checksum is in
-                        v.pktHdr.valid := '1';
+                        v.pktHdr.vld   := '1';
                      when others =>
                         -- FIXME not implemented
                         v.state        := WAIT_FOR_EOP;
@@ -162,7 +162,7 @@ begin
                v.pktHdr.tokDat(10 downto 8) := ulpiRx.dat(2 downto 0);
                v.state                      := WAIT_FOR_EOP;
                if ( crc5Out(USB2_CRC5_CHCK_C'range) = USB2_CRC5_CHCK_C ) then
-                  v.pktHdr.valid := '1';
+                  v.pktHdr.vld := '1';
                end if;
             end if;
 

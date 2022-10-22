@@ -43,13 +43,13 @@ package Usb2Pkg is
    type Usb2PktHdrType is record
       pid     : Usb2PidType;
       tokDat  : std_logic_vector(10 downto 0);
-      valid   : std_logic; -- asserted for 1 cycle
+      vld     : std_logic; -- asserted for 1 cycle
    end record Usb2PktHdrType;
 
    constant USB2_PKT_HDR_INIT_C : Usb2PktHdrType := (
       pid     => USB_PID_SPC_NONE_C,
       tokDat  => (others => '0'),
-      valid   => '0'
+      vld     => '0'
    );
 
    function usb2TokenPktAddr(constant x : in Usb2PktHdrType)
