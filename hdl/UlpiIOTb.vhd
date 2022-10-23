@@ -113,7 +113,7 @@ architecture Sim of UlpiIOTb is
    );
 
    constant rxVec : Slv9Array := (
-      '0' & x"43", -- TXCMD not sent! used for comparison only
+      '0' & x"43", -- TXCMD 
       '0' & x"44",
       '0' & x"a1",
       '0' & x"ff",
@@ -121,9 +121,12 @@ architecture Sim of UlpiIOTb is
       '1' & x"fa", -- checksum hi
       '1' & x"00", -- status
        -- empty packet
-      '0' & x"43", -- TXCMD not sent! used for comparison only
+      '0' & x"43", -- TXCMD
       '1' & x"00", -- checksum lo
       '1' & x"00", -- checksum hi
+      '1' & x"00", -- status
+       -- handshake packet
+      '0' & x"42", -- TXCMD
       '1' & x"00"  -- status
    );
 
@@ -151,7 +154,7 @@ architecture Sim of UlpiIOTb is
       else
         cid   <= strt;
       end if;
-      mst.usr <= "0011";
+      mst.usr <= rxVec( strt )(3 downto 0);
       mst.dat <= rxVec( strt + 1 )(7 downto 0);
       mst.err <= '0';
       -- handles zero-length packet; assert 'don', deassert 'vld'
@@ -349,7 +352,6 @@ begin
          tick;
       end loop;
 
-
       assert checkRx = tokSeen report "Token count mismatch" severity warning;
       passed := passed + checkRx;
 
@@ -377,13 +379,19 @@ begin
       end loop;
       chkDly <= 0;
 
+      -- try handshake packet
+      chkDly <= 0;
+      sndPkt(11, sndIdx, chkIdx, jam, txDataMst );
+      passed := passed + 1;
+      chkDly <= 0;
+
       tick; tick; tick;
 
       run <= false;
 
       assert dbg1.state = IDLE report "Test state machine not idle" severity failure;
 
-      assert passed = 932      report "passing count mismatch" severity failure;
+      assert passed = 933      report "passing count mismatch" severity failure;
 
       report integer'image(passed) & " TESTS PASSED" severity note;
       wait;

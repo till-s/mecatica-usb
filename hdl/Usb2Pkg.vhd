@@ -102,6 +102,87 @@ package Usb2Pkg is
    constant USB2_CRC16_POLY_C : std_logic_vector(15 downto 0) := x"A001";
    constant USB2_CRC16_CHCK_C : std_logic_vector(15 downto 0) := x"B001";
    constant USB2_CRC16_INIT_C : std_logic_vector(15 downto 0) := x"FFFF";
+
+   type Usb2DevStateType is (POWERED, DEFAULT, ADDRESS, CONFIGURED, SUSPENDED);
+
+   type Usb2DevStatusType is record
+      state      : Usb2DevStateType;
+      devAddr    : Usb2DevAddrType;
+   end record;
+
+   -- signals traveling from EP -> bus
+   type Usb2EndpPairIbType is record
+      stalledInp : std_logic; -- input  endpoint is halted
+      stalledOut : std_logic; -- output endpoint is halted
+      -- if mstInp.vld is asserted then the endpoint
+      -- must be able to supply the entire payload of
+      -- a data packet (or less if there is no data; 
+      -- empty packets are sent setting 'vld = 0, don = 1'
+      mstInp     : Usb2StrmMstType;
+      -- if subOut.rdy is asserted then the endpoint
+      -- must be able to absorb an entire payload of
+      -- packet data.
+      -- Note that it is only known once the packet
+      -- is 'done' if the data are valid (but it is
+      -- the EP's job to implement a buffer which
+      -- must be invalidated if the data turn out to
+      -- be bad).
+      subOut     : Usb2StrmSubType;
+   end record Usb2EndpPairIbType;
+
+   constant USB2_ENDP_PAIR_IB_INIT_C : Usb2EndpPairIbType := (
+      stalledInp => '0',
+      stalledOut => '0',
+      mstInp     => USB2_STRM_MST_INIT_C,
+      subOut     => USB2_STRM_SUB_INIT_C
+   );
+ 
+   -- signals traveling from bus -> EP
+   type Usb2EndpPairObType is record
+      mstOut     : Usb2StrmMstType;
+      -- if the packet processor is not configured (generics)
+      -- to host a sufficiently large buffer for this endpoint's
+      -- max. packet size then the endpoint must support
+      -- 'rewinding' the stream if (subInp.err and subInp.don)
+      -- are asserted.
+      subInp     : Usb2StrmSubType;
+      -- control endpoints receive setup data here;
+      -- they MUST accept, thus there is no corresponding
+      -- subordinate.
+      mstCtl     : Usb2StrmMstType;
+   end record Usb2EndpPairObType;
+
+   constant USB2_ENDP_PAIR_OB_INIT_C : Usb2EndpPairObType := (
+      mstOut     => USB2_STRM_MST_INIT_C,
+      subInp     => USB2_STRM_SUB_INIT_C,
+      mstCtl     => USB2_STRM_MST_INIT_C
+   );
+
+   subtype Usb2TransferType is std_logic_vector(1 downto 0);
+
+   subtype Usb2PktSizeType  is unsigned(10 downto 0);
+
+   constant USB2_TT_CONTROL_C     : Usb2TransferType := "00";
+   constant USB2_TT_ISOCHRONOUS_C : Usb2TransferType := "01";
+   constant USB2_TT_BULK_C        : Usb2TransferType := "10";
+   constant USB2_TT_INTERRUPT_C   : Usb2TransferType := "11";
+
+   -- this information is passed via generic to the packet
+   -- processor but also passed into the endpoint descriptor
+   -- Note that the endpoint address/number is implicitly
+   -- encoded (place of the endpoint in an array).
+   -- If one direction of a pair is unsupported/not implemented
+   -- then 'maxPktSize' must be set to 0.
+   type Usb2EndpPairPropertyType is record
+      transferTypeInp  : Usb2TransferType;
+      maxPktSizeInp    : Usb2PktSizeType;
+      transferTypeOut  : Usb2TransferType;
+      maxPktSizeOut    : Usb2PktSizeType;
+   end record Usb2EndpPairPropertyType;
+
+   type Usb2EndpPairPropertyArray is array (natural range <>) of Usb2EndpPairPropertyType;
+   type Usb2EndpPairIbArray       is array (natural range <>) of Usb2EndpPairIbType;
+   type Usb2EndpPairObArray       is array (natural range <>) of Usb2EndpPairObType;
  
 end package Usb2Pkg;
 

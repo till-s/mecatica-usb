@@ -34,6 +34,7 @@ architecture Impl of Usb2PktTx is
       crc         : std_logic_vector(USB2_CRC16_POLY_C'range);
       don         : std_logic;
       err         : std_logic;
+      isDat       : boolean;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -42,7 +43,8 @@ architecture Impl of Usb2PktTx is
       ulpiReq     => ULPI_TX_REQ_INIT_C,
       crc         => (others => '0'),
       don         => '0',
-      err         => '0'
+      err         => '0',
+      isDat       => false
    );
 
    signal r            : RegType := REG_INIT_C;
@@ -74,7 +76,8 @@ begin
 
       case ( r.state ) is
          when IDLE =>
-            v.nxtr := '0';
+            v.nxtr  := '0';
+            v.isDat := true;
             if ( ( txDataMst.vld or txDataMst.don ) = '1' ) then
                -- buffer the PID
                v.ulpiReq.dat    := ULPI_TXCMD_TX_C & txDataMst.usr(3 downto 0);
@@ -86,7 +89,12 @@ begin
                if ( txDataMst.don = '0' ) then
                   v.state       := RUN;
                else
-                  v.state       := CHK1;
+                  if ( usb2PidIsDat( txDataMst.usr(3 downto 0) ) ) then
+                     v.state       := CHK1;
+                  else
+                     v.state       := RUN;
+                     v.isDat       := false;
+                  end if;
                end if;
             end if;
 
@@ -143,8 +151,12 @@ begin
               elsif ( r.state = RUN ) then
                  -- vld has just been deasserted but ULPI has
                  -- not yet fetchd the last data which are in ulpiReq.dat
-                 -- append the crc as soon as they are ready
-                 v.state := CHK1;
+                 if ( r.isDat ) then
+                    -- append the crc as soon as they are ready
+                    v.state := CHK1;
+                 else
+                    v.state := WAI;
+                 end if;
               end if;
            else
               if ( txDataMst.err = '1' ) then
