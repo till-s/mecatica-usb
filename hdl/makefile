@@ -24,6 +24,7 @@ $(PROG): $(SRCS:%.vhd=%.o)
 
 UlpiIOTb.o: UlpiIO.o UlpiPkg.o Usb2Pkg.o Usb2PktRx.o Usb2PktTx.o
 UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o
+Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
 
 .PHONY: all build clean

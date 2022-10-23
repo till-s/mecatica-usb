@@ -129,6 +129,10 @@ architecture Impl of Usb2PktProc is
       return ( h.pid /= USB2_PID_DAT_DATA0_C and h.pid /= USB2_PID_DAT_DATA1_C );
    end function checkDatHdr;
 
+   function sequenceOutMatch(constant v : in RegType; constant h : in Usb2PktHdrType) return boolean is
+   begin
+      return v.dataTgl( to_integer( v.epIdx & "0" ) ) = h.pid(3);
+   end function sequenceOutMatch;
 begin
 
    P_COMB : process ( r, devStatus, epIb, txDataSub, rxPktHdr, rxDataMst ) is
@@ -138,6 +142,11 @@ begin
       v                := r;
       v.prevDevState   := devStatus.state;
       ei               := USB2_ENDP_PAIR_IB_INIT_C;
+
+      txDataMst        <= USB2_STRM_MST_INIT_C;
+      txDataMst.vld    <= '0';
+      txDataMst.err    <= '0';
+      txDataMst.usr    <= r.pid;
 
       if ( r.timeout > 0 ) then
          v.timeout := r.timeout - 1;
@@ -184,6 +193,10 @@ begin
                if ( ei.stalledOut = '1' ) then
                   v.pid   := USB2_PID_HSK_STALL_C;
                   v.state := DRAIN;
+               elsif ( not sequenceOutMatch( v, rxPktHdr ) ) then
+                  -- sequence mismatch; discard packet and ACK
+                  v.pid   := USB2_PID_HSK_ACK_C;
+                  v.state := DRAIN;
                elsif ( ei.subOut.rdy = '0' ) then
                   v.pid   := USB2_PID_HSK_NAK_C;
                   v.state := DRAIN;
@@ -200,6 +213,15 @@ begin
                   -- corrupted; no handshake
                   v.state   := IDLE;
                else
+                  if ( r.state = DATA_OUT ) then
+                     -- toggle / reset only if sequence bits matched (-> we are in DATA_OUT state)
+                     -- and there was no crc or other reception error
+                     if ( r.tok(3 downto 2) = USB2_PID_TOK_SETUP_C(3 downto 2) ) then
+                        v.dataTgl( to_integer( r.epIdx & "0" ) ) := '1';
+                     else
+                        v.dataTgl( to_integer( r.epIdx & "0" ) ) := not r.dataTgl( to_integer( r.epIdx & "0" ) );
+                     end if;
+                  end if;
                   v.timeout := TIME_HSK_TX_C;
                   v.state   := HSK;
                   -- TODO defragmentation
@@ -232,7 +254,14 @@ begin
             end if;
 
          when HSK =>
-            
+            txDataMst.don <= '1';
+            if ( txDataSub.rdy = '1' ) then
+               -- no need to wait until transmission is done;
+               -- we can go back to idle - the phy cannot receive
+               -- anything until after TX is done anyways.
+               v.state := IDLE;
+            end if;
+
       end case;
 
       -- the spec says that clearing the HALT feature rests the data toggle of an endpoint.
