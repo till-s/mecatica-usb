@@ -1,10 +1,17 @@
 library ieee;
 use     ieee.std_logic_1164.all;
+use     ieee.numeric_std.all;
 
 package Usb2Pkg is
 
    subtype Usb2PidType      is std_logic_vector(3 downto 0);
    subtype Usb2PidGroupType is std_logic_vector(1 downto 0);
+
+   subtype Usb2EndpIdxType  is unsigned(3 downto 0);
+   subtype Usb2DevAddrType  is std_logic_vector(6 downto 0);
+
+   constant USB2_DEV_ADDR_DFLT_C    : Usb2DevAddrType := (others => '0');
+   constant USB2_ENDP_ZERO_C        : Usb2EndpIdxType := (others => '0');
 
    function usb2PidIsTok(constant x : in Usb2PidType) return boolean;
    function usb2PidIsDat(constant x : in Usb2PidType) return boolean;
@@ -53,10 +60,10 @@ package Usb2Pkg is
    );
 
    function usb2TokenPktAddr(constant x : in Usb2PktHdrType)
-      return std_logic_vector;
+      return Usb2DevAddrType;
 
    function usb2TokenPktEndp(constant x : in Usb2PktHdrType)
-      return std_logic_vector;
+      return Usb2EndpIdxType;
 
    type Usb2StrmMstType is record
       dat   : std_logic_vector(7 downto 0);
@@ -101,15 +108,15 @@ end package Usb2Pkg;
 package body Usb2Pkg is
 
    function usb2TokenPktAddr(constant x : in Usb2PktHdrType)
-      return std_logic_vector is
+      return Usb2DevAddrType is
    begin
       return x.tokDat(10 downto 4);
    end function usb2TokenPktAddr;
 
    function usb2TokenPktEndp(constant x : in Usb2PktHdrType)
-      return std_logic_vector is
+      return Usb2EndpIdxType is
    begin
-      return x.tokDat(10 downto 4);
+      return unsigned( x.tokDat(10 downto 4) );
    end function usb2TokenPktEndp;
 
    function usb2PidIsTok(constant x : in Usb2PidType) return boolean is

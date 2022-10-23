@@ -78,7 +78,8 @@ architecture Sim of UlpiIOTb is
       rxIdx => 0
    );
 
-   constant DATA0_START_IDX_C : natural := 6;
+   constant DATA0_START_IDX_C       : natural := 6;
+   constant DATA0_START_EMPTY_IDX_C : natural := 25;
 
    constant txVec : Slv9Array := (
       '0' & not USB_PID_TOK_SOF_C & USB_PID_TOK_SOF_C,
@@ -105,16 +106,24 @@ architecture Sim of UlpiIOTb is
       '0' & x"00",
       '0' & x"ab",
       '0' & x"a2", --checksum: crc16 (poly 0xa001, seed 0xffff, one's complement of crc attached here)
-      '1' & x"c1"
+      '1' & x"c1",
+      '0' & not USB_PID_DAT_DATA0_C & USB_PID_DAT_DATA0_C, -- empty packet
+      '0' & x"00",
+      '1' & x"00"
    );
 
    constant rxVec : Slv9Array := (
-      '0' & x"43", -- not sent! used for comparison only
+      '0' & x"43", -- TXCMD not sent! used for comparison only
       '0' & x"44",
       '0' & x"a1",
       '0' & x"ff",
       '1' & x"f7", -- checksum lo
       '1' & x"fa", -- checksum hi
+      '1' & x"00", -- status
+       -- empty packet
+      '0' & x"43", -- TXCMD not sent! used for comparison only
+      '1' & x"00", -- checksum lo
+      '1' & x"00", -- checksum hi
       '1' & x"00"  -- status
    );
 
@@ -145,12 +154,14 @@ architecture Sim of UlpiIOTb is
       mst.usr <= "0011";
       mst.dat <= rxVec( strt + 1 )(7 downto 0);
       mst.err <= '0';
-      mst.don <= '0';
-      mst.vld <= '1';
+      -- handles zero-length packet; assert 'don', deassert 'vld'
+      mst.don <= rxVec( strt + 1 )(8);
+      mst.vld <= not rxVec( strt + 1 )(8);
       idx     <= strt + 2;
       tick;
       while ( txDataSub.don = '0' ) loop
          if ( txDataSub.rdy = '1' ) then
+            mst.don <= '0';
             if ( mst.vld = '1' ) then
               if ( rxVec( idx )(8) = '1' ) then
                  mst.vld <= '0';
@@ -162,7 +173,7 @@ architecture Sim of UlpiIOTb is
               if ( idx = underrun ) then
                 mst.vld <= '0';
               end if;
-            elsif ( mst.don = '0' ) then
+            elsif ( underrun >= 0 and mst.don = '0' ) then
               mst.vld <= '1';
             end if;
          end if;
@@ -329,6 +340,16 @@ begin
          tick;
       end loop;
 
+      -- empty data packet
+      startTx <= DATA0_START_EMPTY_IDX_C;
+      checkRx <= checkRx + 1;
+      tick;
+      startTx <= -1;
+      for i in 0 to 30 loop
+         tick;
+      end loop;
+
+
       assert checkRx = tokSeen report "Token count mismatch" severity warning;
       passed := passed + checkRx;
 
@@ -348,6 +369,13 @@ begin
       sndPkt( 0, sndIdx, chkIdx, jam, txDataMst, jamidx => 3 );
       passed := passed + 1;
 
+      -- try empty packet
+      for i in 0 to 3 loop
+         chkDly <= i;
+         sndPkt(7, sndIdx, chkIdx, jam, txDataMst );
+         passed := passed + 1;
+      end loop;
+      chkDly <= 0;
 
       tick; tick; tick;
 
@@ -355,7 +383,7 @@ begin
 
       assert dbg1.state = IDLE report "Test state machine not idle" severity failure;
 
-      assert passed = 927      report "passing count mismatch" severity failure;
+      assert passed = 932      report "passing count mismatch" severity failure;
 
       report integer'image(passed) & " TESTS PASSED" severity note;
       wait;
@@ -665,6 +693,9 @@ begin
                elsif ( checkRx = 3 ) then
                   assert pktHdr.pid = USB_PID_DAT_DATA0_C report "unexpected pid /= DATA0"      severity failure;
                   dataIdx := DATA0_START_IDX_C + 1;
+               elsif ( checkRx = 4 ) then
+                  assert pktHdr.pid = USB_PID_DAT_DATA0_C report "unexpected pid /= DATA0"      severity failure;
+                  dataIdx := DATA0_START_EMPTY_IDX_C + 1;
                end if;
             end if;
             if ( dataIdx >= 0 ) then

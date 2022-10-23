@@ -75,13 +75,19 @@ begin
       case ( r.state ) is
          when IDLE =>
             v.nxtr := '0';
-            if ( txDataMst.vld = '1' ) then
+            if ( ( txDataMst.vld or txDataMst.don ) = '1' ) then
                -- buffer the PID
                v.ulpiReq.dat    := ULPI_TXCMD_TX_C & txDataMst.usr(3 downto 0);
-               v.state          := RUN;
                v.err            := '0';
                -- the PID byte / TXCMD is not covered by the checksum
                v.crc            := USB2_CRC16_INIT_C;
+               -- a zero length packet is signalled by a single cycle
+               -- with 'don' = '1' and 'vld' = '0'
+               if ( txDataMst.don = '0' ) then
+                  v.state       := RUN;
+               else
+                  v.state       := CHK1;
+               end if;
             end if;
 
 -- pipeline for sending status
@@ -120,7 +126,7 @@ begin
                  v.err          := '1';
                  v.state        := CHK1;
                  v.crc          := not r.crc;
-                 -- if r.nxtr = '1' we would normall latch into
+                 -- if r.nxtr = '1' we would normally latch into
                  -- ulpiReq.dat but since we are aborting we don't
                  -- care what we send...
               elsif ( r.nxtr = '1' ) then
