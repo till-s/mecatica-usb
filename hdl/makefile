@@ -22,8 +22,7 @@ $(PROG): $(SRCS:%.vhd=%.o)
 	$(GHDL) -e $(addprefix -P,$(VIVADO)) -Wl,-no-pie $@
 
 UlpiIOTb.o: UlpiIO.o UlpiPkg.o Usb2Pkg.o Usb2PktRx.o Usb2PktTx.o
-UlpiIO.o Usb2PktRx.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o
-Usb2PktRx.o: UsbUtilPkg.o UsbCrcTbl.o
+UlpiIO.o Usb2PktRx.o Usb2PktTx.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
 
 .PHONY: all build clean

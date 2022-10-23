@@ -82,13 +82,13 @@ architecture Sim of UlpiIOTb is
    constant DATA0_START_EMPTY_IDX_C : natural := 25;
 
    constant txVec : Slv9Array := (
-      '0' & not USB_PID_TOK_SOF_C & USB_PID_TOK_SOF_C,
+      '0' & not USB2_PID_TOK_SOF_C & USB2_PID_TOK_SOF_C,
       '0' & x"bf",
       '1' & x"bb",
-      '0' & not USB_PID_TOK_OUT_C & USB_PID_TOK_OUT_C,
+      '0' & not USB2_PID_TOK_OUT_C & USB2_PID_TOK_OUT_C,
       '0' & x"c9",
       '1' & x"fd",
-      '0' & not USB_PID_DAT_DATA0_C & USB_PID_DAT_DATA0_C,
+      '0' & not USB2_PID_DAT_DATA0_C & USB2_PID_DAT_DATA0_C,
       '0' & x"c7",
       '0' & x"3d",
       '0' & x"25",
@@ -107,7 +107,7 @@ architecture Sim of UlpiIOTb is
       '0' & x"ab",
       '0' & x"a2", --checksum: crc16 (poly 0xa001, seed 0xffff, one's complement of crc attached here)
       '1' & x"c1",
-      '0' & not USB_PID_DAT_DATA0_C & USB_PID_DAT_DATA0_C, -- empty packet
+      '0' & not USB2_PID_DAT_DATA0_C & USB2_PID_DAT_DATA0_C, -- empty packet
       '0' & x"00",
       '1' & x"00"
    );
@@ -685,16 +685,16 @@ begin
             if ( pktHdr.vld = '1' ) then
                tokSeen <= tokSeen + 1;
                if ( checkRx = 1 ) then
-                  assert pktHdr.pid = USB_PID_TOK_SOF_C report "unexpected token1"      severity failure;
+                  assert pktHdr.pid = USB2_PID_TOK_SOF_C report "unexpected token1"      severity failure;
                   assert pktHdr.tokDat = CMP1_C report "unexpected token1 data" severity failure;
                elsif ( checkRx = 2 ) then
-                  assert pktHdr.pid = USB_PID_TOK_OUT_C report "unexpected token2"      severity failure;
+                  assert pktHdr.pid = USB2_PID_TOK_OUT_C report "unexpected token2"      severity failure;
                   assert pktHdr.tokDat = CMP2_C report "unexpected token2 data" severity failure;
                elsif ( checkRx = 3 ) then
-                  assert pktHdr.pid = USB_PID_DAT_DATA0_C report "unexpected pid /= DATA0"      severity failure;
+                  assert pktHdr.pid = USB2_PID_DAT_DATA0_C report "unexpected pid /= DATA0"      severity failure;
                   dataIdx := DATA0_START_IDX_C + 1;
                elsif ( checkRx = 4 ) then
-                  assert pktHdr.pid = USB_PID_DAT_DATA0_C report "unexpected pid /= DATA0"      severity failure;
+                  assert pktHdr.pid = USB2_PID_DAT_DATA0_C report "unexpected pid /= DATA0"      severity failure;
                   dataIdx := DATA0_START_EMPTY_IDX_C + 1;
                end if;
             end if;
