@@ -28,46 +28,68 @@ end entity Usb2PktProc;
 
 architecture Impl of Usb2PktProc is
 
-   constant NUM_ENDPOINTS_C : natural := ENDPOINTS_G'length;
+   constant NUM_ENDPOINTS_C      : natural := ENDPOINTS_G'length;
 
-   constant LD_TIMEOUT_C : natural := 18;
+   constant LD_TIMER_C           : natural := 18;
 
-   subtype TimeoutType is unsigned(LD_TIMEOUT_C - 1 downto 0);
+   subtype TimerType is unsigned(LD_TIMER_C - 1 downto 0);
 
-   constant TIME_HSK_TX_C        : TimeoutType := to_unsigned(600000 , TimeoutType'length);
-   constant TIME_DATA_RX_C       : TimeoutType := to_unsigned(600000 , TimeoutType'length);
-   constant TIME_DATA_TX_C       : TimeoutType := to_unsigned(600000 , TimeoutType'length);
-   constant TIME_WAIT_ACK_C      : TimeoutType := to_unsigned(600000 , TimeoutType'length);
-   constant TIME_WAIT_DATA_PID_C : TimeoutType := to_unsigned(600000 , TimeoutType'length);
+   constant SIM_C                : boolean := true;
 
-   type StateType is ( IDLE, DATA_INP, DATA_PID, DATA_OUT, DRAIN, WAIT_ACK, HSK );
+   function simt(constant a,b: in natural) return natural is
+   begin
+      if ( SIM_C ) then return a; else return b; end if;
+   end function simt;
+
+   constant TIME_HSK_TX_C        : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
+   constant TIME_DATA_RX_C       : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
+   constant TIME_DATA_TX_C       : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
+   constant TIME_WAIT_ACK_C      : TimerType := to_unsigned( simt(10, 600000) , TimerType'length);
+   constant TIME_WAIT_DATA_PID_C : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
+
+   constant LD_BUFSZ_C           : natural   := 11;
+
+   type StateType is ( IDLE, DATA_INP, DATA_REP, DATA_PID, DATA_OUT, DRAIN, WAIT_ACK, HSK );
 
    type RegType   is record
       state           : StateType;
       dataTgl         : std_logic_vector(2*NUM_ENDPOINTS_C - 1 downto 0);
-      timeout         : TimeoutType;
+      timer           : TimerType;
       prevDevState    : Usb2DevStateType;
       tok             : Usb2PidType;
       epIdx           : Usb2EndpIdxType;
-      epSelected      : boolean;
       dataCounter     : Usb2PktSizeType;
       pid             : Usb2PidType;
+      bufRdIdx        : unsigned(LD_BUFSZ_C - 1 downto 0);
+      bufWrIdx        : unsigned(LD_BUFSZ_C - 1 downto 0);
+      bufVldIdx       : unsigned(LD_BUFSZ_C - 1 downto 0);
+      bufInpVld       : std_logic;
+      donFlg          : std_logic;
+      retries         : unsigned(1 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       state           => IDLE,
       dataTgl         => (others => '0'),
-      timeout         => (others => '0'),
+      timer           => (others => '0'),
       prevDevState    => DEFAULT,
       tok             => USB2_PID_SPC_NONE_C,
       epIdx           => USB2_ENDP_ZERO_C,
-      epSelected      => false,
       dataCounter     => (others => '0'),
-      pid             => USB2_PID_HSK_ACK_C
+      pid             => USB2_PID_HSK_ACK_C,
+      bufRdIdx        => (others => '0'),
+      bufWrIdx        => (others => '0'),
+      bufVldIdx       => (others => '0'),
+      bufInpVld       => '0',
+      donFlg          => '0',
+      retries         => (others => '0')
    );
 
    signal r                             : RegType := REG_INIT_C;
    signal rin                           : RegType;
+   signal bufWrEna                      : std_logic := '0';
+   signal bufReadbackOut                : std_logic_vector(8 downto 0) := (others => '0');
+   signal bufWriteInp                   : std_logic_vector(8 downto 0) := (others => '0');
 
    attribute MARK_DEBUG of r            : signal is toStr(MARK_DEBUG_G);
 
@@ -126,13 +148,21 @@ architecture Impl of Usb2PktProc is
 
    function checkDatHdr(constant h: Usb2PktHdrType) return boolean is
    begin
-      return ( h.pid /= USB2_PID_DAT_DATA0_C and h.pid /= USB2_PID_DAT_DATA1_C );
+      return ( h.pid = USB2_PID_DAT_DATA0_C or h.pid = USB2_PID_DAT_DATA1_C );
    end function checkDatHdr;
 
    function sequenceOutMatch(constant v : in RegType; constant h : in Usb2PktHdrType) return boolean is
    begin
       return v.dataTgl( to_integer( v.epIdx & "0" ) ) = h.pid(3);
    end function sequenceOutMatch;
+
+   procedure invalidateBuffer(variable v : inout RegType) is
+   begin
+      v           := v;
+      v.bufInpVld := '0';
+      v.bufWrIdx  := v.bufVldIdx;
+   end procedure invalidateBuffer;
+
 begin
 
    P_COMB : process ( r, devStatus, epIb, txDataSub, rxPktHdr, rxDataMst ) is
@@ -141,18 +171,21 @@ begin
    begin
       v                := r;
       v.prevDevState   := devStatus.state;
-      ei               := USB2_ENDP_PAIR_IB_INIT_C;
+      ei               := epIb( to_integer( r.epIdx ) );
 
-      txDataMst        <= USB2_STRM_MST_INIT_C;
+      txDataMst        <= ei.mstInp;
       txDataMst.vld    <= '0';
-      txDataMst.err    <= '0';
+      txDataMst.don    <= '0';
       txDataMst.usr    <= r.pid;
+      bufWrEna         <= '0';
+      bufWriteInp      <= '0' & rxDataMst.dat;
 
-      if ( r.timeout > 0 ) then
-         v.timeout := r.timeout - 1;
-      else
-         -- TODO handle aborting
-         v.state   := IDLE;
+      for i in epOb'range loop
+         epOb(i).subInp <= USB2_STRM_SUB_INIT_C;
+      end loop;
+
+      if ( r.timer > 0 ) then
+         v.timer := r.timer - 1;
       end if;
 
       case ( r.state ) is
@@ -160,54 +193,87 @@ begin
             if ( ( rxPktHdr.vld = '1' ) and checkTokHdr( rxPktHdr, devStatus ) ) then
                v.tok         := rxPktHdr.pid;
                v.epIdx       := usb2TokenPktEndp( rxPktHdr );
-               v.epSelected  := true;
-               v.dataCounter := ENDPOINTS_G( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
                ei            := epIb( to_integer( v.epIdx ) );
                if ( isTokInp( rxPktHdr.pid ) ) then
+                  v.dataCounter := ENDPOINTS_G( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
                   if ( ei.stalledInp = '1' ) then
                      v.pid     := USB2_PID_HSK_STALL_C;
-                     v.timeout := TIME_HSK_TX_C;
+                     v.timer   := TIME_HSK_TX_C;
                      v.state   := HSK;
-                  elsif ( (ei.mstInp.vld or ei.mstInp.don) = '0' ) then
+                  elsif ( (ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' ) then
                      v.pid     := USB2_PID_HSK_NAK_C;
-                     v.timeout := TIME_HSK_TX_C;
+                     v.timer   := TIME_HSK_TX_C;
                      v.state   := HSK;
                   else
+-- For now we retry forever
+--                  if ( r.bufInpVld = '1' ) then
+--                     -- a retry
+--                     if ( r.retries < 2 ) then
+--                        v.retries := r.retries + 1;
+--                        v.state   := DATA_REP;
+--                        v.timer   := TIME_DATA_TX_C;
+--                     else
+--                        -- should stall/halt the device or endpoint? for now we just drop
+--                        v.retries   := 0;
+--                        v.bufWrIdx  := r.bufVldIdx;
+--                        v.bufInpVld := '0';
+--
                      if ( r.dataTgl( to_integer( r.epIdx & "1" ) ) = '0' ) then
                         v.pid := USB2_PID_DAT_DATA0_C;
                      else
                         v.pid := USB2_PID_DAT_DATA1_C;
-                    end if;
-                    v.state   := DATA_INP;
-                    v.timeout := TIME_DATA_TX_C;
+                     end if;
+                     if ( r.bufInpVld = '1' ) then
+                        v.state    := DATA_REP;
+                        v.bufRdIdx := r.bufVldIdx;
+                     else
+                        v.state := DATA_INP;
+                     end if;
+                     v.timer   := TIME_DATA_TX_C;
                   end if;
                else
-                  v.timeout := TIME_WAIT_DATA_PID_C;
-                  v.state   := DATA_PID;
+                  v.dataCounter := ENDPOINTS_G( to_integer( v.epIdx ) ).maxPktSizeOut - 1;
+                  v.timer       := TIME_WAIT_DATA_PID_C;
+                  v.state       := DATA_PID;
+                  -- make sure there is nothing left in the write area
+                  invalidateBuffer( v );
                end if;
             end if;
 
          when DATA_PID =>
-            if ( ( rxPktHdr.vld = '1' ) and checkDatHdr( rxPktHdr ) ) then
-               ei            := epIb( to_integer( r.epIdx ) );
-               if ( ei.stalledOut = '1' ) then
-                  v.pid   := USB2_PID_HSK_STALL_C;
-                  v.state := DRAIN;
-               elsif ( not sequenceOutMatch( v, rxPktHdr ) ) then
-                  -- sequence mismatch; discard packet and ACK
-                  v.pid   := USB2_PID_HSK_ACK_C;
-                  v.state := DRAIN;
-               elsif ( ei.subOut.rdy = '0' ) then
-                  v.pid   := USB2_PID_HSK_NAK_C;
-                  v.state := DRAIN;
+            if ( ( rxPktHdr.vld = '1' ) ) then
+               if ( checkDatHdr( rxPktHdr ) ) then
+                  if ( ei.stalledOut = '1' ) then
+                     v.pid   := USB2_PID_HSK_STALL_C;
+                     v.state := DRAIN;
+                  elsif ( not sequenceOutMatch( v, rxPktHdr ) ) then
+                     -- sequence mismatch; discard packet and ACK
+                     v.pid   := USB2_PID_HSK_ACK_C;
+                     v.state := DRAIN;
+                  elsif ( ei.subOut.rdy = '0' ) then
+                     v.pid   := USB2_PID_HSK_NAK_C;
+                     v.state := DRAIN;
+                  else
+                     v.pid       := USB2_PID_HSK_ACK_C;
+                     v.state     := DATA_OUT;
+                     -- write destination header into the buffer
+                     bufWriteInp <= '1' & r.tok & std_logic_vector( r.epIdx );
+                     bufWrEna    <= '1';
+                     v.bufWrIdx  := r.bufWrIdx + 1;
+                  end if;
+                  v.timer    := TIME_DATA_RX_C;
                else
-                  v.pid   := USB2_PID_HSK_ACK_C;
-                  v.state := DATA_OUT;
-               end if;
-               v.timeout  := TIME_DATA_RX_C;
+                  v.state    := IDLE;
+               end if;   
             end if;   
 
          when DATA_OUT | DRAIN =>
+            if ( r.state = DATA_OUT ) then
+               bufWrEna <= rxDataMst.vld;
+               if ( rxDataMst.vld = '1' ) then
+                  v.bufWrIdx := r.bufWrIdx;
+               end if;
+            end if;
             if ( rxDataMst.don = '1' ) then
                if ( rxDataMst.err = '1' ) then
                   -- corrupted; no handshake
@@ -221,45 +287,100 @@ begin
                      else
                         v.dataTgl( to_integer( r.epIdx & "0" ) ) := not r.dataTgl( to_integer( r.epIdx & "0" ) );
                      end if;
+                     -- release the buffer
+                     v.bufVldIdx := r.bufWrIdx;
                   end if;
-                  v.timeout := TIME_HSK_TX_C;
+                  v.timer   := TIME_HSK_TX_C;
                   v.state   := HSK;
                   -- TODO defragmentation
                end if;
+               -- if there was a good packet we have already advanced v.bufVldIdx
+               -- and invalidateBuffer() does no harm here
+               invalidateBuffer( v );
             end if;
 
          when DATA_INP =>
-            ei := epIb( to_integer( r.epIdx ) );
-            if ( txDataSub.rdy = '1' ) then 
-               if ( ei.mstInp.don = '1' ) then
-                  if ( ei.mstInp.err = '1' ) then
-                     -- tx should send a bad packet; we'll not see an ack
-                     v.state := IDLE;
-                  else
-                     v.timeout := TIME_WAIT_ACK_C;
-                     v.state   := WAIT_ACK;
-                  end if;
-               elsif ( v.dataCounter = 0 ) then
-                  v.timeout := TIME_WAIT_ACK_C;
-                  v.state   := WAIT_ACK;
-               else
+            bufWriteInp <= '0' & ei.mstInp.dat;
+            if ( r.timer = 0 ) then
+               epOb( to_integer( r.epIdx ) ).subInp <= txDataSub;
+               txDataMst.vld                        <= ei.mstInp.vld;
+               txDataMst.don                        <= ei.mstInp.don;
+               
+               if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
+                  v.bufWrIdx    := r.bufWrIdx + 1;
+                  bufWrEna      <= '1';
                   v.dataCounter := r.dataCounter - 1;
+               end if;
+
+               if ( ei.mstInp.don = '1' ) then
+                  if ( txDataSub.don = '1' ) then
+                     if ( ei.mstInp.err = '1' ) then
+                        -- tx should send a bad packet; we'll not see an ack
+                        v.state    := IDLE;
+                        -- it doesn't matter if we write 
+                        -- bufWrEna   <= '0';
+                        invalidateBuffer( v );
+                     else
+                        v.timer   := TIME_WAIT_ACK_C;
+                        v.state   := WAIT_ACK;
+                     end if;
+                  end if;
+               elsif ( r.dataCounter = 0 ) then
+                  v.donFlg      := '1';
+                  v.timer       := TIME_WAIT_ACK_C;
+                  v.state       := WAIT_ACK;
+                  -- doesn't matter if the data counter will overflow
+                  -- v.dataCounter := r.dataCounter;
+               end if;
+            end if;
+
+            -- replay INP data from the buffer (retry)
+         when DATA_REP =>
+            txDataMst.err <= '0';
+            txDataMst.dat <= bufReadbackOut(7 downto 0);
+            if ( r.timer = 0 ) then
+               if ( r.bufRdIdx = r.bufWrIdx ) then
+                  txDataMst.vld <= '0';
+                  txDataMst.don <= '1';
+                  v.timer       := TIME_WAIT_ACK_C;
+                  v.state       := WAIT_ACK;
+               else
+                  txDataMst.vld <= '1';
+                  if ( txDataSub.rdy = '1' ) then
+                     v.bufRdIdx := r.bufRdIdx + 1;
+                  end if;
                end if;
             end if;
 
          when WAIT_ACK =>
-            if ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
-               v.dataTgl( to_integer( r.epIdx & "1" ) ) := not r.dataTgl( to_integer( r.epIdx & "1" ) );
-               v.state := IDLE;
+
+            txDataMst.don <= r.donFlg;
+            if ( r.donFlg = '1' ) then
+               if ( txDataSub.don = '1' ) then
+                  v.donFlg      := '0';
+               end if;
+            else
+               v.bufInpVld   := '1';
+               if    ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
+                  v.dataTgl( to_integer( r.epIdx & "1" ) ) := not r.dataTgl( to_integer( r.epIdx & "1" ) );
+                  -- ok to throw stored data away
+                  invalidateBuffer( v );
+                  v.state := IDLE;
+               elsif ( r.timer = 0 ) then
+                  -- timeout
+                  v.state := IDLE;
+               end if;
             end if;
 
          when HSK =>
-            txDataMst.don <= '1';
-            if ( txDataSub.rdy = '1' ) then
-               -- no need to wait until transmission is done;
-               -- we can go back to idle - the phy cannot receive
-               -- anything until after TX is done anyways.
-               v.state := IDLE;
+            if ( r.timer = 0 ) then
+               txDataMst.don <= '1';
+               if ( txDataSub.don = '1' ) then
+                  -- no need to wait until transmission is done;
+                  -- we can go back to idle - the phy cannot receive
+                  -- anything until after TX is done anyways.
+                  v.state := IDLE;
+               end if;
             end if;
 
       end case;

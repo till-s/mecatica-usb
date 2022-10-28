@@ -40,6 +40,13 @@ package UlpiPkg is
       trn   :  std_logic;
    end record UlpiRxType;
 
+   constant ULPI_RX_INIT_C : UlpiRxType := (
+      dat   => (others => '0'),
+      dir   => '1',
+      nxt   => '0',
+      trn   => '0'
+   );
+
    -- The first data byte must be a TXCMD byte.
    -- The first cycle after 'vld' is deasserted
    -- generates a 'stop' cycle on ULPI; the

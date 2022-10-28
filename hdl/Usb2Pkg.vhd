@@ -140,11 +140,36 @@ package Usb2Pkg is
    -- signals traveling from bus -> EP
    type Usb2EndpPairObType is record
       mstOut     : Usb2StrmMstType;
-      -- if the packet processor is not configured (generics)
-      -- to host a sufficiently large buffer for this endpoint's
-      -- max. packet size then the endpoint must support
-      -- 'rewinding' the stream if (subInp.err and subInp.don)
-      -- are asserted.
+      -- the don/err/rdy bits encode the following information
+      --   rdy don err
+      --   1/0  0   x   normal handshake for data transfer
+      --    1   1   0   partial buffer has been transmitted
+      --                no data must be transferred during the
+      --                current cycle but the sender must remember
+      --                the current stream pointer for a retry operation
+      --    1   1   1   transmission of partial buffer must be retried
+      --                => rewind the stream pointer to the last
+      --                   remembered position
+      --    0   1   0   => transmission completed successfully
+      --    0   1   1   => transmission aborted
+      ------------------------------------
+      --   if ( don = '1' ) then
+      --      if ( rdy = '0' ) then
+      --         if ( err = '1' ) then
+      --            abort
+      --         else
+      --            done
+      --         end if;
+      --      elsif ( err = '0' ) then
+      --         last_ptr <= curr_ptr;
+      --      else
+      --         curr_ptr <= last_ptr; --rewind!
+      --      end if;
+      --  elsif ( rdy = '1' ) then
+      --      output := data(curr_ptr);
+      --      curr_ptr <= curr_ptr + 1;
+      --  end if;
+      --        
       subInp     : Usb2StrmSubType;
       -- control endpoints receive setup data here;
       -- they MUST accept, thus there is no corresponding
@@ -191,13 +216,13 @@ package body Usb2Pkg is
    function usb2TokenPktAddr(constant x : in Usb2PktHdrType)
       return Usb2DevAddrType is
    begin
-      return x.tokDat(10 downto 4);
+      return x.tokDat(6 downto 0);
    end function usb2TokenPktAddr;
 
    function usb2TokenPktEndp(constant x : in Usb2PktHdrType)
       return Usb2EndpIdxType is
    begin
-      return unsigned( x.tokDat(10 downto 4) );
+      return unsigned( x.tokDat(10 downto 7) );
    end function usb2TokenPktEndp;
 
    function usb2PidIsTok(constant x : in Usb2PidType) return boolean is

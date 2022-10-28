@@ -22,10 +22,10 @@ entity UlpiIO is
       dat           :  inout std_logic_vector(7 downto 0);
 
       ulpiRx        :  out   UlpiRxType;
-      ulpiTxReq     :  in    UlpiTxReqType := ULPI_TX_REQ_INIT_C;
-      ulpiTxRep     :  out   UlpiTxRepType;
+      ulpiTxReq     :  in    UlpiTxReqType  := ULPI_TX_REQ_INIT_C;
+      ulpiTxRep     :  out   UlpiTxRepType ;
 
-      regReq        :  in    UlpiRegReqType;
+      regReq        :  in    UlpiRegReqType := ULPI_REG_REQ_INIT_C;
       regRep        :  out   UlpiRegRepType
    );
 end entity UlpiIO;
