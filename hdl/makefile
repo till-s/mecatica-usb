@@ -9,6 +9,7 @@ SRCS+= Usb2PktRx.vhd UsbCrcTbl.vhd UsbCrcTblTb.vhd
 SRCS+= Usb2PktTx.vhd
 SRCS+= Usb2PktProc.vhd
 SRCS+= Usb2PktProcTb.vhd
+SRCS+= Bram.vhd
 
 PROG=ulpiiotb usbcrctbltb usb2pktproctb
 
@@ -28,6 +29,7 @@ Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o: UsbUtilPkg.o Ulp
 Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
 Usb2PktProcTb.o: Usb2PktProc.o
+Usb2PktProc.o: Bram.o
 
 .PHONY: all build clean
 

@@ -233,7 +233,7 @@ architecture sim of Usb2PktProcTb is
       tick;
       crc := USB2_CRC16_INIT_C;
       for i in eda'low to eda'high + 2 loop
-         assert (ulpiIb.stp = '0'   )  report "unexpected STP" severity warning;
+         assert (ulpiIb.stp = '0'   )  report "unexpected STP" severity failure;
          if ( i <= eda'high ) then
             assert (ulpiIb.dat = eda(i))  report "unexpected data" severity warning;
          end if;
@@ -241,7 +241,7 @@ architecture sim of Usb2PktProcTb is
          tick;
       end loop;
       assert crc = USB2_CRC16_CHCK_C report "data crc mismatch" severity failure;
-      assert (ulpiIb.stp = '1'   )  report "unexpected STP" severity warning;
+      assert (ulpiIb.stp = '1'   )  report "unexpected STP" severity failure;
       ob.nxt <= '0';
       tick;
    end procedure waitDat;
@@ -389,8 +389,6 @@ begin
       variable idx : integer            := 0;
       variable ep  : Usb2EndpPairIbType := ini;
    begin
-      epIb(0)            <= ep;
-      epIb(0).mstInp.dat <= d2(idx);
       if ( rising_edge( clk ) ) then
          if ( ep.mstInp.vld = '1' ) then
             if ( epOb(0).subInp.rdy = '1' ) then
@@ -411,6 +409,8 @@ begin
             end if;
          end if;
          ep.subOut.rdy := '1';
+         epIb(0)            <= ep;
+         epIb(0).mstInp.dat <= d2(idx);
       end if;
    end process P_EP_0;
 

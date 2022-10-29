@@ -43,11 +43,12 @@ architecture Impl of Usb2PktProc is
 
    constant TIME_HSK_TX_C        : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
    constant TIME_DATA_RX_C       : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
-   constant TIME_DATA_TX_C       : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
+   constant TIME_DATA_TX_C       : TimerType := to_unsigned( simt(10, 600000) , TimerType'length);
    constant TIME_WAIT_ACK_C      : TimerType := to_unsigned( simt(10, 600000) , TimerType'length);
    constant TIME_WAIT_DATA_PID_C : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
 
    constant LD_BUFSZ_C           : natural   := 11;
+   constant BUF_WIDTH_C          : natural   :=  9;
 
    type StateType is ( IDLE, DATA_INP, DATA_REP, DATA_PID, DATA_OUT, DRAIN, WAIT_ACK, HSK );
 
@@ -60,9 +61,11 @@ architecture Impl of Usb2PktProc is
       epIdx           : Usb2EndpIdxType;
       dataCounter     : Usb2PktSizeType;
       pid             : Usb2PidType;
-      bufRdIdx        : unsigned(LD_BUFSZ_C - 1 downto 0);
-      bufWrIdx        : unsigned(LD_BUFSZ_C - 1 downto 0);
+      tmp             : std_logic_vector(7 downto 0);
+      tmpVld          : std_logic;
+      bufRWIdx        : unsigned(LD_BUFSZ_C - 1 downto 0);
       bufVldIdx       : unsigned(LD_BUFSZ_C - 1 downto 0);
+      bufEndIdx       : unsigned(LD_BUFSZ_C - 1 downto 0);
       bufInpVld       : std_logic;
       donFlg          : std_logic;
       retries         : unsigned(1 downto 0);
@@ -77,19 +80,42 @@ architecture Impl of Usb2PktProc is
       epIdx           => USB2_ENDP_ZERO_C,
       dataCounter     => (others => '0'),
       pid             => USB2_PID_HSK_ACK_C,
-      bufRdIdx        => (others => '0'),
-      bufWrIdx        => (others => '0'),
+      tmp             => (others => '0'),
+      tmpVld          => '0',
+      bufRWIdx        => (others => '0'),
       bufVldIdx       => (others => '0'),
+      bufEndIdx       => (others => '0'),
       bufInpVld       => '0',
       donFlg          => '0',
       retries         => (others => '0')
    );
 
+   type BufReaderType is record
+      bufRdIdx        : unsigned ( LD_BUFSZ_C - 1 downto 0);
+      epIdx           : Usb2EndpIdxType;
+      isSetup         : boolean;
+      mstOut          : Usb2StrmMstType;
+      dataCounter     : Usb2PktSizeType;
+   end record BufReaderType;
+
+   constant BUF_READER_INIT_C : BufReaderType := (
+      bufRdIdx        => (others => '0'),
+      epIdx           => USB2_ENDP_ZERO_C,
+      isSetup         => false,
+      mstOut          => USB2_STRM_MST_INIT_C,
+      dataCounter     => (others => '0')
+   );
+
    signal r                             : RegType := REG_INIT_C;
    signal rin                           : RegType;
+
+   signal rd                            : BufReaderType := BUF_READER_INIT_C;
+   signal rdin                          : BufReaderType;
+
    signal bufWrEna                      : std_logic := '0';
-   signal bufReadbackOut                : std_logic_vector(8 downto 0) := (others => '0');
-   signal bufWriteInp                   : std_logic_vector(8 downto 0) := (others => '0');
+   signal bufReadbackInp                : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
+   signal bufReadOut                    : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
+   signal bufWriteInp                   : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
 
    attribute MARK_DEBUG of r            : signal is toStr(MARK_DEBUG_G);
 
@@ -160,12 +186,14 @@ architecture Impl of Usb2PktProc is
    begin
       v           := v;
       v.bufInpVld := '0';
-      v.bufWrIdx  := v.bufVldIdx;
+      v.bufRWIdx  := v.bufVldIdx;
    end procedure invalidateBuffer;
 
 begin
 
-   P_COMB : process ( r, devStatus, epIb, txDataSub, rxPktHdr, rxDataMst ) is
+   assert to_integer( TIME_DATA_TX_C ) /= 0 report "TIME_DATA_TX_C must not be zero!" severity failure;
+
+   P_COMB : process ( r, rd, devStatus, epIb, txDataSub, rxPktHdr, rxDataMst, bufReadbackInp ) is
       variable v  : RegType;
       variable ei : Usb2EndpPairIbType;
    begin
@@ -182,6 +210,19 @@ begin
 
       for i in epOb'range loop
          epOb(i).subInp <= USB2_STRM_SUB_INIT_C;
+
+         epOb(i).mstCtl     <= rd.mstOut;
+         epOb(i).mstCtl.vld <= '0';
+         epOb(i).mstCtl.don <= '0';
+         epOb(i).mstOut     <= rd.mstOut;
+         epOb(i).mstOut.vld <= '0';
+         epOb(i).mstOut.don <= '0';
+
+         if ( rd.isSetup ) then
+            epOb( to_integer( rd.epIdx ) ).mstCtl <= rd.mstOut;
+         else
+            epOb( to_integer( rd.epIdx ) ).mstOut <= rd.mstOut;
+         end if;
       end loop;
 
       if ( r.timer > 0 ) then
@@ -215,7 +256,7 @@ begin
 --                     else
 --                        -- should stall/halt the device or endpoint? for now we just drop
 --                        v.retries   := 0;
---                        v.bufWrIdx  := r.bufVldIdx;
+--                        v.bufRWIdx  := r.bufVldIdx;
 --                        v.bufInpVld := '0';
 --
                      if ( r.dataTgl( to_integer( r.epIdx & "1" ) ) = '0' ) then
@@ -225,7 +266,14 @@ begin
                      end if;
                      if ( r.bufInpVld = '1' ) then
                         v.state    := DATA_REP;
-                        v.bufRdIdx := r.bufVldIdx;
+                        -- pre-load next readout
+                        v.bufRWIdx := r.bufRWIdx + 1;
+                        if ( r.bufRWIdx = r.bufEndIdx ) then
+                           -- empty packet - avoid DATA_REP
+                           v.timer   := TIME_WAIT_ACK_C;
+                           v.state   := WAIT_ACK;
+                           v.donFlg  := '1';
+                        end if;
                      else
                         v.state := DATA_INP;
                      end if;
@@ -259,7 +307,7 @@ begin
                      -- write destination header into the buffer
                      bufWriteInp <= '1' & r.tok & std_logic_vector( r.epIdx );
                      bufWrEna    <= '1';
-                     v.bufWrIdx  := r.bufWrIdx + 1;
+                     v.bufRWIdx  := r.bufRWIdx + 1;
                   end if;
                   v.timer    := TIME_DATA_RX_C;
                else
@@ -271,7 +319,7 @@ begin
             if ( r.state = DATA_OUT ) then
                bufWrEna <= rxDataMst.vld;
                if ( rxDataMst.vld = '1' ) then
-                  v.bufWrIdx := r.bufWrIdx;
+                  v.bufRWIdx := r.bufRWIdx + 1;
                end if;
             end if;
             if ( rxDataMst.don = '1' ) then
@@ -288,7 +336,7 @@ begin
                         v.dataTgl( to_integer( r.epIdx & "0" ) ) := not r.dataTgl( to_integer( r.epIdx & "0" ) );
                      end if;
                      -- release the buffer
-                     v.bufVldIdx := r.bufWrIdx;
+                     v.bufVldIdx := r.bufRWIdx;
                   end if;
                   v.timer   := TIME_HSK_TX_C;
                   v.state   := HSK;
@@ -307,7 +355,7 @@ begin
                txDataMst.don                        <= ei.mstInp.don;
                
                if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
-                  v.bufWrIdx    := r.bufWrIdx + 1;
+                  v.bufRWIdx    := r.bufRWIdx + 1;
                   bufWrEna      <= '1';
                   v.dataCounter := r.dataCounter - 1;
                end if;
@@ -337,19 +385,35 @@ begin
             -- replay INP data from the buffer (retry)
          when DATA_REP =>
             txDataMst.err <= '0';
-            txDataMst.dat <= bufReadbackOut(7 downto 0);
+            txDataMst.dat <= r.tmp;
             if ( r.timer = 0 ) then
-               if ( r.bufRdIdx = r.bufWrIdx ) then
-                  txDataMst.vld <= '0';
-                  txDataMst.don <= '1';
-                  v.timer       := TIME_WAIT_ACK_C;
-                  v.state       := WAIT_ACK;
+               txDataMst.vld <= '1';
+               if ( r.tmpVld = '1' ) then
+                  txDataMst.dat <= r.tmp;
                else
-                  txDataMst.vld <= '1';
-                  if ( txDataSub.rdy = '1' ) then
-                     v.bufRdIdx := r.bufRdIdx + 1;
-                  end if;
+                  txDataMst.dat <= bufReadbackInp(7 downto 0);
                end if;
+               if ( txDataSub.rdy = '1' ) then
+                  -- either we consumed the tmp buf or it was invalid already
+                  v.tmpVld   := '0';
+                  -- schedule reading next word we would have space in the buffer
+                  v.bufRWIdx := r.bufRWIdx + 1;
+                  if ( r.bufRWIdx = r.bufEndIdx ) then
+                     -- RWIdx has already advanced to the next word when we sent the last
+                     -- 'good' one
+                     v.donFlg  := '1';
+                     v.timer   := TIME_WAIT_ACK_C;
+                     v.state   := WAIT_ACK;
+                  end if;
+               elsif ( r.tmpVld = '0' ) then
+                  -- must catch the readout in the tmp buffer
+                  v.tmpVld   := '1';
+                  v.tmp      := bufReadbackInp(7 downto 0);
+               end if;
+            elsif ( r.tmpVld = '0' ) then
+               -- must still catch the first word off the pipeline
+               v.tmpVld   := '1';
+               v.tmp      := bufReadbackInp(7 downto 0);
             end if;
 
          when WAIT_ACK =>
@@ -360,16 +424,19 @@ begin
                   v.donFlg      := '0';
                end if;
             else
-               v.bufInpVld   := '1';
-               if    ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
+                if    ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
                   v.dataTgl( to_integer( r.epIdx & "1" ) ) := not r.dataTgl( to_integer( r.epIdx & "1" ) );
                   -- ok to throw stored data away
                   invalidateBuffer( v );
                   v.state := IDLE;
                elsif ( r.timer = 0 ) then
-                  -- timeout
-                  v.state := IDLE;
-               end if;
+                  -- timeout: save buffer
+                  v.bufInpVld   := '1';
+                  v.bufEndIdx   := r.bufRWIdx;
+                  -- set bufRWIdx early so that readback data will be available
+                  v.bufRWIdx    := r.bufVldIdx;
+                  v.state       := IDLE;
+              end if;
             end if;
 
          when HSK =>
@@ -410,19 +477,91 @@ begin
 
    end process P_COMB;
 
-   P_EP_MUX : process ( r, txDataSub, rxDataMst, epIb ) is
+   P_EP_MUX : process ( rd ) is
    begin
    end process P_EP_MUX;
+
+   P_COMB_READER : process ( r.bufVldIdx, rd, epIb ) is
+      variable v : BufReaderType;
+   begin
+      v := rd;
+
+      -- if we terminated a frame we wait for the downstream to ack.
+      -- Could handle other endpoints meanwhile but let's keep it
+      -- simple...
+      if ( rd.mstOut.don = '1' ) then
+         if ( epIb( to_integer( rd.epIdx ) ).subOut.don = '1' ) then
+            v.mstOut.don := '0';
+         end if;
+      else
+         if ( ( rd.mstOut.vld and epIb( to_integer( rd.epIdx ) ).subOut.rdy ) = '1' ) then
+            -- they consumed an item
+            v.mstOut.vld  := '0';
+         end if;
+         if ( v.mstOut.vld = '0' ) then
+            -- see if we have anything new to offer
+            if ( ( rd.bufRdIdx = r.bufVldIdx ) or ( bufReadOut(8) = '1' ) ) then
+               -- End of packet sequence
+               if ( rd.dataCounter < ENDPOINTS_G( to_integer( rd.epIdx) ).maxPktSizeOut ) then
+                  v.mstOut.don := '1';
+               end if;
+               if ( rd.bufRdIdx /= r.bufVldIdx ) then
+                  -- new packet header
+                  v.epIdx       := unsigned( bufReadOut(3 downto 0) );
+                  v.isSetup     := (bufReadOut(7 downto 4) = USB2_PID_TOK_SETUP_C);
+                  v.dataCounter := (others => '0');
+                  v.bufRdIdx    := rd.bufRdIdx + 1;
+               end if;
+            else
+               -- new data
+               v.dataCounter := rd.dataCounter + 1;
+               v.mstOut.vld  := '1';
+               v.mstOut.dat  := bufReadOut(7 downto 0);
+               v.bufRdIdx    := rd.bufRdIdx + 1;
+            end if;
+         end if;
+      end if;
+
+      rdin <= v;
+   end process P_COMB_READER;
 
    P_SEQ : process ( clk ) is
    begin
       if ( rising_edge( clk ) ) then
          if ( rst = '1' ) then
-            r <= REG_INIT_C;
+            r  <= REG_INIT_C;
+            rd <= BUF_READER_INIT_C;
          else
-            r <= rin;
+            r  <= rin;
+            rd <= rdin;
          end if;
       end if;
    end process P_SEQ;
+
+   U_BUF : entity work.Bram
+      generic map (
+         DATA_WIDTH_G => BUF_WIDTH_C,
+         ADDR_WIDTH_G => LD_BUFSZ_C,
+         EN_REGA_G    => false,
+         EN_REGB_G    => false
+      )
+      port map (
+         clk          => clk,
+         rst          => rst,
+         ena          => '1',
+
+         -- through this port we write OUT data and readback INP data (for retries)
+         wea          => bufWrEna,
+         addra        => r.bufRWIdx,
+         rdata        => bufReadbackInp,
+         wdata        => bufWriteInp,
+
+         -- readout of OUT data (after checksum is validated)
+         enb          => '1',
+         web          => '0',
+         addrb        => rd.bufRdIdx,
+         rdatb        => bufReadOut,
+         wdatb        => open
+      );
 
 end architecture Impl;
