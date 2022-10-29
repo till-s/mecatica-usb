@@ -43,8 +43,8 @@ architecture Impl of Usb2PktProc is
 
    constant TIME_HSK_TX_C        : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
    constant TIME_DATA_RX_C       : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
-   constant TIME_DATA_TX_C       : TimerType := to_unsigned( simt(10, 600000) , TimerType'length);
-   constant TIME_WAIT_ACK_C      : TimerType := to_unsigned( simt(10, 600000) , TimerType'length);
+   constant TIME_DATA_TX_C       : TimerType := to_unsigned( simt(20, 600000) , TimerType'length);
+   constant TIME_WAIT_ACK_C      : TimerType := to_unsigned( simt(20, 600000) , TimerType'length);
    constant TIME_WAIT_DATA_PID_C : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
 
    constant LD_BUFSZ_C           : natural   := 11;
@@ -359,12 +359,21 @@ begin
                   v.bufRWIdx    := r.bufRWIdx + 1;
                   bufWrEna      <= '1';
                   v.dataCounter := r.dataCounter - 1;
+                  if ( r.dataCounter = 0 ) then
+                     v.donFlg      := '1';
+                     v.timer       := TIME_WAIT_ACK_C;
+                     v.state       := WAIT_ACK;
+                     -- doesn't matter if the data counter will overflow
+                     -- v.dataCounter := r.dataCounter;
+                  end if;
                end if;
 
                if ( ei.mstInp.don = '1' ) then
                   if ( txDataSub.don = '1' ) then
+                     v.donFlg      := '0';
                      if ( ei.mstInp.err = '1' ) then
                         -- tx should send a bad packet; we'll not see an ack
+                        v.timer    := r.timer;
                         v.state    := IDLE;
                         -- it doesn't matter if we write 
                         -- bufWrEna   <= '0';
@@ -374,12 +383,6 @@ begin
                         v.state   := WAIT_ACK;
                      end if;
                   end if;
-               elsif ( r.dataCounter = 0 ) then
-                  v.donFlg      := '1';
-                  v.timer       := TIME_WAIT_ACK_C;
-                  v.state       := WAIT_ACK;
-                  -- doesn't matter if the data counter will overflow
-                  -- v.dataCounter := r.dataCounter;
                end if;
             end if;
 

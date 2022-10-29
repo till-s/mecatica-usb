@@ -168,7 +168,7 @@ architecture sim of Usb2PktProcTb is
       sendVec( ob, c );
    end procedure sendHsk;
 
-   procedure sendDat(
+   procedure sendDatPkt(
       signal   ob  : inout UlpiObType;
       constant pid : in    std_logic_vector(3 downto 0);
       constant v   : in    DataArray;
@@ -188,6 +188,13 @@ architecture sim of Usb2PktProcTb is
       t(0) := not crc( 7 downto 0);
       t(1) := not crc(15 downto 8);
       sendVec( ob, t, true, w );
+   end procedure sendDatPkt;
+
+   procedure sendDat(
+      signal   ob  : inout UlpiObType;
+      constant v   : in    DataArray
+   ) is
+   begin
    end procedure sendDat;
 
    procedure waitPid (
@@ -223,7 +230,8 @@ architecture sim of Usb2PktProcTb is
    procedure waitDatPkt (
       signal   ob  : inout UlpiObType;
       constant epi : in    std_logic_vector(3 downto 0);
-      constant eda : in    DataArray
+      constant eda : in    DataArray;
+      constant w   : in    natural := 0
    ) is
       variable pid : std_logic_vector( 3 downto 0);
       variable crc : std_logic_vector(15 downto 0);
@@ -231,16 +239,21 @@ architecture sim of Usb2PktProcTb is
       waitPid(ob, pid);
       assert ulpiIb.stp = '0' report "unexpected STP" severity failure;
       assert pid        = epi report "unexpected PID" severity failure;
-      tick;
       crc := USB2_CRC16_INIT_C;
       for i in eda'low to eda'high + 2 loop
+         for j in 0 to w - 1 loop
+            ob.nxt <= '0';
+            tick;
+         end loop;
+         ob.nxt <= '1';
+         tick;
          assert (ulpiIb.stp = '0'   )  report "unexpected STP" severity failure;
          if ( i <= eda'high ) then
-            assert (ulpiIb.dat = eda(i))  report "unexpected data" severity warning;
+            assert (ulpiIb.dat = eda(i))  report "unexpected data & " & integer'image(i) severity warning;
          end if;
          crcbf( crc, USB2_CRC16_POLY_C, ulpiIb.dat );
-         tick;
       end loop;
+      tick;
       assert crc = USB2_CRC16_CHCK_C report "data crc mismatch" severity failure;
       assert (ulpiIb.stp = '1'   )  report "unexpected STP" severity failure;
       ob.nxt <= '0';
@@ -251,6 +264,7 @@ architecture sim of Usb2PktProcTb is
       signal   ob  : inout UlpiObType;
       constant eda : in    DataArray;
       constant rtr : in    natural                      := 0;
+      constant w   : in    natural                      := 0;
       constant epi : in    std_logic_vector(3 downto 0) := x"0"
    ) is
       variable idx : natural;
@@ -268,9 +282,9 @@ architecture sim of Usb2PktProcTb is
             sendTok(ob, USB2_PID_TOK_IN_C, epi);
             tick;
             if ( dtglInp( epin ) = '0' ) then
-               waitDatPkt(ob, USB2_PID_DAT_DATA0_C, eda(idx to idx + cln - 1));
+               waitDatPkt(ob, USB2_PID_DAT_DATA0_C, eda(idx to idx + cln - 1), w);
             else
-               waitDatPkt(ob, USB2_PID_DAT_DATA1_C, eda(idx to idx + cln - 1));
+               waitDatPkt(ob, USB2_PID_DAT_DATA1_C, eda(idx to idx + cln - 1), w);
             end if;
             tick;
             if ( rr = rtr ) then
@@ -314,7 +328,7 @@ begin
       tick;
       tick;
 
-      sendDat(ulpiOb, USB2_PID_DAT_DATA0_C, d2);
+      sendDatPkt(ulpiOb, USB2_PID_DAT_DATA0_C, d2);
 
       tick;
 
@@ -325,7 +339,7 @@ begin
       sendTok(ulpiOb, USB2_PID_TOK_OUT_C, x"0");
       tick;
       -- send again; target should drop and ack
-      sendDat(ulpiOb, USB2_PID_DAT_DATA0_C, d2);
+      sendDatPkt(ulpiOb, USB2_PID_DAT_DATA0_C, d2);
 
       tick;
 
@@ -339,6 +353,11 @@ begin
       -- read fragmented with retries
       waitDat(ulpiOb, d2, 2 );
       tick;
+
+      -- read fragmented with retries and wait cycles
+      waitDat(ulpiOb, d2, 2, 2 );
+      tick;
+
 
       for i in 0 to 20 loop
          tick;
