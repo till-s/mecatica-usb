@@ -41,20 +41,21 @@ architecture Impl of Usb2PktProc is
       if ( SIM_C ) then return a; else return b; end if;
    end function simt;
 
-   constant TIME_HSK_TX_C        : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
-   constant TIME_DATA_RX_C       : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
-   constant TIME_DATA_TX_C       : TimerType := to_unsigned( simt(20, 600000) , TimerType'length);
-   constant TIME_WAIT_ACK_C      : TimerType := to_unsigned( simt(20, 600000) , TimerType'length);
-   constant TIME_WAIT_DATA_PID_C : TimerType := to_unsigned( simt(0,  600000) , TimerType'length);
+   constant TIME_HSK_TX_C        : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
+   constant TIME_DATA_RX_C       : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
+   constant TIME_DATA_TX_C       : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
+   constant TIME_WAIT_ACK_C      : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
+   constant TIME_WAIT_DATA_PID_C : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
 
    constant LD_BUFSZ_C           : natural   := 11;
    constant BUF_WIDTH_C          : natural   :=  9;
 
-   type StateType is ( IDLE, DATA_INP, DATA_REP, DATA_PID, DATA_OUT, DRAIN, WAIT_ACK, HSK );
+   type StateType is ( IDLE, DATA_INP, DATA_REP, ISO_INP, DATA_PID, DATA_OUT, ISO_OUT, DRAIN, WAIT_ACK, HSK );
 
    type RegType   is record
       state           : StateType;
-      dataTgl         : std_logic_vector(2*NUM_ENDPOINTS_C - 1 downto 0);
+      dataTglInp      : std_logic_vector(NUM_ENDPOINTS_C - 1 downto 0);
+      dataTglOut      : std_logic_vector(NUM_ENDPOINTS_C - 1 downto 0);
       timer           : TimerType;
       prevDevState    : Usb2DevStateType;
       tok             : Usb2PidType;
@@ -73,7 +74,8 @@ architecture Impl of Usb2PktProc is
 
    constant REG_INIT_C : RegType := (
       state           => IDLE,
-      dataTgl         => (others => '0'),
+      dataTglInp      => (others => '0'),
+      dataTglOut      => (others => '0'),
       timer           => (others => '0'),
       prevDevState    => DEFAULT,
       tok             => USB2_PID_SPC_NONE_C,
@@ -179,7 +181,7 @@ architecture Impl of Usb2PktProc is
 
    function sequenceOutMatch(constant v : in RegType; constant h : in Usb2PktHdrType) return boolean is
    begin
-      return v.dataTgl( to_integer( v.epIdx & "0" ) ) = h.pid(3);
+      return v.dataTglOut( to_integer( v.epIdx ) ) = h.pid(3);
    end function sequenceOutMatch;
 
    procedure invalidateBuffer(variable v : inout RegType) is
@@ -211,19 +213,35 @@ begin
       for i in epOb'range loop
          epOb(i).subInp <= USB2_STRM_SUB_INIT_C;
 
-         epOb(i).mstCtl     <= rd.mstOut;
-         epOb(i).mstCtl.vld <= '0';
-         epOb(i).mstCtl.don <= '0';
-         epOb(i).mstOut     <= rd.mstOut;
-         epOb(i).mstOut.vld <= '0';
-         epOb(i).mstOut.don <= '0';
-
-         if ( rd.isSetup ) then
-            epOb( to_integer( rd.epIdx ) ).mstCtl <= rd.mstOut;
+         if ( ENDPOINTS_G( i ).transferTypeOut = USB2_TT_CONTROL_C ) then
+            epOb(i).mstCtl     <= rd.mstOut;
+            epOb(i).mstCtl.vld <= '0';
+            epOb(i).mstCtl.don <= '0';
+            epOb(i).mstOut     <= rd.mstOut;
+            epOb(i).mstOut.vld <= '0';
+            epOb(i).mstOut.don <= '0';
+            if ( rd.isSetup ) then
+               epOb( to_integer( rd.epIdx ) ).mstCtl <= rd.mstOut;
+            else
+               epOb( to_integer( rd.epIdx ) ).mstOut <= rd.mstOut;
+            end if;
          else
-            epOb( to_integer( rd.epIdx ) ).mstOut <= rd.mstOut;
+            epOb(i).mstCtl  <= USB2_STRM_MST_INIT_C;
+            if ( ENDPOINTS_G( i ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+               epOb(i).mstOut        <= rxDataMst;
+               epOb(i).mstOut.vld    <= '0';
+               epOb(i).mstOut.don    <= '0';
+            else
+               epOb(i).mstOut  <= rd.mstOut;
+               if ( i /= rd.epIdx ) then
+                  epOb(i).mstOut.vld <= '0';
+                  epOb(i).mstOut.don <= '0';
+               end if;
+            end if;
          end if;
       end loop;
+
+
 
       if ( r.timer > 0 ) then
          v.timer := r.timer - 1;
@@ -237,7 +255,11 @@ begin
                ei            := epIb( to_integer( v.epIdx ) );
                if ( isTokInp( rxPktHdr.pid ) ) then
                   v.dataCounter := ENDPOINTS_G( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
-                  if ( ei.stalledInp = '1' ) then
+                  v.timer       := TIME_DATA_TX_C;
+                  if ( ENDPOINTS_G( to_integer( r.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
+                     v.state   := ISO_INP;
+                     v.pid     := USB2_PID_DAT_DATA0_C;
+                  elsif ( ei.stalledInp = '1' ) then
                      v.pid     := USB2_PID_HSK_STALL_C;
                      v.timer   := TIME_HSK_TX_C;
                      v.state   := HSK;
@@ -259,7 +281,7 @@ begin
 --                        v.bufRWIdx  := r.bufVldIdx;
 --                        v.bufInpVld := '0';
 --
-                     if ( r.dataTgl( to_integer( r.epIdx & "1" ) ) = '0' ) then
+                     if ( r.dataTglInp( to_integer( r.epIdx ) ) = '0' ) then
                         v.pid := USB2_PID_DAT_DATA0_C;
                      else
                         v.pid := USB2_PID_DAT_DATA1_C;
@@ -278,7 +300,6 @@ begin
                      else
                         v.state := DATA_INP;
                      end if;
-                     v.timer   := TIME_DATA_TX_C;
                   end if;
                else
                   v.dataCounter := ENDPOINTS_G( to_integer( v.epIdx ) ).maxPktSizeOut - 1;
@@ -292,7 +313,9 @@ begin
          when DATA_PID =>
             if ( ( rxPktHdr.vld = '1' ) ) then
                if ( checkDatHdr( rxPktHdr ) ) then
-                  if ( ei.stalledOut = '1' ) then
+                  if ( ENDPOINTS_G( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+                     v.state := ISO_OUT; 
+                  elsif ( ei.stalledOut = '1' ) then
                      v.pid   := USB2_PID_HSK_STALL_C;
                      v.state := DRAIN;
                   elsif ( not sequenceOutMatch( v, rxPktHdr ) ) then
@@ -312,10 +335,48 @@ begin
                   end if;
                   v.timer    := TIME_DATA_RX_C;
                else
+                  if ( ENDPOINTS_G( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+                     epOb( to_integer( rd.epIdx ) ).mstOut.don <= '1';
+                     epOb( to_integer( rd.epIdx ) ).mstOut.err <= '1';
+                  end if;
                   v.state    := IDLE;
                end if;   
+            elsif ( r.timer = 0 ) then
+               if ( ENDPOINTS_G( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+                  epOb( to_integer( rd.epIdx ) ).mstOut.don <= '1';
+                  epOb( to_integer( rd.epIdx ) ).mstOut.err <= '1';
+               end if;
+               v.state := IDLE;
             end if;   
 
+         when ISO_OUT =>
+            epOb( to_integer( r.epIdx ) ).mstOut <= rxDataMst;
+            if ( rxDataMst.don = '1' ) then
+               v.state := IDLE;
+            end if;
+
+         when ISO_INP =>
+            if ( r.timer = 0 ) then
+               epOb( to_integer( r.epIdx ) ).subInp <= txDataSub;
+               txDataMst.vld                        <= ei.mstInp.vld;
+               txDataMst.don                        <= ei.mstInp.don;
+               
+-- assume the endpoint is are well behaved and does not try to send excessive data
+--               if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
+--                  v.dataCounter := r.dataCounter - 1;
+--                  if ( r.dataCounter = '0' ) then
+--                     epOb( to_integer( r.epIdx ) ).subInp.vld <= '0';
+--                     epOb( to_integer( r.epIdx ) ).subInp.err <= '1';
+--                     epOb( to_integer( r.epIdx ) ).subInp.don <= '1';
+--                     v.state := ISO_INP_ABRT;
+--                  end if;
+--               end if;
+
+               if ( (ei.mstInp.don and txDataSub.don) = '1' ) then
+                  v.state := IDLE;
+               end if;
+            end if;
+ 
          when DATA_OUT | DRAIN =>
             if ( r.state = DATA_OUT ) then
                bufWrEna <= rxDataMst.vld;
@@ -332,9 +393,10 @@ begin
                      -- toggle / reset only if sequence bits matched (-> we are in DATA_OUT state)
                      -- and there was no crc or other reception error
                      if ( r.tok(3 downto 2) = USB2_PID_TOK_SETUP_C(3 downto 2) ) then
-                        v.dataTgl( to_integer( r.epIdx & "0" ) ) := '1';
+                        v.dataTglOut( to_integer( r.epIdx ) ) := '1';
+                        v.dataTglInp( to_integer( r.epIdx ) ) := '1';
                      else
-                        v.dataTgl( to_integer( r.epIdx & "0" ) ) := not r.dataTgl( to_integer( r.epIdx & "0" ) );
+                        v.dataTglOut( to_integer( r.epIdx ) ) := not r.dataTglOut( to_integer( r.epIdx ) );
                      end if;
                      -- release the buffer
                      v.bufVldIdx := r.bufRWIdx;
@@ -429,7 +491,7 @@ begin
                end if;
             else
                 if    ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
-                  v.dataTgl( to_integer( r.epIdx & "1" ) ) := not r.dataTgl( to_integer( r.epIdx & "1" ) );
+                  v.dataTglInp( to_integer( r.epIdx ) ) := not r.dataTglInp( to_integer( r.epIdx ) );
                   -- ok to throw stored data away
                   invalidateBuffer( v );
                   v.state := IDLE;
@@ -460,16 +522,17 @@ begin
       -- We simply clear it already while halted.
       for i in epIb'range loop
         if ( epIb(i).stalledInp = '1' ) then
-           v.dataTgl(2*i+1) := '0';
+           v.dataTglInp(i) := '0';
         end if;
         if ( epIb(i).stalledOut = '1' ) then
-           v.dataTgl(2*i+0) := '0';
+           v.dataTglOut(i) := '0';
         end if;
       end loop;
 
       if ( devStatus.state = CONFIGURED and r.prevDevState /= CONFIGURED ) then
          -- freshly configured; must reset all endpoint state including the toggle bits
-         v.dataTgl := (others => '0');
+         v.dataTglInp := (others => '0');
+         v.dataTglOut := (others => '0');
       end if;
 
       if ( devStatus.state /= DEFAULT and devStatus.state /= ADDRESS and devStatus.state /= CONFIGURED ) then
