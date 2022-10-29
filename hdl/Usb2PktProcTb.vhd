@@ -36,6 +36,8 @@ architecture sim of Usb2PktProcTb is
    signal ulpiTxReq       : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep       : UlpiTxRepType;
 
+   shared variable dtglInp : std_logic_vector(ENDPOINTS_C'range) := (others => '0');
+
    type UlpiObType is record
       dir  : std_logic;
       nxt  : std_logic;
@@ -218,11 +220,10 @@ architecture sim of Usb2PktProcTb is
        assert ( pid(1 downto 0) = USB2_PID_GROUP_HSK_C ) report "PID not a HSK" severity failure;
    end procedure waitHsk;
 
-   procedure waitDat (
+   procedure waitDatPkt (
       signal   ob  : inout UlpiObType;
       constant epi : in    std_logic_vector(3 downto 0);
-      constant eda : in    DataArray;
-      constant st  : in    std_logic_vector(7 downto 0) := x"00"
+      constant eda : in    DataArray
    ) is
       variable pid : std_logic_vector( 3 downto 0);
       variable crc : std_logic_vector(15 downto 0);
@@ -244,8 +245,49 @@ architecture sim of Usb2PktProcTb is
       assert (ulpiIb.stp = '1'   )  report "unexpected STP" severity failure;
       ob.nxt <= '0';
       tick;
+   end procedure waitDatPkt;
+
+   procedure waitDat(
+      signal   ob  : inout UlpiObType;
+      constant eda : in    DataArray;
+      constant rtr : in    natural                      := 0;
+      constant epi : in    std_logic_vector(3 downto 0) := x"0"
+   ) is
+      variable idx : natural;
+      constant epin: natural := to_integer( unsigned( epi ) );
+      constant MSZ : natural := to_integer( ENDPOINTS_C( epin ).maxPktSizeInp );
+      variable cln : natural := MSZ;
+   begin
+      idx := 0;
+      L_FRAG : while true loop
+         cln := eda'length - idx;
+         if ( cln > MSZ ) then
+            cln := MSZ;
+         end if;
+         for rr in 0 to rtr loop
+            sendTok(ob, USB2_PID_TOK_IN_C, epi);
+            tick;
+            if ( dtglInp( epin ) = '0' ) then
+               waitDatPkt(ob, USB2_PID_DAT_DATA0_C, eda(idx to idx + cln - 1));
+            else
+               waitDatPkt(ob, USB2_PID_DAT_DATA1_C, eda(idx to idx + cln - 1));
+            end if;
+            tick;
+            if ( rr = rtr ) then
+               sendHsk(ob, USB2_PID_HSK_ACK_C);
+               dtglInp( epin ) := not dtglInp( epin );
+               idx := idx + cln;
+            else
+               sendHsk(ob, USB2_PID_HSK_NAK_C);
+            end if;
+            tick;
+         end loop;
+         if ( cln < MSZ ) then
+            exit L_FRAG;
+         end if;
+      end loop;
    end procedure waitDat;
- 
+  
 begin
 
    P_ULPI_DAT : process ( ulpiOb, dat_i ) is
@@ -290,36 +332,13 @@ begin
       waitHsk(ulpiOb, pid);
       assert pid = USB2_PID_HSK_ACK_C report "ACK expected" severity failure;
 
-      sendTok(ulpiOb, USB2_PID_TOK_IN_C, x"0");
-      tick;
-      waitDat(ulpiOb, USB2_PID_DAT_DATA0_C, d2(0 to 7));
-      tick;
-
-      sendHsk(ulpiOb, USB2_PID_HSK_NAK_C);
+      -- read fragmented data
+      waitDat(ulpiOb, d2 );
       tick;
 
-      sendTok(ulpiOb, USB2_PID_TOK_IN_C, x"0");
+      -- read fragmented with retries
+      waitDat(ulpiOb, d2, 2 );
       tick;
-      waitDat(ulpiOb, USB2_PID_DAT_DATA0_C, d2(0 to 7));
-      tick;
-
-      sendHsk(ulpiOb, USB2_PID_HSK_ACK_C);
-      tick;
-
-      sendTok(ulpiOb, USB2_PID_TOK_IN_C, x"0");
-      tick;
-      waitDat(ulpiOb, USB2_PID_DAT_DATA1_C, d2(8 to 15));
-      tick;
-
-      sendHsk(ulpiOb, USB2_PID_HSK_ACK_C);
-      tick;
-
-      sendTok(ulpiOb, USB2_PID_TOK_IN_C, x"0");
-      tick;
-      waitDat(ulpiOb, USB2_PID_DAT_DATA0_C, NULL_DATA);
-      tick;
-
-
 
       for i in 0 to 20 loop
          tick;

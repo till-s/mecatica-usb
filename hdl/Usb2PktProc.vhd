@@ -270,9 +270,10 @@ begin
                         v.bufRWIdx := r.bufRWIdx + 1;
                         if ( r.bufRWIdx = r.bufEndIdx ) then
                            -- empty packet - avoid DATA_REP
-                           v.timer   := TIME_WAIT_ACK_C;
-                           v.state   := WAIT_ACK;
-                           v.donFlg  := '1';
+                           v.timer    := TIME_WAIT_ACK_C;
+                           v.state    := WAIT_ACK;
+                           v.donFlg   := '1';
+                           v.bufRWIdx := r.bufRWIdx;
                         end if;
                      else
                         v.state := DATA_INP;
@@ -401,9 +402,10 @@ begin
                   if ( r.bufRWIdx = r.bufEndIdx ) then
                      -- RWIdx has already advanced to the next word when we sent the last
                      -- 'good' one
-                     v.donFlg  := '1';
-                     v.timer   := TIME_WAIT_ACK_C;
-                     v.state   := WAIT_ACK;
+                     v.donFlg   := '1';
+                     v.timer    := TIME_WAIT_ACK_C;
+                     v.state    := WAIT_ACK;
+                     v.bufRWIdx := r.bufRWIdx;
                   end if;
                elsif ( r.tmpVld = '0' ) then
                   -- must catch the readout in the tmp buffer
@@ -429,8 +431,8 @@ begin
                   -- ok to throw stored data away
                   invalidateBuffer( v );
                   v.state := IDLE;
-               elsif ( r.timer = 0 ) then
-                  -- timeout: save buffer
+               elsif ( ( r.timer = 0 ) or ( rxPktHdr.vld = '1' ) ) then
+                  -- timeout or NAK: save buffer
                   v.bufInpVld   := '1';
                   v.bufEndIdx   := r.bufRWIdx;
                   -- set bufRWIdx early so that readback data will be available
