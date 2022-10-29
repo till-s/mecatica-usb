@@ -341,7 +341,6 @@ begin
                   end if;
                   v.timer   := TIME_HSK_TX_C;
                   v.state   := HSK;
-                  -- TODO defragmentation
                end if;
                -- if there was a good packet we have already advanced v.bufVldIdx
                -- and invalidateBuffer() does no harm here
@@ -482,11 +481,7 @@ begin
 
    end process P_COMB;
 
-   P_EP_MUX : process ( rd ) is
-   begin
-   end process P_EP_MUX;
-
-   P_COMB_READER : process ( r.bufVldIdx, rd, epIb ) is
+   P_COMB_READER : process ( r.bufVldIdx, rd, epIb, bufReadOut ) is
       variable v : BufReaderType;
    begin
       v := rd;
@@ -496,7 +491,9 @@ begin
       -- simple...
       if ( rd.mstOut.don = '1' ) then
          if ( epIb( to_integer( rd.epIdx ) ).subOut.don = '1' ) then
-            v.mstOut.don := '0';
+            v.mstOut.don         := '0';
+            -- mark as processed
+            v.dataCounter := (others => '1');
          end if;
       else
          if ( ( rd.mstOut.vld and epIb( to_integer( rd.epIdx ) ).subOut.rdy ) = '1' ) then
@@ -506,8 +503,8 @@ begin
          if ( v.mstOut.vld = '0' ) then
             -- see if we have anything new to offer
             if ( ( rd.bufRdIdx = r.bufVldIdx ) or ( bufReadOut(8) = '1' ) ) then
-               -- End of packet sequence
-               if ( rd.dataCounter < ENDPOINTS_G( to_integer( rd.epIdx) ).maxPktSizeOut ) then
+               -- End of packet sequence (setup packets do not require an empty data packet)
+               if ( rd.dataCounter < ENDPOINTS_G( to_integer( rd.epIdx) ).maxPktSizeOut or rd.isSetup ) then
                   v.mstOut.don := '1';
                end if;
                if ( rd.bufRdIdx /= r.bufVldIdx ) then
@@ -564,7 +561,7 @@ begin
          -- readout of OUT data (after checksum is validated)
          enb          => '1',
          web          => '0',
-         addrb        => rd.bufRdIdx,
+         addrb        => rdin.bufRdIdx,
          rdatb        => bufReadOut,
          wdatb        => open
       );

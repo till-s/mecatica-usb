@@ -24,8 +24,6 @@ architecture Impl of Usb2PktRx is
 
    type StateType is (WAIT_FOR_START, WAIT_FOR_EOP, WAIT_FOR_PID, TOK1, TOK2, DAT);
 
-   constant RXCMD_RX_ACTIVE_BIT_C : natural := 4;
-
    function rxActive(constant x : in UlpiRxType) return boolean is
    begin
       if ( x.dir = '0' ) then
@@ -35,7 +33,7 @@ architecture Impl of Usb2PktRx is
          -- turn-around cycle that may have aborted a reg-read
          return x.nxt = '1';
       end if;
-      return ( x.nxt = '1' ) or ( x.dat(RXCMD_RX_ACTIVE_BIT_C) = '1' );
+      return ( x.nxt = '1' ) or ( x.dat(ULPI_RXCMD_RX_ACTIVE_BIT_C) = '1' );
    end function rxActive;
 
    type RxBufType is record

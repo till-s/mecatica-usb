@@ -37,6 +37,7 @@ architecture sim of Usb2PktProcTb is
    signal ulpiTxRep       : UlpiTxRepType;
 
    shared variable dtglInp : std_logic_vector(ENDPOINTS_C'range) := (others => '0');
+   shared variable dtglOut : std_logic_vector(ENDPOINTS_C'range) := (others => '0');
 
    type UlpiObType is record
       dir  : std_logic;
@@ -94,6 +95,10 @@ architecture sim of Usb2PktProcTb is
       constant e  : in    boolean := true;
       constant w  : in    integer := 0
    ) is
+      constant RXCMD_C : std_logic_vector(7 downto 0) := (
+         ULPI_RXCMD_RX_ACTIVE_BIT_C => '1',
+         others                => '0'
+      );
    begin
       if ( ob.dir = '0' ) then
          ob.dir <= '1';
@@ -106,7 +111,9 @@ architecture sim of Usb2PktProcTb is
          ob.dat <= vc(i);
          for j in 0 to w - 1 loop
             ob.nxt <= '0';
+            ob.dat <= RXCMD_C;
             tick;
+            ob.dat <= vc(i);
             ob.nxt <= '1';
          end loop;
          tick;
@@ -157,6 +164,10 @@ architecture sim of Usb2PktProcTb is
       v(1) := x(7 downto 0);
       v(2) := not c & x(10 downto 8);
       sendVec( ob, v );
+      if ( v(0)(3 downto 0) = USB2_PID_TOK_SETUP_C ) then
+         dtglInp( to_integer( unsigned( e ) ) ) := '0';
+         dtglOut( to_integer( unsigned( e ) ) ) := '0';
+      end if;
    end procedure sendTok;
 
    procedure sendHsk(
@@ -167,6 +178,46 @@ architecture sim of Usb2PktProcTb is
    begin
       sendVec( ob, c );
    end procedure sendHsk;
+
+   procedure waitPid (
+      signal   ob  : inout UlpiObType;
+      variable pid : out   std_logic_vector(3 downto 0);
+      constant tim : in    natural := 30
+   ) is
+      variable cnt : natural := tim;
+   begin
+      while ulpiIb.dat = x"00" loop
+         tick;
+         if ( cnt = 0 ) then
+            pid := USB2_PID_HSK_NAK_C;
+            return;
+         else
+            cnt := cnt - 1;
+         end if;
+      end loop;
+      assert ulpiIb.dat(7 downto 4) = "0100" report "not a TXCMD" severity failure;
+      ob.nxt <= '1';
+      tick;
+      assert ulpiIb.dat(7 downto 4) = "0100" report "not a TXCMD" severity failure;
+      pid := ulpiIb.dat(3 downto 0);
+   end procedure waitPid;
+
+   procedure waitHsk (
+      signal   ob  : inout UlpiObType;
+      variable pid : inout std_logic_vector(3 downto 0);
+      constant timo: in    natural                      := 30;
+      constant st  : in    std_logic_vector(7 downto 0) := x"00"
+   ) is
+   begin
+       waitPid(ob, pid, timo);
+       ob.nxt <= '0';
+       assert ulpiIb.stp = '0' report "unexpected STP" severity failure;
+       tick;
+       assert ( ulpiIb.stp = '1' )                       report "HSK not stopped"     severity failure;
+       assert ( ulpiIb.dat = st  )                       report "HSK status mismatch" severity failure;
+       assert ( pid(1 downto 0) = USB2_PID_GROUP_HSK_C ) report "PID not a HSK" severity failure;
+   end procedure waitHsk;
+
 
    procedure sendDatPkt(
       signal   ob  : inout UlpiObType;
@@ -192,51 +243,70 @@ architecture sim of Usb2PktProcTb is
 
    procedure sendDat(
       signal   ob  : inout UlpiObType;
-      constant v   : in    DataArray
+      constant v   : in    DataArray;
+      constant epo : in    std_logic_vector(3 downto 0) := x"0";
+      constant stup: in    boolean := false;
+      constant rtr : in    natural := 0;
+      constant w   : in    natural := 0;
+      constant timo: in    natural := 30
    ) is
+      variable idx : natural;
+      constant epou: natural := to_integer( unsigned( epo ) );
+      constant MSZ : natural := to_integer( ENDPOINTS_C( epou ).maxPktSizeOut );
+      variable cln : natural := MSZ;
+      variable pid : std_logic_vector(3 downto 0);
    begin
-   end procedure sendDat;
+      if ( stup ) then
+         assert v'length <= MSZ report "excessive setup data (test prog error)" severity failure;
+      end if;
+      idx := v'low;
+      L_FRAG : while true loop
+         cln := v'high + 1 - idx;
+         if ( cln > MSZ ) then
+            cln := MSZ;
+         end if;
+         for rr in 0 to rtr loop
+            if ( stup ) then
+               sendTok(ob, USB2_PID_TOK_SETUP_C, epo);
+            else
+               sendTok(ob, USB2_PID_TOK_OUT_C, epo);
+            end if;
+            tick;
 
-   procedure waitPid (
-      signal   ob  : inout UlpiObType;
-      variable pid : out   std_logic_vector(3 downto 0)
-   ) is
-   begin
-      while ulpiIb.dat = x"00" loop
-         tick;
+            if ( dtglOut( epou ) = '0' ) then
+               sendDatPkt(ob, USB2_PID_DAT_DATA0_C, v(idx to idx + cln - 1), w);
+            else
+               sendDatPkt(ob, USB2_PID_DAT_DATA1_C, v(idx to idx + cln - 1), w);
+            end if;
+
+            tick;
+            waitHsk(ob, pid, timo);
+            assert pid = USB2_PID_HSK_ACK_C report "data not ACKed" severity failure;
+            if ( rr = rtr ) then
+               -- accept the last one
+               dtglOut( epou ) := not dtglOut( epou );
+            end if;
+            tick;
+         end loop;
+         idx := idx + cln;
+         if ( cln < MSZ or stup ) then
+            -- SETUP does not need a zero-length terminator!
+            exit L_FRAG;
+         end if;
       end loop;
-      assert ulpiIb.dat(7 downto 4) = "0100" report "not a TXCMD" severity failure;
-      ob.nxt <= '1';
-      tick;
-      assert ulpiIb.dat(7 downto 4) = "0100" report "not a TXCMD" severity failure;
-      pid := ulpiIb.dat(3 downto 0);
-   end procedure waitPid;
-
-   procedure waitHsk (
-      signal   ob  : inout UlpiObType;
-      variable pid : inout std_logic_vector(3 downto 0);
-      constant st  : in    std_logic_vector(7 downto 0) := x"00"
-   ) is
-   begin
-       waitPid(ob, pid);
-       ob.nxt <= '0';
-       assert ulpiIb.stp = '0' report "unexpected STP" severity failure;
-       tick;
-       assert ( ulpiIb.stp = '1' )                       report "HSK not stopped"     severity failure;
-       assert ( ulpiIb.dat = st  )                       report "HSK status mismatch" severity failure;
-       assert ( pid(1 downto 0) = USB2_PID_GROUP_HSK_C ) report "PID not a HSK" severity failure;
-   end procedure waitHsk;
+   end procedure sendDat;
 
    procedure waitDatPkt (
       signal   ob  : inout UlpiObType;
       constant epi : in    std_logic_vector(3 downto 0);
       constant eda : in    DataArray;
-      constant w   : in    natural := 0
+      constant w   : in    natural := 0;
+      constant timo: in    natural                      := 30
    ) is
       variable pid : std_logic_vector( 3 downto 0);
       variable crc : std_logic_vector(15 downto 0);
    begin
-      waitPid(ob, pid);
+      waitPid(ob, pid, timo);
       assert ulpiIb.stp = '0' report "unexpected STP" severity failure;
       assert pid        = epi report "unexpected PID" severity failure;
       crc := USB2_CRC16_INIT_C;
@@ -265,16 +335,17 @@ architecture sim of Usb2PktProcTb is
       constant eda : in    DataArray;
       constant rtr : in    natural                      := 0;
       constant w   : in    natural                      := 0;
-      constant epi : in    std_logic_vector(3 downto 0) := x"0"
+      constant epi : in    std_logic_vector(3 downto 0) := x"0";
+      constant timo: in    natural                      := 30
    ) is
       variable idx : natural;
       constant epin: natural := to_integer( unsigned( epi ) );
       constant MSZ : natural := to_integer( ENDPOINTS_C( epin ).maxPktSizeInp );
       variable cln : natural := MSZ;
    begin
-      idx := 0;
+      idx := eda'low;
       L_FRAG : while true loop
-         cln := eda'length - idx;
+         cln := eda'high + 1 - idx;
          if ( cln > MSZ ) then
             cln := MSZ;
          end if;
@@ -282,9 +353,9 @@ architecture sim of Usb2PktProcTb is
             sendTok(ob, USB2_PID_TOK_IN_C, epi);
             tick;
             if ( dtglInp( epin ) = '0' ) then
-               waitDatPkt(ob, USB2_PID_DAT_DATA0_C, eda(idx to idx + cln - 1), w);
+               waitDatPkt(ob, USB2_PID_DAT_DATA0_C, eda(idx to idx + cln - 1), w, timo);
             else
-               waitDatPkt(ob, USB2_PID_DAT_DATA1_C, eda(idx to idx + cln - 1), w);
+               waitDatPkt(ob, USB2_PID_DAT_DATA1_C, eda(idx to idx + cln - 1), w, timo);
             end if;
             tick;
             if ( rr = rtr ) then
@@ -323,28 +394,12 @@ begin
    begin
       tick; tick;
 
-      sendTok(ulpiOb, USB2_PID_TOK_OUT_C, x"0");
 
-      tick;
-      tick;
+      sendDat(ulpiOb, d2);
 
-      sendDatPkt(ulpiOb, USB2_PID_DAT_DATA0_C, d2);
+      sendDat(ulpiOb, d2, rtr=>2 );
 
-      tick;
-
-      waitHsk(ulpiOb, pid);
-      assert pid = USB2_PID_HSK_ACK_C report "ACK expected" severity failure;
-
-      tick;
-      sendTok(ulpiOb, USB2_PID_TOK_OUT_C, x"0");
-      tick;
-      -- send again; target should drop and ack
-      sendDatPkt(ulpiOb, USB2_PID_DAT_DATA0_C, d2);
-
-      tick;
-
-      waitHsk(ulpiOb, pid);
-      assert pid = USB2_PID_HSK_ACK_C report "ACK expected" severity failure;
+      sendDat(ulpiOb, d2, rtr=>2, w => 2 );
 
       -- read fragmented data
       waitDat(ulpiOb, d2 );
@@ -357,7 +412,6 @@ begin
       -- read fragmented with retries and wait cycles
       waitDat(ulpiOb, d2, 2, 2 );
       tick;
-
 
       for i in 0 to 20 loop
          tick;
@@ -421,23 +475,26 @@ begin
       begin
          v            := USB2_ENDP_PAIR_IB_INIT_C;
          v.mstInp.vld := '1';
+         v.subOut.rdy := '1';
          return v;
       end function ini;
  
-      variable idx : integer            := 0;
-      variable ep  : Usb2EndpPairIbType := ini;
+      variable iidx : integer            := 0;
+      variable oidx : integer            := 0;
+      variable ep   : Usb2EndpPairIbType := ini;
    begin
       if ( rising_edge( clk ) ) then
+         ep.subOut.don := '0';
          if ( ep.mstInp.vld = '1' ) then
             if ( epOb(0).subInp.rdy = '1' ) then
                assert epOb(0).subInp.err = '0' report "INP 0 endpoint error" severity failure;
-               if ( idx = d2'high ) then 
+               if ( iidx = d2'high ) then 
                   ep.mstInp.vld := '0';
-                  idx           :=  0 ;
+                  iidx          :=  0 ;
                   ep.mstInp.don := '1';
                   ep.mstInp.err := '0';
                else
-                  idx           := idx + 1;
+                  iidx          := iidx + 1;
                end if;
             end if;
          else
@@ -446,9 +503,15 @@ begin
                ep.mstInp.vld := '1';
             end if;
          end if;
-         ep.subOut.rdy := '1';
+         if ( epOb(0).mstOut.vld = '1' ) then
+            assert epOb(0).mstOut.dat = d2(oidx) report "OUT 0 endpoint data mismatch" severity failure;
+            oidx := oidx + 1;
+         elsif ( epOb(0).mstOut.don = '1' ) then
+            oidx          := 0;
+            ep.subOut.don := '1';
+         end if;
          epIb(0)            <= ep;
-         epIb(0).mstInp.dat <= d2(idx);
+         epIb(0).mstInp.dat <= d2(iidx);
       end if;
    end process P_EP_0;
 
