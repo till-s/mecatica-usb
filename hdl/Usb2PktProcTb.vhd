@@ -17,11 +17,18 @@ architecture sim of Usb2PktProcTb is
                transferTypeInp => USB2_TT_CONTROL_C,
                maxPktSizeInp   => to_unsigned( 8, Usb2PktSizeType'length),
                transferTypeOut => USB2_TT_CONTROL_C,
-               maxPktSizeOut   => to_unsigned( 8, Usb2PktSizeType'length)
+               maxPktSizeOut   => to_unsigned( 8, Usb2PktSizeType'length),
+               hasHaltInp      => false,
+               hasHaltOut      => false
            )
    );
 
-   signal devStatus       : Usb2DevStatusType := ( state => DEFAULT, devAddr => "0000000" ) ;
+   signal devStatus       : Usb2DevStatusType := (
+      state      => DEFAULT,
+      devAddr    => "0000000",
+      clrHaltInp => (others => '0'),
+      clrHaltOut => (others => '0')
+   ) ;
    signal epIb            : Usb2EndpPairIbArray(ENDPOINTS_C'range);
    signal epOb            : Usb2EndpPairObArray(ENDPOINTS_C'range);
 
@@ -372,7 +379,7 @@ architecture sim of Usb2PktProcTb is
          end if;
       end loop;
    end procedure waitDat;
-  
+
 begin
 
    P_ULPI_DAT : process ( ulpiOb, dat_i ) is
@@ -421,7 +428,7 @@ begin
    end process P_TST;
 
    U_DUT : entity work.Usb2PktProc
-   generic map ( 
+   generic map (
       ENDPOINTS_G     => ENDPOINTS_C
    )
    port map (
@@ -444,7 +451,7 @@ begin
       pktHdr          => rxPktHdr,
       rxData          => rxDataMst
    );
-   
+
    U_TX : entity work.Usb2PktTx
    port map (
       clk             => clk,
@@ -478,7 +485,7 @@ begin
          v.subOut.rdy := '1';
          return v;
       end function ini;
- 
+
       variable iidx : integer            := 0;
       variable oidx : integer            := 0;
       variable ep   : Usb2EndpPairIbType := ini;
@@ -488,7 +495,7 @@ begin
          if ( ep.mstInp.vld = '1' ) then
             if ( epOb(0).subInp.rdy = '1' ) then
                assert epOb(0).subInp.err = '0' report "INP 0 endpoint error" severity failure;
-               if ( iidx = d2'high ) then 
+               if ( iidx = d2'high ) then
                   ep.mstInp.vld := '0';
                   iidx          :=  0 ;
                   ep.mstInp.don := '1';

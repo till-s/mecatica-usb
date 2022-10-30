@@ -10,6 +10,9 @@ package Usb2Pkg is
    subtype Usb2EndpIdxType  is unsigned(3 downto 0);
    subtype Usb2DevAddrType  is std_logic_vector(6 downto 0);
 
+   subtype Usb2ByteType     is std_logic_vector(7 downto 0);
+ 
+
    constant USB2_DEV_ADDR_DFLT_C    : Usb2DevAddrType := (others => '0');
    constant USB2_ENDP_ZERO_C        : Usb2EndpIdxType := (others => '0');
 
@@ -108,6 +111,8 @@ package Usb2Pkg is
    type Usb2DevStatusType is record
       state      : Usb2DevStateType;
       devAddr    : Usb2DevAddrType;
+      clrHaltInp : std_logic_vector(15 downto 0);
+      clrHaltOut : std_logic_vector(15 downto 0);
    end record;
 
    -- signals traveling from EP -> bus
@@ -201,14 +206,111 @@ package Usb2Pkg is
    type Usb2EndpPairPropertyType is record
       transferTypeInp  : Usb2TransferType;
       maxPktSizeInp    : Usb2PktSizeType;
+      hasHaltInp       : boolean;
       transferTypeOut  : Usb2TransferType;
       maxPktSizeOut    : Usb2PktSizeType;
+      hasHaltOut       : boolean;
    end record Usb2EndpPairPropertyType;
 
    type Usb2EndpPairPropertyArray is array (natural range <>) of Usb2EndpPairPropertyType;
    type Usb2EndpPairIbArray       is array (natural range <>) of Usb2EndpPairIbType;
    type Usb2EndpPairObArray       is array (natural range <>) of Usb2EndpPairObType;
- 
+
+   type Usb2DevPropertyType is record
+      hasRemoteWakeup  : boolean;
+   end record Usb2DevPropertyType;
+
+   function USB2_REQ_TYP_DEV2HOST_F (constant reqTyp : in Usb2ByteType) return boolean;
+   function USB2_REQ_TYP_TYPE_F     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
+   function USB2_REQ_TYP_RECIPIENT_V(constant reqTyp : in Usb2ByteType) return std_logic_vector;
+
+   constant USB2_REQ_TYP_TYPE_STANDARD_C           : std_logic_vector(1 downto 0) := "00";
+   constant USB2_REQ_TYP_TYPE_CLASS_C              : std_logic_vector(1 downto 0) := "01";
+   constant USB2_REQ_TYP_TYPE_VENDOR_C             : std_logic_vector(1 downto 0) := "10";
+
+   constant USB2_REQ_TYP_RECIPIENT_DEV_C           : std_logic_vector(1 downto 0) := "00";
+   constant USB2_REQ_TYP_RECIPIENT_IRC_C           : std_logic_vector(1 downto 0) := "01";
+   constant USB2_REQ_TYP_RECIPIENT_EPT_C           : std_logic_vector(1 downto 0) := "10";
+
+   subtype  Usb2StdRequestCodeType                 is unsigned(3 downto 0);
+   constant USB2_REQ_STD_GET_STATUS_C              : Usb2StdRequestCodeType     := x"0";
+   constant USB2_REQ_STD_CLEAR_FEATURE_C           : Usb2StdRequestCodeType     := x"1";
+   constant USB2_REQ_STD_SET_FEATURE_C             : Usb2StdRequestCodeType     := x"3";
+   constant USB2_REQ_STD_SET_ADDRESS_C             : Usb2StdRequestCodeType     := x"5";
+   constant USB2_REQ_STD_GET_DESCRIPTOR_C          : Usb2StdRequestCodeType     := x"6";
+   constant USB2_REQ_STD_SET_DESCRIPTOR_C          : Usb2StdRequestCodeType     := x"7";
+   constant USB2_REQ_STD_GET_CONFIGURATION_C       : Usb2StdRequestCodeType     := x"8";
+   constant USB2_REQ_STD_SET_CONFIGURATION_C       : Usb2StdRequestCodeType     := x"9";
+   constant USB2_REQ_STD_GET_INTERFACE_C           : Usb2StdRequestCodeType     := x"A";
+   constant USB2_REQ_STD_SET_INTERFACE_C           : Usb2StdRequestCodeType     := x"B";
+   constant USB2_REQ_STD_SYNCH_FRAME_C             : Usb2StdRequestCodeType     := x"C";
+
+   subtype  Usb2StdDescriptorTypeType              is unsigned(3 downto 0);
+   constant USB2_STD_DESC_TYPE_DEVICE_C            : Usb2StdDescriptorTypeType  := x"1";
+   constant USB2_STD_DESC_TYPE_CONFIGURATION_C     : Usb2StdDescriptorTypeType  := x"2";
+   constant USB2_STD_DESC_TYPE_STRING_C            : Usb2StdDescriptorTypeType  := x"3";
+   constant USB2_STD_DESC_TYPE_INTERFACE_C         : Usb2StdDescriptorTypeType  := x"4";
+   constant USB2_STD_DESC_TYPE_ENDPOINT_C          : Usb2StdDescriptorTypeType  := x"5";
+   constant USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C  : Usb2StdDescriptorTypeType  := x"6";
+   constant USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  : Usb2StdDescriptorTypeType  := x"7";
+   constant USB2_STD_DESC_TYPE_INTERFACE_POWER_C   : Usb2StdDescriptorTypeType  := x"8";
+    
+   subtype  Usb2StdFeatureType                     is unsigned(1 downto 0);
+   constant USB2_STD_FEAT_ENDPOINT_HALT            : Usb2StdFeatureType         := "00";
+   constant USB2_STD_FEAT_DEVICE_REMOTE_WAKEUP_C   : Usb2StdFeatureType         := "01";
+   constant USB2_STD_FEAT_DEVICE_TEST_MODE_C       : Usb2StdFeatureType         := "10";
+
+   type     Usb2CtlReqParamType is record
+      dev2Host  : boolean;
+      reqType   : std_logic_vector( 1 downto 0);
+      recipient : std_logic_vector( 1 downto 0);
+      -- hold all bits to support non-std requests
+      request   : unsigned        ( 7 downto 0);   
+      value     : std_logic_vector(15 downto 0);
+      index     : std_logic_vector(15 downto 0);
+      length    : unsigned        (15 downto 0);
+      vld       : std_logic;
+   end record Usb2CtlReqParamType;
+
+   constant USB2_CTL_REQ_PARAM_INIT_C : Usb2CtlReqParamType := (
+      dev2Host  => false,
+      reqType   => ( others => '0' ),
+      recipient => ( others => '0' ),
+      request   => ( others => '0' ),
+      value     => ( others => '0' ),
+      index     => ( others => '0' ),
+      length    => ( others => '0' ),
+      vld       => '0'
+    );
+
+   type Usb2CtlExtType is record
+      -- 'ack' the param's 'vld' flag
+      ack       : std_logic;
+      -- if set during the 'ack' phase
+      -- then the external agent is OK
+      -- to take over the data phase of
+      -- the request; otherwise (err=1)
+      -- a STALL will be emitted by the
+      -- default controller.
+      err       : std_logic;
+      -- once the external agent is
+      -- finished processing it asserts
+      -- 'don' for 1 cycle and conveys
+      -- status:
+      --    don  ack  err
+      --     1    0    0    -> NAK
+      --     1    1    0    -> ACK
+      --     1    0    1    -> STALL
+      --     1    1    1    -> STALL
+      don       : std_logic;
+   end record Usb2CtlExtType;
+
+   constant USB2_CTL_EXT_INIT_C : Usb2CtlExtType := (
+      ack       => '1',
+      err       => '1',
+      don       => '0'
+   );
+
 end package Usb2Pkg;
 
 package body Usb2Pkg is
@@ -249,5 +351,20 @@ package body Usb2Pkg is
    begin
       return x(1 downto 0);
    end function usb2PidGroup;
+
+   function USB2_REQ_TYP_DEV2HOST_F (constant reqTyp : in Usb2ByteType)
+   return boolean is begin
+      return reqTyp(7) = '1';
+   end function USB2_REQ_TYP_DEV2HOST_F;
+
+   function USB2_REQ_TYP_TYPE_F     (constant reqTyp : in Usb2ByteType)
+   return std_logic_vector is begin
+      return reqTyp(6 downto 5);
+   end function USB2_REQ_TYP_TYPE_F;
+
+   function USB2_REQ_TYP_RECIPIENT_V(constant reqTyp : in Usb2ByteType)
+   return std_logic_vector is begin
+      return reqTyp(1 downto 0);
+   end function USB2_REQ_TYP_RECIPIENT_V;
 
 end package body Usb2Pkg;

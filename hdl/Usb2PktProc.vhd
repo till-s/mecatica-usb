@@ -518,22 +518,14 @@ begin
 
       end case;
 
-      -- the spec says that clearing the HALT feature rests the data toggle of an endpoint.
-      -- We simply clear it already while halted.
       for i in epIb'range loop
-        if ( epIb(i).stalledInp = '1' ) then
+        if ( devStatus.clrHaltInp(i) = '1' ) then
            v.dataTglInp(i) := '0';
         end if;
-        if ( epIb(i).stalledOut = '1' ) then
+        if ( devStatus.clrHaltOut(i) = '1' ) then
            v.dataTglOut(i) := '0';
         end if;
       end loop;
-
-      if ( devStatus.state = CONFIGURED and r.prevDevState /= CONFIGURED ) then
-         -- freshly configured; must reset all endpoint state including the toggle bits
-         v.dataTglInp := (others => '0');
-         v.dataTglOut := (others => '0');
-      end if;
 
       if ( devStatus.state /= DEFAULT and devStatus.state /= ADDRESS and devStatus.state /= CONFIGURED ) then
          -- discard everything we've done

@@ -4,6 +4,7 @@ use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
 package UsbUtilPkg is
+
    attribute KEEP       : string;
    attribute MARK_DEBUG : string;
 
