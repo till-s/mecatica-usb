@@ -222,7 +222,7 @@ package Usb2Pkg is
 
    function USB2_REQ_TYP_DEV2HOST_F (constant reqTyp : in Usb2ByteType) return boolean;
    function USB2_REQ_TYP_TYPE_F     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
-   function USB2_REQ_TYP_RECIPIENT_V(constant reqTyp : in Usb2ByteType) return std_logic_vector;
+   function USB2_REQ_TYP_RECIPIENT_F(constant reqTyp : in Usb2ByteType) return std_logic_vector;
 
    constant USB2_REQ_TYP_TYPE_STANDARD_C           : std_logic_vector(1 downto 0) := "00";
    constant USB2_REQ_TYP_TYPE_CLASS_C              : std_logic_vector(1 downto 0) := "01";
@@ -362,9 +362,9 @@ package body Usb2Pkg is
       return reqTyp(6 downto 5);
    end function USB2_REQ_TYP_TYPE_F;
 
-   function USB2_REQ_TYP_RECIPIENT_V(constant reqTyp : in Usb2ByteType)
+   function USB2_REQ_TYP_RECIPIENT_F(constant reqTyp : in Usb2ByteType)
    return std_logic_vector is begin
       return reqTyp(1 downto 0);
-   end function USB2_REQ_TYP_RECIPIENT_V;
+   end function USB2_REQ_TYP_RECIPIENT_F;
 
 end package body Usb2Pkg;
