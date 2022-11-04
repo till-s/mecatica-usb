@@ -10,7 +10,8 @@ SRCS+= Usb2PktTx.vhd
 SRCS+= Usb2PktProc.vhd
 SRCS+= Usb2PktProcTb.vhd
 SRCS+= Bram.vhd
-SRCS+= Usb2StdCtrlEp.vhd
+SRCS+= Usb2StdCtlEp.vhd
+SRCS+= Usb2DescPkg.vhd
 
 PROG=ulpiiotb usbcrctbltb usb2pktproctb
 
@@ -26,11 +27,14 @@ $(PROG): $(SRCS:%.vhd=%.o)
 	$(GHDL) -e $(addprefix -P,$(VIVADO)) -Wl,-no-pie $@
 
 Usb2PktProcTb.o UlpiIOTb.o: UlpiIO.o UlpiPkg.o Usb2Pkg.o Usb2PktRx.o Usb2PktTx.o
-Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtrlEp.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o
+Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o
 Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
-Usb2PktProcTb.o: Usb2PktProc.o
+Usb2PktProcTb.o: Usb2PktProc.o Usb2StdCtlEp.o
 Usb2PktProc.o: Bram.o
+
+Usb2DescPkg.o: Usb2Pkg.o
+Usb2StdCtlEp.o: Usb2DescPkg.o
 
 .PHONY: all build clean
 
