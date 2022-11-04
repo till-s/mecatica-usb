@@ -9,15 +9,16 @@ use     work.UsbUtilPkg.all;
 
 entity Usb2PktProc is
    generic (
-      MARK_DEBUG_G    : boolean := true;
-      ENDPOINTS_G     : Usb2EndpPairPropertyArray
+      MARK_DEBUG_G    : boolean  := true;
+      NUM_ENDPOINTS_G : positive := 1
    );
    port (
       clk             : in  std_logic;
       rst             : in  std_logic := '0';
       devStatus       : in  Usb2DevStatusType;
-      epIb            : in  Usb2EndpPairIbArray(ENDPOINTS_G'range);
-      epOb            : out Usb2EndpPairObArray(ENDPOINTS_G'range);
+      epConfig        : in  Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1);
+      epIb            : in  Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_G - 1);
+      epOb            : out Usb2EndpPairObArray(0 to NUM_ENDPOINTS_G - 1);
 
       txDataMst       : out Usb2StrmMstType;
       txDataSub       : in  Usb2StrmSubType;
@@ -28,12 +29,6 @@ end entity Usb2PktProc;
 
 architecture Impl of Usb2PktProc is
 
-   constant NUM_ENDPOINTS_C      : natural := ENDPOINTS_G'length;
-
-   constant LD_TIMER_C           : natural := 18;
-
-   subtype TimerType is unsigned(LD_TIMER_C - 1 downto 0);
-
    constant SIM_C                : boolean := true;
 
    function simt(constant a,b: in natural) return natural is
@@ -41,11 +36,11 @@ architecture Impl of Usb2PktProc is
       if ( SIM_C ) then return a; else return b; end if;
    end function simt;
 
-   constant TIME_HSK_TX_C        : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
-   constant TIME_DATA_RX_C       : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
-   constant TIME_DATA_TX_C       : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
-   constant TIME_WAIT_ACK_C      : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
-   constant TIME_WAIT_DATA_PID_C : TimerType := to_unsigned( simt(20,  600000) , TimerType'length);
+   constant TIME_HSK_TX_C        : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
+   constant TIME_DATA_RX_C       : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
+   constant TIME_DATA_TX_C       : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
+   constant TIME_WAIT_ACK_C      : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
+   constant TIME_WAIT_DATA_PID_C : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
 
    constant LD_BUFSZ_C           : natural   := 11;
    constant BUF_WIDTH_C          : natural   :=  9;
@@ -54,9 +49,9 @@ architecture Impl of Usb2PktProc is
 
    type RegType   is record
       state           : StateType;
-      dataTglInp      : std_logic_vector(NUM_ENDPOINTS_C - 1 downto 0);
-      dataTglOut      : std_logic_vector(NUM_ENDPOINTS_C - 1 downto 0);
-      timer           : TimerType;
+      dataTglInp      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
+      dataTglOut      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
+      timer           : Usb2TimerType;
       prevDevState    : Usb2DevStateType;
       tok             : Usb2PidType;
       epIdx           : Usb2EndpIdxType;
@@ -121,7 +116,11 @@ architecture Impl of Usb2PktProc is
 
    attribute MARK_DEBUG of r            : signal is toStr(MARK_DEBUG_G);
 
-   function checkTokHdr(constant h: Usb2PktHdrType; constant s: Usb2DevStatusType) return boolean is
+   function checkTokHdr(
+      constant h: Usb2PktHdrType;
+      constant s: Usb2DevStatusType;
+      constant c: Usb2EndpPairConfigArray) return boolean
+   is
       variable epidx : Usb2EndpIdxType;
       variable daddr : Usb2DevAddrType;
    begin
@@ -136,11 +135,13 @@ architecture Impl of Usb2PktProc is
       if ( epidx = USB2_ENDP_ZERO_C ) then
          -- directed to default control pipe
          -- always accept the default pipe at the default address
-         return (   daddr = USB2_DEV_ADDR_DFLT_C
-                 or daddr = s.devAddr            );
+         if  (    daddr /= USB2_DEV_ADDR_DFLT_C
+              and daddr /= s.devAddr            ) then
+            return false;
+         end if;
       end if;
       -- reject endpoint out of range
-      if ( epidx >= ENDPOINTS_G'length ) then
+      if ( epidx >= NUM_ENDPOINTS_G ) then
          return false;
       end if;
       -- address must match and the device must be configured
@@ -150,17 +151,17 @@ architecture Impl of Usb2PktProc is
       -- the endpoint must exist
       if (    USB2_PID_TOK_OUT_C  (3 downto 2) = h.pid(3 downto 2) 
            or USB2_PID_TOK_SETUP_C(3 downto 2) = h.pid(3 downto 2)  ) then
-         if ( ENDPOINTS_G( to_integer( epidx ) ).maxPktSizeOut = 0 ) then
+         if ( c( to_integer( epidx ) ).maxPktSizeOut = 0 ) then
             return false;
          end if;
       else 
-         if ( ENDPOINTS_G( to_integer( epidx ) ).maxPktSizeInp = 0 ) then
+         if ( c( to_integer( epidx ) ).maxPktSizeInp = 0 ) then
             return false;
          end if;
       end if;
       -- setup transactions can only go to control endpoints
       if ( USB2_PID_TOK_SETUP_C(3 downto 2) = h.pid(3 downto 2) ) then
-         if ( ENDPOINTS_G( to_integer( epidx ) ).transferTypeOut /= USB2_TT_CONTROL_C ) then
+         if ( c( to_integer( epidx ) ).transferTypeOut /= USB2_TT_CONTROL_C ) then
             return false;
          end if;
       end if;
@@ -195,7 +196,7 @@ begin
 
    assert to_integer( TIME_DATA_TX_C ) /= 0 report "TIME_DATA_TX_C must not be zero!" severity failure;
 
-   P_COMB : process ( r, rd, devStatus, epIb, txDataSub, rxPktHdr, rxDataMst, bufReadbackInp ) is
+   P_COMB : process ( r, rd, devStatus, epConfig, epIb, txDataSub, rxPktHdr, rxDataMst, bufReadbackInp ) is
       variable v  : RegType;
       variable ei : Usb2EndpPairIbType;
    begin
@@ -213,7 +214,7 @@ begin
       for i in epOb'range loop
          epOb(i).subInp <= USB2_STRM_SUB_INIT_C;
 
-         if ( ENDPOINTS_G( i ).transferTypeOut = USB2_TT_CONTROL_C ) then
+         if ( epConfig( i ).transferTypeOut = USB2_TT_CONTROL_C ) then
             epOb(i).mstCtl     <= rd.mstOut;
             epOb(i).mstCtl.vld <= '0';
             epOb(i).mstCtl.don <= '0';
@@ -227,7 +228,7 @@ begin
             end if;
          else
             epOb(i).mstCtl  <= USB2_STRM_MST_INIT_C;
-            if ( ENDPOINTS_G( i ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+            if ( epConfig( i ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                epOb(i).mstOut        <= rxDataMst;
                epOb(i).mstOut.vld    <= '0';
                epOb(i).mstOut.don    <= '0';
@@ -249,14 +250,14 @@ begin
 
       case ( r.state ) is
          when IDLE =>
-            if ( ( rxPktHdr.vld = '1' ) and checkTokHdr( rxPktHdr, devStatus ) ) then
+            if ( ( rxPktHdr.vld = '1' ) and checkTokHdr( rxPktHdr, devStatus, epConfig ) ) then
                v.tok         := rxPktHdr.pid;
                v.epIdx       := usb2TokenPktEndp( rxPktHdr );
                ei            := epIb( to_integer( v.epIdx ) );
                if ( isTokInp( rxPktHdr.pid ) ) then
-                  v.dataCounter := ENDPOINTS_G( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
+                  v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
                   v.timer       := TIME_DATA_TX_C;
-                  if ( ENDPOINTS_G( to_integer( r.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
+                  if ( epConfig( to_integer( r.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
                      v.state   := ISO_INP;
                      v.pid     := USB2_PID_DAT_DATA0_C;
                   elsif ( ei.stalledInp = '1' ) then
@@ -302,7 +303,7 @@ begin
                      end if;
                   end if;
                else
-                  v.dataCounter := ENDPOINTS_G( to_integer( v.epIdx ) ).maxPktSizeOut - 1;
+                  v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeOut - 1;
                   v.timer       := TIME_WAIT_DATA_PID_C;
                   v.state       := DATA_PID;
                   -- make sure there is nothing left in the write area
@@ -313,7 +314,7 @@ begin
          when DATA_PID =>
             if ( ( rxPktHdr.vld = '1' ) ) then
                if ( checkDatHdr( rxPktHdr ) ) then
-                  if ( ENDPOINTS_G( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+                  if ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                      v.state := ISO_OUT; 
                   elsif ( ei.stalledOut = '1' ) then
                      v.pid   := USB2_PID_HSK_STALL_C;
@@ -335,14 +336,14 @@ begin
                   end if;
                   v.timer    := TIME_DATA_RX_C;
                else
-                  if ( ENDPOINTS_G( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+                  if ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                      epOb( to_integer( rd.epIdx ) ).mstOut.don <= '1';
                      epOb( to_integer( rd.epIdx ) ).mstOut.err <= '1';
                   end if;
                   v.state    := IDLE;
                end if;   
             elsif ( r.timer = 0 ) then
-               if ( ENDPOINTS_G( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+               if ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                   epOb( to_integer( rd.epIdx ) ).mstOut.don <= '1';
                   epOb( to_integer( rd.epIdx ) ).mstOut.err <= '1';
                end if;
@@ -518,14 +519,14 @@ begin
 
       end case;
 
-      for i in epIb'range loop
-        if ( devStatus.clrHaltInp(i) = '1' ) then
-           v.dataTglInp(i) := '0';
-        end if;
-        if ( devStatus.clrHaltOut(i) = '1' ) then
-           v.dataTglOut(i) := '0';
-        end if;
-      end loop;
+      if ( devStatus.clrHalt = '1' ) then
+         v.dataTglInp := r.dataTglInp and not devStatus.selHaltInp(r.dataTglInp'range);
+         v.dataTglOut := r.dataTglOut and not devStatus.selHaltOut(r.dataTglOut'range);
+      end if;
+      if ( devStatus.setHalt = '1' ) then
+         v.dataTglInp := r.dataTglInp or devStatus.selHaltInp(r.dataTglInp'range);
+         v.dataTglOut := r.dataTglOut or devStatus.selHaltOut(r.dataTglOut'range);
+      end if;
 
       if ( devStatus.state /= DEFAULT and devStatus.state /= ADDRESS and devStatus.state /= CONFIGURED ) then
          -- discard everything we've done
@@ -559,7 +560,7 @@ begin
             -- see if we have anything new to offer
             if ( ( rd.bufRdIdx = r.bufVldIdx ) or ( bufReadOut(8) = '1' ) ) then
                -- End of packet sequence (setup packets do not require an empty data packet)
-               if ( rd.dataCounter < ENDPOINTS_G( to_integer( rd.epIdx) ).maxPktSizeOut or rd.isSetup ) then
+               if ( rd.dataCounter < epConfig( to_integer( rd.epIdx) ).maxPktSizeOut or rd.isSetup ) then
                   v.mstOut.don := '1';
                end if;
                if ( rd.bufRdIdx /= r.bufVldIdx ) then

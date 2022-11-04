@@ -11,7 +11,9 @@ package Usb2Pkg is
    subtype Usb2DevAddrType  is std_logic_vector(6 downto 0);
 
    subtype Usb2ByteType     is std_logic_vector(7 downto 0);
+   type    Usb2ByteArray    is array(natural range <>) of Usb2ByteType;
  
+   subtype Usb2TimerType    is unsigned(17 downto 0);
 
    constant USB2_DEV_ADDR_DFLT_C    : Usb2DevAddrType := (others => '0');
    constant USB2_ENDP_ZERO_C        : Usb2EndpIdxType := (others => '0');
@@ -111,9 +113,23 @@ package Usb2Pkg is
    type Usb2DevStatusType is record
       state      : Usb2DevStateType;
       devAddr    : Usb2DevAddrType;
-      clrHaltInp : std_logic_vector(15 downto 0);
-      clrHaltOut : std_logic_vector(15 downto 0);
+      remWakeup  : boolean;
+      selHaltInp : std_logic_vector(15 downto 0);
+      selHaltOut : std_logic_vector(15 downto 0);
+      clrHalt    : std_logic;
+      setHalt    : std_logic;
    end record;
+
+   constant USB2_DEV_STATUS_INIT_C : Usb2DevStatusType := (
+      -- FIXME should be POWERED until initial USB reset done
+      state      => DEFAULT,
+      devAddr    => (others => '0'),
+      remWakeup  => false,
+      selHaltInp => (others => '0'),
+      selHaltOut => (others => '0'),
+      clrHalt    => '0',
+      setHalt    => '0'
+   );
 
    -- signals traveling from EP -> bus
    type Usb2EndpPairIbType is record
@@ -203,22 +219,31 @@ package Usb2Pkg is
    -- encoded (place of the endpoint in an array).
    -- If one direction of a pair is unsupported/not implemented
    -- then 'maxPktSize' must be set to 0.
-   type Usb2EndpPairPropertyType is record
+   type Usb2EndpPairConfigType is record
       transferTypeInp  : Usb2TransferType;
       maxPktSizeInp    : Usb2PktSizeType;
       hasHaltInp       : boolean;
       transferTypeOut  : Usb2TransferType;
       maxPktSizeOut    : Usb2PktSizeType;
       hasHaltOut       : boolean;
-   end record Usb2EndpPairPropertyType;
+   end record Usb2EndpPairConfigType;
 
-   type Usb2EndpPairPropertyArray is array (natural range <>) of Usb2EndpPairPropertyType;
+   constant USB2_ENDP_PAIR_CONFIG_INIT_C : Usb2EndpPairConfigType := (
+      transferTypeInp  => USB2_TT_CONTROL_C,
+      maxPktSizeInp    => (others => '0'),
+      hasHaltInp       => false,
+      transferTypeOut  => USB2_TT_CONTROL_C,
+      maxPktSizeOut    => (others => '0'),
+      hasHaltOut       => false
+   );
+
+   type Usb2EndpPairConfigArray is array (natural range <>) of Usb2EndpPairConfigType;
    type Usb2EndpPairIbArray       is array (natural range <>) of Usb2EndpPairIbType;
    type Usb2EndpPairObArray       is array (natural range <>) of Usb2EndpPairObType;
 
-   type Usb2DevPropertyType is record
+   type Usb2DevConfigType is record
       hasRemoteWakeup  : boolean;
-   end record Usb2DevPropertyType;
+   end record Usb2DevConfigType;
 
    function USB2_REQ_TYP_DEV2HOST_F (constant reqTyp : in Usb2ByteType) return boolean;
    function USB2_REQ_TYP_TYPE_F     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
@@ -229,7 +254,7 @@ package Usb2Pkg is
    constant USB2_REQ_TYP_TYPE_VENDOR_C             : std_logic_vector(1 downto 0) := "10";
 
    constant USB2_REQ_TYP_RECIPIENT_DEV_C           : std_logic_vector(1 downto 0) := "00";
-   constant USB2_REQ_TYP_RECIPIENT_IRC_C           : std_logic_vector(1 downto 0) := "01";
+   constant USB2_REQ_TYP_RECIPIENT_IFC_C           : std_logic_vector(1 downto 0) := "01";
    constant USB2_REQ_TYP_RECIPIENT_EPT_C           : std_logic_vector(1 downto 0) := "10";
 
    subtype  Usb2StdRequestCodeType                 is unsigned(3 downto 0);
@@ -256,7 +281,7 @@ package Usb2Pkg is
    constant USB2_STD_DESC_TYPE_INTERFACE_POWER_C   : Usb2StdDescriptorTypeType  := x"8";
     
    subtype  Usb2StdFeatureType                     is unsigned(1 downto 0);
-   constant USB2_STD_FEAT_ENDPOINT_HALT            : Usb2StdFeatureType         := "00";
+   constant USB2_STD_FEAT_ENDPOINT_HALT_C          : Usb2StdFeatureType         := "00";
    constant USB2_STD_FEAT_DEVICE_REMOTE_WAKEUP_C   : Usb2StdFeatureType         := "01";
    constant USB2_STD_FEAT_DEVICE_TEST_MODE_C       : Usb2StdFeatureType         := "10";
 
