@@ -100,7 +100,7 @@ architecture Impl of Usb2PktProc is
       epIdx           => USB2_ENDP_ZERO_C,
       isSetup         => false,
       mstOut          => USB2_STRM_MST_INIT_C,
-      dataCounter     => (others => '0')
+      dataCounter     => (others => '1')
    );
 
    signal r                             : RegType := REG_INIT_C;
@@ -135,10 +135,8 @@ architecture Impl of Usb2PktProc is
       if ( epidx = USB2_ENDP_ZERO_C ) then
          -- directed to default control pipe
          -- always accept the default pipe at the default address
-         if  (    daddr /= USB2_DEV_ADDR_DFLT_C
-              and daddr /= s.devAddr            ) then
-            return false;
-         end if;
+         return (    daddr = USB2_DEV_ADDR_DFLT_C
+                  or daddr = s.devAddr            );
       end if;
       -- reject endpoint out of range
       if ( epidx >= NUM_ENDPOINTS_G ) then
@@ -182,7 +180,8 @@ architecture Impl of Usb2PktProc is
 
    function sequenceOutMatch(constant v : in RegType; constant h : in Usb2PktHdrType) return boolean is
    begin
-      return v.dataTglOut( to_integer( v.epIdx ) ) = h.pid(3);
+      return    ( v.dataTglOut( to_integer( v.epIdx ) ) = h.pid(3) )
+            or  ( v.tok(3 downto 2) = USB2_PID_TOK_SETUP_C(3 downto 2) );
    end function sequenceOutMatch;
 
    procedure invalidateBuffer(variable v : inout RegType) is
@@ -507,6 +506,9 @@ begin
             end if;
 
          when HSK =>
+            if ( ei.stalledInp = '1' ) then
+               v.pid := USB2_PID_HSK_STALL_C;
+            end if;
             if ( r.timer = 0 ) then
                txDataMst.don <= '1';
                if ( txDataSub.don = '1' ) then
@@ -550,6 +552,7 @@ begin
             v.mstOut.don         := '0';
             -- mark as processed
             v.dataCounter := (others => '1');
+            v.isSetup     := false;
          end if;
       else
          if ( ( rd.mstOut.vld and epIb( to_integer( rd.epIdx ) ).subOut.rdy ) = '1' ) then

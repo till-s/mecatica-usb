@@ -6,10 +6,12 @@ use     ieee.math_real.all;
 use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 use     work.UsbUtilPkg.all;
+use     work.Usb2DescPkg.all;
 
 package body Usb2DescPkg is
 
-   constant USB2_APP_CFG_DESCRIPTORS_C : Usb2ByteArray := (
+   function USB2_APP_CFG_DESCRIPTORS_F return Usb2ByteArray is
+   constant c : Usb2ByteArray := (
        0 => x"09",                                    -- length
        1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_CONFIGURATION_C), -- type
        2 => x"09", 3 => x"00",                        -- total length
@@ -19,12 +21,16 @@ package body Usb2DescPkg is
        7 => x"00",                                    -- attributes
        8 => x"ff"                                     -- power
    );
+   begin
+   return c;
+   end function;
 
    constant USB2_APP_NUM_ENDPOINTS_C   : positive := 2;
    constant USB2_APP_MAX_INTERFACES_C  : natural  := 1;
    constant USB2_APP_MAX_ALTSETTINGS_C : positive := 1;
 
-   constant USB2_APP_DEV_DESCRIPTOR_C  : Usb2ByteArray := (
+   function USB2_APP_DEV_DESCRIPTOR_F  return Usb2ByteArray is
+   constant c : Usb2ByteArray := (
        0 => x"12",                                    -- length
        1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_DEVICE_C),     -- type
        2 => x"00",  3 => x"02",                       -- USB version
@@ -40,6 +46,9 @@ package body Usb2DescPkg is
       16 => x"00",                                    -- S/N string
       17 => x"01"                                     -- num configs
    );
+   begin
+   return c;
+   end function;
 
 end package body Usb2DescPkg;
 
@@ -51,6 +60,7 @@ use     ieee.math_real.all;
 use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 use     work.UsbUtilPkg.all;
+use     work.Usb2DescPkg.all;
 
 entity Usb2PktProcTb is
 end entity Usb2PktProcTb;
@@ -345,6 +355,10 @@ architecture sim of Usb2PktProcTb is
             if ( rr = rtr ) then
                -- accept the last one
                dtglOut( epou ) := not dtglOut( epou );
+               -- setup initializes in/out toggles to '1'
+               if ( stup ) then
+                  dtglInp( epou ) := '1';
+               end if;
             end if;
             tick;
          end loop;
@@ -455,15 +469,23 @@ architecture sim of Usb2PktProcTb is
             v(LEN_I_L_C)  := x"01";
             eda(0)        := x"00";
             edal          := 1;
-         
+
+         when USB2_REQ_STD_GET_INTERFACE_C =>
+            v(TYP_I_C)(7) := '1';
+            v(LEN_I_L_C)  := x"01";
+            eda(0)        := x"00";
+            edal          := 1;
+          
          when others =>
             assert false report "Unsupported request code" severity failure;
       end case;
       sendDat( ob, v, EP0_C, true, rtr, w, timo );
       tick;
       if ( v(TYP_I_C)(7) = '1' ) then
-         waitDat(ob, eda(0 to edal), EP0_C, rtr, w, timo);
+         waitDat(ob, eda(0 to edal - 1), EP0_C, rtr, w, timo);
          tick;
+         -- STATUS
+         sendDat(ob, NULL_DATA, EP0_C, false, rtr, w, timo);
       end if;
     end procedure sendCtlReq;
 
@@ -487,6 +509,12 @@ begin
       variable pid : std_logic_vector(3 downto 0);
    begin
       tick; tick;
+
+      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_CONFIGURATION_C);
+
+      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_INTERFACE_C);
+
+      tick;
 
 
       sendDat(ulpiOb, d2, TST_EP_C);
@@ -533,18 +561,25 @@ begin
    );
 
    U_DUT_CTL : entity work.Usb2StdCtlEp
+   generic map (
+      NUM_ENDPOINTS_G     => USB2_APP_NUM_ENDPOINTS_C,
+      MAX_INTERFACES_G    => USB2_APP_MAX_INTERFACES_C,
+      MAX_ALTSETTINGS_G   => USB2_APP_MAX_ALTSETTINGS_C,
+      CFG_DESCRIPTORS_G   => USB2_APP_CFG_DESCRIPTORS_C,
+      DEV_DESCRIPTOR_G    => USB2_APP_DEV_DESCRIPTOR_C
+   )
    port map (
       clk             => clk,
-      rst             => open
---      epIb            => USB2_ENDP_PAIR_OB_INIT_C, --epOb(0),
---      epOb            => open, --epIb(0),
---      usrEpIb         => open, --epIb(1 to epIb'high),
---
---      param           => open,
---      ctlExt          => open,
---      ctlEpExt        => open,
---
---      devStatus       => open --devStatus
+      rst             => open,
+      epIb            => epOb(0),
+      epOb            => epIb(0),
+      usrEpIb         => epIb(1 to epIb'high),
+
+      param           => open,
+      ctlExt          => open,
+      ctlEpExt        => open,
+
+      devStatus       => devStatus
   );
 
    U_RX : entity work.Usb2PktRx

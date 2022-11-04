@@ -6,10 +6,15 @@ use     work.Usb2Pkg.all;
 
 package Usb2DescPkg is
 
+   -- GHDL 2.0 doesn't like an array constant being defined in the
+   -- package body -- I got 'NULL access dereferenced' errors.
+   function USB2_APP_CFG_DESCRIPTORS_F return Usb2ByteArray;
+
    -- the actual descriptors are defined by the application
    -- which must supply the package body
-   constant USB2_APP_CFG_DESCRIPTORS_C :  Usb2ByteArray;
+   constant USB2_APP_CFG_DESCRIPTORS_C :  Usb2ByteArray := USB2_APP_CFG_DESCRIPTORS_F;
    -- number of endpoints (including EP 0)
+
    constant USB2_APP_NUM_ENDPOINTS_C   :  positive;
    -- max. number of interfaces among all configurations
    -- e.g., if config 1 has 1 interface and config 2 has
@@ -25,7 +30,9 @@ package Usb2DescPkg is
    constant USB2_APP_MAX_ALTSETTINGS_C : positive;
 
    -- device desriptor
-   constant USB2_APP_DEV_DESCRIPTOR_C  :  Usb2ByteArray;
+   function USB2_APP_DEV_DESCRIPTOR_F return  Usb2ByteArray;
+
+   constant USB2_APP_DEV_DESCRIPTOR_C  :  Usb2ByteArray := USB2_APP_DEV_DESCRIPTOR_F;
 
    subtype  Usb2DescIdxType    is natural range 0 to USB2_APP_CFG_DESCRIPTORS_C'length - 1;
 
