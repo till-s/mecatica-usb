@@ -17,7 +17,9 @@ entity Usb2StdCtlEp is
       DESCRIPTORS_G     : Usb2ByteArray;
       -- CFG_IDX_TABLE_G must start with a dummy element
       -- for configuration # 0
-      CFG_IDX_TABLE_G   : Usb2DescIdxArray
+      CFG_IDX_TABLE_G   : Usb2DescIdxArray;
+      NUM_STRINGS_G     : natural;
+      STRINGS_IDX_G     : Usb2DescIdxType
    );
    port (
       clk             : in  std_logic;
@@ -67,6 +69,8 @@ architecture Impl of Usb2StdCtlEp is
       SETUP_CONFIG,
       LOAD_ALT,
       LOAD_EPTS,
+      GET_DESCRIPTOR_SIZE,
+      READ_DESCRIPTOR,
       DEV_FEATURE,
       RETURN_VALUE,
       STATUS
@@ -97,6 +101,11 @@ architecture Impl of Usb2StdCtlEp is
    begin
       v := resize( unsigned( x ), v'length );
    end procedure w2u;
+
+   function w2u(constant x : std_logic_vector(15 downto 0)) return unsigned is
+   begin
+      return unsigned( x );
+   end function w2u;
 
    subtype AltSetIdxType is natural range 0 to MAX_ALTSETTINGS_G - 1;
    subtype IfcIdxType    is natural range 0 to MAX_INTERFACES_G;
@@ -133,6 +142,7 @@ architecture Impl of Usb2StdCtlEp is
       epIsInp     : boolean;
       numEp       : EpIdxType;
       descType    : Usb2StdDescriptorTypeType;
+      size2B      : boolean;
    end record RegType;
 
    function REG_INIT_F return RegType is
@@ -163,6 +173,7 @@ architecture Impl of Usb2StdCtlEp is
       v.epIdx       := 0;
       v.epIsInp     := false;
       v.descType    := (others => '0');
+      v.size2B      := false;
       for i in 1 to v.epConfig'length - 1 loop
          v.epConfig(i).hasHaltInp := true;
          v.epConfig(i).hasHaltOut := true;
@@ -381,7 +392,43 @@ begin
                      v.err      := '0';
 
                   when USB2_REQ_STD_GET_DESCRIPTOR_C    =>
-                    -- TODO; not implemented yet
+                     v.tblOff   := USB2_DESC_IDX_LENGTH_C;
+                     v.err      := '0';
+                     v.retVal   := (others => '0');
+                     v.size2B   := false;
+                     case ( Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) ) ) is
+                        when USB2_STD_DESC_TYPE_DEVICE_C            =>
+                           v.tblIdx   := CFG_IDX_TABLE_G(0);
+
+-- not implemented      when USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C  =>
+                          -- full-speed must return error
+                        when USB2_STD_DESC_TYPE_CONFIGURATION_C     =>
+                           -- according to the spec this is 0-based and thus not identical
+                           -- with the configuration value.
+                           if ( to_integer(unsigned(r.reqParam.value(7 downto 0))) < CFG_IDX_TABLE_G'length ) then
+                              v.tblIdx   := CFG_IDX_TABLE_G( to_integer(unsigned(r.reqParam.value(7 downto 0))) + 1 );
+                              v.tblOff   := USB2_CFG_DESC_IDX_TOTAL_LENGTH_C + 1;
+                              v.size2B   := true;
+                           else
+                              v.err      := '1';
+                           end if;
+
+-- not implemented      hen USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  =>
+
+                        when USB2_STD_DESC_TYPE_STRING_C            =>
+                           if ( NUM_STRINGS_G > to_integer(unsigned(r.reqParam.value(7 downto 0))) ) then
+                              v.tblIdx   := STRINGS_IDX_G;
+                           else
+                              v.err      :=  '1';
+                           end if;
+                        when others                                 =>
+                           v.err      := '1';
+                     end case;
+                     if ( v.err = '1' ) then
+                        v.retState := GET_PARAMS;
+                     else
+                        v.retState := GET_DESCRIPTOR_SIZE;
+                     end if;
 
                   when USB2_REQ_STD_GET_INTERFACE_C     =>
                      if ( r.devStatus.state = CONFIGURED ) then
@@ -577,6 +624,43 @@ report integer'image(r.tblOff) & " " & integer'image(to_integer(unsigned(descVal
                   v.state  := r.state; -- causes r.numEp to be checked before scanning the next desc.
                end if;
             end if;
+
+         when GET_DESCRIPTOR_SIZE =>
+            if ( r.size2B ) then
+               v.tblOff := r.tblOff - 1;
+               v.retVal := descVal;
+               v.size2B := false;
+            else
+               if ( r.reqParam.length > w2u( r.retVal & descVal ) ) then
+                  v.auxOff := to_integer( w2u( r.retVal & descVal ) ) - 1 ;
+               else
+                  v.auxOff := to_integer(r.reqParam.length) - 1;
+               end if;
+               v.tblOff := 0;
+               v.state  := READ_DESCRIPTOR;
+               v.flg    := '0';
+            end if;
+
+         when READ_DESCRIPTOR =>
+            epOb.mstInp.dat <= descVal;
+            epOb.mstInp.vld <= not r.flg;
+            epOb.mstInp.don <= r.flg;
+            epOb.mstInp.err <= '0';
+            if ( r.flg = '1' ) then
+               if ( epIb.subInp.don = '1' ) then
+                  v.flg   := '0';
+                  v.state := STATUS;
+               end if;
+            else
+               if ( epIb.subInp.rdy = '1' ) then
+                  if ( r.auxOff = r.tblOff ) then
+                     v.flg := '1';
+                  else
+                     v.tblOff := r.tblOff + 1;
+                  end if;
+               end if;
+            end if;
+
 
          when RETURN_VALUE =>
             epOb.mstInp.dat <= r.retVal;

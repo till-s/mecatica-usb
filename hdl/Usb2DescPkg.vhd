@@ -34,6 +34,12 @@ package Usb2DescPkg is
    function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray) return Usb2DescIdxArray;
    constant USB2_APP_CONFIG_IDX_TBL_C     : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F(USB2_APP_DESCRIPTORS_C);
 
+   function USB2_APP_NUM_STRINGS_F(constant d: Usb2ByteArray) return natural;
+   constant USB2_APP_NUM_STRINGS_C        : natural := USB2_APP_NUM_STRINGS_F(USB2_APP_DESCRIPTORS_C);
+
+   function USB2_APP_STRINGS_IDX_F(constant d: Usb2ByteArray) return Usb2DescIdxType;
+   constant USB2_APP_STRINGS_IDX_C        : Usb2DescIdxType := USB2_APP_STRINGS_IDX_F(USB2_APP_DESCRIPTORS_C);
+
    -- find next descriptor of a certain type starting at index s; returns -1 if none is found
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
@@ -47,11 +53,17 @@ package Usb2DescPkg is
       constant s: integer
    ) return integer;
 
+   function usb2CountDescriptors(
+      constant d : Usb2ByteArray;
+      constant t : Usb2StdDescriptorTypeType
+   ) return natural;
+
    constant USB2_DESC_IDX_LENGTH_C                        : natural := 0;
    constant USB2_DESC_IDX_TYPE_C                          : natural := 1;
    constant USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C             : natural := 7;
    constant USB2_DEV_DESC_IDX_NUM_CONFIGURATIONS_C        : natural := 17;
 
+   constant USB2_CFG_DESC_IDX_TOTAL_LENGTH_C              : natural := 2;
    constant USB2_CFG_DESC_IDX_NUM_INTERFACES_C            : natural := 4;
    constant USB2_CFG_DESC_IDX_CFG_VALUE_C                 : natural := 5;
    constant USB2_CFG_DESC_IDX_ATTRIBUTES_C                : natural := 7;
@@ -149,18 +161,28 @@ package body Usb2DescPkg is
       return v;
    end function USB2_APP_MAX_ALTSETTINGS_F;
 
-   function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray)
-   return positive is
+   function usb2CountDescriptors(
+      constant d : Usb2ByteArray;
+      constant t : Usb2StdDescriptorTypeType
+   ) return natural is
       variable i  : integer := 0;
-      variable nc : natural := 0;
+      variable n  : natural := 0;
    begin
       while ( i >= 0 ) loop
-         i  := usb2NextDescriptor(d, i, USB2_STD_DESC_TYPE_CONFIGURATION_C);
+         i  := usb2NextDescriptor(d, i, t);
          if ( i >= 0 ) then
-            nc := nc + 1;
-            i  := usb2NextDescriptor(d, i);
+            n := n + 1;
+            i := usb2NextDescriptor(d, i);
          end if;
       end loop;
+      return n;
+   end function usb2CountDescriptors;
+  
+   function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray)
+   return positive is
+      variable nc : natural;
+   begin
+      nc := usb2CountDescriptors(d, USB2_STD_DESC_TYPE_CONFIGURATION_C);
       assert nc > 0 report "No configurations?" severity failure;
       return nc;
    end function USB2_APP_NUM_CONFIGURATIONS_F;
@@ -180,6 +202,24 @@ package body Usb2DescPkg is
       end loop;
       return rv;
    end function USB2_APP_CONFIG_IDX_TBL_F;
+
+   function USB2_APP_NUM_STRINGS_F(constant d: Usb2ByteArray)
+   return natural is
+   begin
+      return usb2CountDescriptors(d, USB2_STD_DESC_TYPE_STRING_C);
+   end function USB2_APP_NUM_STRINGS_F;
+
+   function USB2_APP_STRINGS_IDX_F(constant d: Usb2ByteArray)
+   return Usb2DescIdxType is
+      variable i : integer;
+   begin
+      i := usb2NextDescriptor(d, 0, USB2_STD_DESC_TYPE_STRING_C);
+      -- avoid out-of range result; user must check USB2_APP_NUM_STRINGS_C
+      if ( i < 0 ) then
+         i := 0;
+      end if;
+      return i;
+   end function USB2_APP_STRINGS_IDX_F;
 
 end package body Usb2DescPkg;
 
