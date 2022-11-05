@@ -193,8 +193,6 @@ package Usb2Pkg is
       --        
       subInp     : Usb2StrmSubType;
       -- control endpoints receive setup data here;
-      -- they MUST accept, thus there is no corresponding
-      -- subordinate.
       mstCtl     : Usb2StrmMstType;
    end record Usb2EndpPairObType;
 

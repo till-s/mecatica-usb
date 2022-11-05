@@ -8,26 +8,58 @@ use     work.UlpiPkg.all;
 use     work.UsbUtilPkg.all;
 use     work.Usb2DescPkg.all;
 
-package body Usb2DescPkg is
+package body Usb2AppCfgPkg is
 
    function USB2_APP_CFG_DESCRIPTORS_F return Usb2ByteArray is
    constant c : Usb2ByteArray := (
        0 => x"09",                                    -- length
        1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_CONFIGURATION_C), -- type
        2 => x"09", 3 => x"00",                        -- total length
-       4 => x"00",                                    -- num interfaces
+       4 => x"01",                                    -- num interfaces
        5 => x"01",                                    -- config value
        6 => x"00",                                    -- description string
        7 => x"00",                                    -- attributes
-       8 => x"ff"                                     -- power
+       8 => x"ff",                                    -- power
+
+       9 => x"04", -- a dummy 'unknown' descriptor
+      10 => x"00", 
+      11 => x"00",
+      12 => x"00",
+
+      13 => x"09",                                    -- length
+      14 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_INTERFACE_C), -- type
+      15 => x"00",                                    -- interface number
+      16 => x"00",                                    -- alt-setting
+      17 => x"02",                                    -- num-endpoints
+      18 => x"FF",                                    -- class
+      19 => x"FF",                                    -- subclass
+      20 => x"00",                                    -- protocol
+      21 => x"00",                                    -- string desc
+
+      22 => x"07", -- endpoint                           length
+      23 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
+      24 => x"01",                                    -- address (OUT EP1)
+      25 => "000000" & USB2_TT_BULK_C,                -- attributes
+      26 => x"08", 27 => x"00",                       -- maxPktSize
+      28 => x"00",                                    -- interval
+
+      29 => x"03", -- a dummy 'unknown' descriptor
+      30 => x"00", 
+      31 => x"00",
+
+      32 => x"07", -- endpoint                           length
+      33 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
+      34 => x"81",                                    -- address (IN EP1)
+      35 => "000000" & USB2_TT_BULK_C,                -- attributes
+      36 => x"08", 37 => x"00",                       -- maxPktSize
+      38 => x"00",                                    -- interval
+
+      39 => x"02", -- dummy to avoid bound check overflow during simulation
+      40 => x"00"
    );
    begin
    return c;
    end function;
-
-   constant USB2_APP_NUM_ENDPOINTS_C   : positive := 2;
-   constant USB2_APP_MAX_INTERFACES_C  : natural  := 1;
-   constant USB2_APP_MAX_ALTSETTINGS_C : positive := 1;
 
    function USB2_APP_DEV_DESCRIPTOR_F  return Usb2ByteArray is
    constant c : Usb2ByteArray := (
@@ -50,7 +82,7 @@ package body Usb2DescPkg is
    return c;
    end function;
 
-end package body Usb2DescPkg;
+end package body Usb2AppCfgPkg;
 
 library ieee;
 use     ieee.std_logic_1164.all;
@@ -60,6 +92,7 @@ use     ieee.math_real.all;
 use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 use     work.UsbUtilPkg.all;
+use     work.Usb2AppCfgPkg.all;
 use     work.Usb2DescPkg.all;
 
 entity Usb2PktProcTb is
@@ -67,10 +100,15 @@ end entity Usb2PktProcTb;
 
 architecture sim of Usb2PktProcTb is
 
-   constant TST_EP_IDX_C : natural := 1;
-   constant TST_EP_C     : std_logic_vector(3 downto 0) := std_logic_vector(to_unsigned(TST_EP_IDX_C,4));
+   constant TST_EP_IDX_C           : natural := 1;
+   constant TST_EP_C               : std_logic_vector(3 downto 0) := std_logic_vector(to_unsigned(TST_EP_IDX_C,4));
+
+   constant DEV_ADDR_C             : Usb2DevAddrType := Usb2DevAddrType( to_unsigned(66, Usb2DevAddrType'length) );
+
+   constant CONFIG_VALUE_C         : std_logic_vector(7 downto 0) := x"01";
+   constant CONFIG_BAD_VALUE_C     : std_logic_vector(7 downto 0) := x"02";
    
-   constant EP0_C        : std_logic_vector(3 downto 0) := x"0";
+   constant EP0_C                  : std_logic_vector(3 downto 0) := x"0";
 
    constant ENDPOINTS_C   : Usb2EndpPairConfigArray := (
       0         => (
@@ -105,6 +143,8 @@ architecture sim of Usb2PktProcTb is
    signal ulpiRx          : UlpiRxType      := ULPI_RX_INIT_C;
    signal ulpiTxReq       : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep       : UlpiTxRepType;
+
+   signal epConfig        : Usb2EndpPairConfigArray(0 to USB2_APP_NUM_ENDPOINTS_C - 1);
 
    shared variable dtglInp : std_logic_vector(ENDPOINTS_C'range) := (others => '0');
    shared variable dtglOut : std_logic_vector(ENDPOINTS_C'range) := (others => '0');
@@ -217,7 +257,7 @@ architecture sim of Usb2PktProcTb is
       signal   ob : inout UlpiObType;
       constant t  : in  std_logic_vector;
       constant e  : in  std_logic_vector(3 downto 0);
-      constant a  : in  std_logic_vector(6 downto 0) := (others => '0')
+      constant a  : in  Usb2DevAddrType
    ) is
       variable v : DataArray(0 to 2);
       variable x : std_logic_vector(10 downto 0);
@@ -228,6 +268,7 @@ architecture sim of Usb2PktProcTb is
       else
          v(0) := not t & t;
       end if;
+report "SENDING TOKEN :" &integer'image(to_integer(unsigned(v(0)(3 downto 0))));
       x    := e & a;
       c    := USB2_CRC5_INIT_C(c'range);
       crcbf( c, USB2_CRC5_POLY_C(c'range), x );
@@ -315,10 +356,12 @@ architecture sim of Usb2PktProcTb is
       signal   ob  : inout UlpiObType;
       constant v   : in    DataArray;
       constant epo : in    std_logic_vector(3 downto 0);
+      constant dva : in    Usb2DevAddrType;
       constant stup: in    boolean := false;
       constant rtr : in    natural := 0;
       constant w   : in    natural := 0;
-      constant timo: in    natural := 30
+      constant timo: in    natural := 30;
+      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C
    ) is
       variable idx : natural;
       constant epou: natural := to_integer( unsigned( epo ) );
@@ -337,9 +380,12 @@ architecture sim of Usb2PktProcTb is
          end if;
          for rr in 0 to rtr loop
             if ( stup ) then
-               sendTok(ob, USB2_PID_TOK_SETUP_C, epo);
+report "sending setup token";
+               sendTok(ob, USB2_PID_TOK_SETUP_C, epo, dva);
+report "sending setup token don";
             else
-               sendTok(ob, USB2_PID_TOK_OUT_C, epo);
+report "sending out token";
+               sendTok(ob, USB2_PID_TOK_OUT_C, epo, dva);
             end if;
             tick;
 
@@ -351,7 +397,11 @@ architecture sim of Usb2PktProcTb is
 
             tick;
             waitHsk(ob, pid, timo);
-            assert pid = USB2_PID_HSK_ACK_C report "data not ACKed" severity failure;
+            assert pid = epid report "unexpected handshake response to data TX" &
+"got " & integer'image(to_integer(unsigned(pid))) & " exp " & integer'image(to_integer(unsigned(epid))) severity failure;
+            if ( pid = USB2_PID_HSK_STALL_C ) then
+               return;
+            end if;
             if ( rr = rtr ) then
                -- accept the last one
                dtglOut( epou ) := not dtglOut( epou );
@@ -372,16 +422,20 @@ architecture sim of Usb2PktProcTb is
 
    procedure waitDatPkt (
       signal   ob  : inout UlpiObType;
-      constant epi : in    std_logic_vector(3 downto 0);
+      variable epi : inout std_logic_vector(3 downto 0);
       constant eda : in    DataArray;
       constant w   : in    natural := 0;
-      constant timo: in    natural                      := 30
+      constant timo: in    natural := 30
    ) is
       variable pid : std_logic_vector( 3 downto 0);
       variable crc : std_logic_vector(15 downto 0);
    begin
       waitPid(ob, pid, timo);
       assert ulpiIb.stp = '0' report "unexpected STP" severity failure;
+      if ( pid = USB2_PID_HSK_NAK_C ) then
+         epi := pid;
+         return;
+      end if;
       assert pid        = epi report "unexpected PID" severity failure;
       crc := USB2_CRC16_INIT_C;
       for i in eda'low to eda'high + 2 loop
@@ -408,7 +462,9 @@ architecture sim of Usb2PktProcTb is
       signal   ob  : inout UlpiObType;
       constant eda : in    DataArray;
       constant epi : in    std_logic_vector(3 downto 0);
+      constant dva : in    Usb2DevAddrType;
       constant rtr : in    natural                      := 0;
+      constant rak : in    natural                      := 0;
       constant w   : in    natural                      := 0;
       constant timo: in    natural                      := 30
    ) is
@@ -416,6 +472,7 @@ architecture sim of Usb2PktProcTb is
       constant epin: natural := to_integer( unsigned( epi ) );
       constant MSZ : natural := to_integer( ENDPOINTS_C( epin ).maxPktSizeInp );
       variable cln : natural := MSZ;
+      variable pid : std_logic_vector(3 downto 0) := USB2_PID_HSK_NAK_C;
    begin
       idx := eda'low;
       L_FRAG : while true loop
@@ -424,14 +481,21 @@ architecture sim of Usb2PktProcTb is
             cln := MSZ;
          end if;
          for rr in 0 to rtr loop
-            sendTok(ob, USB2_PID_TOK_IN_C, epi);
-            tick;
-            if ( dtglInp( epin ) = '0' ) then
-               waitDatPkt(ob, USB2_PID_DAT_DATA0_C, eda(idx to idx + cln - 1), w, timo);
-            else
-               waitDatPkt(ob, USB2_PID_DAT_DATA1_C, eda(idx to idx + cln - 1), w, timo);
-            end if;
-            tick;
+            L_NAK : for ra in 0 to rak loop
+               sendTok(ob, USB2_PID_TOK_IN_C, epi, dva);
+               tick;
+               if ( dtglInp( epin ) = '0' ) then
+                  pid := USB2_PID_DAT_DATA0_C;
+               else
+                  pid := USB2_PID_DAT_DATA1_C;
+               end if;
+               waitDatPkt(ob, pid, eda(idx to idx + cln - 1), w, timo);
+               tick;
+               if ( pid /= USB2_PID_HSK_NAK_C ) then
+                  exit L_NAK;
+               end if;
+            end loop L_NAK;
+            assert ( pid /= USB2_PID_HSK_NAK_C ) report "waitDat: IN transaction never ACKed" severity failure;
             if ( rr = rtr ) then
                sendHsk(ob, USB2_PID_HSK_ACK_C);
                dtglInp( epin ) := not dtglInp( epin );
@@ -450,19 +514,26 @@ architecture sim of Usb2PktProcTb is
    procedure sendCtlReq(
       signal   ob  : inout UlpiObType;
       constant cod : in    Usb2StdRequestCodeType;
+      constant dva : in    Usb2DevAddrType;
+      constant val : in    std_logic_vector(15 downto 0) := (others => '0');
       constant rtr : in    natural := 0;
       constant w   : in    natural := 0;
-      constant timo: in    natural := 30
+      constant timo: in    natural := 30;
+      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C
    ) is
       constant TYP_I_C   : natural := 0;
       constant LEN_I_H_C : natural := 6;
       constant LEN_I_L_C : natural := 7;
+      constant VAL_I_H_C : natural := 3;
+      constant VAL_I_L_C : natural := 2;
       variable v         : DataArray(0 to 7);
       variable eda       : DataArray(0 to 15);
       variable edal      : natural := 0;
    begin
-      v    := (others => (others => '0'));
-      v(1) := x"0" & std_logic_vector(cod);
+      v             := (others => (others => '0'));
+      v(1)          := x"0" & std_logic_vector(cod);
+      v(VAL_I_L_C)  := val( 7 downto 0);
+      v(VAL_I_H_C)  := val(15 downto 8);
       case ( cod ) is
          when USB2_REQ_STD_GET_CONFIGURATION_C =>
             v(TYP_I_C)(7) := '1';
@@ -475,18 +546,27 @@ architecture sim of Usb2PktProcTb is
             v(LEN_I_L_C)  := x"01";
             eda(0)        := x"00";
             edal          := 1;
+
+         when USB2_REQ_STD_SET_ADDRESS_C =>
+
+         when USB2_REQ_STD_SET_CONFIGURATION_C =>
           
          when others =>
             assert false report "Unsupported request code" severity failure;
       end case;
-      sendDat( ob, v, EP0_C, true, rtr, w, timo );
+      sendDat( ob, v, EP0_C, dva, true, rtr, w, timo, epid => epid );
       tick;
-      if ( v(TYP_I_C)(7) = '1' ) then
-         waitDat(ob, eda(0 to edal - 1), EP0_C, rtr, w, timo);
-         tick;
-         -- STATUS
-         sendDat(ob, NULL_DATA, EP0_C, false, rtr, w, timo);
-      end if;
+      if ( epid /= USB2_PID_HSK_STALL_C ) then
+         if ( v(TYP_I_C)(7) = '1' ) then
+             waitDat(ob, eda(0 to edal - 1), EP0_C, dva, rtr, w, timo);
+             tick;
+             -- STATUS
+             sendDat(ob, NULL_DATA, EP0_C, dva, false, rtr => 2, w => w, timo => timo);
+          else
+             waitDat(ob, NULL_DATA, EP0_C, dva, rtr => rtr, rak => 2, w => w, timo => timo);
+          end if;
+          tick;
+       end if;
     end procedure sendCtlReq;
 
 begin
@@ -510,29 +590,33 @@ begin
    begin
       tick; tick;
 
-      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_CONFIGURATION_C);
+      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_CONFIGURATION_C, USB2_DEV_ADDR_DFLT_C);
 
-      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_INTERFACE_C);
+      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_INTERFACE_C, USB2_DEV_ADDR_DFLT_C, epid => USB2_PID_HSK_STALL_C);
+
+      sendCtlReq(ulpiOb, USB2_REQ_STD_SET_ADDRESS_C, USB2_DEV_ADDR_DFLT_C, val => (x"00" & "0" & DEV_ADDR_C) );
+      sendCtlReq(ulpiOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_BAD_VALUE_C ), epid => USB2_PID_HSK_STALL_C);
+      sendCtlReq(ulpiOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_VALUE_C ) );
 
       tick;
 
 
-      sendDat(ulpiOb, d2, TST_EP_C);
+      sendDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C);
 
-      sendDat(ulpiOb, d2, TST_EP_C, rtr=>2 );
+      sendDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C, rtr=>2 );
 
-      sendDat(ulpiOb, d2, TST_EP_C, rtr=>2, w => 2 );
+      sendDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C, rtr=>2, w => 2 );
 
       -- read fragmented data
-      waitDat(ulpiOb, d2, TST_EP_C );
+      waitDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C );
       tick;
 
       -- read fragmented with retries
-      waitDat(ulpiOb, d2, TST_EP_C, 2 );
+      waitDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C, 2 );
       tick;
 
       -- read fragmented with retries and wait cycles
-      waitDat(ulpiOb, d2, TST_EP_C, 2, 2 );
+      waitDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C, 2, 2 );
       tick;
 
       for i in 0 to 20 loop
@@ -544,13 +628,13 @@ begin
 
    U_DUT : entity work.Usb2PktProc
    generic map (
-      NUM_ENDPOINTS_G => ENDPOINTS_C'length
+      NUM_ENDPOINTS_G => USB2_APP_NUM_ENDPOINTS_C
    )
    port map (
       clk             => clk,
       rst             => open,
       devStatus       => devStatus,
-      epConfig        => ENDPOINTS_C,
+      epConfig        => epConfig,
       epIb            => epIb,
       epOb            => epOb,
 
@@ -566,7 +650,8 @@ begin
       MAX_INTERFACES_G    => USB2_APP_MAX_INTERFACES_C,
       MAX_ALTSETTINGS_G   => USB2_APP_MAX_ALTSETTINGS_C,
       CFG_DESCRIPTORS_G   => USB2_APP_CFG_DESCRIPTORS_C,
-      DEV_DESCRIPTOR_G    => USB2_APP_DEV_DESCRIPTOR_C
+      DEV_DESCRIPTOR_G    => USB2_APP_DEV_DESCRIPTOR_C,
+      CFG_IDX_TABLE_G     => USB2_APP_CONFIG_IDX_TBL_C
    )
    port map (
       clk             => clk,
@@ -579,7 +664,8 @@ begin
       ctlExt          => open,
       ctlEpExt        => open,
 
-      devStatus       => devStatus
+      devStatus       => devStatus,
+      epConfig        => epConfig
   );
 
    U_RX : entity work.Usb2PktRx

@@ -256,13 +256,13 @@ begin
                if ( isTokInp( rxPktHdr.pid ) ) then
                   v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
                   v.timer       := TIME_DATA_TX_C;
-                  if ( epConfig( to_integer( r.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
-                     v.state   := ISO_INP;
-                     v.pid     := USB2_PID_DAT_DATA0_C;
-                  elsif ( ei.stalledInp = '1' ) then
+                  if    ( ei.stalledInp = '1' ) then
                      v.pid     := USB2_PID_HSK_STALL_C;
                      v.timer   := TIME_HSK_TX_C;
                      v.state   := HSK;
+                  elsif ( epConfig( to_integer( r.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
+                     v.state   := ISO_INP;
+                     v.pid     := USB2_PID_DAT_DATA0_C;
                   elsif ( (ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' ) then
                      v.pid     := USB2_PID_HSK_NAK_C;
                      v.timer   := TIME_HSK_TX_C;
@@ -313,11 +313,11 @@ begin
          when DATA_PID =>
             if ( ( rxPktHdr.vld = '1' ) ) then
                if ( checkDatHdr( rxPktHdr ) ) then
-                  if ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
-                     v.state := ISO_OUT; 
-                  elsif ( ei.stalledOut = '1' ) then
+                  if ( ei.stalledOut = '1' ) then
                      v.pid   := USB2_PID_HSK_STALL_C;
                      v.state := DRAIN;
+                  elsif ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+                     v.state := ISO_OUT; 
                   elsif ( not sequenceOutMatch( v, rxPktHdr ) ) then
                      -- sequence mismatch; discard packet and ACK
                      v.pid   := USB2_PID_HSK_ACK_C;
@@ -506,8 +506,12 @@ begin
             end if;
 
          when HSK =>
-            if ( ei.stalledInp = '1' ) then
-               v.pid := USB2_PID_HSK_STALL_C;
+            if ( rd.isSetup ) then
+               if ( ( rd.mstOut.don and ei.subOut.don ) = '1' ) then
+                  if ( ei.subOut.err = '1' ) then
+                     v.pid := USB2_PID_HSK_STALL_C;
+                  end if;
+               end if;
             end if;
             if ( r.timer = 0 ) then
                txDataMst.don <= '1';
@@ -539,7 +543,7 @@ begin
 
    end process P_COMB;
 
-   P_COMB_READER : process ( r.bufVldIdx, rd, epIb, bufReadOut ) is
+   P_COMB_READER : process ( r.bufVldIdx, rd, epIb, bufReadOut, epConfig ) is
       variable v : BufReaderType;
    begin
       v := rd;
@@ -563,6 +567,8 @@ begin
             -- see if we have anything new to offer
             if ( ( rd.bufRdIdx = r.bufVldIdx ) or ( bufReadOut(8) = '1' ) ) then
                -- End of packet sequence (setup packets do not require an empty data packet)
+report integer'image(to_integer(rd.dataCounter)) & " " & integer'image(to_integer( rd.epIdx )) 
+ & " " & integer'image(to_integer(epConfig( to_integer( rd.epIdx) ).maxPktSizeOut));
                if ( rd.dataCounter < epConfig( to_integer( rd.epIdx) ).maxPktSizeOut or rd.isSetup ) then
                   v.mstOut.don := '1';
                end if;
