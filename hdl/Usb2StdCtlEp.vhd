@@ -14,8 +14,7 @@ entity Usb2StdCtlEp is
       NUM_ENDPOINTS_G   : positive;
       MAX_INTERFACES_G  : natural;
       MAX_ALTSETTINGS_G : positive;
-      CFG_DESCRIPTORS_G : Usb2ByteArray;
-      DEV_DESCRIPTOR_G  : Usb2ByteArray;
+      DESCRIPTORS_G     : Usb2ByteArray;
       -- CFG_IDX_TABLE_G must start with a dummy element
       -- for configuration # 0
       CFG_IDX_TABLE_G   : Usb2DescIdxArray
@@ -52,7 +51,7 @@ end entity Usb2StdCtlEp;
 
 architecture Impl of Usb2StdCtlEp is
 
-   alias DSC_C : Usb2ByteArray is CFG_DESCRIPTORS_G;
+   alias DSC_C : Usb2ByteArray is DESCRIPTORS_G;
 
    -- FIXME
    constant NAK_TIMEOUT_C : Usb2TimerType := to_unsigned( 100, Usb2TimerType'length );
@@ -75,8 +74,11 @@ architecture Impl of Usb2StdCtlEp is
 
    function numConfigs
    return natural is
+      variable v : natural;
    begin
-      return to_integer( unsigned( DEV_DESCRIPTOR_G( USB2_DEV_DESC_IDX_NUM_CONFIGURATIONS_C ) ) );
+      v := to_integer( unsigned( DESCRIPTORS_G( CFG_IDX_TABLE_G(0) +  USB2_DEV_DESC_IDX_NUM_CONFIGURATIONS_C ) ) );
+      report integer'image(v) & " Configurations";
+      return v;
    end function numConfigs;
 
    function epIdx(constant x: Usb2CtlReqParamType)
@@ -165,8 +167,9 @@ architecture Impl of Usb2StdCtlEp is
          v.epConfig(i).hasHaltInp := true;
          v.epConfig(i).hasHaltOut := true;
       end loop;
-      b2u( v.epConfig(0).maxPktSizeInp, DEV_DESCRIPTOR_G, USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
-      b2u( v.epConfig(0).maxPktSizeOut, DEV_DESCRIPTOR_G, USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
+      b2u( v.epConfig(0).maxPktSizeInp, DESCRIPTORS_G, CFG_IDX_TABLE_G(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
+      b2u( v.epConfig(0).maxPktSizeOut, DESCRIPTORS_G, CFG_IDX_TABLE_G(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
+      report "Max pkt size 0 " & integer'image(to_integer(v.epConfig(0).maxPktSizeInp));
       return v;
    end function REG_INIT_F;
 

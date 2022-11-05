@@ -10,8 +10,24 @@ use     work.Usb2DescPkg.all;
 
 package body Usb2AppCfgPkg is
 
-   function USB2_APP_CFG_DESCRIPTORS_F return Usb2ByteArray is
-   constant c : Usb2ByteArray := (
+   function USB2_APP_DESCRIPTORS_F return Usb2ByteArray is
+   constant cdev : Usb2ByteArray := (
+       0 => x"12",                                    -- length
+       1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_DEVICE_C),     -- type
+       2 => x"00",  3 => x"02",                       -- USB version
+       4 => x"FF",                                    -- dev class
+       5 => x"FF",                                    -- dev subclass
+       6 => x"00",                                    -- dev protocol
+       7 => x"08",                                    -- max pkt size
+       8 => x"23",  9 => x"01",                       -- vendor id
+      10 => x"cd", 11 => x"ab",                       -- product id
+      12 => x"01", 13 => x"00",                       -- device release
+      14 => x"00",                                    -- man. string
+      15 => x"00",                                    -- prod. string
+      16 => x"00",                                    -- S/N string
+      17 => x"01"                                     -- num configs
+   );
+   constant cconf : Usb2ByteArray := (
        0 => x"09",                                    -- length
        1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_CONFIGURATION_C), -- type
        2 => x"09", 3 => x"00",                        -- total length
@@ -57,27 +73,7 @@ package body Usb2AppCfgPkg is
       39 => x"02", -- dummy to avoid bound check overflow during simulation
       40 => x"00"
    );
-   begin
-   return c;
-   end function;
-
-   function USB2_APP_DEV_DESCRIPTOR_F  return Usb2ByteArray is
-   constant c : Usb2ByteArray := (
-       0 => x"12",                                    -- length
-       1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_DEVICE_C),     -- type
-       2 => x"00",  3 => x"02",                       -- USB version
-       4 => x"FF",                                    -- dev class
-       5 => x"FF",                                    -- dev subclass
-       6 => x"00",                                    -- dev protocol
-       7 => x"08",                                    -- max pkt size
-       8 => x"23",  9 => x"01",                       -- vendor id
-      10 => x"cd", 11 => x"ab",                       -- product id
-      12 => x"01", 13 => x"00",                       -- device release
-      14 => x"00",                                    -- man. string
-      15 => x"00",                                    -- prod. string
-      16 => x"00",                                    -- S/N string
-      17 => x"01"                                     -- num configs
-   );
+   constant c : Usb2ByteArray(0 to cdev'length + cconf'length - 1) := (cdev & cconf);
    begin
    return c;
    end function;
@@ -590,12 +586,17 @@ begin
    begin
       tick; tick;
 
+report "GET_CONFIG";
       sendCtlReq(ulpiOb, USB2_REQ_STD_GET_CONFIGURATION_C, USB2_DEV_ADDR_DFLT_C);
 
+report "GET_INTERFACE";
       sendCtlReq(ulpiOb, USB2_REQ_STD_GET_INTERFACE_C, USB2_DEV_ADDR_DFLT_C, epid => USB2_PID_HSK_STALL_C);
 
+report "SET_ADDRESS";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_ADDRESS_C, USB2_DEV_ADDR_DFLT_C, val => (x"00" & "0" & DEV_ADDR_C) );
+report "SET_BAD_CONFIG";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_BAD_VALUE_C ), epid => USB2_PID_HSK_STALL_C);
+report "SET_CONFIG";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_VALUE_C ) );
 
       tick;
@@ -649,8 +650,7 @@ begin
       NUM_ENDPOINTS_G     => USB2_APP_NUM_ENDPOINTS_C,
       MAX_INTERFACES_G    => USB2_APP_MAX_INTERFACES_C,
       MAX_ALTSETTINGS_G   => USB2_APP_MAX_ALTSETTINGS_C,
-      CFG_DESCRIPTORS_G   => USB2_APP_CFG_DESCRIPTORS_C,
-      DEV_DESCRIPTOR_G    => USB2_APP_DEV_DESCRIPTOR_C,
+      DESCRIPTORS_G       => USB2_APP_DESCRIPTORS_C,
       CFG_IDX_TABLE_G     => USB2_APP_CONFIG_IDX_TBL_C
    )
    port map (

@@ -7,20 +7,20 @@ use     work.Usb2AppCfgPkg.all;
 
 package Usb2DescPkg is
 
-   subtype  Usb2DescIdxType    is natural range 0 to USB2_APP_CFG_DESCRIPTORS_C'length - 1;
+   subtype  Usb2DescIdxType    is natural range 0 to USB2_APP_DESCRIPTORS_C'length - 1;
    type Usb2DescIdxArray is array(natural range <>) of Usb2DescIdxType;
 
    function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray) return positive;
-   constant USB2_APP_NUM_CONFIGURATIONS_C :  positive := USB2_APP_NUM_CONFIGURATIONS_F(USB2_APP_CFG_DESCRIPTORS_C);
+   constant USB2_APP_NUM_CONFIGURATIONS_C :  positive := USB2_APP_NUM_CONFIGURATIONS_F(USB2_APP_DESCRIPTORS_C);
 
    function USB2_APP_NUM_ENDPOINTS_F(constant d: Usb2ByteArray) return positive;
 
-   constant USB2_APP_NUM_ENDPOINTS_C      :  positive := USB2_APP_NUM_ENDPOINTS_F(USB2_APP_CFG_DESCRIPTORS_C);
+   constant USB2_APP_NUM_ENDPOINTS_C      :  positive := USB2_APP_NUM_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
    -- max. number of interfaces among all configurations
    -- e.g., if config 1 has 1 interface and config 2 has
    -- 2 interfaces then the max would be 2.  
    function USB2_APP_MAX_INTERFACES_F(constant d: Usb2ByteArray) return natural;
-   constant USB2_APP_MAX_INTERFACES_C     : natural   := USB2_APP_MAX_INTERFACES_F(USB2_APP_CFG_DESCRIPTORS_C);
+   constant USB2_APP_MAX_INTERFACES_C     : natural   := USB2_APP_MAX_INTERFACES_F(USB2_APP_DESCRIPTORS_C);
    -- max. number of alt. settings of any interface of
    -- any configuration.
    -- e.g., if config 1 has 1 interface 3 alt-settings
@@ -29,10 +29,10 @@ package Usb2DescPkg is
    -- the max would be 3. Note that the number of alt-
    -- settings includes the default (0) setting.
    function USB2_APP_MAX_ALTSETTINGS_F(constant d: Usb2ByteArray) return natural;
-   constant USB2_APP_MAX_ALTSETTINGS_C    : natural := USB2_APP_MAX_ALTSETTINGS_F(USB2_APP_CFG_DESCRIPTORS_C);
+   constant USB2_APP_MAX_ALTSETTINGS_C    : natural := USB2_APP_MAX_ALTSETTINGS_F(USB2_APP_DESCRIPTORS_C);
 
    function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray) return Usb2DescIdxArray;
-   constant USB2_APP_CONFIG_IDX_TBL_C     : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F(USB2_APP_CFG_DESCRIPTORS_C);
+   constant USB2_APP_CONFIG_IDX_TBL_C     : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F(USB2_APP_DESCRIPTORS_C);
 
    -- find next descriptor of a certain type starting at index s; returns -1 if none is found
    function usb2NextDescriptor(
@@ -170,10 +170,13 @@ package body Usb2DescPkg is
       constant NC : positive := USB2_APP_NUM_CONFIGURATIONS_F(d);
       variable rv : Usb2DescIdxArray(0 to NC);
    begin
-      rv(0) := 0; -- dummy
+      rv(0) := usb2NextDescriptor(d, 0, USB2_STD_DESC_TYPE_DEVICE_C);
       for i in 1 to NC loop
          rv(i) := usb2NextDescriptor(d, rv(i-1), USB2_STD_DESC_TYPE_CONFIGURATION_C);
          report "Config addr " & integer'image(rv(i));
+         for j in 0 to 8 loop
+            report integer'image(to_integer(unsigned(d(rv(i)+j))));
+         end loop;
       end loop;
       return rv;
    end function USB2_APP_CONFIG_IDX_TBL_F;
