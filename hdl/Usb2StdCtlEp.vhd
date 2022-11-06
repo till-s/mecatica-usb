@@ -600,14 +600,14 @@ begin
                end if;
             elsif ( r.tblOff = USB2_IFC_DESC_IDX_NUM_ENDPOINTS_C ) then
                v.numEp    := to_integer(unsigned(descVal));
-               v.ifcIdx   := r.ifcIdx + 1;
                v.state    := LOAD_EPTS;
             end if;
 
          when LOAD_EPTS =>
             if ( r.numEp = 0 ) then
                if ( r.reqParam.request(3 downto 0) = USB2_REQ_STD_SET_CONFIGURATION_C ) then
-                  v.state := SETUP_CONFIG;
+                  v.state  := SETUP_CONFIG;
+                  v.ifcIdx := r.ifcIdx + 1;
                else
                   -- must be a SET_INTERFACE command
                   if ( r.err = '0' ) then

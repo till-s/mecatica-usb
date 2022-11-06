@@ -466,7 +466,7 @@ architecture sim of Usb2PktProcTb is
          tick;
          assert (ulpiIb.stp = '0'   )  report "unexpected STP" severity failure;
          if ( i <= eda'high ) then
-            assert (ulpiIb.dat = eda(i))  report "unexpected data & " & integer'image(i) severity warning;
+            assert (ulpiIb.dat = eda(i))  report "unexpected data @ " & integer'image(i) severity failure;
          end if;
          crcbf( crc, USB2_CRC16_POLY_C, ulpiIb.dat );
       end loop;
@@ -606,7 +606,11 @@ begin
    end process P_CLK;
 
    P_TST : process is
-      variable pid : std_logic_vector(3 downto 0);
+      variable pid    : std_logic_vector(3 downto 0);
+      variable reqval : std_logic_vector(15 downto 0);
+      variable reqidx : std_logic_vector(15 downto 0);
+
+      constant devdsc : Usb2ByteArray(0 to 17) := USB2_APP_DESCRIPTORS_C(0 to 17);
    begin
       tick; tick;
 
@@ -625,6 +629,10 @@ report "SET_CONFIG";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
 
       sendCtlReq(ulpiOb, USB2_REQ_STD_GET_INTERFACE_C, DEV_ADDR_C, idx => IFC_C, eda => (0 => x"01"));
+
+      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_DEVICE_C) & x"00";
+--      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => devdsc);
+
       tick;
 
 
