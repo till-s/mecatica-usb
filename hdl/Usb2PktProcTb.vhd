@@ -10,8 +10,20 @@ use     work.Usb2DescPkg.all;
 
 package body Usb2AppCfgPkg is
 
+   procedure pr(constant x: Usb2ByteArray) is
+      variable s : string(1 to 8);
+   begin
+      for i in x'range loop
+         for j in x(i)'left downto x(i)'right loop
+            s(8-j) := std_logic'image(x(i)(j))(2);
+         end loop;
+         report "D[" & integer'image(i) & "]  => " & s;
+      end loop;
+   end procedure pr;
+
    function USB2_APP_DESCRIPTORS_F return Usb2ByteArray is
-   constant cdev : Usb2ByteArray := (
+
+   constant DEVDESC_C : Usb2ByteArray := (
        0 => x"12",                                    -- length
        1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_DEVICE_C),     -- type
        2 => x"00",  3 => x"02",                       -- USB version
@@ -27,10 +39,11 @@ package body Usb2AppCfgPkg is
       16 => x"00",                                    -- S/N string
       17 => x"01"                                     -- num configs
    );
-   constant cconf : Usb2ByteArray := (
+
+   constant CONFDESC_C : Usb2ByteArray := (
        0 => x"09",                                    -- length
        1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_CONFIGURATION_C), -- type
-       2 => x"09", 3 => x"00",                        -- total length
+       2 => x"3E", 3 => x"00",                        -- total length
        4 => x"01",                                    -- num interfaces
        5 => x"01",                                    -- config value
        6 => x"00",                                    -- description string
@@ -92,12 +105,17 @@ package body Usb2AppCfgPkg is
       57 => x"81",                                    -- address (IN EP1)
       58 => "000000" & USB2_TT_BULK_C,                -- attributes
       59 => x"08", 60 => x"00",                       -- maxPktSize
-      61 => x"00",                                    -- interval
-
-      62 => x"02", -- End of table marker
-      63 => x"ff"  --
+      61 => x"00"                                     -- interval
    );
-   constant c : Usb2ByteArray(0 to cdev'length + cconf'length - 1) := (cdev & cconf);
+
+
+   constant TAILDESC_C : Usb2ByteArray := (
+      0  => x"02", -- End of table marker
+      1  => x"ff"  --
+   );
+
+   constant l : natural :=  DEVDESC_C'length + CONFDESC_C'length + TAILDESC_C'length;
+   constant c : Usb2ByteArray(0 to l-1) := (DEVDESC_C & CONFDESC_C & TAILDESC_C);
    begin
    return c;
    end function;
@@ -126,7 +144,11 @@ architecture sim of Usb2PktProcTb is
    constant DEV_ADDR_C             : Usb2DevAddrType := Usb2DevAddrType( to_unsigned(66, Usb2DevAddrType'length) );
 
    constant CONFIG_VALUE_C         : std_logic_vector(7 downto 0) := x"01";
+   -- index is zero-based (?)
+   constant CONFIG_INDEX_C         : std_logic_vector(7 downto 0) := x"00";
    constant CONFIG_BAD_VALUE_C     : std_logic_vector(7 downto 0) := x"02";
+
+   constant NUM_ENDPOINTS_C        : natural                      := 2;
 
    constant ALT_C                  : std_logic_vector(15 downto 0) := x"0001";
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
@@ -167,7 +189,7 @@ architecture sim of Usb2PktProcTb is
    signal ulpiTxReq       : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep       : UlpiTxRepType;
 
-   signal epConfig        : Usb2EndpPairConfigArray(0 to USB2_APP_NUM_ENDPOINTS_C - 1);
+   signal epConfig        : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1);
 
    shared variable dtglInp : std_logic_vector(ENDPOINTS_C'range) := (others => '0');
    shared variable dtglOut : std_logic_vector(ENDPOINTS_C'range) := (others => '0');
@@ -441,7 +463,7 @@ architecture sim of Usb2PktProcTb is
       signal   ob  : inout UlpiObType;
       variable epi : inout std_logic_vector(3 downto 0);
       constant eda : in    Usb2ByteArray;
-      constant w   : in    natural := 0;
+      constant w   : in    integer := 0;
       constant timo: in    natural := 30
    ) is
       variable pid : std_logic_vector( 3 downto 0);
@@ -464,6 +486,9 @@ architecture sim of Usb2PktProcTb is
          tick;
          assert (ulpiIb.stp = '0'   )  report "unexpected STP" severity failure;
          if ( i <= eda'high ) then
+if ( ulpiIb.dat /= eda(i) ) then
+report integer'image(to_integer(unsigned(ulpiIb.dat))) & " " & integer'image(to_integer(unsigned(eda(i))));
+end if;
             assert (ulpiIb.dat = eda(i))  report "unexpected data @ " & integer'image(i) severity failure;
          end if;
          crcbf( crc, USB2_CRC16_POLY_C, ulpiIb.dat );
@@ -506,7 +531,7 @@ architecture sim of Usb2PktProcTb is
                else
                   pid := USB2_PID_DAT_DATA1_C;
                end if;
-               waitDatPkt(ob, pid, eda(idx to idx + cln - 1), w, timo);
+               waitDatPkt(ob, pid, eda(idx to idx + cln - 1), w => w, timo => timo);
                tick;
                if ( pid /= USB2_PID_HSK_NAK_C ) then
                   exit L_NAK;
@@ -547,6 +572,7 @@ architecture sim of Usb2PktProcTb is
       constant VAL_I_L_C : natural := 2;
       constant IDX_I_H_C : natural := 5;
       constant IDX_I_L_C : natural := 4;
+      variable len       : unsigned(15 downto 0) := to_unsigned(eda'length, 16);
       variable v         : Usb2ByteArray(0 to 7);
    begin
       v             := (others => (others => '0'));
@@ -555,14 +581,21 @@ architecture sim of Usb2PktProcTb is
       v(VAL_I_H_C)  := val(15 downto 8);
       v(IDX_I_L_C)  := idx( 7 downto 0);
       v(IDX_I_H_C)  := idx(15 downto 8);
+      v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
+      v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
       case ( cod ) is
          when USB2_REQ_STD_GET_CONFIGURATION_C =>
             v(TYP_I_C)(7) := '1';
-            v(LEN_I_L_C)  := x"01";
 
          when USB2_REQ_STD_GET_INTERFACE_C =>
             v(TYP_I_C)(7) := '1';
-            v(LEN_I_L_C)  := x"01";
+
+         when USB2_REQ_STD_GET_DESCRIPTOR_C =>
+            v(TYP_I_C)(7) := '1';
+            len           := len + 20;
+            v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
+            v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
+            
 
          when USB2_REQ_STD_SET_ADDRESS_C =>
 
@@ -576,7 +609,7 @@ architecture sim of Usb2PktProcTb is
       tick;
       if ( epid /= USB2_PID_HSK_STALL_C ) then
          if ( v(TYP_I_C)(7) = '1' ) then
-             waitDat(ob, eda, EP0_C, dva, rtr, w, timo);
+             waitDat(ob, eda, EP0_C, dva, rtr, w => w, timo => timo);
              tick;
              -- STATUS
              sendDat(ob, NULL_DATA, EP0_C, dva, false, rtr => 2, w => w, timo => timo);
@@ -586,6 +619,8 @@ architecture sim of Usb2PktProcTb is
           tick;
        end if;
     end procedure sendCtlReq;
+
+   signal dbgwai : std_logic;
 
 begin
 
@@ -608,7 +643,8 @@ begin
       variable reqval : std_logic_vector(15 downto 0);
       variable reqidx : std_logic_vector(15 downto 0);
 
-      constant devdsc : Usb2ByteArray(0 to 17) := USB2_APP_DESCRIPTORS_C(0 to 17);
+      constant devdsc : Usb2ByteArray(0 to 17) := USB2_APP_DESCRIPTORS_C(0  to 17);
+      constant cfgdsc : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(18 to USB2_APP_DESCRIPTORS_C'high - 2);
    begin
       tick; tick;
 
@@ -632,8 +668,11 @@ report "GET_INTERFACE";
 
 report "GET_DESCRIPTOR(DEV)";
       reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_DEVICE_C) & x"00";
---      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => devdsc);
+      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => devdsc);
 
+report "GET_DESCRIPTOR(CFG)";
+      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_CONFIGURATION_C) & CONFIG_INDEX_C;
+      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => cfgdsc);
       tick;
 
 
@@ -659,12 +698,13 @@ report "GET_DESCRIPTOR(DEV)";
          tick;
       end loop;
       run <= false;
+      report "TEST PASSED";
       wait;
    end process P_TST;
 
    U_DUT : entity work.Usb2PktProc
    generic map (
-      NUM_ENDPOINTS_G => USB2_APP_NUM_ENDPOINTS_C
+      NUM_ENDPOINTS_G => NUM_ENDPOINTS_C
    )
    port map (
       clk             => clk,
@@ -682,13 +722,8 @@ report "GET_DESCRIPTOR(DEV)";
 
    U_DUT_CTL : entity work.Usb2StdCtlEp
    generic map (
-      NUM_ENDPOINTS_G     => USB2_APP_NUM_ENDPOINTS_C,
-      MAX_INTERFACES_G    => USB2_APP_MAX_INTERFACES_C,
-      MAX_ALTSETTINGS_G   => USB2_APP_MAX_ALTSETTINGS_C,
-      DESCRIPTORS_G       => USB2_APP_DESCRIPTORS_C,
-      CFG_IDX_TABLE_G     => USB2_APP_CONFIG_IDX_TBL_C,
-      NUM_STRINGS_G       => USB2_APP_NUM_STRINGS_C,
-      STRINGS_IDX_G       => USB2_APP_STRINGS_IDX_C
+      NUM_ENDPOINTS_G     => NUM_ENDPOINTS_C,
+      DESCRIPTORS_G       => USB2_APP_DESCRIPTORS_C
    )
    port map (
       clk             => clk,

@@ -36,6 +36,21 @@ architecture Impl of Usb2PktProc is
       if ( SIM_C ) then return a; else return b; end if;
    end function simt;
 
+   function toStr(constant x : std_logic_vector) return string is
+      variable s : string(1 to x'length);
+   begin
+      for j in x'left downto x'right loop
+         s(x'length - j) := std_logic'image(x(j))(2);
+      end loop;
+      return s;
+   end function toStr;
+
+   function toStr(constant x : unsigned) return string is
+   begin
+      return toStr( std_logic_vector( x ) );
+   end function toStr;
+
+
    constant TIME_HSK_TX_C        : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
    constant TIME_DATA_RX_C       : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
    constant TIME_DATA_TX_C       : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);

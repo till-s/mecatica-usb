@@ -12,14 +12,7 @@ entity Usb2StdCtlEp is
    generic (
       MARK_DEBUG_G      : boolean  := true;
       NUM_ENDPOINTS_G   : positive;
-      MAX_INTERFACES_G  : natural;
-      MAX_ALTSETTINGS_G : positive;
-      DESCRIPTORS_G     : Usb2ByteArray;
-      -- CFG_IDX_TABLE_G must start with a dummy element
-      -- for configuration # 0
-      CFG_IDX_TABLE_G   : Usb2DescIdxArray;
-      NUM_STRINGS_G     : natural;
-      STRINGS_IDX_G     : Usb2DescIdxType
+      DESCRIPTORS_G     : Usb2ByteArray
    );
    port (
       clk             : in  std_logic;
@@ -55,6 +48,23 @@ architecture Impl of Usb2StdCtlEp is
 
    alias DSC_C : Usb2ByteArray is DESCRIPTORS_G;
 
+   function pr(constant x: Usb2ByteArray) return natural is
+      variable s : string(1 to 8);
+   begin
+      for i in x'range loop
+         for j in x(i)'left downto x(i)'right loop
+            s(8-j) := std_logic'image(x(i)(j))(2);
+         end loop;
+         report "D[" & integer'image(i) & "]  => " & s;
+      end loop;
+   end function pr;
+
+   constant MAX_ALTSETTINGS_C  : natural          := USB2_APP_MAX_ALTSETTINGS_F( DESCRIPTORS_G );
+   constant MAX_INTERFACES_C   : natural          := USB2_APP_MAX_INTERFACES_F ( DESCRIPTORS_G );
+   constant CFG_IDX_TABLE_C    : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F ( DESCRIPTORS_G );
+   constant NUM_STRINGS_C      : natural          := USB2_APP_NUM_STRINGS_F    ( DESCRIPTORS_G );
+   constant STRINGS_IDX_C      : Usb2DescIdxType  := USB2_APP_STRINGS_IDX_F    ( DESCRIPTORS_G );
+
    -- FIXME
    constant NAK_TIMEOUT_C : Usb2TimerType := to_unsigned( 100, Usb2TimerType'length );
 
@@ -80,7 +90,7 @@ architecture Impl of Usb2StdCtlEp is
    return natural is
       variable v : natural;
    begin
-      v := to_integer( unsigned( DESCRIPTORS_G( CFG_IDX_TABLE_G(0) +  USB2_DEV_DESC_IDX_NUM_CONFIGURATIONS_C ) ) );
+      v := to_integer( unsigned( DESCRIPTORS_G( CFG_IDX_TABLE_C(0) +  USB2_DEV_DESC_IDX_NUM_CONFIGURATIONS_C ) ) );
       return v;
    end function numConfigs;
 
@@ -95,6 +105,12 @@ architecture Impl of Usb2StdCtlEp is
       v := resize( unsigned( a(o) ), v'length );
    end procedure b2u;
 
+   function b2u(constant a: in Usb2ByteArray; constant o : in natural; constant l : natural)
+   return unsigned is
+   begin
+      return resize( unsigned( a(o) ), l );
+   end function b2u;
+
    procedure w2u(variable v : out unsigned; constant a: in Usb2ByteArray; constant o : in natural) is
       constant x : std_logic_vector(15 downto 0) := a(o+1) & a(0);
    begin
@@ -106,8 +122,8 @@ architecture Impl of Usb2StdCtlEp is
       return unsigned( x );
    end function w2u;
 
-   subtype AltSetIdxType is natural range 0 to MAX_ALTSETTINGS_G - 1;
-   subtype IfcIdxType    is natural range 0 to MAX_INTERFACES_G;
+   subtype AltSetIdxType is natural range 0 to MAX_ALTSETTINGS_C - 1;
+   subtype IfcIdxType    is natural range 0 to MAX_INTERFACES_C;
    subtype EpIdxType     is natural range 0 to NUM_ENDPOINTS_G;
    subtype CfgIdxType    is natural range 0 to numConfigs;
 
@@ -178,13 +194,61 @@ architecture Impl of Usb2StdCtlEp is
          v.epConfig(i).hasHaltInp := true;
          v.epConfig(i).hasHaltOut := true;
       end loop;
-      b2u( v.epConfig(0).maxPktSizeInp, DESCRIPTORS_G, CFG_IDX_TABLE_G(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
-      b2u( v.epConfig(0).maxPktSizeOut, DESCRIPTORS_G, CFG_IDX_TABLE_G(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
+      b2u( v.epConfig(0).maxPktSizeInp, DESCRIPTORS_G, CFG_IDX_TABLE_C(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
+      b2u( v.epConfig(0).maxPktSizeOut, DESCRIPTORS_G, CFG_IDX_TABLE_C(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
       report "Max pkt size 0 " & integer'image(to_integer(v.epConfig(0).maxPktSizeInp));
       return v;
    end function REG_INIT_F;
 
-   signal r   : RegType := REG_INIT_F;
+   constant REG_INIT_C : RegType := (
+      state       => GET_PARAMS,
+      retState    => GET_PARAMS,
+      devStatus   => USB2_DEV_STATUS_INIT_C,
+      reqParam    => USB2_CTL_REQ_PARAM_INIT_C,
+      parmIdx     => (others => '0'),
+      err         => '0',
+      protoStall  => '0',
+      epConfig    => (
+                        0      => ( 
+                                     transferTypeInp => USB2_TT_CONTROL_C,
+                                     transferTypeOut => USB2_TT_CONTROL_C,
+                                     maxPktSizeInp   => b2u( DESCRIPTORS_G,
+                                                             CFG_IDX_TABLE_C(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C,
+                                                             epConfig(0).maxPktSizeInp'length
+                                                            ),
+                                     maxPktSizeOut   => b2u( DESCRIPTORS_G,
+                                                             CFG_IDX_TABLE_C(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C,
+                                                             epConfig(0).maxPktSizeOut'length
+                                                            ),
+                                     hasHaltInp      => false,
+                                     hasHaltOut      => false
+                                  ),
+                        others => USB2_ENDP_PAIR_CONFIG_INIT_C
+                     ),
+      cfgIdx      => 0,
+      cfgCurr     => 0,
+      retVal      => (others => '0'),
+      altSettings => (others => 0),
+      flg         => '0',
+      tblIdx      => 0,
+      tblOff      => 0,
+      auxOff      => 0,
+      tblRdDone   => false,
+      retSz2      => false,
+      statusAck   => '1',
+      timer       => (others => '0'),
+      ifcIdx      => 0,
+      altIdx      => 0,
+      numIfc      => 0,
+      numEp       => 0,
+      epIdx       => 0,
+      epIsInp     => false,
+      descType    => (others => '0'),
+      size2B      => false
+   );
+
+
+   signal r   : RegType := REG_INIT_C;
    signal rin : RegType;
 
    function numInterfaces(constant x : in RegType)
@@ -398,15 +462,15 @@ begin
                      v.size2B   := false;
                      case ( Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) ) ) is
                         when USB2_STD_DESC_TYPE_DEVICE_C            =>
-                           v.tblIdx   := CFG_IDX_TABLE_G(0);
+                           v.tblIdx   := CFG_IDX_TABLE_C(0);
 
 -- not implemented      when USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C  =>
                           -- full-speed must return error
                         when USB2_STD_DESC_TYPE_CONFIGURATION_C     =>
                            -- according to the spec this is 0-based and thus not identical
                            -- with the configuration value.
-                           if ( to_integer(unsigned(r.reqParam.value(7 downto 0))) < CFG_IDX_TABLE_G'length ) then
-                              v.tblIdx   := CFG_IDX_TABLE_G( to_integer(unsigned(r.reqParam.value(7 downto 0))) + 1 );
+                           if ( to_integer(unsigned(r.reqParam.value(7 downto 0))) < CFG_IDX_TABLE_C'length - 1 ) then
+                              v.tblIdx   := CFG_IDX_TABLE_C( to_integer(unsigned(r.reqParam.value(7 downto 0))) + 1 );
                               v.tblOff   := USB2_CFG_DESC_IDX_TOTAL_LENGTH_C + 1;
                               v.size2B   := true;
                            else
@@ -416,8 +480,8 @@ begin
 -- not implemented      hen USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  =>
 
                         when USB2_STD_DESC_TYPE_STRING_C            =>
-                           if ( NUM_STRINGS_G > to_integer(unsigned(r.reqParam.value(7 downto 0))) ) then
-                              v.tblIdx   := STRINGS_IDX_G;
+                           if ( NUM_STRINGS_C > to_integer(unsigned(r.reqParam.value(7 downto 0))) ) then
+                              v.tblIdx   := STRINGS_IDX_C;
                            else
                               v.err      :=  '1';
                            end if;
@@ -492,10 +556,10 @@ begin
                         v.err             := '0';
                         v.cfgCurr         := 0;
                      elsif ( unsigned( r.reqParam.value(7 downto 0) ) <= numConfigs ) then
-                        -- assume the configuration value equals the index in the CFG_IDX_TABLE_G!
+                        -- assume the configuration value equals the index in the CFG_IDX_TABLE_C!
                         if ( not r.tblRdDone ) then
                            v.cfgCurr         := to_integer( unsigned( r.reqParam.value( 7 downto 0 ) ) );
-                           v.cfgIdx          := CFG_IDX_TABLE_G( v.cfgCurr );
+                           v.cfgIdx          := CFG_IDX_TABLE_C( v.cfgCurr );
                            v.tblIdx          := v.cfgIdx;
                            v.tblOff          := USB2_CFG_DESC_IDX_NUM_INTERFACES_C;
                            v.ifcIdx          := 0;

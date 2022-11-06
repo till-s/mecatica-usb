@@ -11,16 +11,13 @@ package Usb2DescPkg is
    type Usb2DescIdxArray is array(natural range <>) of Usb2DescIdxType;
 
    function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray) return positive;
-   constant USB2_APP_NUM_CONFIGURATIONS_C :  positive := USB2_APP_NUM_CONFIGURATIONS_F(USB2_APP_DESCRIPTORS_C);
 
    function USB2_APP_NUM_ENDPOINTS_F(constant d: Usb2ByteArray) return positive;
 
-   constant USB2_APP_NUM_ENDPOINTS_C      :  positive := USB2_APP_NUM_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
    -- max. number of interfaces among all configurations
    -- e.g., if config 1 has 1 interface and config 2 has
    -- 2 interfaces then the max would be 2.  
    function USB2_APP_MAX_INTERFACES_F(constant d: Usb2ByteArray) return natural;
-   constant USB2_APP_MAX_INTERFACES_C     : natural   := USB2_APP_MAX_INTERFACES_F(USB2_APP_DESCRIPTORS_C);
    -- max. number of alt. settings of any interface of
    -- any configuration.
    -- e.g., if config 1 has 1 interface 3 alt-settings
@@ -29,16 +26,12 @@ package Usb2DescPkg is
    -- the max would be 3. Note that the number of alt-
    -- settings includes the default (0) setting.
    function USB2_APP_MAX_ALTSETTINGS_F(constant d: Usb2ByteArray) return natural;
-   constant USB2_APP_MAX_ALTSETTINGS_C    : natural := USB2_APP_MAX_ALTSETTINGS_F(USB2_APP_DESCRIPTORS_C);
 
    function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray) return Usb2DescIdxArray;
-   constant USB2_APP_CONFIG_IDX_TBL_C     : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F(USB2_APP_DESCRIPTORS_C);
 
    function USB2_APP_NUM_STRINGS_F(constant d: Usb2ByteArray) return natural;
-   constant USB2_APP_NUM_STRINGS_C        : natural := USB2_APP_NUM_STRINGS_F(USB2_APP_DESCRIPTORS_C);
 
    function USB2_APP_STRINGS_IDX_F(constant d: Usb2ByteArray) return Usb2DescIdxType;
-   constant USB2_APP_STRINGS_IDX_C        : Usb2DescIdxType := USB2_APP_STRINGS_IDX_F(USB2_APP_DESCRIPTORS_C);
 
    -- find next descriptor of a certain type starting at index s; returns -1 if none is found
    function usb2NextDescriptor(
@@ -93,6 +86,15 @@ package body Usb2DescPkg is
       return i;
    end function usb2NextDescriptor;
 
+   function toStr(constant x : std_logic_vector) return string is
+      variable s : string(1 to x'length);
+   begin
+      for i in x'left downto x'right loop
+         s(x'left - i + 1) := std_logic'image(x(i))(2);
+      end loop;
+      return s;
+   end function toStr;
+
    -- find next descriptor of a certain type starting at index s; returns -1 if none is found
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
@@ -101,6 +103,7 @@ package body Usb2DescPkg is
    ) return integer is
       variable i : integer := s;
    begin
+report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " & toStr(d(i+USB2_DESC_IDX_TYPE_C));
       while ( i >= 0 and Usb2StdDescriptorTypeType(d(i + USB2_DESC_IDX_TYPE_C)(3 downto 0)) /= t ) loop
          i := usb2NextDescriptor(d, i);
       end loop;

@@ -229,10 +229,10 @@ package Usb2Pkg is
    constant USB2_ENDP_PAIR_CONFIG_INIT_C : Usb2EndpPairConfigType := (
       transferTypeInp  => USB2_TT_CONTROL_C,
       maxPktSizeInp    => (others => '0'),
-      hasHaltInp       => false,
+      hasHaltInp       => true,
       transferTypeOut  => USB2_TT_CONTROL_C,
       maxPktSizeOut    => (others => '0'),
-      hasHaltOut       => false
+      hasHaltOut       => true
    );
 
    type Usb2EndpPairConfigArray is array (natural range <>) of Usb2EndpPairConfigType;
