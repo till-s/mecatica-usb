@@ -189,8 +189,6 @@ architecture sim of Usb2PktProcTb is
       dat  : std_logic_vector(7 downto 0);
    end record UlpiIbType;
 
-   type   DataArray is array (natural range <>) of std_logic_vector(7 downto 0);
-
    signal ulpiOb : ulpiObType := ULPI_OB_INIT_C;
    signal ulpiIb : ulpiIbType;
 
@@ -198,10 +196,10 @@ architecture sim of Usb2PktProcTb is
 
    signal run    : boolean := true;
 
-   constant NULL_DATA : DataArray(0 to -1) := ( others => (others => '0') );
+   constant NULL_DATA : Usb2ByteArray(0 to -1) := ( others => (others => '0') );
 
-   constant d1 : DataArray := ( x"01", x"02", x"03" );
-   constant d2 : DataArray := (
+   constant d1 : Usb2ByteArray := ( x"01", x"02", x"03" );
+   constant d2 : Usb2ByteArray := (
       x"c7",
       x"3d",
       x"25",
@@ -224,7 +222,7 @@ architecture sim of Usb2PktProcTb is
 
    procedure sendVec(
       signal   ob : inout UlpiObType;
-      constant vc : in    DataArray;
+      constant vc : in    Usb2ByteArray;
       constant e  : in    boolean := true;
       constant w  : in    integer := 0
    ) is
@@ -282,7 +280,7 @@ architecture sim of Usb2PktProcTb is
       constant e  : in  std_logic_vector(3 downto 0);
       constant a  : in  Usb2DevAddrType
    ) is
-      variable v : DataArray(0 to 2);
+      variable v : Usb2ByteArray(0 to 2);
       variable x : std_logic_vector(10 downto 0);
       variable c : std_logic_vector( 4 downto 0);
    begin
@@ -307,7 +305,7 @@ architecture sim of Usb2PktProcTb is
       signal   ob : inout UlpiObType;
       constant t  : in  std_logic_vector(3 downto 0)
    ) is
-      constant c : DataArray := ( 0 => (not t & t ) );
+      constant c : Usb2ByteArray := ( 0 => (not t & t ) );
    begin
       sendVec( ob, c );
    end procedure sendHsk;
@@ -355,12 +353,12 @@ architecture sim of Usb2PktProcTb is
    procedure sendDatPkt(
       signal   ob  : inout UlpiObType;
       constant pid : in    std_logic_vector(3 downto 0);
-      constant v   : in    DataArray;
+      constant v   : in    Usb2ByteArray;
       constant w   : in    natural := 0
    ) is
       variable crc : std_logic_vector(15 downto 0);
-      constant h   : DataArray := ( 0 => ( not pid & pid ) );
-      variable t   : DataArray(0 to 1);
+      constant h   : Usb2ByteArray := ( 0 => ( not pid & pid ) );
+      variable t   : Usb2ByteArray(0 to 1);
       variable x   : std_logic;
    begin
       sendVec( ob, h, false, w );
@@ -376,7 +374,7 @@ architecture sim of Usb2PktProcTb is
 
    procedure sendDat(
       signal   ob  : inout UlpiObType;
-      constant v   : in    DataArray;
+      constant v   : in    Usb2ByteArray;
       constant epo : in    std_logic_vector(3 downto 0);
       constant dva : in    Usb2DevAddrType;
       constant stup: in    boolean := false;
@@ -442,7 +440,7 @@ architecture sim of Usb2PktProcTb is
    procedure waitDatPkt (
       signal   ob  : inout UlpiObType;
       variable epi : inout std_logic_vector(3 downto 0);
-      constant eda : in    DataArray;
+      constant eda : in    Usb2ByteArray;
       constant w   : in    natural := 0;
       constant timo: in    natural := 30
    ) is
@@ -479,7 +477,7 @@ architecture sim of Usb2PktProcTb is
 
    procedure waitDat(
       signal   ob  : inout UlpiObType;
-      constant eda : in    DataArray;
+      constant eda : in    Usb2ByteArray;
       constant epi : in    std_logic_vector(3 downto 0);
       constant dva : in    Usb2DevAddrType;
       constant rtr : in    natural                      := 0;
@@ -536,7 +534,7 @@ architecture sim of Usb2PktProcTb is
       constant dva : in    Usb2DevAddrType;
       constant val : in    std_logic_vector(15 downto 0) := (others => '0');
       constant idx : in    std_logic_vector(15 downto 0) := (others => '0');
-      constant eda : in    DataArray := NULL_DATA;
+      constant eda : in    Usb2ByteArray := NULL_DATA;
       constant rtr : in    natural := 0;
       constant w   : in    natural := 0;
       constant timo: in    natural := 30;
@@ -549,7 +547,7 @@ architecture sim of Usb2PktProcTb is
       constant VAL_I_L_C : natural := 2;
       constant IDX_I_H_C : natural := 5;
       constant IDX_I_L_C : natural := 4;
-      variable v         : DataArray(0 to 7);
+      variable v         : Usb2ByteArray(0 to 7);
    begin
       v             := (others => (others => '0'));
       v(1)          := x"0" & std_logic_vector(cod);
@@ -626,10 +624,13 @@ report "SET_BAD_CONFIG";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_BAD_VALUE_C ), epid => USB2_PID_HSK_STALL_C);
 report "SET_CONFIG";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_VALUE_C ) );
+report "SET_INTERFACE";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
 
+report "GET_INTERFACE";
       sendCtlReq(ulpiOb, USB2_REQ_STD_GET_INTERFACE_C, DEV_ADDR_C, idx => IFC_C, eda => (0 => x"01"));
 
+report "GET_DESCRIPTOR(DEV)";
       reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_DEVICE_C) & x"00";
 --      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => devdsc);
 
