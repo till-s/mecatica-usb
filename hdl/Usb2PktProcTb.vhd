@@ -148,7 +148,7 @@ architecture sim of Usb2PktProcTb is
    constant CONFIG_INDEX_C         : std_logic_vector(7 downto 0) := x"00";
    constant CONFIG_BAD_VALUE_C     : std_logic_vector(7 downto 0) := x"02";
 
-   constant NUM_ENDPOINTS_C        : natural                      := 2;
+   constant NUM_ENDPOINTS_C        : natural                      := USB2_APP_NUM_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
 
    constant ALT_C                  : std_logic_vector(15 downto 0) := x"0001";
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
@@ -175,8 +175,8 @@ architecture sim of Usb2PktProcTb is
    );
 
    signal devStatus       : Usb2DevStatusType := USB2_DEV_STATUS_INIT_C;
-   signal epIb            : Usb2EndpPairIbArray(ENDPOINTS_C'range) := (others => USB2_ENDP_PAIR_IB_INIT_C);
-   signal epOb            : Usb2EndpPairObArray(ENDPOINTS_C'range) := (others => USB2_ENDP_PAIR_OB_INIT_C);
+   signal epIb            : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal epOb            : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
    signal txDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal txDataSub       : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
@@ -191,8 +191,8 @@ architecture sim of Usb2PktProcTb is
 
    signal epConfig        : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1);
 
-   shared variable dtglInp : std_logic_vector(ENDPOINTS_C'range) := (others => '0');
-   shared variable dtglOut : std_logic_vector(ENDPOINTS_C'range) := (others => '0');
+   shared variable dtglInp : std_logic_vector(0 to NUM_ENDPOINTS_C - 1) := (others => '0');
+   shared variable dtglOut : std_logic_vector(0 to NUM_ENDPOINTS_C - 1) := (others => '0');
 
    type UlpiObType is record
       dir  : std_logic;
