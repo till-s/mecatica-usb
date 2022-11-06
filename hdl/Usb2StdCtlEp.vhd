@@ -36,6 +36,9 @@ entity Usb2StdCtlEp is
       -- Once the transaction is processed the
       -- external agent asserts 'don' and conveys status
       -- in 'ack' and 'err'.
+      -- If 'ack' is not asserted with 'don' then this
+      -- module will keep monitoring 'ack' and extend the status phase
+      -- until it is asserted.
       ctlExt          : in  Usb2CtlExtType     := USB2_CTL_EXT_INIT_C;
       ctlEpExt        : in  Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
 
@@ -64,9 +67,6 @@ architecture Impl of Usb2StdCtlEp is
    constant CFG_IDX_TABLE_C    : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F ( DESCRIPTORS_G );
    constant NUM_STRINGS_C      : natural          := USB2_APP_NUM_STRINGS_F    ( DESCRIPTORS_G );
    constant STRINGS_IDX_C      : Usb2DescIdxType  := USB2_APP_STRINGS_IDX_F    ( DESCRIPTORS_G );
-
-   -- FIXME
-   constant NAK_TIMEOUT_C : Usb2TimerType := to_unsigned( 100, Usb2TimerType'length );
 
    type StateType is (
       GET_PARAMS,
@@ -149,7 +149,6 @@ architecture Impl of Usb2StdCtlEp is
       tblRdDone   : boolean;
       altSettings : AltSetArray;
       statusAck   : std_logic;
-      timer       : Usb2TimerType;
       ifcIdx      : IfcIdxType;
       altIdx      : AltSetIdxType;
       numIfc      : IfcIdxType;
@@ -182,7 +181,6 @@ architecture Impl of Usb2StdCtlEp is
       v.tblRdDone   := false;
       v.retSz2      := false;
       v.statusAck   := '1';
-      v.timer       := (others => '0');
       v.ifcIdx      := 0;
       v.altIdx      := 0;
       v.numIfc      := 0;
@@ -236,7 +234,6 @@ architecture Impl of Usb2StdCtlEp is
       tblRdDone   => false,
       retSz2      => false,
       statusAck   => '1',
-      timer       => (others => '0'),
       ifcIdx      => 0,
       altIdx      => 0,
       numIfc      => 0,
@@ -302,10 +299,6 @@ begin
 
       v.reqParam.vld            := '0';
 
-      if ( r.timer > 0 ) then
-         v.timer := r.timer - 1;
-      end if;
-
       case ( r.state ) is
          when GET_PARAMS =>
             v.err           := '0';
@@ -367,10 +360,7 @@ begin
             if ( ctlExt.don = '1' ) then
                v.err       := ctlExt.err;
                v.statusAck := ctlExt.ack;
-               if ( ctlExt.ack = '0' ) then
-                  v.timer := NAK_TIMEOUT_C;
-               end if;
-               v.state    := STATUS;
+               v.state     := STATUS;
             end if;
 
          when READ_TBL =>
@@ -785,10 +775,9 @@ begin
                epOb.subOut.err <= '0';
 
                if ( r.statusAck = '0' ) then
-                  -- need a timeout as we won't see
-                  -- anything from the host; the handshake is handled
-                  -- by the packet buffer
-                  if ( r.timer = 0 ) then
+                  -- packet processor will NAK until it sees 'rdy'
+                  epOb.subOut.rdy <= ctlExt.ack; 
+                  if ( ctlExt.ack = '1' ) then
                      v.state := GET_PARAMS;
                   end if;
                else
@@ -808,10 +797,11 @@ begin
                epOb.mstInp.err <= '0';
                epOb.mstInp.don <= r.statusAck;
                if ( r.statusAck = '0' ) then
-                   -- need a timeout as we won't see
-                   -- anything from the host; the handshake is handled
-                   -- by the packet buffer
-                  if ( r.timer = 0 ) then
+                  -- packet processor keeps sending NAK until
+                  -- it sees 'vld' or 'don'. Keep monitoring
+                  -- the external agent
+                  epOb.mstInp.don <= ctlExt.ack;
+                  if ( ctlExt.ack = '1' ) then
                      v.state := GET_PARAMS;
                   end if;
                else

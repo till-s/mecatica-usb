@@ -695,6 +695,7 @@ report "GET_DESCRIPTOR(CFG)";
 
    U_DUT : entity work.Usb2Core
    generic map (
+      SIMULATION_G                 => true,
       DESCRIPTORS_G                => USB2_APP_DESCRIPTORS_C
    )
    port map (

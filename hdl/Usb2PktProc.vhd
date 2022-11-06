@@ -9,6 +9,7 @@ use     work.UsbUtilPkg.all;
 
 entity Usb2PktProc is
    generic (
+      SIMULATION_G    : boolean  := false;
       MARK_DEBUG_G    : boolean  := true;
       NUM_ENDPOINTS_G : positive := 1
    );
@@ -29,11 +30,9 @@ end entity Usb2PktProc;
 
 architecture Impl of Usb2PktProc is
 
-   constant SIM_C                : boolean := true;
-
    function simt(constant a,b: in natural) return natural is
    begin
-      if ( SIM_C ) then return a; else return b; end if;
+      if ( SIMULATION_G ) then return a; else return b; end if;
    end function simt;
 
    function toStr(constant x : std_logic_vector) return string is

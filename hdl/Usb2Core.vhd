@@ -11,6 +11,9 @@ use     work.Usb2DescPkg.all;
 entity Usb2Core is
 
    generic (
+      -- with simulation enabled timing may be changed
+      -- to speed things up
+      SIMULATION_G                 : boolean := false;
       MARK_DEBUG_ULPI_IO_G         : boolean := true;
       MARK_DEBUG_PKT_RX_G          : boolean := true;
       MARK_DEBUG_PKT_TX_G          : boolean := true;
@@ -137,6 +140,7 @@ begin
 
    U_PKT_PROCESSOR : entity work.Usb2PktProc
    generic map (
+      SIMULATION_G    => SIMULATION_G,
       MARK_DEBUG_G    => MARK_DEBUG_PKT_PROC_G,
       NUM_ENDPOINTS_G => NUM_ENDPOINTS_C
    )
