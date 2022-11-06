@@ -56,7 +56,7 @@ package body Usb2AppCfgPkg is
       23 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
       24 => x"01",                                    -- address (OUT EP1)
       25 => "000000" & USB2_TT_BULK_C,                -- attributes
-      26 => x"08", 27 => x"00",                       -- maxPktSize
+      26 => x"00", 27 => x"00",                       -- maxPktSize
       28 => x"00",                                    -- interval
 
       29 => x"03", -- a dummy 'unknown' descriptor
@@ -67,11 +67,35 @@ package body Usb2AppCfgPkg is
       33 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
       34 => x"81",                                    -- address (IN EP1)
       35 => "000000" & USB2_TT_BULK_C,                -- attributes
-      36 => x"08", 37 => x"00",                       -- maxPktSize
+      36 => x"00", 37 => x"00",                       -- maxPktSize
       38 => x"00",                                    -- interval
 
-      39 => x"02", -- dummy to avoid bound check overflow during simulation
-      40 => x"00"
+      39 => x"09",                                    -- length
+      40 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_INTERFACE_C), -- type
+      41 => x"00",                                    -- interface number
+      42 => x"01",                                    -- alt-setting
+      43 => x"02",                                    -- num-endpoints
+      44 => x"FF",                                    -- class
+      45 => x"FF",                                    -- subclass
+      46 => x"00",                                    -- protocol
+      47 => x"00",                                    -- string desc
+
+      48 => x"07", -- endpoint                           length
+      49 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
+      50 => x"01",                                    -- address (OUT EP1)
+      51 => "000000" & USB2_TT_BULK_C,                -- attributes
+      52 => x"08", 53 => x"00",                       -- maxPktSize
+      54 => x"00",                                    -- interval
+
+      55 => x"07", -- endpoint                           length
+      56 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
+      57 => x"81",                                    -- address (IN EP1)
+      58 => "000000" & USB2_TT_BULK_C,                -- attributes
+      59 => x"08", 60 => x"00",                       -- maxPktSize
+      61 => x"00",                                    -- interval
+
+      62 => x"02", -- End of table marker
+      63 => x"ff"  --
    );
    constant c : Usb2ByteArray(0 to cdev'length + cconf'length - 1) := (cdev & cconf);
    begin
@@ -103,6 +127,9 @@ architecture sim of Usb2PktProcTb is
 
    constant CONFIG_VALUE_C         : std_logic_vector(7 downto 0) := x"01";
    constant CONFIG_BAD_VALUE_C     : std_logic_vector(7 downto 0) := x"02";
+
+   constant ALT_C                  : std_logic_vector(15 downto 0) := x"0001";
+   constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
    
    constant EP0_C                  : std_logic_vector(3 downto 0) := x"0";
 
@@ -512,6 +539,8 @@ report "sending out token";
       constant cod : in    Usb2StdRequestCodeType;
       constant dva : in    Usb2DevAddrType;
       constant val : in    std_logic_vector(15 downto 0) := (others => '0');
+      constant idx : in    std_logic_vector(15 downto 0) := (others => '0');
+      constant eda : in    DataArray := NULL_DATA;
       constant rtr : in    natural := 0;
       constant w   : in    natural := 0;
       constant timo: in    natural := 30;
@@ -522,30 +551,29 @@ report "sending out token";
       constant LEN_I_L_C : natural := 7;
       constant VAL_I_H_C : natural := 3;
       constant VAL_I_L_C : natural := 2;
+      constant IDX_I_H_C : natural := 5;
+      constant IDX_I_L_C : natural := 4;
       variable v         : DataArray(0 to 7);
-      variable eda       : DataArray(0 to 15);
-      variable edal      : natural := 0;
    begin
       v             := (others => (others => '0'));
       v(1)          := x"0" & std_logic_vector(cod);
       v(VAL_I_L_C)  := val( 7 downto 0);
       v(VAL_I_H_C)  := val(15 downto 8);
+      v(IDX_I_L_C)  := idx( 7 downto 0);
+      v(IDX_I_H_C)  := idx(15 downto 8);
       case ( cod ) is
          when USB2_REQ_STD_GET_CONFIGURATION_C =>
             v(TYP_I_C)(7) := '1';
             v(LEN_I_L_C)  := x"01";
-            eda(0)        := x"00";
-            edal          := 1;
 
          when USB2_REQ_STD_GET_INTERFACE_C =>
             v(TYP_I_C)(7) := '1';
             v(LEN_I_L_C)  := x"01";
-            eda(0)        := x"00";
-            edal          := 1;
 
          when USB2_REQ_STD_SET_ADDRESS_C =>
 
          when USB2_REQ_STD_SET_CONFIGURATION_C =>
+         when USB2_REQ_STD_SET_INTERFACE_C =>
           
          when others =>
             assert false report "Unsupported request code" severity failure;
@@ -554,7 +582,7 @@ report "sending out token";
       tick;
       if ( epid /= USB2_PID_HSK_STALL_C ) then
          if ( v(TYP_I_C)(7) = '1' ) then
-             waitDat(ob, eda(0 to edal - 1), EP0_C, dva, rtr, w, timo);
+             waitDat(ob, eda, EP0_C, dva, rtr, w, timo);
              tick;
              -- STATUS
              sendDat(ob, NULL_DATA, EP0_C, dva, false, rtr => 2, w => w, timo => timo);
@@ -587,10 +615,10 @@ begin
       tick; tick;
 
 report "GET_CONFIG";
-      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_CONFIGURATION_C, USB2_DEV_ADDR_DFLT_C);
+      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_CONFIGURATION_C, USB2_DEV_ADDR_DFLT_C, eda => (0=>x"00"));
 
 report "GET_INTERFACE";
-      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_INTERFACE_C, USB2_DEV_ADDR_DFLT_C, epid => USB2_PID_HSK_STALL_C);
+      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_INTERFACE_C, USB2_DEV_ADDR_DFLT_C, eda => (0=>x"00"), epid => USB2_PID_HSK_STALL_C);
 
 report "SET_ADDRESS";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_ADDRESS_C, USB2_DEV_ADDR_DFLT_C, val => (x"00" & "0" & DEV_ADDR_C) );
@@ -598,7 +626,9 @@ report "SET_BAD_CONFIG";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_BAD_VALUE_C ), epid => USB2_PID_HSK_STALL_C);
 report "SET_CONFIG";
       sendCtlReq(ulpiOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_VALUE_C ) );
+      sendCtlReq(ulpiOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
 
+      sendCtlReq(ulpiOb, USB2_REQ_STD_GET_INTERFACE_C, DEV_ADDR_C, idx => IFC_C, eda => (0 => x"01"));
       tick;
 
 

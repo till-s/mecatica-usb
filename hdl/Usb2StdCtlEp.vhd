@@ -169,6 +169,7 @@ architecture Impl of Usb2StdCtlEp is
       v.statusAck   := '1';
       v.timer       := (others => '0');
       v.ifcIdx      := 0;
+      v.altIdx      := 0;
       v.numIfc      := 0;
       v.epIdx       := 0;
       v.epIsInp     := false;
@@ -516,8 +517,20 @@ begin
 
                   when USB2_REQ_STD_SET_DESCRIPTOR_C    =>
                     -- unsupported
+
                   when USB2_REQ_STD_SET_INTERFACE_C     =>
-                    -- TODO; not implemented yet
+                     if (    ( r.devStatus.state = CONFIGURED                                             )
+                         and ( to_integer(unsigned( r.reqParam.index(7 downto 0) )) <  r.numIfc           )
+                         and ( to_integer(unsigned( r.reqParam.value(7 downto 0) )) <= AltSetIdxType'high )
+                         ) then
+                           v.ifcIdx   := to_integer(unsigned( r.reqParam.index(7 downto 0)));
+                           v.altIdx   := to_integer(unsigned( r.reqParam.value(7 downto 0)));
+                           v.err      := '0';
+                           v.tblOff   := USB2_DESC_IDX_LENGTH_C;
+                           v.descType := USB2_STD_DESC_TYPE_INTERFACE_C;
+                           v.retState := LOAD_ALT;
+                     end if;
+
                   when USB2_REQ_STD_SYNCH_FRAME_C       =>
                     -- TODO; not implemented yet
                   when others => 
@@ -541,7 +554,11 @@ begin
                v.tblOff := USB2_DESC_IDX_TYPE_C;
             else
                v.tblOff := USB2_DESC_IDX_LENGTH_C;
-               if ( Usb2StdDescriptorTypeType(descVal(3 downto 0)) = r.descType ) then
+               if ( usb2DescIsSentinel( descVal ) ) then
+                  -- USB2_STD_DESC_TYPE_SENTINEL_C detected; -> end of table
+                  v.err      := '1';
+                  v.state    := r.retState;
+               elsif ( Usb2StdDescriptorTypeType(descVal(3 downto 0)) = r.descType ) then
                   -- found; pre-read aux entry
                   v.tblOff := r.auxOff;
                   v.state  := r.retState;
@@ -550,15 +567,16 @@ begin
 
          when SETUP_CONFIG =>
             if ( r.ifcIdx = r.numIfc ) then
-               v.devStatus.state := CONFIGURED;
-               v.state           := STATUS;
-               v.err             := '0';
+               v.devStatus.state       := CONFIGURED;
+               v.state                 := STATUS;
             else
                v.altSettings(r.ifcIdx) := 0;
                -- load endpoint table for this alt-setting
                v.tblOff                := USB2_DESC_IDX_LENGTH_C;
                v.descType              := USB2_STD_DESC_TYPE_INTERFACE_C;
                v.state                 := LOAD_ALT;
+               v.altIdx                :=  0;
+               v.err                   := '0';
             end if;
 
          when LOAD_ALT =>
@@ -567,13 +585,17 @@ begin
             v.tblOff   := USB2_DESC_IDX_LENGTH_C;
             v.auxOff   := USB2_IFC_DESC_IDX_IFC_NUM_C;
             v.state    := SCAN_DESC;
-            if    ( r.tblOff = USB2_IFC_DESC_IDX_IFC_NUM_C   ) then
+            if    ( r.err = '1' ) then
+               -- not found
+               v.numEp := 0;
+               v.state := LOAD_EPTS;
+            elsif ( r.tblOff = USB2_IFC_DESC_IDX_IFC_NUM_C   ) then
                if ( r.ifcIdx = to_integer(unsigned(descVal)) ) then
                   v.tblOff := USB2_IFC_DESC_IDX_ALTSETTING_C;
                   v.state  := r.state;
                end if;
             elsif ( r.tblOff = USB2_IFC_DESC_IDX_ALTSETTING_C ) then
-               if ( r.altSettings(r.ifcIdx) = to_integer(unsigned(descVal)) ) then
+               if ( r.altIdx = to_integer(unsigned(descVal)) ) then
                   v.tblOff := USB2_IFC_DESC_IDX_NUM_ENDPOINTS_C;
                   v.state  := r.state;
                end if;
@@ -587,6 +609,13 @@ begin
             if ( r.numEp = 0 ) then
                if ( r.reqParam.request(3 downto 0) = USB2_REQ_STD_SET_CONFIGURATION_C ) then
                   v.state := SETUP_CONFIG;
+               else
+                  -- must be a SET_INTERFACE command
+                  if ( r.err = '0' ) then
+                     -- update
+                     v.altSettings(r.ifcIdx) := r.altIdx;
+                  end if;
+                  v.state := STATUS;
                end if;
             else
                v.retState := r.state;

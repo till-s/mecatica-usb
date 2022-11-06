@@ -277,6 +277,10 @@ package Usb2Pkg is
    constant USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C  : Usb2StdDescriptorTypeType  := x"6";
    constant USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  : Usb2StdDescriptorTypeType  := x"7";
    constant USB2_STD_DESC_TYPE_INTERFACE_POWER_C   : Usb2StdDescriptorTypeType  := x"8";
+   -- use as a sentinel to terminate table
+   constant USB2_STD_DESC_TYPE_SENTINEL_C          : Usb2ByteType               := x"FF";
+
+   function usb2DescIsSentinel(constant x: Usb2ByteType) return boolean;
     
    subtype  Usb2StdFeatureType                     is unsigned(1 downto 0);
    constant USB2_STD_FEAT_ENDPOINT_HALT_C          : Usb2StdFeatureType         := "00";
@@ -389,5 +393,11 @@ package body Usb2Pkg is
    return std_logic_vector is begin
       return reqTyp(1 downto 0);
    end function USB2_REQ_TYP_RECIPIENT_F;
+
+   function usb2DescIsSentinel(constant x: Usb2ByteType)
+   return boolean is begin
+      return x(7) = '1';
+   end function usb2DescIsSentinel;
+   
 
 end package body Usb2Pkg;
