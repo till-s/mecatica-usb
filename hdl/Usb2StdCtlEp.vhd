@@ -123,7 +123,9 @@ architecture Impl of Usb2StdCtlEp is
    end function w2u;
 
    subtype AltSetIdxType is natural range 0 to MAX_ALTSETTINGS_C - 1;
-   subtype IfcIdxType    is natural range 0 to MAX_INTERFACES_C;
+   -- vivado complains that the v.ifcIdx := r.ifcIdx + 1 violates the range
+   -- but is not smart enough to see that this can never be executed.
+   subtype IfcIdxType    is natural range 0 to MAX_INTERFACES_C  + 1;
    subtype EpIdxType     is natural range 0 to NUM_ENDPOINTS_G;
    subtype CfgIdxType    is natural range 0 to numConfigs;
 
@@ -244,6 +246,10 @@ architecture Impl of Usb2StdCtlEp is
       size2B      => false
    );
 
+   -- a vivado work-around. Vivado complained about a index expression (when NUM_ENDPOINTS_G = 0) but
+   -- failed to realize that the case could be optimized away (if unsigned < NUM_ENDPONTS and unsigned > 0)
+   -- therefore we introduce a dummy signal array that is never empty.
+   signal allEpIb: Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_G - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
 
    signal r   : RegType := REG_INIT_C;
    signal rin : RegType;
@@ -277,11 +283,11 @@ architecture Impl of Usb2StdCtlEp is
       return Usb2PktSizeType( x(Usb2PktSizeType'range) );
    end function toPktSizeType;
 
-   signal tblAddr : Usb2DescIdxType;
 begin
 
+   allEpIb(1 to NUM_ENDPOINTS_G - 1) <= usrEpIb;
 
-   P_COMB : process ( r, epIb, ctlExt, ctlEpExt ) is
+   P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt ) is
       variable v       : RegType;
       variable descVal : Usb2ByteType;
    begin
@@ -520,9 +526,9 @@ begin
                               v.err       := '0';
                               if ( unsigned(r.reqParam.index(3 downto 0)) > 0 ) then
                                  if ( r.reqParam.index(7) = '0' ) then
-                                    v.retVal(0) := usrEpIb( to_integer( unsigned( r.reqParam.index(3 downto 0) ) ) ).stalledOut;
+                                    v.retVal(0) := allEpIb( to_integer( unsigned( r.reqParam.index(3 downto 0) ) ) ).stalledOut;
                                  else
-                                    v.retVal(0) := usrEpIb( to_integer( unsigned( r.reqParam.index(3 downto 0) ) ) ).stalledInp;
+                                    v.retVal(0) := allEpIb( to_integer( unsigned( r.reqParam.index(3 downto 0) ) ) ).stalledInp;
                                  end if;
                               else
                                  -- EP0 is never halted

@@ -39,6 +39,9 @@ entity Usb2Core is
       ulpiStp                      : out   std_logic;
       ulpiDat                      : inout std_logic_vector(7 downto 0);
 
+      ulpiRegReq                   : in    UlpiRegReqType  := ULPI_REG_REQ_INIT_C;
+      ulpiRegRep                   : out   UlpiRegRepType;
+
       -- device state (ADDRESS->CONFIGURED) and other info
       usb2DevStatus                : out   Usb2DevStatusType;
       -- incoming packet headers; e.g., SOFs can be seen here
@@ -65,9 +68,6 @@ end entity Usb2Core;
 architecture Impl of Usb2Core is
 
    constant NUM_ENDPOINTS_C : natural         := USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G);
-
-   signal ulpiRegReq        : UlpiRegReqType  := ULPI_REG_REQ_INIT_C;
-   signal ulpiRegRep        : UlpiRegRepType;
 
    signal ulpiRx            : UlpiRxType      := ULPI_RX_INIT_C;
    signal ulpiTxReq         : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;

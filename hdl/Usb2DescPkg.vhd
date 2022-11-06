@@ -139,7 +139,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       variable v : integer;
    begin
       v := findMax(d, USB2_STD_DESC_TYPE_ENDPOINT_C, USB2_EPT_DESC_IDX_ADDRESS_C, 3);
-      if ( v < 0 ) then
+      if ( v <= 0 ) then
          v := 1; -- EP 0 has no descriptor
       end if;
       report integer'image(v) & " endpoints";
@@ -148,7 +148,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
 
    function USB2_APP_MAX_INTERFACES_F(constant d: Usb2ByteArray)
    return natural is
-      variable v : positive;
+      variable v : natural;
    begin
       v := findMax(d, USB2_STD_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_IFC_NUM_C, 6);
       report integer'image(v) & " max IFs";
@@ -157,7 +157,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
 
    function USB2_APP_MAX_ALTSETTINGS_F(constant d: Usb2ByteArray)
    return natural is
-      variable v : positive;
+      variable v : natural;
    begin
       v := findMax(d, USB2_STD_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_ALTSETTING_C, 6);
       report integer'image(v) & " max ALTs";

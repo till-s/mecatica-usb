@@ -117,18 +117,24 @@ architecture Impl of Usb2PktProc is
       dataCounter     => (others => '1')
    );
 
-   signal r                             : RegType := REG_INIT_C;
-   signal rin                           : RegType;
+   signal r                                     : RegType := REG_INIT_C;
+   signal rin                                   : RegType;
 
-   signal rd                            : BufReaderType := BUF_READER_INIT_C;
-   signal rdin                          : BufReaderType;
+   signal rd                                    : BufReaderType := BUF_READER_INIT_C;
+   signal rdin                                  : BufReaderType;
 
-   signal bufWrEna                      : std_logic := '0';
-   signal bufReadbackInp                : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
-   signal bufReadOut                    : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
-   signal bufWriteInp                   : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
+   signal bufWrEna                              : std_logic := '0';
+   signal bufReadbackInp                        : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
+   signal bufReadOut                            : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
+   signal bufWriteInp                           : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
 
-   attribute MARK_DEBUG of r            : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of r                    : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of rd                   : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of epConfig             : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of bufReadOut           : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of bufWriteInp          : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of bufWrEna             : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of bufReadbackInp       : signal is toStr(MARK_DEBUG_G);
 
    function checkTokHdr(
       constant h: Usb2PktHdrType;
