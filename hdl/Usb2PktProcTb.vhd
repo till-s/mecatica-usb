@@ -174,22 +174,13 @@ architecture sim of Usb2PktProcTb is
            )
    );
 
-   signal devStatus       : Usb2DevStatusType := USB2_DEV_STATUS_INIT_C;
-   signal epIb            : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal epIb            : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb            : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
    signal txDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal txDataSub       : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
    signal rxDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal clk             : std_logic := '0';
-
-   signal rxPktHdr        : Usb2PktHdrType;
-
-   signal ulpiRx          : UlpiRxType      := ULPI_RX_INIT_C;
-   signal ulpiTxReq       : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
-   signal ulpiTxRep       : UlpiTxRepType;
-
-   signal epConfig        : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1);
 
    shared variable dtglInp : std_logic_vector(0 to NUM_ENDPOINTS_C - 1) := (others => '0');
    shared variable dtglOut : std_logic_vector(0 to NUM_ENDPOINTS_C - 1) := (others => '0');
@@ -702,77 +693,33 @@ report "GET_DESCRIPTOR(CFG)";
       wait;
    end process P_TST;
 
-   U_DUT : entity work.Usb2PktProc
+   U_DUT : entity work.Usb2Core
    generic map (
-      NUM_ENDPOINTS_G => NUM_ENDPOINTS_C
+      DESCRIPTORS_G                => USB2_APP_DESCRIPTORS_C
    )
    port map (
-      clk             => clk,
-      rst             => open,
-      devStatus       => devStatus,
-      epConfig        => epConfig,
-      epIb            => epIb,
-      epOb            => epOb,
+      clk                          => clk,
 
-      txDataMst       => txDataMst,
-      txDataSub       => txDataSub,
-      rxPktHdr        => rxPktHdr,
-      rxDataMst       => rxDataMst
+      ulpiRst                      => open,
+      usb2Rst                      => open,
+
+      ulpiDir                      => ulpiOb.dir,
+      ulpiStp                      => ulpiIb.stp,
+      ulpiNxt                      => ulpiOb.nxt,
+      ulpiDat                      => dat_i,
+
+      usb2DevStatus                => open,
+      usb2PktHdr                   => open,
+
+      usb2Ep0ReqParam              => open,
+      usb2Ep0CtlExt                => open,
+      usb2Ep0CtlEpExt              => open,
+
+      usb2EpIb                     => epIb,
+      usb2EpOb                     => epOb
    );
 
-   U_DUT_CTL : entity work.Usb2StdCtlEp
-   generic map (
-      NUM_ENDPOINTS_G     => NUM_ENDPOINTS_C,
-      DESCRIPTORS_G       => USB2_APP_DESCRIPTORS_C
-   )
-   port map (
-      clk             => clk,
-      rst             => open,
-      epIb            => epOb(0),
-      epOb            => epIb(0),
-      usrEpIb         => epIb(1 to epIb'high),
-
-      param           => open,
-      ctlExt          => open,
-      ctlEpExt        => open,
-
-      devStatus       => devStatus,
-      epConfig        => epConfig
-  );
-
-   U_RX : entity work.Usb2PktRx
-   port map (
-      clk             => clk,
-      ulpiRx          => ulpiRx,
-      pktHdr          => rxPktHdr,
-      rxData          => rxDataMst
-   );
-
-   U_TX : entity work.Usb2PktTx
-   port map (
-      clk             => clk,
-      ulpiTxReq       => ulpiTxReq,
-      ulpiTxRep       => ulpiTxRep,
-      txDataMst       => txDataMst,
-      txDataSub       => txDataSub
-   );
-
-   U_IO : entity work.UlpiIO
-   port map (
-      clk             => clk,
-
-      dir             => ulpiOb.dir,
-      stp             => ulpiIb.stp,
-      nxt             => ulpiOb.nxt,
-      dat             => dat_i,
-
-      ulpiRx          => ulpiRx,
-      ulpiTxReq       => ulpiTxReq,
-      ulpiTxRep       => ulpiTxRep
-   );
-
-
-   P_EP_0  : process ( clk ) is
+   P_EP_1  : process ( clk ) is
       function ini return Usb2EndpPairIbType is
          variable v : Usb2EndpPairIbType;
       begin
@@ -816,6 +763,6 @@ report "GET_DESCRIPTOR(CFG)";
          epIb(TST_EP_IDX_C)            <= ep;
          epIb(TST_EP_IDX_C).mstInp.dat <= d2(iidx);
       end if;
-   end process P_EP_0;
+   end process P_EP_1;
 
 end architecture sim;
