@@ -22,29 +22,38 @@ entity Usb2Core is
    port (
       clk                          : in    std_logic;
 
+      -- resets only the ULPI interface
       ulpiRst                      : in    std_logic := '0';
+      -- resets packet engine, EP0, i.e., everything
+      -- except for the ULPI interface which may still
+      -- be needed to control reset/speed negotiation etc.
       usb2Rst                      : in    std_logic := '0';
 
+      -- ULPI interface; connects directly to device
+      -- pins (IOBs)
       ulpiDir                      : in    std_logic;
       ulpiNxt                      : in    std_logic;
       ulpiStp                      : out   std_logic;
       ulpiDat                      : inout std_logic_vector(7 downto 0);
 
+      -- device state (ADDRESS->CONFIGURED) and other info
       usb2DevStatus                : out   Usb2DevStatusType;
+      -- incoming packet headers; e.g., SOFs can be seen here
       usb2PktHdr                   : out   Usb2PktHdrType;
 
+      -- control ports for extending EP0 functionality (e.g., to handle
+      -- class-specific requests). See Usb2StdCtlEp.vhd for more comments.
       usb2Ep0ReqParam              : out   Usb2CtlReqParamType;
       usb2Ep0CtlExt                : in    Usb2CtlExtType     := USB2_CTL_EXT_INIT_C;
       usb2Ep0CtlEpExt              : in    Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
 
+      -- Endpoints are attached here (1 and up)
       usb2EpIb                     : in    Usb2EndpPairIbArray(1 to USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_IB_INIT_C );
-
       -- note EP0 output can be observed here; an external agent extending EP0 functionality
       -- needs to listen to this.
       usb2EpOb                     : out   Usb2EndpPairObArray(0 to USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_OB_INIT_C )
-
    );
 
 
