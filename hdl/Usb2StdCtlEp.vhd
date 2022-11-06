@@ -81,7 +81,6 @@ architecture Impl of Usb2StdCtlEp is
       variable v : natural;
    begin
       v := to_integer( unsigned( DESCRIPTORS_G( CFG_IDX_TABLE_G(0) +  USB2_DEV_DESC_IDX_NUM_CONFIGURATIONS_C ) ) );
-      report integer'image(v) & " Configurations";
       return v;
    end function numConfigs;
 
@@ -624,7 +623,6 @@ begin
                v.state    := SCAN_DESC;
 
                if    ( r.tblOff = USB2_EPT_DESC_IDX_ADDRESS_C ) then
-report integer'image(r.tblOff) & " " & integer'image(to_integer(unsigned(descVal(3 downto 0)))) & " " & integer'image(r.tblIdx);
                   v.epIdx   := to_integer(unsigned(descVal(3 downto 0)));
                   v.epIsInp := (descVal(7) = '1');
                   v.tblOff  := USB2_EPT_DESC_IDX_ATTRIBUTES_C;

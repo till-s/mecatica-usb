@@ -567,8 +567,6 @@ begin
             -- see if we have anything new to offer
             if ( ( rd.bufRdIdx = r.bufVldIdx ) or ( bufReadOut(8) = '1' ) ) then
                -- End of packet sequence (setup packets do not require an empty data packet)
-report integer'image(to_integer(rd.dataCounter)) & " " & integer'image(to_integer( rd.epIdx )) 
- & " " & integer'image(to_integer(epConfig( to_integer( rd.epIdx) ).maxPktSizeOut));
                if ( rd.dataCounter < epConfig( to_integer( rd.epIdx) ).maxPktSizeOut or rd.isSetup ) then
                   v.mstOut.don := '1';
                end if;

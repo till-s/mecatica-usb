@@ -291,7 +291,6 @@ architecture sim of Usb2PktProcTb is
       else
          v(0) := not t & t;
       end if;
-report "SENDING TOKEN :" &integer'image(to_integer(unsigned(v(0)(3 downto 0))));
       x    := e & a;
       c    := USB2_CRC5_INIT_C(c'range);
       crcbf( c, USB2_CRC5_POLY_C(c'range), x );
@@ -403,11 +402,8 @@ report "SENDING TOKEN :" &integer'image(to_integer(unsigned(v(0)(3 downto 0))));
          end if;
          for rr in 0 to rtr loop
             if ( stup ) then
-report "sending setup token";
                sendTok(ob, USB2_PID_TOK_SETUP_C, epo, dva);
-report "sending setup token don";
             else
-report "sending out token";
                sendTok(ob, USB2_PID_TOK_OUT_C, epo, dva);
             end if;
             tick;

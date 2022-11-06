@@ -195,7 +195,6 @@ package body Usb2DescPkg is
       rv(0) := usb2NextDescriptor(d, 0, USB2_STD_DESC_TYPE_DEVICE_C);
       for i in 1 to NC loop
          rv(i) := usb2NextDescriptor(d, rv(i-1), USB2_STD_DESC_TYPE_CONFIGURATION_C);
-         report "Config addr " & integer'image(rv(i));
          for j in 0 to 8 loop
             report integer'image(to_integer(unsigned(d(rv(i)+j))));
          end loop;
@@ -222,4 +221,3 @@ package body Usb2DescPkg is
    end function USB2_APP_STRINGS_IDX_F;
 
 end package body Usb2DescPkg;
-
