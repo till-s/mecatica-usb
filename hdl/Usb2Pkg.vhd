@@ -143,11 +143,6 @@ package Usb2Pkg is
       -- if subOut.rdy is asserted then the endpoint
       -- must be able to absorb an entire payload of
       -- packet data.
-      -- Note that it is only known once the packet
-      -- is 'done' if the data are valid (but it is
-      -- the EP's job to implement a buffer which
-      -- must be invalidated if the data turn out to
-      -- be bad).
       subOut     : Usb2StrmSubType;
    end record Usb2EndpPairIbType;
 
@@ -161,36 +156,6 @@ package Usb2Pkg is
    -- signals traveling from bus -> EP
    type Usb2EndpPairObType is record
       mstOut     : Usb2StrmMstType;
-      -- the don/err/rdy bits encode the following information
-      --   rdy don err
-      --   1/0  0   x   normal handshake for data transfer
-      --    1   1   0   partial buffer has been transmitted
-      --                no data must be transferred during the
-      --                current cycle but the sender must remember
-      --                the current stream pointer for a retry operation
-      --    1   1   1   transmission of partial buffer must be retried
-      --                => rewind the stream pointer to the last
-      --                   remembered position
-      --    0   1   0   => transmission completed successfully
-      --    0   1   1   => transmission aborted
-      ------------------------------------
-      --   if ( don = '1' ) then
-      --      if ( rdy = '0' ) then
-      --         if ( err = '1' ) then
-      --            abort
-      --         else
-      --            done
-      --         end if;
-      --      elsif ( err = '0' ) then
-      --         last_ptr <= curr_ptr;
-      --      else
-      --         curr_ptr <= last_ptr; --rewind!
-      --      end if;
-      --  elsif ( rdy = '1' ) then
-      --      output := data(curr_ptr);
-      --      curr_ptr <= curr_ptr + 1;
-      --  end if;
-      --        
       subInp     : Usb2StrmSubType;
       -- control endpoints receive setup data here;
       mstCtl     : Usb2StrmMstType;

@@ -455,7 +455,8 @@ architecture sim of Usb2PktProcTb is
       variable epi : inout std_logic_vector(3 downto 0);
       constant eda : in    Usb2ByteArray;
       constant w   : in    integer := 0;
-      constant timo: in    natural := 30
+      constant timo: in    natural := 30;
+      constant abrt: in    integer
    ) is
       variable pid : std_logic_vector( 3 downto 0);
       variable crc : std_logic_vector(15 downto 0);
@@ -475,6 +476,11 @@ architecture sim of Usb2PktProcTb is
          end loop;
          ob.nxt <= '1';
          tick;
+         if ( abrt = i ) then
+report "ABORT";
+            sendVec( ob, d1(0 to 0) );
+            return;
+         end if;
          assert (ulpiIb.stp = '0'   )  report "unexpected STP" severity failure;
          if ( i <= eda'high ) then
 if ( ulpiIb.dat /= eda(i) ) then
@@ -499,7 +505,8 @@ end if;
       constant rtr : in    natural                      := 0;
       constant rak : in    natural                      := 0;
       constant w   : in    natural                      := 0;
-      constant timo: in    natural                      := 30
+      constant timo: in    natural                      := 30;
+      constant abrt: in    integer                      := -1
    ) is
       variable idx : natural;
       constant epin: natural := to_integer( unsigned( epi ) );
@@ -522,7 +529,10 @@ end if;
                else
                   pid := USB2_PID_DAT_DATA1_C;
                end if;
-               waitDatPkt(ob, pid, eda(idx to idx + cln - 1), w => w, timo => timo);
+               waitDatPkt(ob, pid, eda(idx to idx + cln - 1), w => w, timo => timo, abrt => abrt);
+               if ( abrt >= 0 ) then
+                  return;
+               end if;
                tick;
                if ( pid /= USB2_PID_HSK_NAK_C ) then
                   exit L_NAK;
@@ -684,6 +694,29 @@ report "GET_DESCRIPTOR(CFG)";
       -- read fragmented with retries and wait cycles
       waitDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C, 2, 2 );
       tick;
+
+      -- this happens to abort just after a complete frame is received
+      waitDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C, abrt => 4);
+      tick;
+
+      -- make sure ACK times out
+      for i in 1 to 40 loop
+         tick;
+      end loop;
+
+      waitDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C );
+      tick;
+
+      waitDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C, abrt => 1);
+      tick;
+
+      -- make sure ACK times out
+      for i in 1 to 40 loop
+         tick;
+      end loop;
+
+      waitDat(ulpiOb, d2, TST_EP_C, DEV_ADDR_C );
+
 
       for i in 0 to 20 loop
          tick;

@@ -97,6 +97,7 @@ architecture Impl of Usb2PktProc is
       bufVldIdx       : unsigned(LD_BUFSZ_C - 1 downto 0);
       bufEndIdx       : unsigned(LD_BUFSZ_C - 1 downto 0);
       bufInpVld       : std_logic;
+      bufInpPart      : std_logic;
       donFlg          : std_logic;
       retries         : unsigned(1 downto 0);
    end record RegType;
@@ -117,6 +118,7 @@ architecture Impl of Usb2PktProc is
       bufVldIdx       => (others => '0'),
       bufEndIdx       => (others => '0'),
       bufInpVld       => '0',
+      bufInpPart      => '0',
       donFlg          => '0',
       retries         => (others => '0')
    );
@@ -227,9 +229,10 @@ architecture Impl of Usb2PktProc is
 
    procedure invalidateBuffer(variable v : inout RegType) is
    begin
-      v           := v;
-      v.bufInpVld := '0';
-      v.bufRWIdx  := v.bufVldIdx;
+      v            := v;
+      v.bufInpVld  := '0';
+      v.bufInpPart := '0';
+      v.bufRWIdx   := v.bufVldIdx;
    end procedure invalidateBuffer;
 
 begin
@@ -329,7 +332,7 @@ begin
                      else
                         v.pid := USB2_PID_DAT_DATA1_C;
                      end if;
-                     if ( r.bufInpVld = '1' ) then
+                     if ( (r.bufInpVld or r.bufInpPart) = '1' ) then
                         v.state    := DATA_REP;
                         -- pre-load next readout
                         v.bufRWIdx := r.bufRWIdx + 1;
@@ -463,8 +466,11 @@ begin
                   v.bufRWIdx    := r.bufRWIdx + 1;
                   bufWrEna      <= '1';
                   v.dataCounter := r.dataCounter - 1;
+                  v.bufInpPart  := '1';
                   if ( r.dataCounter = 0 ) then
                      v.donFlg      := '1';
+                     v.bufInpVld   := '1';
+                     v.bufInpPart  := '0';
                      v.timer       := TIME_WAIT_ACK_C;
                      v.state       := WAIT_ACK;
                      -- doesn't matter if the data counter will overflow
@@ -474,7 +480,7 @@ begin
 
                if ( txDataSub.don = '1' ) then
                   v.donFlg      := '0';
-                  if ( ei.mstInp.err = '1' or ei.mstInp.don = '0' ) then
+                  if ( ei.mstInp.err = '1' ) then
                      -- mstInp.err                               => PHY should abort TX packet
                      -- txDataSub.don = '1' and mstInp.don = '0' => aborted by PHY
                      -- tx should send a bad packet; we'll not see an ack
@@ -484,8 +490,14 @@ begin
                      -- bufWrEna   <= '0';
                      invalidateBuffer( v );
                   else
-                     v.timer   := TIME_WAIT_ACK_C;
-                     v.state   := WAIT_ACK;
+                     if ( ei.mstInp.don = '1' ) then
+                        -- buffer complete
+                        v.bufInpVld  := '1';
+                        v.bufInpPart := '0';
+                     end if;
+                     -- else: aborted by PHY; keep buffered data
+                     v.timer       := TIME_WAIT_ACK_C;
+                     v.state       := WAIT_ACK;
                   end if;
                end if;
             end if;
@@ -507,17 +519,23 @@ begin
                   v.bufRWIdx    := r.bufVldIdx;
                   v.state       := IDLE;
                elsif ( txDataSub.rdy = '1' ) then
+                  v.dataCounter := r.dataCounter - 1;
                   -- either we consumed the tmp buf or it was invalid already
-                  v.tmpVld   := '0';
+                  v.tmpVld      := '0';
                   -- schedule reading next word we would have space in the buffer
-                  v.bufRWIdx := r.bufRWIdx + 1;
+                  v.bufRWIdx    := r.bufRWIdx + 1;
                   if ( r.bufRWIdx = r.bufEndIdx ) then
                      -- RWIdx has already advanced to the next word when we sent the last
                      -- 'good' one
-                     v.donFlg   := '1';
-                     v.timer    := TIME_WAIT_ACK_C;
-                     v.state    := WAIT_ACK;
-                     v.bufRWIdx := r.bufRWIdx;
+                     if ( r.bufInpPart = '1' ) then
+                        -- continue reading
+                        v.state    := DATA_INP;
+                     else
+                        v.donFlg   := '1';
+                        v.timer    := TIME_WAIT_ACK_C;
+                        v.state    := WAIT_ACK;
+                        v.bufRWIdx := r.bufRWIdx;
+                     end if;
                   end if;
                elsif ( r.tmpVld = '0' ) then
                   -- must catch the readout in the tmp buffer
@@ -545,7 +563,6 @@ begin
                   v.state := IDLE;
                elsif ( ( r.timer = 0 ) or ( rxPktHdr.vld = '1' ) ) then
                   -- timeout or NAK: save buffer
-                  v.bufInpVld   := '1';
                   v.bufEndIdx   := r.bufRWIdx;
                   -- set bufRWIdx early so that readback data will be available
                   v.bufRWIdx    := r.bufVldIdx;
