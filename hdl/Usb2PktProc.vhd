@@ -50,11 +50,31 @@ architecture Impl of Usb2PktProc is
    end function toStr;
 
 
-   constant TIME_HSK_TX_C        : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
-   constant TIME_DATA_RX_C       : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
-   constant TIME_DATA_TX_C       : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
-   constant TIME_WAIT_ACK_C      : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
-   constant TIME_WAIT_DATA_PID_C : Usb2TimerType := to_unsigned( simt(20,  600000) , Usb2TimerType'length);
+   -- NOTE: there is a 1 clock delay in the recive path due to IO buffering
+   --       also     a 1 clock delay in the transmit path due to IO buffering
+
+   -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks
+   constant TIME_HSK_TX_C        : Usb2TimerType := to_unsigned( simt(20,  10) , Usb2TimerType'length);
+
+   -- receive (tok) -transmit (tx-data)     ; ULPI: HS: 1-14 clocks, FS: 7-18 clocks
+   constant TIME_DATA_TX_C       : Usb2TimerType := to_unsigned( simt(20,  10) , Usb2TimerType'length);
+   -- transmit (tx-data) - receive (hsk)    ; ULPI: HS: 92  clocks, FS: 80 clocks (no range given)
+   -- transmit (tx-data) - receive (hsk)    ; USB2: HS: 92-102   clocks, FS: 80 - 90 clocks
+   -- ULPI: RXCMD delay     2-4 (HS+FS)
+   --       TX-Start delay  1-2 (HS), 1-10 (FS) 
+   --
+   -- min timeout on wire: our timeout - tx-delay - rx-delay - our-latency
+   --   our-timeout-min = usb_min_timeout + (tx-delay + rx-delay + our-latency)_max
+   --   our-timeout-max = usb_max_timeout + (tx-delay + rx-delay + our-latency)_min
+   --      HS_min       =   92            + (2        + 4        + 2)  = 100
+   --      HS_max       =  102            + (1        + 2        + 2)  = 107
+   --      FS_min       =   80            + (10       + 4        + 2)  = 96
+   --      FS_max       =   90            + ( 1       + 2        + 2)  = 95
+   -- adding our own 2 cycle latency we'd conclude a max time of 102 - 8 = 94 (HS) and kk
+   constant TIME_WAIT_ACK_C      : Usb2TimerType := to_unsigned( simt(20,  96) , Usb2TimerType'length);
+   -- receive (tok) - receive(data-pid)     ; USB2: HS: 92-102, FS: 80 - 90 since only receive-path
+   --                                         latency is involved these values can be used verbatim
+   constant TIME_WAIT_DATA_PID_C : Usb2TimerType := to_unsigned( simt(30,  85) , Usb2TimerType'length);
 
    constant LD_BUFSZ_C           : natural   := 11;
    constant BUF_WIDTH_C          : natural   :=  9;
@@ -127,10 +147,11 @@ architecture Impl of Usb2PktProc is
    signal bufReadbackInp                        : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
    signal bufReadOut                            : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
    signal bufWriteInp                           : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
+   signal epConfigDbg                           : Usb2EndpPairConfigArray(epConfig'range);
 
    attribute MARK_DEBUG of r                    : signal is toStr(MARK_DEBUG_G);
    attribute MARK_DEBUG of rd                   : signal is toStr(MARK_DEBUG_G);
-   attribute MARK_DEBUG of epConfig             : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of epConfigDbg          : signal is toStr(MARK_DEBUG_G);
    attribute MARK_DEBUG of bufReadOut           : signal is toStr(MARK_DEBUG_G);
    attribute MARK_DEBUG of bufWriteInp          : signal is toStr(MARK_DEBUG_G);
    attribute MARK_DEBUG of bufWrEna             : signal is toStr(MARK_DEBUG_G);
@@ -212,6 +233,8 @@ architecture Impl of Usb2PktProc is
    end procedure invalidateBuffer;
 
 begin
+
+   epConfigDbg <= epConfig;
 
    assert to_integer( TIME_DATA_TX_C ) /= 0 report "TIME_DATA_TX_C must not be zero!" severity failure;
 
@@ -310,6 +333,7 @@ begin
                         v.state    := DATA_REP;
                         -- pre-load next readout
                         v.bufRWIdx := r.bufRWIdx + 1;
+                        v.tmpVld   := '0';
                         if ( r.bufRWIdx = r.bufEndIdx ) then
                            -- empty packet - avoid DATA_REP
                            v.timer    := TIME_WAIT_ACK_C;
@@ -353,7 +377,6 @@ begin
                      bufWrEna    <= '1';
                      v.bufRWIdx  := r.bufRWIdx + 1;
                   end if;
-                  v.timer    := TIME_DATA_RX_C;
                else
                   if ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                      epOb( to_integer( rd.epIdx ) ).mstOut.don <= '1';
@@ -449,20 +472,20 @@ begin
                   end if;
                end if;
 
-               if ( ei.mstInp.don = '1' ) then
-                  if ( txDataSub.don = '1' ) then
-                     v.donFlg      := '0';
-                     if ( ei.mstInp.err = '1' ) then
-                        -- tx should send a bad packet; we'll not see an ack
-                        v.timer    := r.timer;
-                        v.state    := IDLE;
-                        -- it doesn't matter if we write 
-                        -- bufWrEna   <= '0';
-                        invalidateBuffer( v );
-                     else
-                        v.timer   := TIME_WAIT_ACK_C;
-                        v.state   := WAIT_ACK;
-                     end if;
+               if ( txDataSub.don = '1' ) then
+                  v.donFlg      := '0';
+                  if ( ei.mstInp.err = '1' or ei.mstInp.don = '0' ) then
+                     -- mstInp.err                               => PHY should abort TX packet
+                     -- txDataSub.don = '1' and mstInp.don = '0' => aborted by PHY
+                     -- tx should send a bad packet; we'll not see an ack
+                     v.timer    := r.timer;
+                     v.state    := IDLE;
+                     -- it doesn't matter if we write 
+                     -- bufWrEna   <= '0';
+                     invalidateBuffer( v );
+                  else
+                     v.timer   := TIME_WAIT_ACK_C;
+                     v.state   := WAIT_ACK;
                   end if;
                end if;
             end if;
@@ -478,7 +501,12 @@ begin
                else
                   txDataMst.dat <= bufReadbackInp(7 downto 0);
                end if;
-               if ( txDataSub.rdy = '1' ) then
+               if    ( txDataSub.don = '1' ) then
+                  -- aborted by PHY
+                  -- set bufRWIdx early so that readback data will be available
+                  v.bufRWIdx    := r.bufVldIdx;
+                  v.state       := IDLE;
+               elsif ( txDataSub.rdy = '1' ) then
                   -- either we consumed the tmp buf or it was invalid already
                   v.tmpVld   := '0';
                   -- schedule reading next word we would have space in the buffer
