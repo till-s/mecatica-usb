@@ -85,6 +85,7 @@ architecture Impl of Usb2PktProc is
       state           : StateType;
       dataTglInp      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
       dataTglOut      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
+--    lstWasInp       : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
       timer           : Usb2TimerType;
       prevDevState    : Usb2DevStateType;
       tok             : Usb2PidType;
@@ -106,6 +107,7 @@ architecture Impl of Usb2PktProc is
       state           => IDLE,
       dataTglInp      => (others => '0'),
       dataTglOut      => (others => '0'),
+--    lstWasInp       => (others => '0'),
       timer           => (others => '0'),
       prevDevState    => DEFAULT,
       tok             => USB2_PID_SPC_NONE_C,
@@ -296,12 +298,14 @@ begin
       case ( r.state ) is
          when IDLE =>
             if ( ( rxPktHdr.vld = '1' ) and checkTokHdr( rxPktHdr, devStatus, epConfig ) ) then
-               v.tok         := rxPktHdr.pid;
-               v.epIdx       := usb2TokenPktEndp( rxPktHdr );
-               ei            := epIb( to_integer( v.epIdx ) );
+               v.tok            := rxPktHdr.pid;
+               v.epIdx          := usb2TokenPktEndp( rxPktHdr );
+               ei               := epIb( to_integer( v.epIdx ) );
+--             v.lstWasInp(v.epIdx) := '0';
                if ( isTokInp( rxPktHdr.pid ) ) then
-                  v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
-                  v.timer       := TIME_DATA_TX_C;
+                  v.dataCounter   := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
+                  v.timer         := TIME_DATA_TX_C;
+--                v.lstWasInp(ei) := '1';
                   if    ( ei.stalledInp = '1' ) then
                      v.pid     := USB2_PID_HSK_STALL_C;
                      v.timer   := TIME_HSK_TX_C;
@@ -352,6 +356,13 @@ begin
                   v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeOut - 1;
                   v.timer       := TIME_WAIT_DATA_PID_C;
                   v.state       := DATA_PID;
+-- This happens anyways...
+--                if (     ( r.lstWasInp( ei ) = '1' ) and
+--                     and ( epConfig( to_integer( v.epIdx ) ).transferTypeOut = USB2_TT_CONTROL_C ) then
+--                   -- this must be a status transaction; if the last ack was lost then we take
+--                   -- this as an ACK (8.5.3.3)
+--                invalidateBuffer( v );
+--                end if;
                   -- make sure there is nothing left in the write area
                   invalidateBuffer( v );
                end if;
@@ -403,17 +414,15 @@ begin
 
          when ISO_INP =>
             if ( r.timer = 0 ) then
-               epOb( to_integer( r.epIdx ) ).subInp <= txDataSub;
-               txDataMst.vld                        <= ei.mstInp.vld;
-               txDataMst.don                        <= ei.mstInp.don;
+               epOb( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy;
+               txDataMst.vld                            <= ei.mstInp.vld;
+               txDataMst.don                            <= ei.mstInp.don;
                
 -- assume the endpoint is are well behaved and does not try to send excessive data
 --               if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
 --                  v.dataCounter := r.dataCounter - 1;
 --                  if ( r.dataCounter = '0' ) then
---                     epOb( to_integer( r.epIdx ) ).subInp.vld <= '0';
---                     epOb( to_integer( r.epIdx ) ).subInp.err <= '1';
---                     epOb( to_integer( r.epIdx ) ).subInp.don <= '1';
+--                     epOb( to_integer( r.epIdx ) ).subInp.rdy <= '0';
 --                     v.state := ISO_INP_ABRT;
 --                  end if;
 --               end if;
@@ -458,10 +467,13 @@ begin
          when DATA_INP =>
             bufWriteInp <= '0' & ei.mstInp.dat;
             if ( r.timer = 0 ) then
-               epOb( to_integer( r.epIdx ) ).subInp <= txDataSub;
-               txDataMst.vld                        <= ei.mstInp.vld;
-               txDataMst.don                        <= ei.mstInp.don;
+               -- txDataSub.don = '1' and txDataSub.err = '1' is an abort condition of the PHY
+               -- don't consume the data in this case.
+               epOb( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy or (txDataSub.don and not txDataSub.err);
+               txDataMst.vld                            <= ei.mstInp.vld;
+               txDataMst.don                            <= ei.mstInp.don;
                
+               -- store consumed data in buffer
                if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
                   v.bufRWIdx    := r.bufRWIdx + 1;
                   bufWrEna      <= '1';

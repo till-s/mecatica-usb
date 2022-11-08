@@ -746,10 +746,8 @@ begin
             epOb.mstInp.don <= r.flg;
             epOb.mstInp.err <= '0';
             if ( r.flg = '1' ) then
-               if ( epIb.subInp.don = '1' ) then
-                  v.flg   := '0';
-                  v.state := STATUS;
-               end if;
+               v.flg   := '0';
+               v.state := STATUS;
             else
                if ( epIb.subInp.rdy = '1' ) then
                   if ( r.auxOff = r.tblOff ) then
@@ -768,15 +766,8 @@ begin
             epOb.mstInp.err <= '0';
             if ( r.flg = '1' ) then
                -- wait for send to be done
-               if ( epIb.subInp.don = '1' ) then
-                  v.flg := '0';
-                  if ( epIb.subInp.err = '1' ) then
-                     -- no status
-                     v.state      := GET_PARAMS; 
-                  else
-                     v.state      := STATUS;
-                  end if;
-               end if;
+               v.flg := '0';
+               v.state      := STATUS;
             elsif ( epIb.subInp.rdy = '1' ) then
                if ( r.retSz2 ) then
                   v.retVal := (others => '0');
@@ -823,7 +814,8 @@ begin
                      v.state := GET_PARAMS;
                   end if;
                else
-                  if ( epIb.subInp.don = '1' ) then
+                  epOb.mstInp.don <= '1';
+                  if ( epIb.subInp.rdy = '1' ) then
                      if ( r.reqParam.request = USB2_REQ_STD_SET_ADDRESS_C ) then
                            -- when SET_ADDRESS completed successfully we set the device address and
                            -- change state DEFAULT <=> ADDRESS

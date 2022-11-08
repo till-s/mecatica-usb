@@ -769,9 +769,8 @@ report "GET_DESCRIPTOR(CFG)";
    begin
       if ( rising_edge( clk ) ) then
          ep.subOut.don := '0';
-         if ( ep.mstInp.vld = '1' ) then
-            if ( epOb(TST_EP_IDX_C).subInp.rdy = '1' ) then
-               assert epOb(TST_EP_IDX_C).subInp.err = '0' report "INP 0 endpoint error" severity failure;
+         if ( epOb(TST_EP_IDX_C).subInp.rdy = '1' ) then
+            if ( ep.mstInp.vld = '1' ) then
                if ( iidx = d2'high ) then
                   ep.mstInp.vld := '0';
                   iidx          :=  0 ;
@@ -780,9 +779,7 @@ report "GET_DESCRIPTOR(CFG)";
                else
                   iidx          := iidx + 1;
                end if;
-            end if;
-         else
-            if ( epOb(TST_EP_IDX_C).subInp.don = '1' ) then
+            elsif ( ep.mstInp.don = '1' ) then
                ep.mstInp.don := '0';
                ep.mstInp.vld := '1';
             end if;
