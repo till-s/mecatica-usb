@@ -582,13 +582,6 @@ begin
             end if;
 
          when HSK =>
-            if ( rd.isSetup ) then
-               if ( ( rd.mstOut.don and ei.subOut.don ) = '1' ) then
-                  if ( ei.subOut.err = '1' ) then
---                     v.pid := USB2_PID_HSK_STALL_C;
-                  end if;
-               end if;
-            end if;
             if ( (ei.stalledInp or ei.stalledOut) = '1' ) then
                v.pid := USB2_PID_HSK_STALL_C;
             end if;
@@ -631,7 +624,7 @@ begin
       -- Could handle other endpoints meanwhile but let's keep it
       -- simple...
       if ( rd.mstOut.don = '1' ) then
-         if ( epIb( to_integer( rd.epIdx ) ).subOut.don = '1' ) then
+         if ( epIb( to_integer( rd.epIdx ) ).subOut.rdy = '1' ) then
             v.mstOut.don         := '0';
             -- mark as processed
             v.dataCounter := (others => '1');

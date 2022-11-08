@@ -371,15 +371,8 @@ begin
 
 
          when WAIT_CTL_DONE =>
-            epOb.subOut.don <= r.flg;
-            epOb.subOut.err <= r.err;
             if ( epIb.mstCtl.don = '1' ) then
-               if ( r.flg = '1' ) then
-                  v.state         := r.retState;
-                  v.flg           := '0';
-               else
-                  v.flg           := '1';
-               end if;
+               v.state         := r.retState;
             end if;
 
          when WAIT_EXT_DONE =>
@@ -781,7 +774,6 @@ begin
          when STATUS =>
             if ( r.reqParam.dev2Host ) then
                epOb.subOut.rdy <= r.statusAck;
-               epOb.subOut.err <= '0';
 
                if ( r.statusAck = '0' ) then
                   -- packet processor will NAK until it sees 'rdy'
@@ -791,14 +783,8 @@ begin
                   end if;
                else
                   epOb.subOut.rdy <= '1';
-                  epOb.subOut.err <= '0';
-                  epOb.subOut.don <= r.flg;
                   if ( epIb.mstOut.don = '1' ) then
-                     if ( r.flg = '0' ) then
-                        v.flg := '1';
-                     else
-                        v.state := GET_PARAMS;
-                     end if;
+                     v.state := GET_PARAMS;
                   end if;
                end if;
             else

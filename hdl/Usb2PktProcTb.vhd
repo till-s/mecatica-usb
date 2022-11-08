@@ -768,7 +768,6 @@ report "GET_DESCRIPTOR(CFG)";
       variable ep   : Usb2EndpPairIbType := ini;
    begin
       if ( rising_edge( clk ) ) then
-         ep.subOut.don := '0';
          if ( epOb(TST_EP_IDX_C).subInp.rdy = '1' ) then
             if ( ep.mstInp.vld = '1' ) then
                if ( iidx = d2'high ) then
@@ -789,7 +788,6 @@ report "GET_DESCRIPTOR(CFG)";
             oidx := oidx + 1;
          elsif ( epOb(TST_EP_IDX_C).mstOut.don = '1' ) then
             oidx          := 0;
-            ep.subOut.don := '1';
          end if;
          epIb(TST_EP_IDX_C)            <= ep;
          epIb(TST_EP_IDX_C).mstInp.dat <= d2(iidx);
