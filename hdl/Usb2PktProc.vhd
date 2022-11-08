@@ -482,7 +482,6 @@ begin
                   v.donFlg      := '0';
                   if ( ei.mstInp.err = '1' ) then
                      -- mstInp.err                               => PHY should abort TX packet
-                     -- txDataSub.don = '1' and mstInp.don = '0' => aborted by PHY
                      -- tx should send a bad packet; we'll not see an ack
                      v.timer    := r.timer;
                      v.state    := IDLE;
@@ -495,7 +494,7 @@ begin
                         v.bufInpVld  := '1';
                         v.bufInpPart := '0';
                      end if;
-                     -- else: aborted by PHY; keep buffered data
+                     -- txDataSub.don = '1' and mstInp.don = '0' => aborted by PHY
                      v.timer       := TIME_WAIT_ACK_C;
                      v.state       := WAIT_ACK;
                   end if;
@@ -574,9 +573,12 @@ begin
             if ( rd.isSetup ) then
                if ( ( rd.mstOut.don and ei.subOut.don ) = '1' ) then
                   if ( ei.subOut.err = '1' ) then
-                     v.pid := USB2_PID_HSK_STALL_C;
+--                     v.pid := USB2_PID_HSK_STALL_C;
                   end if;
                end if;
+            end if;
+            if ( (ei.stalledInp or ei.stalledOut) = '1' ) then
+               v.pid := USB2_PID_HSK_STALL_C;
             end if;
             if ( r.timer = 0 ) then
                txDataMst.don <= '1';

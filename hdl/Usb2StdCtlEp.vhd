@@ -12,7 +12,8 @@ entity Usb2StdCtlEp is
    generic (
       MARK_DEBUG_G      : boolean  := true;
       NUM_ENDPOINTS_G   : positive;
-      DESCRIPTORS_G     : Usb2ByteArray
+      DESCRIPTORS_G     : Usb2ByteArray;
+      ENDPOINT_G        : Usb2EndpIdxType := USB2_ENDP_ZERO_C
    );
    port (
       clk             : in  std_logic;
@@ -24,6 +25,8 @@ entity Usb2StdCtlEp is
 
       -- observe other endpoints
       usrEpIb         : in  Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_G - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
+
+      pktHdr          : in  Usb2PktHdrType;
 
       param           : out Usb2CtlReqParamType;
       -- an external agent may take over the
@@ -81,7 +84,6 @@ architecture Impl of Usb2StdCtlEp is
       LOAD_EPTS,
       GET_DESCRIPTOR_SIZE,
       READ_DESCRIPTOR,
-      DEV_FEATURE,
       RETURN_VALUE,
       STATUS
    );
@@ -287,7 +289,7 @@ begin
 
    allEpIb(1 to NUM_ENDPOINTS_G - 1) <= usrEpIb;
 
-   P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt ) is
+   P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt, pktHdr ) is
       variable v       : RegType;
       variable descVal : Usb2ByteType;
    begin
@@ -305,13 +307,32 @@ begin
 
       v.reqParam.vld            := '0';
 
+      if ( pktHdr.vld = '1' and pktHdr.pid = USB2_PID_TOK_SETUP_C ) then
+         -- due to buffering of the next request in the packet processor
+         -- (needed to determine CRC correctness) there is considerable
+         -- pipeline delay. We must make sure to withdraw our stall condition
+         -- early enough for the packet processor not rejecting a fresh
+         -- SETUP. Therefore we watch the packet header here...
+         if (     (    (     ( usb2TokenPktAddr( pktHdr ) = USB2_DEV_ADDR_DFLT_C )
+                         and ( ENDPOINT_G                 = USB2_ENDP_ZERO_C     )
+                       )
+                    or       ( usb2TokenPktAddr( pktHdr ) = r.devStatus.devAddr  )
+                  )
+              and            ( ENDPOINT_G                 = USB2_ENDP_ZERO_C     )
+            )
+         then
+            v.protoStall := '0';
+         end if;
+      end if;
+
       case ( r.state ) is
          when GET_PARAMS =>
-            v.err           := '0';
             v.flg           := '0';
             v.tblRdDone     := false;
             epOb.subOut.rdy <= '1';
             if ( epIb.mstCtl.vld = '1' ) then
+               v.protoStall    := '0';
+               v.err           := '0';
 
                case ( r.parmIdx ) is
                   when "000" =>
@@ -364,9 +385,13 @@ begin
          when WAIT_EXT_DONE =>
             epOb <= ctlEpExt;
             if ( ctlExt.don = '1' ) then
-               v.err       := ctlExt.err;
-               v.statusAck := ctlExt.ack;
-               v.state     := STATUS;
+               v.protoStall := ctlExt.err;
+               v.statusAck  := ctlExt.ack;
+               if ( ctlExt.err = '1' ) then
+                  v.state   := GET_PARAMS;
+               else
+                  v.state   := STATUS;
+               end if;
             end if;
 
          when READ_TBL =>
@@ -380,7 +405,7 @@ begin
             -- by default bail
             v.state       := WAIT_CTL_DONE;
             v.retState    := GET_PARAMS;
-            v.err         := '1';
+            v.err         := '0';
             v.retVal      := (others => '0');
             v.retSz2      := false;
             v.statusAck   := '1';
@@ -400,10 +425,18 @@ begin
                    |   USB2_REQ_STD_SET_FEATURE_C       =>
                      if    ( r.reqParam.recipient = USB2_REQ_TYP_RECIPIENT_DEV_C )
                      then
-                        v.tblIdx   := r.cfgIdx;
-                        v.tblOff   := USB2_CFG_DESC_IDX_ATTRIBUTES_C;
-                        v.retState := DEV_FEATURE;
-                        v.state    := READ_TBL;
+                        if ( not r.tblRdDone ) then
+                           v.tblIdx   := r.cfgIdx;
+                           v.tblOff   := USB2_CFG_DESC_IDX_ATTRIBUTES_C;
+                           v.retState := r.state;
+                           v.state    := READ_TBL;
+                        else
+                           v.retState := GET_PARAMS;
+                           if ( r.retVal(5) = '1' ) then
+                              v.devStatus.remWakeup := ( r.reqParam.request(3 downto 0) = USB2_REQ_STD_SET_FEATURE_C );
+                              v.retState            := STATUS;
+                           end if;
+                        end if;
                      elsif (    ( r.devStatus.state = CONFIGURED )
                              or ( r.reqParam.index(6 downto 0) = "0000000" )
                              -- there are no std interface features; otherwise
@@ -421,12 +454,10 @@ begin
                                     v.devStatus.selHaltOut(epIdx(r.reqParam)) := '1';
                                     v.devStatus.setHalt := '1';
                                     v.retState          := STATUS;
-                                    v.err               := '0';
                                  elsif ( hasHaltInp( r, r.reqParam.index(3 downto 0) ) ) then
                                     v.devStatus.selHaltInp(epIdx(r.reqParam)) := '1';
                                     v.devStatus.setHalt := '1';
                                     v.retState          := STATUS;
-                                    v.err               := '0';
                                  end if;
                               else
                                  -- this resets the data toggles on the target endpoint
@@ -434,12 +465,10 @@ begin
                                     v.devStatus.selHaltOut(epIdx(r.reqParam)) := '1';
                                     v.devStatus.clrHalt := '1';
                                     v.retState          := STATUS;
-                                    v.err               := '0';
                                  else
                                     v.devStatus.selHaltInp(epIdx(r.reqParam)) := '1';
                                     v.devStatus.clrHalt := '1';
                                     v.retState          := STATUS;
-                                    v.err               := '0';
                                  end if;
                               end if;
                            end if;
@@ -449,11 +478,9 @@ begin
                   when USB2_REQ_STD_GET_CONFIGURATION_C =>
                      v.retVal   := std_logic_vector(to_unsigned(r.cfgCurr, v.retVal'length));
                      v.retState := RETURN_VALUE;
-                     v.err      := '0';
 
                   when USB2_REQ_STD_GET_DESCRIPTOR_C    =>
                      v.tblOff   := USB2_DESC_IDX_LENGTH_C;
-                     v.err      := '0';
                      v.retVal   := (others => '0');
                      v.size2B   := false;
                      case ( Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) ) ) is
@@ -466,25 +493,25 @@ begin
                            -- according to the spec this is 0-based and thus not identical
                            -- with the configuration value.
                            if ( to_integer(unsigned(r.reqParam.value(7 downto 0))) < CFG_IDX_TABLE_C'length - 1 ) then
-                              v.tblIdx   := CFG_IDX_TABLE_C( to_integer(unsigned(r.reqParam.value(7 downto 0))) + 1 );
-                              v.tblOff   := USB2_CFG_DESC_IDX_TOTAL_LENGTH_C + 1;
-                              v.size2B   := true;
+                              v.tblIdx     := CFG_IDX_TABLE_C( to_integer(unsigned(r.reqParam.value(7 downto 0))) + 1 );
+                              v.tblOff     := USB2_CFG_DESC_IDX_TOTAL_LENGTH_C + 1;
+                              v.size2B     := true;
                            else
-                              v.err      := '1';
+                              v.protoStall := '1';
                            end if;
 
 -- not implemented      hen USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  =>
 
                         when USB2_STD_DESC_TYPE_STRING_C            =>
                            if ( NUM_STRINGS_C > to_integer(unsigned(r.reqParam.value(7 downto 0))) ) then
-                              v.tblIdx   := STRINGS_IDX_C;
+                              v.tblIdx     := STRINGS_IDX_C;
                            else
-                              v.err      :=  '1';
+                              v.protoStall := '1';
                            end if;
                         when others                                 =>
-                           v.err      := '1';
+                           v.protoStall := '1';
                      end case;
-                     if ( v.err = '1' ) then
+                     if ( v.protoStall = '1' ) then
                         v.retState := GET_PARAMS;
                      else
                         v.retState := GET_DESCRIPTOR_SIZE;
@@ -495,7 +522,6 @@ begin
                         if ( unsigned( r.reqParam.index(6 downto 0) ) < r.altSettings'length ) then
                            v.retVal    := altSetSlv8( r, unsigned( r.reqParam.index( 6 downto 0 ) ) );
                            v.retState  := RETURN_VALUE;
-                           v.err       := '0';
                         end if;
                      end if;
 
@@ -510,7 +536,6 @@ begin
                            -- remote wakeup
                            v.retVal(1) := DSC_C( r.cfgIdx + USB2_CFG_DESC_IDX_ATTRIBUTES_C )(5);
                            v.retState  := RETURN_VALUE;
-                           v.err       := '0';
                         else
                            v.tblIdx    := r.cfgIdx;
                            v.tblOff    := USB2_CFG_DESC_IDX_ATTRIBUTES_C;
@@ -523,7 +548,6 @@ begin
                         if    ( r.reqParam.recipient = USB2_REQ_TYP_RECIPIENT_EPT_C ) then
                            if (     unsigned(r.reqParam.index(3 downto 0)) < NUM_ENDPOINTS_G ) then
                               v.retState  := RETURN_VALUE;
-                              v.err       := '0';
                               if ( unsigned(r.reqParam.index(3 downto 0)) > 0 ) then
                                  if ( r.reqParam.index(7) = '0' ) then
                                     v.retVal(0) := allEpIb( to_integer( unsigned( r.reqParam.index(3 downto 0) ) ) ).stalledOut;
@@ -536,20 +560,17 @@ begin
                            end if;
                         else
                           v.retState := RETURN_VALUE;
-                          v.err      := '0';
                           -- ignore check for invalid interface
                         end if;
                      end if;
 
                   when USB2_REQ_STD_SET_ADDRESS_C       =>
                      v.retState := STATUS;
-                     v.err      := '0';
 
                   when USB2_REQ_STD_SET_CONFIGURATION_C =>
                      if ( r.reqParam.value(7 downto 0) = x"00" ) then
                         v.devStatus.state := ADDRESS;
                         v.retState        := STATUS;
-                        v.err             := '0';
                         v.cfgCurr         := 0;
                      elsif ( unsigned( r.reqParam.value(7 downto 0) ) <= numConfigs ) then
                         -- assume the configuration value equals the index in the CFG_IDX_TABLE_C!
@@ -564,8 +585,6 @@ begin
                            v.state           := READ_TBL;
                         else
                            v.retState        := SETUP_CONFIG;
-                           v.state           := WAIT_CTL_DONE;
-                           v.err             := '0';
                            v.numIfc          := to_integer(unsigned(descVal));
                            for i in 1 to v.epConfig'length - 1 loop
                               v.epConfig(i).maxPktSizeInp := (others => '0');
@@ -584,7 +603,6 @@ begin
                          ) then
                            v.ifcIdx   := to_integer(unsigned( r.reqParam.index(7 downto 0)));
                            v.altIdx   := to_integer(unsigned( r.reqParam.value(7 downto 0)));
-                           v.err      := '0';
                            v.tblOff   := USB2_DESC_IDX_LENGTH_C;
                            v.descType := USB2_STD_DESC_TYPE_INTERFACE_C;
                            v.retState := LOAD_ALT;
@@ -594,16 +612,10 @@ begin
                     -- TODO; not implemented yet
                   when others => 
                end case;
+               if ( v.retState = GET_PARAMS ) then
+                  v.protoStall := '1';
+               end if;
             end if;
-
-         when DEV_FEATURE =>
-            v.retState := GET_PARAMS;
-            if ( r.retVal(5) = '1' ) then
-               v.devStatus.remWakeup := ( r.reqParam.request(3 downto 0) = USB2_REQ_STD_SET_FEATURE_C );
-               v.retState            := STATUS;
-               v.err                 := '0';
-            end if;
-            v.state := WAIT_CTL_DONE;
 
          -- skip the current descriptor and look for 'descType'
          when SCAN_DESC =>

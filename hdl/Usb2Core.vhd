@@ -158,7 +158,7 @@ begin
       rxDataMst       => rxDataMst
    );
 
-   U_DUT_CTL : entity work.Usb2StdCtlEp
+   U_CTL_EP0 : entity work.Usb2StdCtlEp
    generic map (
       MARK_DEBUG_G    => MARK_DEBUG_EP0_G,
       NUM_ENDPOINTS_G => NUM_ENDPOINTS_C,
@@ -172,6 +172,7 @@ begin
       usrEpIb         => epIb(1 to epIb'high),
 
       param           => usb2Ep0ReqParam,
+      pktHdr          => rxPktHdr,
       ctlExt          => usb2Ep0CtlExt,
       ctlEpExt        => usb2Ep0CtlEpExt,
 
