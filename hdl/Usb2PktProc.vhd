@@ -306,7 +306,7 @@ begin
                      v.pid     := USB2_PID_HSK_STALL_C;
                      v.timer   := TIME_HSK_TX_C;
                      v.state   := HSK;
-                  elsif ( epConfig( to_integer( r.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
+                  elsif ( epConfig( to_integer( v.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
                      v.state   := ISO_INP;
                      v.pid     := USB2_PID_DAT_DATA0_C;
                   elsif ( (ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' ) then
@@ -327,7 +327,7 @@ begin
 --                        v.bufRWIdx  := r.bufVldIdx;
 --                        v.bufInpVld := '0';
 --
-                     if ( r.dataTglInp( to_integer( r.epIdx ) ) = '0' ) then
+                     if ( r.dataTglInp( to_integer( v.epIdx ) ) = '0' ) then
                         v.pid := USB2_PID_DAT_DATA0_C;
                      else
                         v.pid := USB2_PID_DAT_DATA1_C;
