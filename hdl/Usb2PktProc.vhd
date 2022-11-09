@@ -300,6 +300,7 @@ begin
             if ( ( rxPktHdr.vld = '1' ) and checkTokHdr( rxPktHdr, devStatus, epConfig ) ) then
                v.tok            := rxPktHdr.pid;
                v.epIdx          := usb2TokenPktEndp( rxPktHdr );
+               v.donFlg         := '0';
                ei               := epIb( to_integer( v.epIdx ) );
 --             v.lstWasInp(v.epIdx) := '0';
                if ( isTokInp( rxPktHdr.pid ) ) then
@@ -413,25 +414,35 @@ begin
             end if;
 
          when ISO_INP =>
-            if ( r.timer = 0 ) then
+            txDataMst.don <= r.donFlg;
+            if ( r.donFlg = '1' ) then
+               if ( txDataSub.don = '1' ) then
+                  v.state       := IDLE;
+               end if;
+            elsif ( r.timer = 0 ) then
                epOb( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy;
                txDataMst.vld                            <= ei.mstInp.vld;
                txDataMst.don                            <= ei.mstInp.don;
                
--- assume the endpoint is are well behaved and does not try to send excessive data
---               if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
---                  v.dataCounter := r.dataCounter - 1;
---                  if ( r.dataCounter = '0' ) then
---                     epOb( to_integer( r.epIdx ) ).subInp.rdy <= '0';
---                     v.state := ISO_INP_ABRT;
---                  end if;
---               end if;
+               -- consume one item and create a fragment if we filled the segment
+               if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
+                  v.dataCounter := r.dataCounter - 1;
+                  if ( r.dataCounter = 0 ) then
+                     v.donFlg := '1';
+                  end if;
+               end if;
 
-               if ( (ei.mstInp.don and txDataSub.don) = '1' ) then
-                  v.state := IDLE;
+               -- if we consumed the last item then we're done
+               if ( ( ei.mstInp.don and txDataSub.rdy ) = '1' ) then
+                  v.donFlg := '1';
+               end if;
+
+               if ( ( not ei.mstInp.don and txDataSub.don and txDataSub.err ) = '1' ) then
+                  -- phy abort
+                  epOb( to_integer( r.epIdx ) ).subInp.err <= '1';
                end if;
             end if;
- 
+
          when DATA_OUT | DRAIN =>
             if ( r.state = DATA_OUT ) then
                bufWrEna <= rxDataMst.vld;
@@ -489,13 +500,18 @@ begin
                      -- v.dataCounter := r.dataCounter;
                   end if;
                end if;
+-- mst.don    sub.don   sub.rdy
+--    1          1               (should imply 'sub.err') => PHY ABORT
+--    1          0         1      wait until sub.don (mst.don is consumed by 'rdy')
+--    1          0         0      wait until sub.rdy and then sub.don (-> next transaction)
+--    0          1
 
                if ( txDataSub.don = '1' ) then
                   v.donFlg      := '0';
                   if ( ei.mstInp.err = '1' ) then
                      -- mstInp.err                               => PHY should abort TX packet
                      -- tx should send a bad packet; we'll not see an ack
-                     v.timer    := r.timer;
+                     v.timer    := (others => '0');
                      v.state    := IDLE;
                      -- it doesn't matter if we write 
                      -- bufWrEna   <= '0';

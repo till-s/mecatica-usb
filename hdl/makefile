@@ -3,6 +3,7 @@ VIVADO=/opt/ghdl/v2.0.0-gcc/vivado-2021.2/
 
 SRCS+= UsbUtilPkg.vhd
 SRCS+= UlpiPkg.vhd Usb2Pkg.vhd
+SRCS+= Usb2TstPkg.vhd
 SRCS+= Usb2AppCfgPkg.vhd
 SRCS+= Usb2DescPkg.vhd
 SRCS+= UlpiIO.vhd UlpiIOTb.vhd
@@ -33,7 +34,7 @@ Usb2PktProcTb.o UlpiIOTb.o: UlpiIO.o UlpiPkg.o Usb2Pkg.o Usb2PktRx.o Usb2PktTx.o
 Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o
 Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
-Usb2PktProcTb.o: Usb2PktProc.o Usb2StdCtlEp.o
+Usb2PktProcTb.o: Usb2TstPkg.o Usb2PktProc.o Usb2StdCtlEp.o
 Usb2PktProc.o: Bram.o
 
 Usb2Core.o: UlpiIO.o Usb2PktProc.o Usb2PktRx.o Usb2PktTx.o Usb2StdCtlEp.o
