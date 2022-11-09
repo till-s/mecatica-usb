@@ -3,11 +3,6 @@ use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
-library ieee;
-use     ieee.std_logic_1164.all;
-use     ieee.numeric_std.all;
-use     ieee.math_real.all;
-
 use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 use     work.UsbUtilPkg.all;
@@ -161,10 +156,6 @@ architecture sim of Usb2PktProcTb is
    
    signal epIb            : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb            : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
-
-   signal txDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
-   signal txDataSub       : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
-   signal rxDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
 
    constant d1 : Usb2ByteArray := ( x"01", x"02", x"03" );
    constant d2 : Usb2ByteArray := (
