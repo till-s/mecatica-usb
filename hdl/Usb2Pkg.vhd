@@ -131,13 +131,39 @@ package Usb2Pkg is
       setHalt    => '0'
    );
 
+   -- HANDSHAKE
+   -- Between endpoints and the packet engine the following
+   -- handshake protocol is used (in either direction).
+   --
+   --   mst.vld  mst.don  mst.dat sub.rdy
+   --      1        0       Dn       0         master has data
+   --      1        0       Dn       1         sub consumes Dn
+   --      1        0       Dn+1     1         sub consumes Dn+1
+   --      1        0       Dn+2     0         wait cycle (optional)
+   --      1        0       Dn+2     1         sub consumes Dn+2
+   --      0        1        X       0         master done
+   --      0        1        X       0         wait cycle (optional)
+   --      0        1        X       1         sub consumes 'don' flag
+   --
+   -- NOTES:
+   --   - mst.vld and mst.don must never be asserted during the same cycle
+   --   - mst.vld, once asserted must not be deasserted until 'don'
+   --   - zero-length packets are sent using the same protocol; no cycle
+   --     has 'vld' asserted:
+   --      0        1        X        0       NULL packet
+   --      0        1        X        1       sub consumes 'don' flag
+   --
+   --   - in the OUT direction (bus->endpoint) the endpoint may occasionally
+   --     throttle by deasserting 'rdy' but buffer space is limited and throttling
+   --     affects other endpoints (i.e., other EPs cannot make progress).
+
    -- signals traveling from EP -> bus
    type Usb2EndpPairIbType is record
       stalledInp : std_logic; -- input  endpoint is halted
       stalledOut : std_logic; -- output endpoint is halted
       -- if mstInp.vld is asserted then the endpoint
       -- must be able to supply the entire payload of
-      -- a data packet (or less if there is no data; 
+      -- a data packet (or less if there is no data); 
       -- empty packets are sent setting 'vld = 0, don = 1'
       mstInp     : Usb2StrmMstType;
       -- if subOut.rdy is asserted then the endpoint

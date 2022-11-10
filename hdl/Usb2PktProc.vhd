@@ -343,7 +343,8 @@ begin
                         v.bufRWIdx := r.bufRWIdx + 1;
                         v.tmpVld   := '0';
                         if ( r.bufRWIdx = r.bufEndIdx ) then
-                           -- empty packet - avoid DATA_REP
+                           -- empty packet - avoid DATA_REP; the WAIT_ACK phase
+                           -- handles the 'don' handshaking
                            v.timer    := TIME_WAIT_ACK_C;
                            v.state    := WAIT_ACK;
                            v.donFlg   := '1';
@@ -414,8 +415,9 @@ begin
             end if;
 
          when ISO_INP =>
-            txDataMst.don <= r.donFlg;
             if ( r.donFlg = '1' ) then
+               txDataMst.don                            <= r.donFlg;
+               epOb( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.don;
                if ( txDataSub.don = '1' ) then
                   v.state       := IDLE;
                end if;
@@ -433,13 +435,14 @@ begin
                end if;
 
                -- if we consumed the last item then we're done
-               if ( ( ei.mstInp.don and txDataSub.rdy ) = '1' ) then
+               if ( ei.mstInp.don = '1' ) then
                   v.donFlg := '1';
                end if;
 
                if ( ( not ei.mstInp.don and txDataSub.don and txDataSub.err ) = '1' ) then
                   -- phy abort
                   epOb( to_integer( r.epIdx ) ).subInp.err <= '1';
+                  v.state := IDLE;
                end if;
             end if;
 
@@ -478,14 +481,14 @@ begin
          when DATA_INP =>
             bufWriteInp <= '0' & ei.mstInp.dat;
             if ( r.timer = 0 ) then
+               txDataMst.vld                            <= ei.mstInp.vld;
+               txDataMst.don                            <= ei.mstInp.don;
                -- txDataSub.don = '1' and txDataSub.err = '1' is an abort condition of the PHY
                -- don't consume the data in this case.
                epOb( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy or (txDataSub.don and not txDataSub.err);
-               txDataMst.vld                            <= ei.mstInp.vld;
-               txDataMst.don                            <= ei.mstInp.don;
-               
-               -- store consumed data in buffer
-               if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
+
+               if ( ( ei.mstInp.vld and txDataSub.rdy and not (txDataSub.don and txDataSub.err) ) = '1' ) then
+                  -- store consumed data in buffer
                   v.bufRWIdx    := r.bufRWIdx + 1;
                   bufWrEna      <= '1';
                   v.dataCounter := r.dataCounter - 1;
@@ -500,31 +503,29 @@ begin
                      -- v.dataCounter := r.dataCounter;
                   end if;
                end if;
--- mst.don    sub.don   sub.rdy
---    1          1               (should imply 'sub.err') => PHY ABORT
---    1          0         1      wait until sub.don (mst.don is consumed by 'rdy')
---    1          0         0      wait until sub.rdy and then sub.don (-> next transaction)
---    0          1
 
                if ( txDataSub.don = '1' ) then
                   v.donFlg      := '0';
+                  v.state       := IDLE;
+                  v.timer       := (others => '0');
                   if ( ei.mstInp.err = '1' ) then
                      -- mstInp.err                               => PHY should abort TX packet
                      -- tx should send a bad packet; we'll not see an ack
-                     v.timer    := (others => '0');
-                     v.state    := IDLE;
                      -- it doesn't matter if we write 
                      -- bufWrEna   <= '0';
                      invalidateBuffer( v );
+                  elsif ( txDataSub.err = '1' ) then
+                     -- PHY abort (keep current buffer contents)
+                     -- save buffer and set bufRWIdx early so that readback data will be available
+                     v.bufEndIdx  := r.bufRWIdx;
+                     v.bufRWIdx   := r.bufVldIdx;
                   else
-                     if ( ei.mstInp.don = '1' ) then
-                        -- buffer complete
-                        v.bufInpVld  := '1';
-                        v.bufInpPart := '0';
-                     end if;
-                     -- txDataSub.don = '1' and mstInp.don = '0' => aborted by PHY
-                     v.timer       := TIME_WAIT_ACK_C;
-                     v.state       := WAIT_ACK;
+                     -- txDataSub.don = '1' w/o error implies that the master had
+                     -- already asserted 'don'; -> buffer complete
+                     v.bufInpVld  := '1';
+                     v.bufInpPart := '0';
+                     v.timer      := TIME_WAIT_ACK_C;
+                     v.state      := WAIT_ACK;
                   end if;
                end if;
             end if;
