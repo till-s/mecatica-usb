@@ -24,8 +24,20 @@ architecture sim of Usb2PktTxTb is
    signal ulpiTxReq       : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep       : UlpiTxRepType;
 
-   constant d1 : Usb2ByteArray := ( x"01", x"02", x"03" );
-   constant d2 : Usb2ByteArray := (
+   signal iidx            : integer         := 0;
+   signal vidx            : natural         := 0;
+   signal vend            : integer         := 0;
+
+   signal epRst           : std_logic       := '0';
+
+   -- empty
+   constant d0 : Usb2ByteArray := USB2_TST_NULL_DATA_C;
+   -- one
+   constant d1 : Usb2ByteArray := ( 0 => x"01" );
+   -- shorter than packet size
+   constant d2 : Usb2ByteArray := ( x"01", x"02", x"03" );
+   -- exact multiple of packet size
+   constant d3 : Usb2ByteArray := (
       x"c7",
       x"3d",
       x"25",
@@ -64,7 +76,28 @@ begin
 
       ulpiClkTick; ulpiClkTick;
 
-      for i in 0 to 20 loop
+      for a in -1 to 2 loop
+         for w in 0 to 4 loop
+            pid := USB2_PID_DAT_DATA0_C;
+            ulpiTstWaitDatPkt( ulpiTstOb, pid , d0, w => w, nnak => true );
+
+            pid := USB2_PID_DAT_DATA1_C;
+            ulpiTstWaitDatPkt( ulpiTstOb, pid , d1, w => w, nnak => true );
+
+            pid := USB2_PID_DAT_DATA0_C;
+            ulpiTstWaitDatPkt( ulpiTstOb, pid , d2, w => w, nnak => true );
+
+            pid := USB2_PID_DAT_DATA1_C;
+            ulpiTstWaitDatPkt( ulpiTstOb, pid , d3, w => w, nnak => true, abrt => a );
+
+            if ( a = -1 ) then
+               pid := USB2_PID_DAT_DATA0_C;
+               ulpiTstWaitDatPkt( ulpiTstOb, pid , d3(0 to d3'high-1), w => w, nnak => true );
+            end if;
+         end loop;
+      end loop;
+
+      for i in 0 to 200 loop
          ulpiClkTick;
       end loop;
       ulpiTstRun <= false;
@@ -100,38 +133,68 @@ begin
       regRep                       => open
    );
 
-   P_EP_1  : process ( ulpiTstClk ) is
-      function ini return Usb2EndpPairIbType is
-         variable v : Usb2EndpPairIbType;
-      begin
-         v            := USB2_ENDP_PAIR_IB_INIT_C;
-         v.mstInp.vld := '1';
-         v.subOut.rdy := '1';
-         return v;
-      end function ini;
-
-      variable iidx : integer            := 0;
-      variable oidx : integer            := 0;
-      variable ep   : Usb2EndpPairIbType := ini;
+   P_EP_1_SEQ  : process ( ulpiTstClk ) is
    begin
       if ( rising_edge( ulpiTstClk ) ) then
-         if ( txDataSub.rdy = '1' ) then
-            if ( txDataMst.vld = '1' ) then
-               if ( iidx = d2'high ) then
-                  txDataMst.vld <= '0';
-                  iidx          :=  0 ;
-                  txDataMst.don <= '1';
-                  txDataMst.err <= '0';
-               else
-                  iidx          := iidx + 1;
-               end if;
-            elsif ( txDataMst.don = '1' ) then
-               txDataMst.don <= '0';
-               txDataMst.vld <= '1';
+         if ( ( txDataSub.rdy and txDataMst.vld ) = '1' ) then
+            if ( iidx < vend ) then
+               iidx <= iidx + 1;
+            else
+               txDataMst.vld <= '0';
+               txDataMst.don <= '1';
             end if;
          end if;
-         txDataMst.dat <= d2(iidx);
+         if ( ( txDataMst.don and txDataSub.don ) = '1' ) then
+            txDataMst.don <= '0';
+            iidx <= 0;
+            if ( vidx = 4 ) then
+               vidx <= 0;
+            else
+               vidx <= vidx + 1;
+            end if;
+         end if;
+         if ( ( txDataMst.vld or txDataMst.don ) = '0' ) then
+            if ( iidx <= vend ) then
+              txDataMst.vld <= '1';
+            else
+              -- zero pkt
+              txDataMst.don <= '1';
+            end if;
+         end if;
+         if ( ( ( txDataMst.vld or txDataMst.don ) and txDataSub.err and txDataSub.don ) = '1' ) then
+            -- ABORT --
+            txDataMst.vld <= '0';
+            txDataMst.don <= '0';
+            iidx <= 0;
+            vidx <= 0;
+         end if;
       end if;
-   end process P_EP_1;
+   end process P_EP_1_SEQ;
+
+   P_EP_1_COMB  : process ( iidx, vidx ) is
+   begin
+      case vidx is
+         when 1 =>
+            txDataMst.dat <= d1(iidx);
+            txDataMst.usr <= USB2_PID_DAT_DATA1_C;
+            vend          <= d1'high;
+         when 2 =>
+            txDataMst.dat <= d2(iidx);
+            vend          <= d2'high;
+            txDataMst.usr <= USB2_PID_DAT_DATA0_C;
+         when 3 =>
+            txDataMst.dat <= d3(iidx);
+            vend          <= d3'high;
+            txDataMst.usr <= USB2_PID_DAT_DATA1_C;
+         when 4 =>
+            txDataMst.dat <= d3(iidx);
+            txDataMst.usr <= USB2_PID_DAT_DATA0_C;
+            vend          <= d3'high - 1;
+         when others =>
+            txDataMst.dat <= (others => 'U');
+            txDataMst.usr <= USB2_PID_DAT_DATA0_C;
+            vend          <= -1;
+      end case;
+   end process P_EP_1_COMB;
 
 end architecture sim;

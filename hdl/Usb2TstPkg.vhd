@@ -43,14 +43,14 @@ package Usb2TstPkg is
 
    type Usb2TstEpCfgArray is array (natural range 0 to 15) of Usb2TstEpCfgType;
 
-   constant USB2_TST_NULL_DATA : Usb2ByteArray(0 to -1) := ( others => (others => '0') );
+   constant USB2_TST_NULL_DATA_C : Usb2ByteArray(0 to -1) := ( others => (others => '0') );
 
-   signal ulpiTstOb            : ulpiTstObType := ULPI_TST_OB_INIT_C;
-   signal ulpiTstIb            : ulpiTstIbType := ULPI_TST_IB_INIT_C;
-   signal ulpiDatIO            : Usb2ByteType  := (others => 'Z');
+   signal ulpiTstOb              : ulpiTstObType          := ULPI_TST_OB_INIT_C;
+   signal ulpiTstIb              : ulpiTstIbType          := ULPI_TST_IB_INIT_C;
+   signal ulpiDatIO              : Usb2ByteType           := (others => 'Z');
 
-   signal ulpiTstClk           : std_logic     := '0';
-   signal ulpiTstRun           : boolean       := true;
+   signal ulpiTstClk             : std_logic              := '0';
+   signal ulpiTstRun             : boolean                := true;
 
    procedure ulpiClkTick;
 
@@ -129,12 +129,13 @@ package Usb2TstPkg is
    -- wait for a data packet; may return NAK in 'epi' if endpoint has no data
    procedure ulpiTstWaitDatPkt (
       signal   ob  : inout UlpiTstObType;
-      variable epi : inout std_logic_vector(3 downto 0); -- PID (DATA0/DATA1); may RETURN NAK
-      constant eda : in    Usb2ByteArray;                -- device address
+      variable epi : inout std_logic_vector(3 downto 0); -- expected PID (DATA0/DATA1); may RETURN NAK
+      constant eda : in    Usb2ByteArray;                -- expected data
       constant w   : in    integer := 0;                 -- wait cycles
       constant timo: in    natural := 30;                -- timeout waiting for pid
-      constant abrt: in    integer                       -- force PHY abort condition on ULPI after
+      constant abrt: in    integer := -1;                -- force PHY abort condition on ULPI after
                                                          -- abrt bytes (-1 -> no abort).
+      constant nnak: in    boolean := false              -- don't accept NAK
    );
 
    -- wait for data reassembling until short packet is detected
@@ -157,7 +158,7 @@ package Usb2TstPkg is
       constant dva : in    Usb2DevAddrType;                                   -- usb device address
       constant val : in    std_logic_vector(15 downto 0) := (others => '0');  -- request value
       constant idx : in    std_logic_vector(15 downto 0) := (others => '0');  -- request index
-      constant eda : in    Usb2ByteArray := USB2_TST_NULL_DATA;                        -- expected data (ctl read)
+      constant eda : in    Usb2ByteArray := USB2_TST_NULL_DATA_C;             -- expected data (ctl read)
       constant rtr : in    natural := 0;                                      -- rtr passed to underlying transactions
       constant w   : in    natural := 0;                                      -- wait cycles (passed down)
       constant timo: in    natural := 30;                                     -- timeout (passed down)
@@ -408,12 +409,13 @@ package body Usb2TstPkg is
    -- wait for a data packet; may return NAK in 'epi' if endpoint has no data
    procedure ulpiTstWaitDatPkt (
       signal   ob  : inout UlpiTstObType;
-      variable epi : inout std_logic_vector(3 downto 0); -- PID (DATA0/DATA1); may RETURN NAK
-      constant eda : in    Usb2ByteArray;                -- device address
+      variable epi : inout std_logic_vector(3 downto 0); -- expected PID (DATA0/DATA1); may RETURN NAK
+      constant eda : in    Usb2ByteArray;                -- excected data
       constant w   : in    integer := 0;                 -- wait cycles
       constant timo: in    natural := 30;                -- timeout waiting for pid
-      constant abrt: in    integer                       -- force PHY abort condition on ULPI after
+      constant abrt: in    integer := -1;                -- force PHY abort condition on ULPI after
                                                          -- abrt bytes (-1 -> no abort).
+      constant nnak: in    boolean := false              -- don't accept NAK
    ) is
       variable pid : std_logic_vector( 3 downto 0);
       variable crc : std_logic_vector(15 downto 0);
@@ -421,7 +423,7 @@ package body Usb2TstPkg is
    begin
       ulpiTstWaitPid(ob, pid, timo);
       assert ulpiTstIb.stp = '0' report "unexpected STP" severity failure;
-      if ( pid = USB2_PID_HSK_NAK_C ) then
+      if ( pid = USB2_PID_HSK_NAK_C and not nnak ) then
          epi := pid;
          return;
       end if;
@@ -437,6 +439,7 @@ package body Usb2TstPkg is
          if ( abrt = i ) then
 report "ABORT";
             ulpiTstSendVec( ob, ANY );
+            ulpiClkTick; -- consume turn-around cycle
             return;
          end if;
          assert (ulpiTstIb.stp = '0'   )  report "unexpected STP" severity failure;
@@ -520,7 +523,7 @@ end if;
       constant dva : in    Usb2DevAddrType;                                   -- usb device address
       constant val : in    std_logic_vector(15 downto 0) := (others => '0');  -- request value
       constant idx : in    std_logic_vector(15 downto 0) := (others => '0');  -- request index
-      constant eda : in    Usb2ByteArray := USB2_TST_NULL_DATA;                        -- expected data (ctl read)
+      constant eda : in    Usb2ByteArray := USB2_TST_NULL_DATA_C;             -- expected data (ctl read)
       constant rtr : in    natural := 0;                                      -- rtr passed to underlying transactions
       constant w   : in    natural := 0;                                      -- wait cycles (passed down)
       constant timo: in    natural := 30;                                     -- timeout (passed down)
@@ -573,9 +576,9 @@ end if;
              ulpiTstWaitDat(ob, eda, USB2_ENDP_ZERO_C, dva, rtr, w => w, timo => timo);
              ulpiClkTick;
              -- STATUS
-             ulpiTstSendDat(ob, USB2_TST_NULL_DATA, USB2_ENDP_ZERO_C, dva, false, rtr => 2, w => w, timo => timo);
+             ulpiTstSendDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, false, rtr => 2, w => w, timo => timo);
           else
-             ulpiTstWaitDat(ob, USB2_TST_NULL_DATA, USB2_ENDP_ZERO_C, dva, rtr => rtr, rak => 2, w => w, timo => timo);
+             ulpiTstWaitDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, rtr => rtr, rak => 2, w => w, timo => timo);
           end if;
           ulpiClkTick;
        end if;
