@@ -47,6 +47,8 @@ Usb2DescPkg.o: Usb2AppCfgPkg.o
 Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
 Usb2StdCtlEp.o: Usb2DescPkg.o
 
+$(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
+
 .PHONY: all build clean
 
 clean:

@@ -14,6 +14,7 @@ package Usb2Pkg is
    type    Usb2ByteArray    is array(natural range <>) of Usb2ByteType;
  
    subtype Usb2TimerType    is unsigned(17 downto 0);
+   constant USB2_TIMER_MAX_C        : Usb2TimerType   := (others => '1');
 
    constant USB2_DEV_ADDR_DFLT_C    : Usb2DevAddrType := (others => '0');
    constant USB2_ENDP_ZERO_C        : Usb2EndpIdxType := (others => '0');
@@ -328,6 +329,12 @@ package Usb2Pkg is
       err       => '1',
       don       => '0'
    );
+
+   subtype  Usb2Utf16CharType is std_logic_vector(15 downto 0);
+
+   constant USB2_LANGID_EN_US_C : Usb2Utf16CharType := x"0409";
+   constant USB2_LANGID_EN_UK_C : Usb2Utf16CharType := x"0809";
+   constant USB2_LANGID_EN_AU_C : Usb2Utf16CharType := x"0c09";
 
 end package Usb2Pkg;
 

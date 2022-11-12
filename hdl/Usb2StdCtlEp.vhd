@@ -102,16 +102,28 @@ architecture Impl of Usb2StdCtlEp is
       return to_integer( unsigned( x.index(3 downto 0) ) );
    end function epIdx;
 
-   procedure b2u(variable v : out unsigned; constant a: in Usb2ByteArray; constant o : in natural) is
+   function ep0MaxPktSize return natural is
    begin
-      v := resize( unsigned( a(o) ), v'length );
-   end procedure b2u;
+      -- may add other generic to define the max size
+      assert ENDPOINT_G = USB2_ENDP_ZERO_C report "auto-setting of maxPktSize not implemented yet" severity failure;
+      return to_integer( unsigned( DESCRIPTORS_G( CFG_IDX_TABLE_C(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C ) ) );
+   end function ep0MaxPktSize;
 
-   function b2u(constant a: in Usb2ByteArray; constant o : in natural; constant l : natural)
-   return unsigned is
+   subtype Ep0PktSizeMskType is std_logic_vector(5 downto 0);
+
+   function ep0MaxPktSizeLd return natural is
    begin
-      return resize( unsigned( a(o) ), l );
-   end function b2u;
+      case ep0MaxPktSize is
+         when 8  => return 3;
+         when 16 => return 4;
+         when 32 => return 5;
+         when 64 => return 6;
+         when others =>
+           assert false report "Illegal MaxPktSize" severity failure;
+      end case;
+   end function ep0MaxPktSizeLd;
+
+   constant EP0_PKT_SIZE_MSK_C : unsigned(ep0MaxPktSizeLd - 1 downto 0) := (others => '0');
 
    procedure w2u(variable v : out unsigned; constant a: in Usb2ByteArray; constant o : in natural) is
       constant x : std_logic_vector(15 downto 0) := a(o+1) & a(0);
@@ -150,6 +162,7 @@ architecture Impl of Usb2StdCtlEp is
       tblIdx      : Usb2DescIdxType;
       tblOff      : Usb2DescIdxType;
       auxOff      : Usb2DescIdxType;
+      count       : Usb2DescIdxType;
       tblRdDone   : boolean;
       altSettings : AltSetArray;
       statusAck   : std_logic;
@@ -161,46 +174,8 @@ architecture Impl of Usb2StdCtlEp is
       numEp       : EpIdxType;
       descType    : Usb2StdDescriptorTypeType;
       size2B      : boolean;
+      sizeMatch   : boolean;
    end record RegType;
-
-   function REG_INIT_F return RegType is
-      variable v : RegType;
-   begin
-      v.state       := GET_PARAMS;
-      v.retState    := GET_PARAMS;
-      v.devStatus   := USB2_DEV_STATUS_INIT_C;
-      v.reqParam    := USB2_CTL_REQ_PARAM_INIT_C;
-      v.parmIdx     := (others => '0');
-      v.err         := '0';
-      v.protoStall  := '0';
-      v.epConfig    := (others => USB2_ENDP_PAIR_CONFIG_INIT_C);
-      v.cfgIdx      := 0;
-      v.cfgCurr     := 0;
-      v.retVal      := (others => '0');
-      v.altSettings := (others => 0);
-      v.flg         := '0';
-      v.tblIdx      := 0;
-      v.tblOff      := 0;
-      v.auxOff      := 0;
-      v.tblRdDone   := false;
-      v.retSz2      := false;
-      v.statusAck   := '1';
-      v.ifcIdx      := 0;
-      v.altIdx      := 0;
-      v.numIfc      := 0;
-      v.epIdx       := 0;
-      v.epIsInp     := false;
-      v.descType    := (others => '0');
-      v.size2B      := false;
-      for i in 1 to v.epConfig'length - 1 loop
-         v.epConfig(i).hasHaltInp := true;
-         v.epConfig(i).hasHaltOut := true;
-      end loop;
-      b2u( v.epConfig(0).maxPktSizeInp, DESCRIPTORS_G, CFG_IDX_TABLE_C(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
-      b2u( v.epConfig(0).maxPktSizeOut, DESCRIPTORS_G, CFG_IDX_TABLE_C(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C );
-      report "Max pkt size 0 " & integer'image(to_integer(v.epConfig(0).maxPktSizeInp));
-      return v;
-   end function REG_INIT_F;
 
    constant REG_INIT_C : RegType := (
       state       => GET_PARAMS,
@@ -214,14 +189,8 @@ architecture Impl of Usb2StdCtlEp is
                         0      => ( 
                                      transferTypeInp => USB2_TT_CONTROL_C,
                                      transferTypeOut => USB2_TT_CONTROL_C,
-                                     maxPktSizeInp   => b2u( DESCRIPTORS_G,
-                                                             CFG_IDX_TABLE_C(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C,
-                                                             epConfig(0).maxPktSizeInp'length
-                                                            ),
-                                     maxPktSizeOut   => b2u( DESCRIPTORS_G,
-                                                             CFG_IDX_TABLE_C(0) + USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C,
-                                                             epConfig(0).maxPktSizeOut'length
-                                                            ),
+                                     maxPktSizeInp   => to_unsigned( ep0MaxPktSize, epConfig(0).maxPktSizeInp'length ),
+                                     maxPktSizeOut   => to_unsigned( ep0MaxPktSize, epConfig(0).maxPktSizeInp'length ),
                                      hasHaltInp      => false,
                                      hasHaltOut      => false
                                   ),
@@ -235,6 +204,7 @@ architecture Impl of Usb2StdCtlEp is
       tblIdx      => 0,
       tblOff      => 0,
       auxOff      => 0,
+      count       => 0,
       tblRdDone   => false,
       retSz2      => false,
       statusAck   => '1',
@@ -245,7 +215,8 @@ architecture Impl of Usb2StdCtlEp is
       epIdx       => 0,
       epIsInp     => false,
       descType    => (others => '0'),
-      size2B      => false
+      size2B      => false,
+      sizeMatch   => false
    );
 
    -- a vivado work-around. Vivado complained about a index expression (when NUM_ENDPOINTS_G = 0) but
@@ -284,6 +255,8 @@ architecture Impl of Usb2StdCtlEp is
    begin
       return Usb2PktSizeType( x(Usb2PktSizeType'range) );
    end function toPktSizeType;
+
+   attribute MARK_DEBUG of r : signal is toStr(MARK_DEBUG_G);
 
 begin
 
@@ -476,12 +449,15 @@ begin
                      v.tblOff   := USB2_DESC_IDX_LENGTH_C;
                      v.retVal   := (others => '0');
                      v.size2B   := false;
+                     v.retState := GET_DESCRIPTOR_SIZE;
+                     v.count    := 0;
                      case ( Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) ) ) is
                         when USB2_STD_DESC_TYPE_DEVICE_C            =>
                            v.tblIdx   := CFG_IDX_TABLE_C(0);
 
 -- not implemented      when USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C  =>
                           -- full-speed must return error
+
                         when USB2_STD_DESC_TYPE_CONFIGURATION_C     =>
                            -- according to the spec this is 0-based and thus not identical
                            -- with the configuration value.
@@ -496,8 +472,11 @@ begin
 -- not implemented      hen USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  =>
 
                         when USB2_STD_DESC_TYPE_STRING_C            =>
-                           if ( NUM_STRINGS_C > to_integer(unsigned(r.reqParam.value(7 downto 0))) ) then
+                           v.count := to_integer(unsigned(r.reqParam.value(7 downto 0)));
+                           if ( NUM_STRINGS_C > v.count ) then
+                              -- ignore language ID
                               v.tblIdx     := STRINGS_IDX_C;
+                              v.descType   := USB2_STD_DESC_TYPE_STRING_C;
                            else
                               v.protoStall := '1';
                            end if;
@@ -506,8 +485,6 @@ begin
                      end case;
                      if ( v.protoStall = '1' ) then
                         v.retState := GET_PARAMS;
-                     else
-                        v.retState := GET_DESCRIPTOR_SIZE;
                      end if;
 
                   when USB2_REQ_STD_GET_INTERFACE_C     =>
@@ -718,35 +695,57 @@ begin
             end if;
 
          when GET_DESCRIPTOR_SIZE =>
-            if ( r.size2B ) then
-               v.tblOff := r.tblOff - 1;
-               v.retVal := descVal;
-               v.size2B := false;
-            else
-               if ( r.reqParam.length > w2u( r.retVal & descVal ) ) then
-                  v.auxOff := to_integer( w2u( r.retVal & descVal ) ) - 1 ;
+            if ( r.count = 0 ) then
+               if ( r.size2B ) then
+                  v.tblOff := r.tblOff - 1;
+                  v.retVal := descVal;
+                  v.size2B := false;
                else
-                  v.auxOff := to_integer(r.reqParam.length) - 1;
+                  if ( r.reqParam.length > w2u( r.retVal & descVal ) ) then
+                     v.auxOff := to_integer( w2u( r.retVal & descVal ) ) - 1 ;
+                  else
+                     v.auxOff    := to_integer(r.reqParam.length) - 1;
+                     -- is the requested length an exact multiple of the packet size?
+                     -- suppress zero-length delimiter in this case!
+                     v.sizeMatch := (r.reqParam.length(EP0_PKT_SIZE_MSK_C'range) = EP0_PKT_SIZE_MSK_C);
+                  end if;
+                  v.tblOff := 0;
+                  v.state  := READ_DESCRIPTOR;
+                  v.flg    := '0';
                end if;
-               v.tblOff := 0;
-               v.state  := READ_DESCRIPTOR;
-               v.flg    := '0';
+            else
+               v.auxOff   := 0;
+               v.retState := r.state;
+               v.state    := SCAN_DESC;
+               v.count    := r.count - 1;
             end if;
 
          when READ_DESCRIPTOR =>
-            epOb.mstInp.dat <= descVal;
-            epOb.mstInp.vld <= not r.flg;
-            epOb.mstInp.don <= r.flg;
-            epOb.mstInp.err <= '0';
-            if ( r.flg = '1' ) then
-               v.flg   := '0';
+            -- apparently the host may cut a control-read short by
+            -- requesting status earlier than indicated by the requested
+            -- length...
+            -- Thus, if we see an OUT token fly by we move to STATUS
+            if ( pktHdr.vld = '1' and pktHdr.pid = USB2_PID_TOK_OUT_C ) then
                v.state := STATUS;
             else
-               if ( epIb.subInp.rdy = '1' ) then
-                  if ( r.auxOff = r.tblOff ) then
-                     v.flg := '1';
-                  else
-                     v.tblOff := r.tblOff + 1;
+               epOb.mstInp.dat <= descVal;
+               epOb.mstInp.vld <= not r.flg;
+               epOb.mstInp.don <= r.flg;
+               epOb.mstInp.err <= '0';
+               if ( r.flg = '1' ) then
+                  v.flg   := '0';
+                  v.state := STATUS;
+               else
+                  if ( epIb.subInp.rdy = '1' ) then
+                     if ( r.auxOff = r.tblOff ) then
+                        if ( r.sizeMatch ) then
+                           v.state := STATUS;
+                        else
+                           v.flg := '1';
+                        end if;
+                     else
+                        v.tblOff := r.tblOff + 1;
+                     end if;
                   end if;
                end if;
             end if;
@@ -782,7 +781,6 @@ begin
                      v.state := GET_PARAMS;
                   end if;
                else
-                  epOb.subOut.rdy <= '1';
                   if ( epIb.mstOut.don = '1' ) then
                      v.state := GET_PARAMS;
                   end if;
@@ -826,7 +824,7 @@ begin
    begin
       if ( rising_edge( clk ) ) then
          if ( rst = '1' ) then
-            r <= REG_INIT_F;
+            r <= REG_INIT_C;
          else
             r <= rin;
          end if;

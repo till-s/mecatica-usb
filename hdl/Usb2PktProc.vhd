@@ -21,6 +21,8 @@ entity Usb2PktProc is
       epIb            : in  Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_G - 1);
       epOb            : out Usb2EndpPairObArray(0 to NUM_ENDPOINTS_G - 1);
 
+      ulpiRx          : in  UlpiRxType;
+
       txDataMst       : out Usb2StrmMstType;
       txDataSub       : in  Usb2StrmSubType;
       rxPktHdr        : in  Usb2PktHdrType;
@@ -71,15 +73,24 @@ architecture Impl of Usb2PktProc is
    --      FS_min       =   80            + (10       + 4        + 2)  = 96
    --      FS_max       =   90            + ( 1       + 2        + 2)  = 95
    -- adding our own 2 cycle latency we'd conclude a max time of 102 - 8 = 94 (HS) and kk
+   --
    constant TIME_WAIT_ACK_C      : Usb2TimerType := to_unsigned( simt(20,  96) , Usb2TimerType'length);
    -- receive (tok) - receive(data-pid)     ; USB2: HS: 92-102, FS: 80 - 90 since only receive-path
    --                                         latency is involved these values can be used verbatim
-   constant TIME_WAIT_DATA_PID_C : Usb2TimerType := to_unsigned( simt(30,  85) , Usb2TimerType'length);
+   -- UPDATE: Hmm - this timeout is mentioned (Fig. 8-32) but it's not clear what the value is.
+   --         The (FS) 80-90 clock time is for a receive-transmit (they mention IN -> DATA) timeout.
+   --         Linux - host takes longer than the 85 cycles I tried and I found a forum post
+   --            https://electronics.stackexchange.com/questions/394648/in-usb-2-0-whats-the-maximum-delay-between-setup-and-data0-packets
+   --         with few answers but one claiming that the timeout should be indefinite!
+--   constant TIME_WAIT_DATA_PID_C : Usb2TimerType := to_unsigned( simt(30,  85) , Usb2TimerType'length);
+   constant TIME_WAIT_DATA_PID_C : Usb2TimerType := USB2_TIMER_MAX_C;
 
    constant LD_BUFSZ_C           : natural   := 11;
    constant BUF_WIDTH_C          : natural   :=  9;
 
    type StateType is ( IDLE, DATA_INP, DATA_REP, ISO_INP, DATA_PID, DATA_OUT, ISO_OUT, DRAIN, WAIT_ACK, HSK );
+
+   type WaitType  is ( NONE, FS_EOP_SE0, FS_EOP_J, FS_SYNC, HS );
 
    type RegType   is record
       state           : StateType;
@@ -101,6 +112,7 @@ architecture Impl of Usb2PktProc is
       bufInpPart      : std_logic;
       donFlg          : std_logic;
       retries         : unsigned(1 downto 0);
+      waitMode        : WaitType;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -122,7 +134,8 @@ architecture Impl of Usb2PktProc is
       bufInpVld       => '0',
       bufInpPart      => '0',
       donFlg          => '0',
-      retries         => (others => '0')
+      retries         => (others => '0'),
+      waitMode        => NONE
    );
 
    type BufReaderType is record
@@ -152,6 +165,9 @@ architecture Impl of Usb2PktProc is
    signal bufReadOut                            : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
    signal bufWriteInp                           : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
    signal epConfigDbg                           : Usb2EndpPairConfigArray(epConfig'range);
+   signal epIbDbg                               : Usb2EndpPairIbType;
+   signal epObDbg                               : Usb2EndpPairObType;
+   signal epObLoc                               : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_G - 1);
 
    attribute MARK_DEBUG of r                    : signal is toStr(MARK_DEBUG_G);
    attribute MARK_DEBUG of rd                   : signal is toStr(MARK_DEBUG_G);
@@ -160,6 +176,8 @@ architecture Impl of Usb2PktProc is
    attribute MARK_DEBUG of bufWriteInp          : signal is toStr(MARK_DEBUG_G);
    attribute MARK_DEBUG of bufWrEna             : signal is toStr(MARK_DEBUG_G);
    attribute MARK_DEBUG of bufReadbackInp       : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of epIbDbg              : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG of epObDbg              : signal is toStr(MARK_DEBUG_G);
 
    function checkTokHdr(
       constant h: Usb2PktHdrType;
@@ -239,17 +257,19 @@ architecture Impl of Usb2PktProc is
 
 begin
 
+   epOb        <= epObLoc;
    epConfigDbg <= epConfig;
 
    assert to_integer( TIME_DATA_TX_C ) /= 0 report "TIME_DATA_TX_C must not be zero!" severity failure;
 
-   P_COMB : process ( r, rd, devStatus, epConfig, epIb, txDataSub, rxPktHdr, rxDataMst, bufReadbackInp ) is
+   P_COMB : process ( r, rd, devStatus, epConfig, epIb, epObLoc, txDataSub, rxPktHdr, rxDataMst, bufReadbackInp, ulpiRx ) is
       variable v  : RegType;
       variable ei : Usb2EndpPairIbType;
    begin
       v                := r;
       v.prevDevState   := devStatus.state;
       ei               := epIb( to_integer( r.epIdx ) );
+      epIbDbg          <= ei;
 
       txDataMst        <= ei.mstInp;
       txDataMst.vld    <= '0';
@@ -258,32 +278,32 @@ begin
       bufWrEna         <= '0';
       bufWriteInp      <= '0' & rxDataMst.dat;
 
-      for i in epOb'range loop
-         epOb(i).subInp <= USB2_STRM_SUB_INIT_C;
+      for i in epObLoc'range loop
+         epObLoc(i).subInp <= USB2_STRM_SUB_INIT_C;
 
          if ( epConfig( i ).transferTypeOut = USB2_TT_CONTROL_C ) then
-            epOb(i).mstCtl     <= rd.mstOut;
-            epOb(i).mstCtl.vld <= '0';
-            epOb(i).mstCtl.don <= '0';
-            epOb(i).mstOut     <= rd.mstOut;
-            epOb(i).mstOut.vld <= '0';
-            epOb(i).mstOut.don <= '0';
+            epObLoc(i).mstCtl     <= rd.mstOut;
+            epObLoc(i).mstCtl.vld <= '0';
+            epObLoc(i).mstCtl.don <= '0';
+            epObLoc(i).mstOut     <= rd.mstOut;
+            epObLoc(i).mstOut.vld <= '0';
+            epObLoc(i).mstOut.don <= '0';
             if ( rd.isSetup ) then
-               epOb( to_integer( rd.epIdx ) ).mstCtl <= rd.mstOut;
+               epObLoc( to_integer( rd.epIdx ) ).mstCtl <= rd.mstOut;
             else
-               epOb( to_integer( rd.epIdx ) ).mstOut <= rd.mstOut;
+               epObLoc( to_integer( rd.epIdx ) ).mstOut <= rd.mstOut;
             end if;
          else
-            epOb(i).mstCtl  <= USB2_STRM_MST_INIT_C;
+            epObLoc(i).mstCtl  <= USB2_STRM_MST_INIT_C;
             if ( epConfig( i ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
-               epOb(i).mstOut        <= rxDataMst;
-               epOb(i).mstOut.vld    <= '0';
-               epOb(i).mstOut.don    <= '0';
+               epObLoc(i).mstOut        <= rxDataMst;
+               epObLoc(i).mstOut.vld    <= '0';
+               epObLoc(i).mstOut.don    <= '0';
             else
-               epOb(i).mstOut  <= rd.mstOut;
+               epObLoc(i).mstOut  <= rd.mstOut;
                if ( i /= rd.epIdx ) then
-                  epOb(i).mstOut.vld <= '0';
-                  epOb(i).mstOut.don <= '0';
+                  epObLoc(i).mstOut.vld <= '0';
+                  epObLoc(i).mstOut.don <= '0';
                end if;
             end if;
          end if;
@@ -301,6 +321,7 @@ begin
                v.tok            := rxPktHdr.pid;
                v.epIdx          := usb2TokenPktEndp( rxPktHdr );
                v.donFlg         := '0';
+               v.timer          := (others => '0');
                ei               := epIb( to_integer( v.epIdx ) );
 --             v.lstWasInp(v.epIdx) := '0';
                if ( isTokInp( rxPktHdr.pid ) ) then
@@ -345,8 +366,8 @@ begin
                         if ( r.bufRWIdx = r.bufEndIdx ) then
                            -- empty packet - avoid DATA_REP; the WAIT_ACK phase
                            -- handles the 'don' handshaking
-                           v.timer    := TIME_WAIT_ACK_C;
                            v.state    := WAIT_ACK;
+                           v.waitMode := FS_EOP_SE0;
                            v.donFlg   := '1';
                            v.bufRWIdx := r.bufRWIdx;
                         end if;
@@ -395,34 +416,34 @@ begin
                   end if;
                else
                   if ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
-                     epOb( to_integer( rd.epIdx ) ).mstOut.don <= '1';
-                     epOb( to_integer( rd.epIdx ) ).mstOut.err <= '1';
+                     epObLoc( to_integer( rd.epIdx ) ).mstOut.don <= '1';
+                     epObLoc( to_integer( rd.epIdx ) ).mstOut.err <= '1';
                   end if;
                   v.state    := IDLE;
                end if;   
             elsif ( r.timer = 0 ) then
                if ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
-                  epOb( to_integer( rd.epIdx ) ).mstOut.don <= '1';
-                  epOb( to_integer( rd.epIdx ) ).mstOut.err <= '1';
+                  epObLoc( to_integer( rd.epIdx ) ).mstOut.don <= '1';
+                  epObLoc( to_integer( rd.epIdx ) ).mstOut.err <= '1';
                end if;
                v.state := IDLE;
             end if;   
 
          when ISO_OUT =>
-            epOb( to_integer( r.epIdx ) ).mstOut <= rxDataMst;
+            epObLoc( to_integer( r.epIdx ) ).mstOut <= rxDataMst;
             if ( rxDataMst.don = '1' ) then
                v.state := IDLE;
             end if;
 
          when ISO_INP =>
             if ( r.donFlg = '1' ) then
-               txDataMst.don                            <= r.donFlg;
-               epOb( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.don;
+               txDataMst.don                               <= r.donFlg;
+               epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.don;
                if ( txDataSub.don = '1' ) then
                   v.state       := IDLE;
                end if;
             elsif ( r.timer = 0 ) then
-               epOb( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy;
+               epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy;
                txDataMst.vld                            <= ei.mstInp.vld;
                txDataMst.don                            <= ei.mstInp.don;
                
@@ -441,7 +462,7 @@ begin
 
                if ( ( not ei.mstInp.don and txDataSub.don and txDataSub.err ) = '1' ) then
                   -- phy abort
-                  epOb( to_integer( r.epIdx ) ).subInp.err <= '1';
+                  epObLoc( to_integer( r.epIdx ) ).subInp.err <= '1';
                   v.state := IDLE;
                end if;
             end if;
@@ -481,11 +502,11 @@ begin
          when DATA_INP =>
             bufWriteInp <= '0' & ei.mstInp.dat;
             if ( r.timer = 0 ) then
-               txDataMst.vld                            <= ei.mstInp.vld;
-               txDataMst.don                            <= ei.mstInp.don;
+               txDataMst.vld                               <= ei.mstInp.vld;
+               txDataMst.don                               <= ei.mstInp.don;
                -- txDataSub.don = '1' and txDataSub.err = '1' is an abort condition of the PHY
                -- don't consume the data in this case.
-               epOb( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy or (txDataSub.don and not txDataSub.err);
+               epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy or (txDataSub.don and not txDataSub.err);
 
                if ( ( ei.mstInp.vld and txDataSub.rdy and not (txDataSub.don and txDataSub.err) ) = '1' ) then
                   -- store consumed data in buffer
@@ -497,7 +518,7 @@ begin
                      v.donFlg      := '1';
                      v.bufInpVld   := '1';
                      v.bufInpPart  := '0';
-                     v.timer       := TIME_WAIT_ACK_C;
+                     v.waitMode    := FS_EOP_SE0;
                      v.state       := WAIT_ACK;
                      -- doesn't matter if the data counter will overflow
                      -- v.dataCounter := r.dataCounter;
@@ -525,6 +546,7 @@ begin
                      v.bufInpVld  := '1';
                      v.bufInpPart := '0';
                      v.timer      := TIME_WAIT_ACK_C;
+                     v.waitMode   := FS_EOP_SE0;
                      v.state      := WAIT_ACK;
                   end if;
                end if;
@@ -560,8 +582,8 @@ begin
                         v.state    := DATA_INP;
                      else
                         v.donFlg   := '1';
-                        v.timer    := TIME_WAIT_ACK_C;
                         v.state    := WAIT_ACK;
+                        v.waitMode := FS_EOP_SE0;
                         v.bufRWIdx := r.bufRWIdx;
                      end if;
                   end if;
@@ -582,9 +604,26 @@ begin
             if ( r.donFlg = '1' ) then
                if ( txDataSub.don = '1' ) then
                   v.donFlg      := '0';
+                  -- start timeout now
+                  v.timer       := TIME_WAIT_ACK_C;
                end if;
+            elsif ( r.waitMode = FS_EOP_SE0 ) then
+              if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_SE0_C ) ) then
+                 v.waitMode     := FS_EOP_J;
+              end if;
+            elsif ( r.waitMode = FS_EOP_J ) then
+              if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) ) then
+                 v.waitMode     := FS_SYNC;
+                 v.timer        := TIME_WAIT_ACK_C;
+              end if;
             else
-                if    ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
+               if ( r.waitMode = FS_SYNC ) then  
+                  if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_K_C ) ) then
+                     v.waitMode := NONE;
+                     v.timer    := USB2_TIMER_MAX_C; -- packet has already started; must eventually come in
+                  end if; 
+               end if;
+               if    ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
                   v.dataTglInp( to_integer( r.epIdx ) ) := not r.dataTglInp( to_integer( r.epIdx ) );
                   -- ok to throw stored data away
                   invalidateBuffer( v );
@@ -629,6 +668,8 @@ begin
       else
          rin <= v;
       end if;
+
+      epObDbg <= epObLoc( to_integer( rd.epIdx ) );
 
    end process P_COMB;
 

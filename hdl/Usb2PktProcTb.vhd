@@ -108,14 +108,27 @@ package body Usb2AppCfgPkg is
       61 => x"00"                                     -- interval
    );
 
+   constant STRS_C : Usb2ByteArray := (
+       0 => x"04",                                    -- length
+       1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_STRING_C), -- type
+       2 => USB2_LANGID_EN_US_C( 7 downto 0),
+       3 => USB2_LANGID_EN_US_C(15 downto 8),
+
+       4 => x"06",
+       5 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_STRING_C), -- type
+       6 => x"54",
+       7 => x"00",
+       8 => x"55",
+       9 => x"00"
+   );
 
    constant TAILDESC_C : Usb2ByteArray := (
       0  => x"02", -- End of table marker
       1  => x"ff"  --
    );
 
-   constant l : natural :=  DEVDESC_C'length + CONFDESC_C'length + TAILDESC_C'length;
-   constant c : Usb2ByteArray(0 to l-1) := (DEVDESC_C & CONFDESC_C & TAILDESC_C);
+   constant l : natural :=  DEVDESC_C'length + CONFDESC_C'length + STRS_C'length + TAILDESC_C'length;
+   constant c : Usb2ByteArray(0 to l-1) := (DEVDESC_C & CONFDESC_C & STRS_C & TAILDESC_C);
    begin
    return c;
    end function;
@@ -186,8 +199,10 @@ begin
       variable reqval         : std_logic_vector(15 downto 0);
       variable reqidx         : std_logic_vector(15 downto 0);
 
+      constant stridx         : natural                := USB2_APP_STRINGS_IDX_F(USB2_APP_DESCRIPTORS_C);
       constant devdsc         : Usb2ByteArray(0 to 17) := USB2_APP_DESCRIPTORS_C(0  to 17);
-      constant cfgdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(18 to USB2_APP_DESCRIPTORS_C'high - 2);
+      constant cfgdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(18 to stridx - 1);
+      constant strdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(stridx + 4 to stridx + 9);
       variable epCfg          : Usb2TstEpCfgArray      := (others => USB2_TST_EP_CFG_INIT_C);
 
       constant EP0_SZ_C       : Usb2ByteType           := USB2_APP_DESCRIPTORS_F(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
@@ -229,6 +244,10 @@ report "GET_DESCRIPTOR(CFG)";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => cfgdsc);
       ulpiClkTick;
 
+report "GET_DESCRIPTOR(STR)";
+      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_STRING_C) & x"01"; -- string index in lo byte
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => strdsc);
+      ulpiClkTick;
 
       ulpiTstSendDat(ulpiTstOb, d2, TST_EP_C, DEV_ADDR_C);
 

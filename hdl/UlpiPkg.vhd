@@ -3,8 +3,12 @@ use     ieee.std_logic_1164.all;
 
 package UlpiPkg is
 
-   constant ULPI_TXCMD_TX_C            : std_logic_vector(3 downto 0) := "0100";
-   constant ULPI_RXCMD_RX_ACTIVE_BIT_C : natural := 4;
+   constant ULPI_TXCMD_TX_C                : std_logic_vector(3 downto 0) := "0100";
+   constant ULPI_RXCMD_RX_ACTIVE_BIT_C     : natural := 4;
+
+   constant ULPI_RXCMD_LINE_STATE_SE0_C    : std_logic_vector(1 downto 0) := "00";
+   constant ULPI_RXCMD_LINE_STATE_FS_J_C   : std_logic_vector(1 downto 0) := "01";
+   constant ULPI_RXCMD_LINE_STATE_FS_K_C   : std_logic_vector(1 downto 0) := "10";
 
    type UlpiRegReqType is record
       addr  : std_logic_vector(7 downto 0);
@@ -48,6 +52,8 @@ package UlpiPkg is
       trn   => '0'
    );
 
+   function ulpiIsRxCmd(constant x : in UlpiRxType) return boolean;
+
    -- The first data byte must be a TXCMD byte.
    -- The first cycle after 'vld' is deasserted
    -- generates a 'stop' cycle on ULPI; the
@@ -71,5 +77,14 @@ package UlpiPkg is
       don   :  std_logic;
    end record UlpiTxRepType;
 
- 
 end package UlpiPkg;
+
+package body UlpiPkg is
+
+   function ulpiIsRxCmd(constant x : in UlpiRxType)
+   return boolean is
+   begin
+      return (x.dir and not x.trn and not x.nxt) = '1';
+   end function ulpiIsRxCmd;
+ 
+end package body UlpiPkg;

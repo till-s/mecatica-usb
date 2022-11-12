@@ -21,6 +21,7 @@ architecture sim of Usb2PktTxTb is
    signal txDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal txDataSub       : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
 
+   signal ulpiRx          : UlpiRxType;
    signal ulpiTxReq       : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep       : UlpiTxRepType;
 
@@ -29,6 +30,9 @@ architecture sim of Usb2PktTxTb is
    signal vend            : integer         := 0;
 
    signal epRst           : std_logic       := '0';
+
+   type   EopWaitType     is (NONE, SE0, FSJ);
+   signal eopWait         : EopWaitType     := NONE;
 
    -- empty
    constant d0 : Usb2ByteArray := USB2_TST_NULL_DATA_C;
@@ -125,7 +129,7 @@ begin
       nxt                          => ulpiTstOb.nxt,
       dat                          => ulpiDatIO,
 
-      ulpiRx                       => open,
+      ulpiRx                       => ulpiRx,
       ulpiTxReq                    => ulpiTxReq,
       ulpiTxRep                    => ulpiTxRep,
 
@@ -146,14 +150,15 @@ begin
          end if;
          if ( ( txDataMst.don and txDataSub.don ) = '1' ) then
             txDataMst.don <= '0';
-            iidx <= 0;
+            iidx          <= 0;
+            eopWait       <= SE0;
             if ( vidx = 4 ) then
                vidx <= 0;
             else
                vidx <= vidx + 1;
             end if;
          end if;
-         if ( ( txDataMst.vld or txDataMst.don ) = '0' ) then
+         if ( ( txDataMst.vld or txDataMst.don ) = '0' and ( eopWait = NONE ) ) then
             if ( iidx <= vend ) then
               txDataMst.vld <= '1';
             else
@@ -168,6 +173,17 @@ begin
             iidx <= 0;
             vidx <= 0;
          end if;
+         case eopWait is
+            when SE0 =>
+              if ( ulpiIsRxCmd( ulpiRx ) and ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_SE0_C ) then
+                 eopWait <= FSJ;
+              end if;
+            when FSJ =>
+              if ( ulpiIsRxCmd( ulpiRx ) and ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) then
+                 eopWait <= NONE;
+              end if;
+            when others =>
+         end case;
       end if;
    end process P_EP_1_SEQ;
 

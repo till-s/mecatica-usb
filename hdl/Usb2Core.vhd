@@ -152,6 +152,8 @@ begin
       epIb            => epIb,
       epOb            => epOb,
 
+      ulpiRx          => ulpiRx,
+
       txDataMst       => txDataMst,
       txDataSub       => txDataSub,
       rxPktHdr        => rxPktHdr,

@@ -64,7 +64,8 @@ package Usb2TstPkg is
    procedure ulpiTstSendVec(
       signal   ob : inout UlpiTstObType;
       constant vc : in    Usb2ByteArray;
-      constant e  : in    boolean := true; -- end the transaction (turn bus)
+      constant s  : in    boolean := true; -- start the transaction (send K RXCMD)
+      constant e  : in    boolean := true; -- end the transaction (turn bus, signal EOP)
       constant w  : in    integer := 0     -- introduce 'w' wait cycles
    );
 
@@ -185,12 +186,13 @@ package body Usb2TstPkg is
    procedure ulpiTstSendVec(
       signal   ob : inout UlpiTstObType;
       constant vc : in    Usb2ByteArray;
+      constant s  : in    boolean := true; -- start the transaction (send K RXCMD)
       constant e  : in    boolean := true; -- end the transaction (turn bus)
       constant w  : in    integer := 0     -- introduce 'w' wait cycles
    ) is
-      constant RXCMD_C : std_logic_vector(7 downto 0) := (
+      constant RXCMD_C : Usb2ByteType := (
          ULPI_RXCMD_RX_ACTIVE_BIT_C => '1',
-         others                => '0'
+         others                     => '0'
       );
    begin
       if ( ob.dir = '0' ) then
@@ -199,6 +201,14 @@ package body Usb2TstPkg is
          ob.dat <= (others => 'Z');
          ulpiClkTick;
          -- turn
+      end if;
+      if ( s ) then
+         -- fake SYNC
+         ob.nxt <= '0';
+         ob.dat <= RXCMD_C;
+         ob.dat( ULPI_RXCMD_LINE_STATE_FS_K_C'range ) <= ULPI_RXCMD_LINE_STATE_FS_K_C;
+         ulpiClkTick;
+         ob.nxt <= '1';
       end if;
       for i in vc'range loop
          ob.dat <= vc(i);
@@ -213,6 +223,12 @@ package body Usb2TstPkg is
       end loop;
       if ( e ) then
          ob.nxt <= '0';
+         ob.dat <= RXCMD_C;
+         ob.dat( ULPI_RXCMD_LINE_STATE_SE0_C'range ) <= ULPI_RXCMD_LINE_STATE_SE0_C;
+         ulpiClkTick;
+         ob.dat( ULPI_RXCMD_LINE_STATE_FS_J_C'range ) <= ULPI_RXCMD_LINE_STATE_FS_J_C;
+         ulpiClkTick;
+         ob.dat <= RXCMD_C;
          ob.dir <= '0';
          ulpiClkTick;
          -- turn
@@ -236,6 +252,31 @@ package body Usb2TstPkg is
          end if;
       end loop;
    end procedure ulpiTstCrc;
+
+   procedure ulpiTstSendRxCmd(
+      signal   ob : inout UlpiTstObType;
+      constant x  : in Usb2ByteType
+   ) is
+      variable turn : boolean;
+   begin
+      turn := (ob.dir = '0');
+      if ( turn ) then
+         ob.dir <= '1';
+         ob.dat <= (others => 'Z');
+         ob.nxt <= '0';
+         ulpiClkTick;
+      end if;
+      ob.nxt <= '0';
+      ob.dat <= x;
+      ulpiClkTick;
+      if ( turn ) then
+         ob.dir <= '0';
+         ob.dat <= (others => 'Z');
+         ulpiClkTick;
+      end if;
+      ob.dat <= (others => '0');
+      ulpiClkTick;
+   end procedure ulpiTstSendRxCmd;
 
    -- send a token on ULPI
    procedure ulpiTstSendTok(
@@ -314,6 +355,8 @@ package body Usb2TstPkg is
        assert ( ulpiTstIb.stp = '1' )                       report "HSK not stopped"     severity failure;
        assert ( ulpiTstIb.dat = st  )                       report "HSK status mismatch" severity failure;
        assert ( pid(1 downto 0) = USB2_PID_GROUP_HSK_C ) report "PID not a HSK" severity failure;
+       ulpiTstSendRxCmd( ob, "000000" & ULPI_RXCMD_LINE_STATE_SE0_C );
+       ulpiTstSendRxCmd( ob, "000000" & ULPI_RXCMD_LINE_STATE_FS_J_C );
    end procedure ulpiTstWaitHsk;
 
    -- send a data packet (compute + append checksum)
@@ -328,15 +371,15 @@ package body Usb2TstPkg is
       variable t   : Usb2ByteArray(0 to 1);
       variable x   : std_logic;
    begin
-      ulpiTstSendVec( ob, h, false, w );
-      ulpiTstSendVec( ob, v, false, w );
+      ulpiTstSendVec( ob, h, true,  false, w );
+      ulpiTstSendVec( ob, v, false, false, w );
       crc := USB2_CRC16_INIT_C;
       for i in v'range loop
          ulpiTstCrc( crc, USB2_CRC16_POLY_C, v(i) );
       end loop;
       t(0) := not crc( 7 downto 0);
       t(1) := not crc(15 downto 8);
-      ulpiTstSendVec( ob, t, true, w );
+      ulpiTstSendVec( ob, t, false, true, w );
    end procedure ulpiTstSendDatPkt;
 
    -- send data breaking longer sequences in fragments that fit the maxPktSize
@@ -456,6 +499,8 @@ end if;
       assert (ulpiTstIb.stp = '1'   )  report "unexpected STP" severity failure;
       ob.nxt <= '0';
       ulpiClkTick;
+      ulpiTstSendRxCmd( ob, "000000" & ULPI_RXCMD_LINE_STATE_SE0_C );
+      ulpiTstSendRxCmd( ob, "000000" & ULPI_RXCMD_LINE_STATE_FS_J_C );
    end procedure ulpiTstWaitDatPkt;
 
    -- wait for data reassembling until short packet is detected
