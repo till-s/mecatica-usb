@@ -403,7 +403,8 @@ begin
                      -- sequence mismatch; discard packet and ACK
                      v.pid   := USB2_PID_HSK_ACK_C;
                      v.state := DRAIN;
-                  elsif ( ei.subOut.rdy = '0' ) then
+                  elsif ( ei.subOut.rdy = '0' and USB2_PID_TOK_SETUP_C(3 downto 2) /= r.tok(3 downto 2)  ) then
+                     -- always ack setup packets
                      v.pid   := USB2_PID_HSK_NAK_C;
                      v.state := DRAIN;
                   else
@@ -678,42 +679,32 @@ begin
    begin
       v := rd;
 
-      -- if we terminated a frame we wait for the downstream to ack.
-      -- Could handle other endpoints meanwhile but let's keep it
-      -- simple...
+      v.mstOut.don := '0';
+      v.mstOut.vld := '0';
       if ( rd.mstOut.don = '1' ) then
-         if ( epIb( to_integer( rd.epIdx ) ).subOut.rdy = '1' ) then
-            v.mstOut.don         := '0';
-            -- mark as processed
-            v.dataCounter := (others => '1');
-            v.isSetup     := false;
-         end if;
+         -- mark as processed
+         v.dataCounter := (others => '1');
+         v.isSetup     := false;
       else
-         if ( ( rd.mstOut.vld and epIb( to_integer( rd.epIdx ) ).subOut.rdy ) = '1' ) then
-            -- they consumed an item
-            v.mstOut.vld  := '0';
-         end if;
-         if ( v.mstOut.vld = '0' ) then
-            -- see if we have anything new to offer
-            if ( ( rd.bufRdIdx = r.bufVldIdx ) or ( bufReadOut(8) = '1' ) ) then
-               -- End of packet sequence (setup packets do not require an empty data packet)
-               if ( rd.dataCounter < epConfig( to_integer( rd.epIdx) ).maxPktSizeOut or rd.isSetup ) then
-                  v.mstOut.don := '1';
-               end if;
-               if ( rd.bufRdIdx /= r.bufVldIdx ) then
-                  -- new packet header
-                  v.epIdx       := unsigned( bufReadOut(3 downto 0) );
-                  v.isSetup     := (bufReadOut(7 downto 4) = USB2_PID_TOK_SETUP_C);
-                  v.dataCounter := (others => '0');
-                  v.bufRdIdx    := rd.bufRdIdx + 1;
-               end if;
-            else
-               -- new data
-               v.dataCounter := rd.dataCounter + 1;
-               v.mstOut.vld  := '1';
-               v.mstOut.dat  := bufReadOut(7 downto 0);
+         -- see if we have anything new to offer
+         if ( ( rd.bufRdIdx = r.bufVldIdx ) or ( bufReadOut(8) = '1' ) ) then
+            -- End of packet sequence (setup packets do not require an empty data packet)
+            if ( rd.dataCounter < epConfig( to_integer( rd.epIdx) ).maxPktSizeOut or rd.isSetup ) then
+               v.mstOut.don := '1';
+            end if;
+            if ( rd.bufRdIdx /= r.bufVldIdx ) then
+               -- new packet header
+               v.epIdx       := unsigned( bufReadOut(3 downto 0) );
+               v.isSetup     := (bufReadOut(7 downto 4) = USB2_PID_TOK_SETUP_C);
+               v.dataCounter := (others => '0');
                v.bufRdIdx    := rd.bufRdIdx + 1;
             end if;
+         else
+            -- new data
+            v.dataCounter := rd.dataCounter + 1;
+            v.mstOut.vld  := '1';
+            v.mstOut.dat  := bufReadOut(7 downto 0);
+            v.bufRdIdx    := rd.bufRdIdx + 1;
          end if;
       end if;
 

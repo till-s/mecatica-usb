@@ -134,7 +134,7 @@ package Usb2Pkg is
 
    -- HANDSHAKE
    -- Between endpoints and the packet engine the following
-   -- handshake protocol is used (in either direction).
+   -- handshake protocol is used in IN direction (mstInp/subInp)
    --
    --   mst.vld  mst.don  mst.dat sub.rdy
    --      1        0       Dn       0         master has data
@@ -154,9 +154,37 @@ package Usb2Pkg is
    --      0        1        X        0       NULL packet
    --      0        1        X        1       sub consumes 'don' flag
    --
-   --   - in the OUT direction (bus->endpoint) the endpoint may occasionally
-   --     throttle by deasserting 'rdy' but buffer space is limited and throttling
-   --     affects other endpoints (i.e., other EPs cannot make progress).
+   -- In the OUT direction a slightly different protocol must be
+   -- observed. Since the EP must be able to absorb an entire max. packet
+   -- as soon as it has signalled 'rdy' this flag has no further meaning
+   -- for the current packet but is used to signal if further packets
+   -- also are acceptable. This is necessary to handle the high-speed
+   -- protocol in presence of our RX buffer (engine needs to know if
+   -- it can fill the buffer with the next frame while the current
+   -- one is being read out).
+   -- Payload frames are framed by 'vld' and/or 'don', i.e., between
+   -- two frames there is at least one cycle with 'vld' deasserted.
+   --
+   --    mst.vld   mst.don  sub.rdy
+   --       0          0       1        -- EP ready for data
+   --       1          0       1        -- EP starts reading
+   --       1          0       0        --> no further packets allowed into the buffer
+   --       1          0       0        --> EP continues reading
+   --       1          0       0        --> EP continues reading
+   --       0          0       0        --> frame received (assume max pkt size 4)
+   --       0          0       1        -> EP ready for data
+   --       0          1       1        -> received NULL packet
+   --       0          0       1        -> 
+   --       0          0       1        -> ready for next
+   --       1          0       1        -> EP starts reading
+   --       1          0       1        -> continue reading; meanwhile next frame is allowed
+   --       1          0       1        -> in to the buffer (and could be consumed)
+   --       0          1       1        -> frame done (short)
+   --       1          0       1        -> receive next frame
+   --       1          0       0        -> throttle next but keep reading current
+   --       1          0       0        -> throttle next but keep reading current
+   --       1          0       0        -> throttle next but keep reading current
+   --       0          0       0        -> End of frame
 
    -- signals traveling from EP -> bus
    type Usb2EndpPairIbType is record

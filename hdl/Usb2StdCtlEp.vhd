@@ -175,6 +175,7 @@ architecture Impl of Usb2StdCtlEp is
       descType    : Usb2StdDescriptorTypeType;
       size2B      : boolean;
       sizeMatch   : boolean;
+      setupDone   : boolean;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -216,7 +217,8 @@ architecture Impl of Usb2StdCtlEp is
       epIsInp     => false,
       descType    => (others => '0'),
       size2B      => false,
-      sizeMatch   => false
+      sizeMatch   => false,
+      setupDone   => false
    );
 
    -- a vivado work-around. Vivado complained about a index expression (when NUM_ENDPOINTS_G = 0) but
@@ -280,6 +282,10 @@ begin
 
       v.reqParam.vld            := '0';
 
+      if ( epIb.mstCtl.vld = '0' ) then
+         v.setupDone := true;
+      end if;
+
       if ( pktHdr.vld = '1' and pktHdr.pid = USB2_PID_TOK_SETUP_C ) then
          -- due to buffering of the next request in the packet processor
          -- (needed to determine CRC correctness) there is considerable
@@ -302,10 +308,10 @@ begin
          when GET_PARAMS =>
             v.flg           := '0';
             v.tblRdDone     := false;
-            epOb.subOut.rdy <= '1';
             if ( epIb.mstCtl.vld = '1' ) then
                v.protoStall    := '0';
                v.err           := '0';
+               v.setupDone     := false;
 
                case ( r.parmIdx ) is
                   when "000" =>
@@ -342,9 +348,8 @@ begin
                end if;
             end if;
 
-
          when WAIT_CTL_DONE =>
-            if ( epIb.mstCtl.don = '1' ) then
+            if ( v.setupDone ) then
                v.state         := r.retState;
             end if;
 
@@ -774,17 +779,15 @@ begin
             if ( r.reqParam.dev2Host ) then
                epOb.subOut.rdy <= r.statusAck;
 
-               if ( r.statusAck = '0' ) then
-                  -- packet processor will NAK until it sees 'rdy'
-                  epOb.subOut.rdy <= ctlExt.ack; 
-                  if ( ctlExt.ack = '1' ) then
-                     v.state := GET_PARAMS;
-                  end if;
-               else
-                  if ( epIb.mstOut.don = '1' ) then
-                     v.state := GET_PARAMS;
-                  end if;
+               -- wait for external agent done
+               if ( ( not r.statusAck and ctlExt.ack ) = '1' ) then
+                  v.statusAck  := '1';
                end if;
+
+               if ( epIb.mstOut.don = '1' ) then
+                  v.state := GET_PARAMS;
+               end if;
+
             else
                epOb.mstInp.vld <= '0';
                epOb.mstInp.err <= '0';
