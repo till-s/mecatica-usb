@@ -16,6 +16,7 @@ SRCS+= Usb2Core.vhd
 SRCS+= Usb2PktProcTb.vhd
 SRCS+= Usb2PktTxTb.vhd
 SRCS+= Usb2FifoTb.vhd
+SRCS+= Usb2FifoEp.vhd
 
 GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
@@ -34,7 +35,7 @@ $(PROG): $(SRCS:%.vhd=%.o)
 	$(GHDL) -e $(GHDLFLAGS) -Wl,-no-pie $@
 
 Usb2PktProcTb.o UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2Core.o
-Usb2PktTxTb.o Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o Usb2TstPkg.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o Usb2DescPkg.o
+Usb2FifoEp.o Usb2PktTxTb.o Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o Usb2TstPkg.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o Usb2DescPkg.o
 Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
 Usb2PktProcTb.o: Usb2TstPkg.o Usb2PktProc.o Usb2StdCtlEp.o
@@ -49,6 +50,8 @@ Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
 Usb2StdCtlEp.o: Usb2DescPkg.o
 
 Usb2Fifo.o: Usb2Bram.o
+
+Usb2FifoEp.o: Usb2Fifo.o
 
 Usb2FifoTb.o: Usb2Fifo.o
 
