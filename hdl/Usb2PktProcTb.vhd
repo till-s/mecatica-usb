@@ -167,8 +167,10 @@ architecture sim of Usb2PktProcTb is
    constant ALT_C                  : std_logic_vector(15 downto 0) := x"0001";
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
    
-   signal epIb            : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
-   signal epOb            : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
+   signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
+
+   signal framedInp                : std_logic := '1';
 
    constant d1 : Usb2ByteArray := ( x"01", x"02", x"03" );
    constant d2 : Usb2ByteArray := (
@@ -289,6 +291,22 @@ report "GET_DESCRIPTOR(STR)";
 
       ulpiTstWaitDat(ulpiTstOb, d2, TST_EP_C, DEV_ADDR_C );
 
+      ulpiClkTick;
+
+      -- test non-framed input
+      framedInp <= '0';
+
+      ulpiTstWaitDat(ulpiTstOb, d2(0 to 0), TST_EP_C, DEV_ADDR_C, nofr => true);
+
+      ulpiClkTick;
+      ulpiClkTick;
+
+      ulpiTstWaitDat(ulpiTstOb, d2(1 to 8), TST_EP_C, DEV_ADDR_C, nofr => true);
+
+      ulpiClkTick;
+
+      ulpiTstWaitDat(ulpiTstOb, d2(9 to d2'high), TST_EP_C, DEV_ADDR_C, nofr => true);
+      framedInp <= '1';
 
       for i in 0 to 20 loop
          ulpiClkTick;
@@ -340,18 +358,37 @@ report "GET_DESCRIPTOR(STR)";
       variable ep   : Usb2EndpPairIbType := ini;
    begin
       if ( rising_edge( ulpiTstClk ) ) then
-         if ( epOb(TST_EP_IDX_C).subInp.rdy = '1' ) then
-            if ( ep.mstInp.vld = '1' ) then
-               if ( iidx = d2'high ) then
-                  ep.mstInp.vld := '0';
-                  iidx          :=  0 ;
-                  ep.mstInp.don := '1';
-                  ep.mstInp.err := '0';
-               else
-                  iidx          := iidx + 1;
+         ep.bFramedInp := not framedInp;
+         if ( framedInp = '1' ) then
+            if ( epOb(TST_EP_IDX_C).subInp.rdy = '1' ) then
+               if ( ep.mstInp.vld = '1' ) then
+                  if ( iidx = d2'high ) then
+                     ep.mstInp.vld := '0';
+                     iidx          :=  0 ;
+                     ep.mstInp.don := '1';
+                     ep.mstInp.err := '0';
+                  else
+                     iidx          := iidx + 1;
+                  end if;
+               elsif ( ep.mstInp.don = '1' ) then
+                  ep.mstInp.don := '0';
+                  ep.mstInp.vld := '1';
                end if;
-            elsif ( ep.mstInp.don = '1' ) then
-               ep.mstInp.don := '0';
+            end if;
+         else
+            -- test un-framed 
+            if ( ep.mstInp.vld = '1' ) then
+               if ( epOb(TST_EP_IDX_C).subInp.rdy = '1' ) then
+                  if ( iidx = 0 or iidx = 8 or iidx = d2'high ) then
+                     ep.mstInp.vld := '0';
+                  end if;
+                  if ( iidx = d2'high ) then
+                     iidx := 0;
+                  else
+                     iidx := iidx + 1;
+                  end if;
+               end if;
+            else
                ep.mstInp.vld := '1';
             end if;
          end if;

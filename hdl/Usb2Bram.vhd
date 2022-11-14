@@ -16,12 +16,14 @@ entity Usb2Bram is
    port (
       clk            : in  std_logic := '0';
       rst            : in  std_logic := '0';
-      ena            : in  std_logic := '1';
-      wea            : in  std_logic := '0';
+      ena            : in  std_logic := '1'; -- readout CE
+      cea            : in  std_logic := '1'; -- output register CE
+      wea            : in  std_logic := '0'; -- write-enable
       addra          : in  unsigned(ADDR_WIDTH_G - 1 downto 0)         := (others => '0');
       rdata          : out std_logic_vector(DATA_WIDTH_G - 1 downto 0);
       wdata          : in  std_logic_vector(DATA_WIDTH_G - 1 downto 0) := (others => '0');
       enb            : in  std_logic := '1';
+      ceb            : in  std_logic := '1';
       web            : in  std_logic := '0';
       addrb          : in  unsigned(ADDR_WIDTH_G - 1 downto 0)         := (others => '0');
       rdatb          : out std_logic_vector(DATA_WIDTH_G - 1 downto 0);
@@ -48,10 +50,12 @@ begin
       if ( rising_edge( clk ) ) then
          if ( ena = '1' ) then
             rdata_o <= memory( to_integer( addra ) );
-            rdata_r <= rdata_o;
             if ( wea = '1' ) then
                memory( to_integer( addra ) ) := wdata; 
             end if;
+         end if;
+         if ( cea = '1' ) then
+            rdata_r <= rdata_o;
          end if;
       end if;
    end process P_SEQA;
@@ -61,10 +65,12 @@ begin
       if ( rising_edge( clk ) ) then
          if ( enb = '1' ) then
             rdatb_o <= memory( to_integer( addrb ) );
-            rdatb_r <= rdatb_o;
             if ( web = '1' ) then
                memory( to_integer( addrb ) ) := wdatb; 
             end if;
+         end if;
+         if ( ceb = '1' ) then
+            rdatb_r <= rdatb_o;
          end if;
       end if;
    end process P_SEQB;

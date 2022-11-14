@@ -149,7 +149,8 @@ package Usb2TstPkg is
       constant rak : in    natural                      := 0; -- accept NAK to IN token from target 'rak' times
       constant w   : in    natural                      := 0; -- wait cycles
       constant timo: in    natural                      := 30; -- timeout waiting for data (from IN token)
-      constant abrt: in    integer                      := -1  -- force PHY abort after 'abrt' bytes
+      constant abrt: in    integer                      := -1; -- force PHY abort after 'abrt' bytes
+      constant nofr: in    boolean                      := false -- dont reassemble fragments
    );
 
    -- send a control sequence
@@ -513,7 +514,8 @@ end if;
       constant rak : in    natural                      := 0; -- accept NAK to IN token from target 'rak' times
       constant w   : in    natural                      := 0; -- wait cycles
       constant timo: in    natural                      := 30; -- timeout waiting for data (from IN token)
-      constant abrt: in    integer                      := -1  -- force PHY abort after 'abrt' bytes
+      constant abrt: in    integer                      := -1; -- force PHY abort after 'abrt' bytes
+      constant nofr: in    boolean                      := false
    ) is
       variable idx : natural;
       constant epin: natural := to_integer( unsigned( epi ) );
@@ -555,7 +557,7 @@ end if;
             end if;
             ulpiClkTick;
          end loop;
-         if ( cln < MSZ ) then
+         if ( cln < MSZ or nofr ) then
             exit L_FRAG;
          end if;
       end loop;

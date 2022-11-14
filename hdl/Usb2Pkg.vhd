@@ -4,16 +4,16 @@ use     ieee.numeric_std.all;
 
 package Usb2Pkg is
 
-   subtype Usb2PidType      is std_logic_vector(3 downto 0);
-   subtype Usb2PidGroupType is std_logic_vector(1 downto 0);
+   subtype  Usb2PidType      is std_logic_vector(3 downto 0);
+   subtype  Usb2PidGroupType is std_logic_vector(1 downto 0);
 
-   subtype Usb2EndpIdxType  is unsigned(3 downto 0);
-   subtype Usb2DevAddrType  is std_logic_vector(6 downto 0);
+   subtype  Usb2EndpIdxType  is unsigned(3 downto 0);
+   subtype  Usb2DevAddrType  is std_logic_vector(6 downto 0);
 
-   subtype Usb2ByteType     is std_logic_vector(7 downto 0);
-   type    Usb2ByteArray    is array(natural range <>) of Usb2ByteType;
+   subtype  Usb2ByteType     is std_logic_vector(7 downto 0);
+   type     Usb2ByteArray    is array(natural range <>) of Usb2ByteType;
  
-   subtype Usb2TimerType    is unsigned(17 downto 0);
+   subtype  Usb2TimerType    is unsigned(17 downto 0);
    constant USB2_TIMER_MAX_C        : Usb2TimerType   := (others => '1');
 
    constant USB2_DEV_ADDR_DFLT_C    : Usb2DevAddrType := (others => '0');
@@ -153,6 +153,10 @@ package Usb2Pkg is
    --     has 'vld' asserted:
    --      0        1        X        0       NULL packet
    --      0        1        X        1       sub consumes 'don' flag
+   --   - if the endpoint sets the 'bFramedInp' (no framing) flag
+   --     then the 'don' flag is not used (and must never be asserted).
+   --     Packets are directly framed by 'vld' but no NULL packets can
+   --     be sent; packets are always at least 1 byte.
    --
    -- In the OUT direction a slightly different protocol must be
    -- observed. Since the EP must be able to absorb an entire max. packet
@@ -190,6 +194,7 @@ package Usb2Pkg is
    type Usb2EndpPairIbType is record
       stalledInp : std_logic; -- input  endpoint is halted
       stalledOut : std_logic; -- output endpoint is halted
+      bFramedInp : std_logic; -- when set: no framing by 'don'; send as soon as 'vld' deasserted or maxPktSize reached
       -- if mstInp.vld is asserted then the endpoint
       -- must be able to supply the entire payload of
       -- a data packet (or less if there is no data); 
@@ -204,6 +209,7 @@ package Usb2Pkg is
    constant USB2_ENDP_PAIR_IB_INIT_C : Usb2EndpPairIbType := (
       stalledInp => '0',
       stalledOut => '0',
+      bFramedInp => '0',
       mstInp     => USB2_STRM_MST_INIT_C,
       subOut     => USB2_STRM_SUB_INIT_C
    );

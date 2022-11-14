@@ -505,6 +505,22 @@ begin
             if ( r.timer = 0 ) then
                txDataMst.vld                               <= ei.mstInp.vld;
                txDataMst.don                               <= ei.mstInp.don;
+
+               if ( ei.bFramedInp = '1' ) then
+                  -- if they don't want us to frame the input data
+                  -- then we must assert txDatMst.con as soon as ei.mstInp.vld turns off
+                  -- we then proceed to the ACK phase
+                  txDataMst.don <= not ei.mstInp.vld;
+
+                  if ( ei.mstInp.vld = '0' ) then
+                     v.donFlg      := '1';
+                     v.bufInpVld   := '1';
+                     v.bufInpPart  := '0';
+                     v.waitMode    := FS_EOP_SE0;
+                     v.state       := WAIT_ACK;
+                  end if;
+               end if;
+
                -- txDataSub.don = '1' and txDataSub.err = '1' is an abort condition of the PHY
                -- don't consume the data in this case.
                epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy or (txDataSub.don and not txDataSub.err);
