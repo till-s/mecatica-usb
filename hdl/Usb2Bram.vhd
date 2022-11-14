@@ -3,7 +3,7 @@ use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
-entity Bram is
+entity Usb2Bram is
    generic (
       -- 9-bits into parity seems to work when using 
       -- the full depth; when using less then the 9-th
@@ -27,9 +27,9 @@ entity Bram is
       rdatb          : out std_logic_vector(DATA_WIDTH_G - 1 downto 0);
       wdatb          : in  std_logic_vector(DATA_WIDTH_G - 1 downto 0) := (others => '0')
    );
-end entity Bram;
+end entity Usb2Bram;
 
-architecture Impl of Bram is
+architecture Impl of Usb2Bram is
    subtype DataType is std_logic_vector(DATA_WIDTH_G - 1 downto 0);
 
    type    MemArray is array (natural range 0 to 2**ADDR_WIDTH_G - 1) of DataType;
