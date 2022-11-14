@@ -11,10 +11,7 @@ use     work.Usb2DescPkg.all;
 -- endpoint.
 
 entity Usb2FifoEp is
-
    generic (
-      -- with simulation enabled timing may be changed
-      -- to speed things up
       MAX_PKT_SIZE_INP_G           : natural  := 0; -- disabled when 0
       MAX_PKT_SIZE_OUT_G           : natural  := 0; -- disabled when 0
       LD_FIFO_DEPTH_INP_G          : natural  := 0;
@@ -28,7 +25,6 @@ entity Usb2FifoEp is
       -- add an output regster to the OUT bound FIFO (to improve timing)
       OUT_REG_OUT_G                : boolean  := false
    );
-
    port (
       clk                          : in  std_logic;
 
@@ -62,7 +58,6 @@ entity Usb2FifoEp is
       setHaltOut                   : in  std_logic    := '0';
       clrHaltOut                   : in  std_logic    := '0'
    );
-
 end entity Usb2FifoEp;
 
 architecture Impl of Usb2FifoEp is
