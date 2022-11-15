@@ -480,7 +480,7 @@ package body Usb2TstPkg is
          end loop;
          ob.nxt <= '1';
          ulpiClkTick;
-         if ( abrt = i ) then
+         if ( abrt = i - eda'low ) then
 report "ABORT";
             ulpiTstSendVec( ob, ANY );
             ulpiClkTick; -- consume turn-around cycle

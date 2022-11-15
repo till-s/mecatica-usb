@@ -274,7 +274,7 @@ report "GET_DESCRIPTOR(STR)";
       ulpiClkTick;
 
       -- make sure ACK times out
-      for i in 1 to 40 loop
+      for i in 1 to 80 loop
          ulpiClkTick;
       end loop;
 
@@ -285,7 +285,7 @@ report "GET_DESCRIPTOR(STR)";
       ulpiClkTick;
 
       -- make sure ACK times out
-      for i in 1 to 40 loop
+      for i in 1 to 20 loop
          ulpiClkTick;
       end loop;
 

@@ -32,9 +32,12 @@ end entity Usb2PktProc;
 
 architecture Impl of Usb2PktProc is
 
-   function simt(constant a,b: in natural) return natural is
+   function simt(constant a,b: in natural) return Usb2TimerType is
+      variable v : natural;
    begin
-      if ( SIMULATION_G ) then return a; else return b; end if;
+      if ( SIMULATION_G ) then v := a; else v := b; end if;
+      v := v - 1; -- timer expired = '-1'
+      return Usb2TimerType(to_unsigned(v, Usb2TimerType'length));
    end function simt;
 
    function toStr(constant x : std_logic_vector) return string is
@@ -55,11 +58,13 @@ architecture Impl of Usb2PktProc is
    -- NOTE: there is a 1 clock delay in the recive path due to IO buffering
    --       also     a 1 clock delay in the transmit path due to IO buffering
 
+   -- FIXME: the receive-transmit timings in FS mode should probably monitor line state, too!
+
    -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks
-   constant TIME_HSK_TX_C        : Usb2TimerType := to_unsigned( simt(20,  10) , Usb2TimerType'length);
+   constant TIME_HSK_TX_C        : Usb2TimerType := simt(20,  10);
 
    -- receive (tok) -transmit (tx-data)     ; ULPI: HS: 1-14 clocks, FS: 7-18 clocks
-   constant TIME_DATA_TX_C       : Usb2TimerType := to_unsigned( simt(20,  10) , Usb2TimerType'length);
+   constant TIME_DATA_TX_C       : Usb2TimerType := simt(20,  10);
    -- transmit (tx-data) - receive (hsk)    ; ULPI: HS: 92  clocks, FS: 80 clocks (no range given)
    -- transmit (tx-data) - receive (hsk)    ; USB2: HS: 92-102   clocks, FS: 80 - 90 clocks
    -- ULPI: RXCMD delay     2-4 (HS+FS)
@@ -74,7 +79,7 @@ architecture Impl of Usb2PktProc is
    --      FS_max       =   90            + ( 1       + 2        + 2)  = 95
    -- adding our own 2 cycle latency we'd conclude a max time of 102 - 8 = 94 (HS) and kk
    --
-   constant TIME_WAIT_ACK_C      : Usb2TimerType := to_unsigned( simt(20,  96) , Usb2TimerType'length);
+   constant TIME_WAIT_ACK_C      : Usb2TimerType := simt(20,  96);
    -- receive (tok) - receive(data-pid)     ; USB2: HS: 92-102, FS: 80 - 90 since only receive-path
    --                                         latency is involved these values can be used verbatim
    -- UPDATE: Hmm - this timeout is mentioned (Fig. 8-32) but it's not clear what the value is.
@@ -88,12 +93,26 @@ architecture Impl of Usb2PktProc is
    constant LD_BUFSZ_C           : natural   := 11;
    constant BUF_WIDTH_C          : natural   :=  9;
 
-   type StateType is ( IDLE, DATA_INP, DATA_REP, ISO_INP, DATA_PID, DATA_OUT, ISO_OUT, DRAIN, WAIT_ACK, HSK );
-
-   type WaitType  is ( NONE, FS_EOP_SE0, FS_EOP_J, FS_SYNC, HS );
+   type StateType is (
+      IDLE,
+      DATA_INP,
+      DATA_REP,
+      ISO_INP,
+      DATA_PID,
+      DATA_OUT,
+      ISO_OUT,
+      DRAIN,
+      WAIT_DON,
+      WAIT_ACK,
+      HSK,
+      WAIT_FS_SE0,
+      WAIT_FS_J,
+      WAIT_FS_K
+   );
 
    type RegType   is record
       state           : StateType;
+      retState        : StateType;
       dataTglInp      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
       dataTglOut      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
 --    lstWasInp       : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
@@ -112,15 +131,15 @@ architecture Impl of Usb2PktProc is
       bufInpPart      : std_logic;
       donFlg          : std_logic;
       retries         : unsigned(1 downto 0);
-      waitMode        : WaitType;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       state           => IDLE,
+      retState        => IDLE,
       dataTglInp      => (others => '0'),
       dataTglOut      => (others => '0'),
 --    lstWasInp       => (others => '0'),
-      timer           => (others => '0'),
+      timer           => USB2_TIMER_EXPIRED_C,
       prevDevState    => DEFAULT,
       tok             => USB2_PID_SPC_NONE_C,
       epIdx           => USB2_ENDP_ZERO_C,
@@ -134,8 +153,7 @@ architecture Impl of Usb2PktProc is
       bufInpVld       => '0',
       bufInpPart      => '0',
       donFlg          => '0',
-      retries         => (others => '0'),
-      waitMode        => NONE
+      retries         => (others => '0')
    );
 
    type BufReaderType is record
@@ -311,7 +329,7 @@ begin
 
 
 
-      if ( r.timer > 0 ) then
+      if ( not usb2TimerExpired( r.timer ) ) then
          v.timer := r.timer - 1;
       end if;
 
@@ -321,7 +339,7 @@ begin
                v.tok            := rxPktHdr.pid;
                v.epIdx          := usb2TokenPktEndp( rxPktHdr );
                v.donFlg         := '0';
-               v.timer          := (others => '0');
+               v.timer          := USB2_TIMER_EXPIRED_C;
                ei               := epIb( to_integer( v.epIdx ) );
 --             v.lstWasInp(v.epIdx) := '0';
                if ( isTokInp( rxPktHdr.pid ) ) then
@@ -366,8 +384,7 @@ begin
                         if ( r.bufRWIdx = r.bufEndIdx ) then
                            -- empty packet - avoid DATA_REP; the WAIT_ACK phase
                            -- handles the 'don' handshaking
-                           v.state    := WAIT_ACK;
-                           v.waitMode := FS_EOP_SE0;
+                           v.state    := WAIT_DON;
                            v.donFlg   := '1';
                            v.bufRWIdx := r.bufRWIdx;
                         end if;
@@ -422,7 +439,7 @@ begin
                   end if;
                   v.state    := IDLE;
                end if;   
-            elsif ( r.timer = 0 ) then
+            elsif ( usb2TimerExpired( r.timer ) ) then
                if ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                   epObLoc( to_integer( rd.epIdx ) ).mstOut.don <= '1';
                   epObLoc( to_integer( rd.epIdx ) ).mstOut.err <= '1';
@@ -443,7 +460,7 @@ begin
                if ( txDataSub.don = '1' ) then
                   v.state       := IDLE;
                end if;
-            elsif ( r.timer = 0 ) then
+            elsif ( usb2TimerExpired( r.timer ) ) then
                epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy;
                txDataMst.vld                            <= ei.mstInp.vld;
                txDataMst.don                            <= ei.mstInp.don;
@@ -502,13 +519,13 @@ begin
 
          when DATA_INP =>
             bufWriteInp <= '0' & ei.mstInp.dat;
-            if ( r.timer = 0 ) then
+            if ( usb2TimerExpired( r.timer ) ) then
                txDataMst.vld                               <= ei.mstInp.vld;
                txDataMst.don                               <= ei.mstInp.don;
 
                if ( ei.bFramedInp = '1' ) then
                   -- if they don't want us to frame the input data
-                  -- then we must assert txDatMst.con as soon as ei.mstInp.vld turns off
+                  -- then we must assert txDatMst.don as soon as ei.mstInp.vld turns off
                   -- we then proceed to the ACK phase
                   txDataMst.don <= not ei.mstInp.vld;
 
@@ -516,8 +533,7 @@ begin
                      v.donFlg      := '1';
                      v.bufInpVld   := '1';
                      v.bufInpPart  := '0';
-                     v.waitMode    := FS_EOP_SE0;
-                     v.state       := WAIT_ACK;
+                     v.state       := WAIT_DON;
                   end if;
                end if;
 
@@ -535,8 +551,7 @@ begin
                      v.donFlg      := '1';
                      v.bufInpVld   := '1';
                      v.bufInpPart  := '0';
-                     v.waitMode    := FS_EOP_SE0;
-                     v.state       := WAIT_ACK;
+                     v.state       := WAIT_DON;
                      -- doesn't matter if the data counter will overflow
                      -- v.dataCounter := r.dataCounter;
                   end if;
@@ -545,7 +560,7 @@ begin
                if ( txDataSub.don = '1' ) then
                   v.donFlg      := '0';
                   v.state       := IDLE;
-                  v.timer       := (others => '0');
+                  v.timer       := USB2_TIMER_EXPIRED_C;
                   if ( ei.mstInp.err = '1' ) then
                      -- mstInp.err                               => PHY should abort TX packet
                      -- tx should send a bad packet; we'll not see an ack
@@ -562,9 +577,7 @@ begin
                      -- already asserted 'don'; -> buffer complete
                      v.bufInpVld  := '1';
                      v.bufInpPart := '0';
-                     v.timer      := TIME_WAIT_ACK_C;
-                     v.waitMode   := FS_EOP_SE0;
-                     v.state      := WAIT_ACK;
+                     v.state      := WAIT_DON;
                   end if;
                end if;
             end if;
@@ -573,7 +586,7 @@ begin
          when DATA_REP =>
             txDataMst.err <= '0';
             txDataMst.dat <= r.tmp;
-            if ( r.timer = 0 ) then
+            if ( usb2TimerExpired( r.timer ) ) then
                txDataMst.vld <= '1';
                if ( r.tmpVld = '1' ) then
                   txDataMst.dat <= r.tmp;
@@ -599,8 +612,7 @@ begin
                         v.state    := DATA_INP;
                      else
                         v.donFlg   := '1';
-                        v.state    := WAIT_ACK;
-                        v.waitMode := FS_EOP_SE0;
+                        v.state    := WAIT_DON;
                         v.bufRWIdx := r.bufRWIdx;
                      end if;
                   end if;
@@ -615,38 +627,59 @@ begin
                v.tmp      := bufReadbackInp(7 downto 0);
             end if;
 
-         when WAIT_ACK =>
-
+         when WAIT_DON =>
             txDataMst.don <= r.donFlg;
             if ( r.donFlg = '1' ) then
                if ( txDataSub.don = '1' ) then
-                  v.donFlg      := '0';
-                  -- start timeout now
-                  v.timer       := TIME_WAIT_ACK_C;
+                  if ( txDataSub.err = '1' ) then
+                     -- PHY abort (keep current buffer contents)
+                     -- save buffer and set bufRWIdx early so that readback data will be available
+                     v.bufEndIdx   := r.bufRWIdx;
+                     v.bufRWIdx    := r.bufVldIdx;
+                     v.state       := IDLE;
+                  else
+                     v.donFlg := '0';
+                  end if;
                end if;
-            elsif ( r.waitMode = FS_EOP_SE0 ) then
-              if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_SE0_C ) ) then
-                 v.waitMode     := FS_EOP_J;
-              end if;
-            elsif ( r.waitMode = FS_EOP_J ) then
-              if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) ) then
-                 v.waitMode     := FS_SYNC;
-                 v.timer        := TIME_WAIT_ACK_C;
-              end if;
             else
-               if ( r.waitMode = FS_SYNC ) then  
-                  if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_K_C ) ) then
-                     v.waitMode := NONE;
-                     v.timer    := USB2_TIMER_MAX_C; -- packet has already started; must eventually come in
-                  end if; 
-               end if;
-               if    ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
+               v.retState := WAIT_FS_K;
+               v.state    := WAIT_FS_SE0;
+               v.timer    := TIME_WAIT_ACK_C;
+               usb2TimerPause( v.timer );
+            end if;
+
+         when WAIT_FS_SE0 =>
+            if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_SE0_C ) ) then
+               v.state    := WAIT_FS_J;
+            end if;
+
+         when WAIT_FS_J =>
+            if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) ) then
+               v.state    := r.retState;
+               -- now start the timer
+               usb2TimerStart( v.timer );
+            end if;
+
+         when WAIT_FS_K =>
+            if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_K_C ) ) then
+               v.state    := WAIT_ACK;
+            elsif ( usb2TimerExpired( r.timer ) ) then
+                  -- timeout: save buffer
+                  v.bufEndIdx   := r.bufRWIdx;
+                  -- set bufRWIdx early so that readback data will be available
+                  v.bufRWIdx    := r.bufVldIdx;
+                  v.state       := IDLE;
+            end if;
+
+         when WAIT_ACK =>
+            if ( rxPktHdr.vld = '1' ) then
+               if ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) then
                   v.dataTglInp( to_integer( r.epIdx ) ) := not r.dataTglInp( to_integer( r.epIdx ) );
                   -- ok to throw stored data away
                   invalidateBuffer( v );
                   v.state := IDLE;
-               elsif ( ( r.timer = 0 ) or ( rxPktHdr.vld = '1' ) ) then
-                  -- timeout or NAK: save buffer
+               else
+                  -- NAK: save buffer
                   v.bufEndIdx   := r.bufRWIdx;
                   -- set bufRWIdx early so that readback data will be available
                   v.bufRWIdx    := r.bufVldIdx;
@@ -658,7 +691,7 @@ begin
             if ( (ei.stalledInp or ei.stalledOut) = '1' ) then
                v.pid := USB2_PID_HSK_STALL_C;
             end if;
-            if ( r.timer = 0 ) then
+            if ( usb2TimerExpired( r.timer ) ) then
                txDataMst.don <= '1';
                if ( txDataSub.don = '1' ) then
                   -- no need to wait until transmission is done;

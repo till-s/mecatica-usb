@@ -4,17 +4,23 @@ use     ieee.numeric_std.all;
 
 package Usb2Pkg is
 
-   subtype  Usb2PidType      is std_logic_vector(3 downto 0);
-   subtype  Usb2PidGroupType is std_logic_vector(1 downto 0);
+   subtype  Usb2PidType             is std_logic_vector(3 downto 0);
+   subtype  Usb2PidGroupType        is std_logic_vector(1 downto 0);
 
-   subtype  Usb2EndpIdxType  is unsigned(3 downto 0);
-   subtype  Usb2DevAddrType  is std_logic_vector(6 downto 0);
+   subtype  Usb2EndpIdxType         is unsigned(3 downto 0);
+   subtype  Usb2DevAddrType         is std_logic_vector(6 downto 0);
 
-   subtype  Usb2ByteType     is std_logic_vector(7 downto 0);
-   type     Usb2ByteArray    is array(natural range <>) of Usb2ByteType;
+   subtype  Usb2ByteType            is std_logic_vector(7 downto 0);
+   type     Usb2ByteArray           is array(natural range <>) of Usb2ByteType;
  
-   subtype  Usb2TimerType    is unsigned(17 downto 0);
-   constant USB2_TIMER_MAX_C        : Usb2TimerType   := (others => '1');
+   subtype  Usb2TimerType           is signed(17 downto 0);
+   constant USB2_TIMER_MAX_C        : Usb2TimerType   := (Usb2TimerType'left => '0', others => '1');
+   constant USB2_TIMER_EXPIRED_C    : Usb2TimerType   := (others => '1');
+
+   function usb2TimerExpired(constant t: in Usb2TimerType) return boolean;
+
+   procedure usb2TimerPause(variable t: inout Usb2TimerType);
+   procedure usb2TimerStart(variable t: inout Usb2TimerType);
 
    constant USB2_DEV_ADDR_DFLT_C    : Usb2DevAddrType := (others => '0');
    constant USB2_ENDP_ZERO_C        : Usb2EndpIdxType := (others => '0');
@@ -26,32 +32,32 @@ package Usb2Pkg is
 
    function usb2PidGroup(constant x : in Usb2PidType) return Usb2PidGroupType;
 
-   constant USB2_PID_GROUP_TOK_C: Usb2PidGroupType := "01";
-   constant USB2_PID_GROUP_DAT_C: Usb2PidGroupType := "11";
-   constant USB2_PID_GROUP_HSK_C: Usb2PidGroupType := "10";
-   constant USB2_PID_GROUP_SPC_C: Usb2PidGroupType := "00";
+   constant USB2_PID_GROUP_TOK_C    : Usb2PidGroupType := "01";
+   constant USB2_PID_GROUP_DAT_C    : Usb2PidGroupType := "11";
+   constant USB2_PID_GROUP_HSK_C    : Usb2PidGroupType := "10";
+   constant USB2_PID_GROUP_SPC_C    : Usb2PidGroupType := "00";
 
-   constant USB2_PID_TOK_OUT_C  : Usb2PidType := x"1";
-   constant USB2_PID_TOK_SOF_C  : Usb2PidType := x"5";
-   constant USB2_PID_TOK_IN_C   : Usb2PidType := x"9";
-   constant USB2_PID_TOK_SETUP_C: Usb2PidType := x"D";
+   constant USB2_PID_TOK_OUT_C      : Usb2PidType := x"1";
+   constant USB2_PID_TOK_SOF_C      : Usb2PidType := x"5";
+   constant USB2_PID_TOK_IN_C       : Usb2PidType := x"9";
+   constant USB2_PID_TOK_SETUP_C    : Usb2PidType := x"D";
 
-   constant USB2_PID_DAT_DATA0_C: Usb2PidType := x"3";
-   constant USB2_PID_DAT_DATA2_C: Usb2PidType := x"7";
-   constant USB2_PID_DAT_DATA1_C: Usb2PidType := x"B";
-   constant USB2_PID_DAT_MDATA_C: Usb2PidType := x"F";
+   constant USB2_PID_DAT_DATA0_C    : Usb2PidType := x"3";
+   constant USB2_PID_DAT_DATA2_C    : Usb2PidType := x"7";
+   constant USB2_PID_DAT_DATA1_C    : Usb2PidType := x"B";
+   constant USB2_PID_DAT_MDATA_C    : Usb2PidType := x"F";
 
-   constant USB2_PID_HSK_ACK_C  : Usb2PidType := x"2";
-   constant USB2_PID_HSK_NYET_C : Usb2PidType := x"6";
-   constant USB2_PID_HSK_NAK_C  : Usb2PidType := x"A";
-   constant USB2_PID_HSK_STALL_C: Usb2PidType := x"E";
+   constant USB2_PID_HSK_ACK_C      : Usb2PidType := x"2";
+   constant USB2_PID_HSK_NYET_C     : Usb2PidType := x"6";
+   constant USB2_PID_HSK_NAK_C      : Usb2PidType := x"A";
+   constant USB2_PID_HSK_STALL_C    : Usb2PidType := x"E";
 
-   constant USB2_PID_SPC_PRE_C  : Usb2PidType := x"C";
-   constant USB2_PID_SPC_ERR_C  : Usb2PidType := x"C"; -- reused
-   constant USB2_PID_SPC_SPLIT_C: Usb2PidType := x"8";
-   constant USB2_PID_SPC_PING_C : Usb2PidType := x"4";
+   constant USB2_PID_SPC_PRE_C      : Usb2PidType := x"C";
+   constant USB2_PID_SPC_ERR_C      : Usb2PidType := x"C"; -- reused
+   constant USB2_PID_SPC_SPLIT_C    : Usb2PidType := x"8";
+   constant USB2_PID_SPC_PING_C     : Usb2PidType := x"4";
 
-   constant USB2_PID_SPC_NONE_C : Usb2PidType := x"0"; -- reserved
+   constant USB2_PID_SPC_NONE_C     : Usb2PidType := x"0"; -- reserved
 
    type Usb2PktHdrType is record
       pid     : Usb2PidType;
@@ -115,6 +121,7 @@ package Usb2Pkg is
       state      : Usb2DevStateType;
       devAddr    : Usb2DevAddrType;
       remWakeup  : boolean;
+      hiSpeed    : boolean;
       selHaltInp : std_logic_vector(15 downto 0);
       selHaltOut : std_logic_vector(15 downto 0);
       clrHalt    : std_logic;
@@ -125,6 +132,7 @@ package Usb2Pkg is
       -- FIXME should be POWERED until initial USB reset done
       state      => DEFAULT,
       devAddr    => (others => '0'),
+      hiSpeed    => false,
       remWakeup  => false,
       selHaltInp => (others => '0'),
       selHaltOut => (others => '0'),
@@ -431,5 +439,21 @@ package body Usb2Pkg is
       return x(7) = '1';
    end function usb2DescIsSentinel;
    
+   function usb2TimerExpired(constant t: in Usb2TimerType)
+   return boolean is begin
+      return t(t'left) = '1';
+   end function usb2TimerExpired;
+
+   procedure usb2TimerPause(variable t: inout Usb2TimerType)
+   is begin
+      t := t;
+      t(t'left) := '1';
+   end procedure usb2TimerPause;
+
+   procedure usb2TimerStart(variable t: inout Usb2TimerType)
+   is begin
+      t := t;
+      t(t'left) := '0';
+   end procedure usb2TimerStart;
 
 end package body Usb2Pkg;
