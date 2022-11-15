@@ -55,10 +55,14 @@ architecture Impl of Usb2PktProc is
    end function toStr;
 
 
-   -- NOTE: there is a 1 clock delay in the recive path due to IO buffering
+   -- NOTE: there is a 1 clock delay in the receive path due to IO buffering
    --       also     a 1 clock delay in the transmit path due to IO buffering
 
-   -- FIXME: the receive-transmit timings in FS mode should probably monitor line state, too!
+   -- NOTE: the receive-transmit timings in FS mode does monitor line state, too!
+   --       the Usb2PktRx module detects a FS SE0 as an EOP (ULPI Tbls 9 and 10)
+   --       which is (approximately) used to start the timer.
+   --        FS delay of SE0 detection to rxDataMst.don is 1 cycle (in addition to the rx path delay);
+   --        this is *earlier* than DIR deassertion!
 
    -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks
    constant TIME_HSK_TX_C        : Usb2TimerType := simt(20,  10);
@@ -112,7 +116,6 @@ architecture Impl of Usb2PktProc is
 
    type RegType   is record
       state           : StateType;
-      retState        : StateType;
       dataTglInp      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
       dataTglOut      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
 --    lstWasInp       : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
@@ -135,7 +138,6 @@ architecture Impl of Usb2PktProc is
 
    constant REG_INIT_C : RegType := (
       state           => IDLE,
-      retState        => IDLE,
       dataTglInp      => (others => '0'),
       dataTglOut      => (others => '0'),
 --    lstWasInp       => (others => '0'),
@@ -642,10 +644,14 @@ begin
                   end if;
                end if;
             else
-               v.retState := WAIT_FS_K;
-               v.state    := WAIT_FS_SE0;
                v.timer    := TIME_WAIT_ACK_C;
-               usb2TimerPause( v.timer );
+               if ( devStatus.hiSpeed ) then
+                  v.state := WAIT_ACK;
+               else
+                  v.state := WAIT_FS_SE0;
+                  -- timer starts only once we have seen the SE0 -> J transition
+                  usb2TimerPause( v.timer );
+               end if;
             end if;
 
          when WAIT_FS_SE0 =>
@@ -655,7 +661,7 @@ begin
 
          when WAIT_FS_J =>
             if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) ) then
-               v.state    := r.retState;
+               v.state := WAIT_FS_K;
                -- now start the timer
                usb2TimerStart( v.timer );
             end if;
@@ -663,28 +669,23 @@ begin
          when WAIT_FS_K =>
             if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_K_C ) ) then
                v.state    := WAIT_ACK;
-            elsif ( usb2TimerExpired( r.timer ) ) then
-                  -- timeout: save buffer
-                  v.bufEndIdx   := r.bufRWIdx;
-                  -- set bufRWIdx early so that readback data will be available
-                  v.bufRWIdx    := r.bufVldIdx;
-                  v.state       := IDLE;
+               v.timer    := USB2_TIMER_MAX_C; -- should never expire; frame has started already
+               -- we still use a timeout so that we can simply bypass the WAIT_FS... states
+               -- in high-speed mode
             end if;
 
          when WAIT_ACK =>
-            if ( rxPktHdr.vld = '1' ) then
-               if ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) then
-                  v.dataTglInp( to_integer( r.epIdx ) ) := not r.dataTglInp( to_integer( r.epIdx ) );
-                  -- ok to throw stored data away
-                  invalidateBuffer( v );
-                  v.state := IDLE;
-               else
-                  -- NAK: save buffer
-                  v.bufEndIdx   := r.bufRWIdx;
-                  -- set bufRWIdx early so that readback data will be available
-                  v.bufRWIdx    := r.bufVldIdx;
-                  v.state       := IDLE;
-              end if;
+            if ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
+               v.dataTglInp( to_integer( r.epIdx ) ) := not r.dataTglInp( to_integer( r.epIdx ) );
+               -- ok to throw stored data away
+               invalidateBuffer( v );
+               v.state := IDLE;
+            elsif ( usb2TimerExpired( r.timer ) or ( rxPktHdr.vld = '1' ) ) then
+               -- timeout or NAK: save buffer
+               v.bufEndIdx   := r.bufRWIdx;
+               -- set bufRWIdx early so that readback data will be available
+               v.bufRWIdx    := r.bufVldIdx;
+               v.state       := IDLE;
             end if;
 
          when HSK =>

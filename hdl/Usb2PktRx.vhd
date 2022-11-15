@@ -14,6 +14,7 @@ entity Usb2PktRx is
    port (
       clk            : in  std_logic;
       rst            : in  std_logic := '0';
+      hiSpeed        : in  boolean;
       ulpiRx         : in  UlpiRxType;
       pktHdr         : out Usb2PktHdrType;
       rxData         : out Usb2StrmMstType
@@ -24,7 +25,7 @@ architecture Impl of Usb2PktRx is
 
    type StateType is (WAIT_FOR_START, WAIT_FOR_EOP, WAIT_FOR_PID, TOK1, TOK2, DAT);
 
-   function rxActive(constant x : in UlpiRxType) return boolean is
+   function rxActive(constant x : in UlpiRxType; constant hs: boolean) return boolean is
    begin
       if ( x.dir = '0' ) then
          return false;
@@ -33,7 +34,15 @@ architecture Impl of Usb2PktRx is
          -- turn-around cycle that may have aborted a reg-read
          return x.nxt = '1';
       end if;
-      return ( x.nxt = '1' ) or ( x.dat(ULPI_RXCMD_RX_ACTIVE_BIT_C) = '1' );
+      if ( x.nxt = '1' ) then
+         return true;
+      else
+         -- x.nxt = '0'
+         if ( not hs and ( x.dat(ULPI_RXCMD_LINE_STATE_SE0_C'range) = ULPI_RXCMD_LINE_STATE_SE0_C ) ) then
+            return false; -- FullSpeed EOP for timing purposes
+         end if;
+         return ( x.dat(ULPI_RXCMD_RX_ACTIVE_BIT_C) = '1' );
+      end if;
    end function rxActive;
 
    type RxBufType is record
@@ -75,7 +84,7 @@ architecture Impl of Usb2PktRx is
 
 begin
 
-   P_COMB : process ( r, ulpiRx, crc5Out, crc16Out ) is
+   P_COMB : process ( r, ulpiRx, crc5Out, crc16Out, hiSpeed ) is
       variable v        : RegType;
       variable rxAct    : boolean;
    begin
@@ -84,7 +93,7 @@ begin
          v.pktHdr.vld := '0';
          v.pktHdr.pid := USB2_PID_SPC_NONE_C;
       end if;
-      rxAct          := rxActive( ulpiRx );
+      rxAct          := rxActive( ulpiRx, hiSpeed );
       v.datDon       := '0';
 
       if ( not rxAct and r.state /= WAIT_FOR_START ) then

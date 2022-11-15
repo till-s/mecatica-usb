@@ -120,6 +120,7 @@ begin
    port map (
       clk             => clk,
       rst             => usb2Rst,
+      hiSpeed         => devStatus.hiSpeed,
       ulpiRx          => ulpiRx,
       pktHdr          => rxPktHdr,
       rxData          => rxDataMst

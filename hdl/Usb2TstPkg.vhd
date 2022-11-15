@@ -191,10 +191,14 @@ package body Usb2TstPkg is
       constant e  : in    boolean := true; -- end the transaction (turn bus)
       constant w  : in    integer := 0     -- introduce 'w' wait cycles
    ) is
-      constant RXCMD_C : Usb2ByteType := (
-         ULPI_RXCMD_RX_ACTIVE_BIT_C => '1',
-         others                     => '0'
-      );
+      function RXCMD_F return Usb2ByteType is
+         variable v : Usb2ByteType := (others => '0');
+      begin
+         v(ULPI_RXCMD_RX_ACTIVE_BIT_C)          := '1';
+         v(ULPI_RXCMD_LINE_STATE_FS_K_C'range ) := ULPI_RXCMD_LINE_STATE_FS_K_C;
+         return v;
+      end function RXCMD_F;
+      constant RXCMD_C : Usb2ByteType := RXCMD_F;
    begin
       if ( ob.dir = '0' ) then
          ob.dir <= '1';

@@ -419,6 +419,7 @@ begin
       port map (
          clk         => clk,
          rst         => rst,
+         hiSpeed     => false,
          ulpiRx      => ulpiRx,
          pktHdr      => pktHdr,
          rxData      => rxData
