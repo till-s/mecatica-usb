@@ -72,6 +72,7 @@ architecture Impl of Usb2Core is
    signal ulpiRx            : UlpiRxType      := ULPI_RX_INIT_C;
    signal ulpiTxReq         : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep         : UlpiTxRepType;
+   signal rxActive          : std_logic;
 
    signal txDataMst         : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal txDataSub         : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
@@ -120,8 +121,8 @@ begin
    port map (
       clk             => clk,
       rst             => usb2Rst,
-      hiSpeed         => devStatus.hiSpeed,
       ulpiRx          => ulpiRx,
+      rxActive        => rxActive,
       pktHdr          => rxPktHdr,
       rxData          => rxDataMst
    );
@@ -154,6 +155,7 @@ begin
       epOb            => epOb,
 
       ulpiRx          => ulpiRx,
+      rxActive        => rxActive,
 
       txDataMst       => txDataMst,
       txDataSub       => txDataSub,

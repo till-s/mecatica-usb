@@ -31,7 +31,7 @@ architecture sim of Usb2PktTxTb is
 
    signal epRst           : std_logic       := '0';
 
-   type   EopWaitType     is (NONE, SE0, FSJ);
+   type   EopWaitType     is (NONE, SE0, FSJ, DIR);
    signal eopWait         : EopWaitType     := NONE;
 
    -- empty
@@ -72,6 +72,7 @@ begin
       variable epCfg          : Usb2TstEpCfgArray      := (others => USB2_TST_EP_CFG_INIT_C);
 
       constant EP1_SZ_C       : Usb2ByteType           := x"08";
+      variable timo           : natural;
    begin
       epCfg( TST_EP_IDX_C                   ).maxPktSizeInp := to_integer(unsigned(EP1_SZ_C));
       epCfg( TST_EP_IDX_C                   ).maxPktSizeOut := to_integer(unsigned(EP1_SZ_C));
@@ -82,21 +83,22 @@ begin
 
       for a in -1 to 2 loop
          for w in 0 to 4 loop
+            timo := (w + 1)*20;
             pid := USB2_PID_DAT_DATA0_C;
-            ulpiTstWaitDatPkt( ulpiTstOb, pid , d0, w => w, nnak => true );
+            ulpiTstWaitDatPkt( ulpiTstOb, pid , d0, timo => timo, w => w, npid => true );
 
             pid := USB2_PID_DAT_DATA1_C;
-            ulpiTstWaitDatPkt( ulpiTstOb, pid , d1, w => w, nnak => true );
+            ulpiTstWaitDatPkt( ulpiTstOb, pid , d1, timo => timo, w => w, npid => true );
 
             pid := USB2_PID_DAT_DATA0_C;
-            ulpiTstWaitDatPkt( ulpiTstOb, pid , d2, w => w, nnak => true );
+            ulpiTstWaitDatPkt( ulpiTstOb, pid , d2, timo => timo, w => w, npid => true );
 
             pid := USB2_PID_DAT_DATA1_C;
-            ulpiTstWaitDatPkt( ulpiTstOb, pid , d3, w => w, nnak => true, abrt => a );
+            ulpiTstWaitDatPkt( ulpiTstOb, pid , d3, timo => timo, w => w, npid => true, abrt => a );
 
             if ( a = -1 ) then
                pid := USB2_PID_DAT_DATA0_C;
-               ulpiTstWaitDatPkt( ulpiTstOb, pid , d3(0 to d3'high-1), w => w, nnak => true );
+               ulpiTstWaitDatPkt( ulpiTstOb, pid , d3(0 to d3'high-1), timo => timo, w => w, npid => true );
             end if;
          end loop;
       end loop;
@@ -170,6 +172,7 @@ begin
             -- ABORT --
             txDataMst.vld <= '0';
             txDataMst.don <= '0';
+            eopWait       <= DIR;
             iidx <= 0;
             vidx <= 0;
          end if;
@@ -180,6 +183,10 @@ begin
               end if;
             when FSJ =>
               if ( ulpiIsRxCmd( ulpiRx ) and ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) then
+                 eopWait <= NONE;
+              end if;
+            when DIR =>
+              if ( (ulpiRx.dir or ulpiRx.trn) = '0' ) then
                  eopWait <= NONE;
               end if;
             when others =>

@@ -20,20 +20,20 @@ entity Usb2FifoEp is
       -- a decision be made if a second packet would fit.
       LD_FIFO_DEPTH_OUT_G          : natural  := 0; -- must be >= MAX_PKT_SIZE_OUT_G
       TIMER_WIDTH_G                : positive := 1;
-      -- add an output regster to the INP bound FIFO (to improve timing)
+      -- add an output register to the INP bound FIFO (to improve timing)
       OUT_REG_INP_G                : boolean  := false;
-      -- add an output regster to the OUT bound FIFO (to improve timing)
+      -- add an output register to the OUT bound FIFO (to improve timing)
       OUT_REG_OUT_G                : boolean  := false
    );
    port (
       clk                          : in  std_logic;
-
       rst                          : in  std_logic := '0';
 
-      -- Endpoints are attached here (1 and up)
+      -- Endpoint Interface
       usb2EpIb                     : out Usb2EndpPairIbType;
       usb2EpOb                     : in  Usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
 
+      -- FIFO Interface IN (to USB)
       datInp                       : in  Usb2ByteType := (others => '0');
       wenInp                       : in  std_logic    := '0';
       filledInp                    : out unsigned(LD_FIFO_DEPTH_INP_G downto 0) := (others => '0');
@@ -48,15 +48,17 @@ entity Usb2FifoEp is
       --  - Time may be reduced while a wait is in progress.
       timeFillInp                  : in  unsigned(TIMER_WIDTH_G - 1 downto 0) := (others => '0');
 
+      -- FIFO Interface OUT (from USB)
       datOut                       : out Usb2ByteType := (others => '0');
       renOut                       : in  std_logic    := '0';
       filledOut                    : out unsigned(LD_FIFO_DEPTH_OUT_G downto 0) := (others => '0');
       emptyOut                     : out std_logic    := '1';
 
-      setHaltInp                   : in  std_logic    := '0';
-      clrHaltInp                   : in  std_logic    := '0';
-      setHaltOut                   : in  std_logic    := '0';
-      clrHaltOut                   : in  std_logic    := '0'
+      -- EP Halt
+      selHaltInp                   : in  std_logic    := '0';
+      selHaltOut                   : in  std_logic    := '0';
+      setHalt                      : in  std_logic    := '0';
+      clrHalt                      : in  std_logic    := '0'
    );
 end entity Usb2FifoEp;
 
@@ -91,10 +93,10 @@ begin
             if ( rst = '1' ) then
                halted  <= '0';
             else
-               if ( setHaltInp = '1' ) then
+               if ( (setHalt and selHaltInp) = '1' ) then
                   halted <= '1';
                end if;
-               if ( clrHaltInp = '1' ) then
+               if ( (clrHalt and selHaltInp) = '1' ) then
                   halted <= '0';
                end if;
             end if;
@@ -162,10 +164,10 @@ begin
                fifoRdy <= '0';
                lastWen <= '0';
             else
-               if ( setHaltOut = '1' ) then
+               if ( (setHalt and selHaltOut) = '1' ) then
                   halted <= '1';
                end if;
-               if ( clrHaltOut = '1' ) then
+               if ( (clrHalt and selHaltOut) = '1' ) then
                   halted <= '0';
                end if;
                lastWen <= fifoWen;

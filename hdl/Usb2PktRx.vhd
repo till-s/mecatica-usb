@@ -14,10 +14,10 @@ entity Usb2PktRx is
    port (
       clk            : in  std_logic;
       rst            : in  std_logic := '0';
-      hiSpeed        : in  boolean;
       ulpiRx         : in  UlpiRxType;
       pktHdr         : out Usb2PktHdrType;
-      rxData         : out Usb2StrmMstType
+      rxData         : out Usb2StrmMstType;
+      rxActive       : out std_logic
    );
 end entity Usb2PktRx;
 
@@ -25,25 +25,17 @@ architecture Impl of Usb2PktRx is
 
    type StateType is (WAIT_FOR_START, WAIT_FOR_EOP, WAIT_FOR_PID, TOK1, TOK2, DAT);
 
-   function rxActive(constant x : in UlpiRxType; constant hs: boolean) return boolean is
+   function rxActive_f(constant x : in UlpiRxType) return std_logic is
    begin
       if ( x.dir = '0' ) then
-         return false;
+         return '0';
       end if;
       if ( x.trn = '1' ) then
          -- turn-around cycle that may have aborted a reg-read
-         return x.nxt = '1';
+         return x.nxt;
       end if;
-      if ( x.nxt = '1' ) then
-         return true;
-      else
-         -- x.nxt = '0'
-         if ( not hs and ( x.dat(ULPI_RXCMD_LINE_STATE_SE0_C'range) = ULPI_RXCMD_LINE_STATE_SE0_C ) ) then
-            return false; -- FullSpeed EOP for timing purposes
-         end if;
-         return ( x.dat(ULPI_RXCMD_RX_ACTIVE_BIT_C) = '1' );
-      end if;
-   end function rxActive;
+      return x.nxt or x.dat(ULPI_RXCMD_RX_ACTIVE_BIT_C);
+   end function rxActive_f;
 
    type RxBufType is record
       dat         : std_logic_vector(7 downto 0);
@@ -84,19 +76,19 @@ architecture Impl of Usb2PktRx is
 
 begin
 
-   P_COMB : process ( r, ulpiRx, crc5Out, crc16Out, hiSpeed ) is
+   P_COMB : process ( r, ulpiRx, crc5Out, crc16Out ) is
       variable v        : RegType;
-      variable rxAct    : boolean;
+      variable rxAct    : std_logic;
    begin
       v              := r;
       if ( r.pktHdr.vld = '1' ) then
          v.pktHdr.vld := '0';
          v.pktHdr.pid := USB2_PID_SPC_NONE_C;
       end if;
-      rxAct          := rxActive( ulpiRx, hiSpeed );
+      rxAct          := rxActive_f( ulpiRx );
       v.datDon       := '0';
 
-      if ( not rxAct and r.state /= WAIT_FOR_START ) then
+      if ( ( rxAct = '0' ) and ( r.state /= WAIT_FOR_START ) ) then
          if ( r.state = WAIT_FOR_EOP ) then
             if ( usb2PidIsHsk( r.pktHdr.pid ) and not r.extraDat ) then
                -- handshake is only valid if delimited by EOP
@@ -119,7 +111,7 @@ begin
       case ( r.state ) is
 
          when WAIT_FOR_START =>
-            if ( rxAct ) then
+            if ( rxAct = '1' ) then
                v.state := WAIT_FOR_PID;
             end if;
 
@@ -184,7 +176,8 @@ begin
       end case;
       end if;
 
-      rin <= v;
+      rxActive <= rxAct;
+      rin      <= v;
    end process P_COMB;
 
    P_SEQ : process ( clk ) is

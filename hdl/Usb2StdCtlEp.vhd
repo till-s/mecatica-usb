@@ -796,9 +796,12 @@ begin
                   -- packet processor keeps sending NAK until
                   -- it sees 'vld' or 'don'. Keep monitoring
                   -- the external agent
+                  v.statusAck     := ctlExt.ack;
                   epOb.mstInp.don <= ctlExt.ack;
                   if ( ctlExt.ack = '1' ) then
-                     v.state := GET_PARAMS;
+                     if ( epIb.subInp.rdy = '1' ) then
+                        v.state := GET_PARAMS;
+                     end if;
                   end if;
                else
                   epOb.mstInp.don <= '1';
