@@ -63,6 +63,7 @@ architecture Impl of Usb2PktProc is
    --       which is (approximately) used to start the timer.
    --        FS delay of SE0 detection to rxDataMst.don is 1 cycle (in addition to the rx path delay);
    --        this is *earlier* than DIR deassertion!
+   --        HS delay for DIR deassertion to rxDataMst.don is also 1 cycle
 
    -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks
    constant TIME_HSK_TX_C        : Usb2TimerType := simt(20,  10);
@@ -118,7 +119,6 @@ architecture Impl of Usb2PktProc is
       state           : StateType;
       dataTglInp      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
       dataTglOut      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
---    lstWasInp       : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
       timer           : Usb2TimerType;
       prevDevState    : Usb2DevStateType;
       tok             : Usb2PidType;
@@ -140,7 +140,6 @@ architecture Impl of Usb2PktProc is
       state           => IDLE,
       dataTglInp      => (others => '0'),
       dataTglOut      => (others => '0'),
---    lstWasInp       => (others => '0'),
       timer           => USB2_TIMER_EXPIRED_C,
       prevDevState    => DEFAULT,
       tok             => USB2_PID_SPC_NONE_C,
@@ -343,11 +342,9 @@ begin
                v.donFlg         := '0';
                v.timer          := USB2_TIMER_EXPIRED_C;
                ei               := epIb( to_integer( v.epIdx ) );
---             v.lstWasInp(v.epIdx) := '0';
                if ( isTokInp( rxPktHdr.pid ) ) then
                   v.dataCounter   := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
                   v.timer         := TIME_DATA_TX_C;
---                v.lstWasInp(ei) := '1';
                   if    ( ei.stalledInp = '1' ) then
                      v.pid     := USB2_PID_HSK_STALL_C;
                      v.timer   := TIME_HSK_TX_C;
