@@ -343,7 +343,7 @@ begin
          v.lineState := ulpiRx.dat(1 downto 0);
       end if;
 
-      v.rxActive := r.rxActive;
+      v.rxActive := rxActive;
 
       -- count time since SE0 -> J (well, we assume it's J)
       -- this happens *before* rxActive or dir are deasserted 
@@ -365,6 +365,10 @@ begin
          if ( not usb2TimerExpired( r.se0JTimer ) ) then
             v.se0JTimer := r.se0JTimer + 1;
          end if;
+      end if;
+
+      if ( not usb2TimerExpired( r.timer ) ) then
+         v.timer := r.timer - 1;
       end if;
 
       case ( r.state ) is
