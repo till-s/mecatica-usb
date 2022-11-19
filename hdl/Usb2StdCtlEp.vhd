@@ -587,9 +587,13 @@ begin
                     -- TODO; not implemented yet
                   when others => 
                end case;
-               if ( v.retState = GET_PARAMS ) then
-                  v.protoStall := '1';
-               end if;
+            end if;
+            if ( v.retState = GET_PARAMS ) then
+               v.protoStall := '1';
+               -- if we cause a STALL we don't explicitly have to enter STATUS state;
+               -- any transaction but a new SETUP will be STALLed by the packet processor.
+               -- OTOH, we want to be ready for a new SETUP so going back to GET_PARAMS
+               -- is what we have to do
             end if;
 
          -- skip the current descriptor and look for 'descType'
