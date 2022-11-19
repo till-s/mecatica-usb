@@ -17,10 +17,11 @@ SRCS+= Usb2PktProcTb.vhd
 SRCS+= Usb2PktTxTb.vhd
 SRCS+= Usb2FifoTb.vhd
 SRCS+= Usb2FifoEp.vhd
+SRCS+= Usb2FifoEpTb.vhd
 
 GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
-PROG=ulpiiotb usbcrctbltb usb2pktproctb usb2pkttxtb usb2fifotb
+PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb
 
 all: $(PROG)
 	for i in $(PROG); do if ! ./$$i; then echo "$$i FAILED"; exit 1; fi  done
@@ -31,11 +32,13 @@ build: $(PROG)
 %.o: %.vhd
 	$(GHDL) -a $(GHDLFLAGS) $<
 
-$(PROG): $(SRCS:%.vhd=%.o)
-	$(GHDL) -e $(GHDLFLAGS) -Wl,-no-pie $@
+.SECONDEXPANSION:
+
+$(PROG): $$@.o $(patsubst %.vhd,%.o,$(filter-out $(addsuffix .vhd,$(PROG)),$(SRCS)))
+	$(GHDL) -e $(GHDLFLAGS) -o $@ -Wl,-no-pie $@
 
 Usb2PktProcTb.o UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2Core.o
-Usb2FifoEp.o Usb2PktTxTb.o Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o Usb2TstPkg.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o Usb2DescPkg.o
+Usb2FifoEpTb.o Usb2FifoEp.o Usb2PktTxTb.o Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o Usb2TstPkg.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o Usb2DescPkg.o
 Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
 Usb2PktProcTb.o: Usb2TstPkg.o Usb2PktProc.o Usb2StdCtlEp.o
@@ -54,6 +57,8 @@ Usb2Fifo.o: Usb2Bram.o
 Usb2FifoEp.o: Usb2Fifo.o
 
 Usb2FifoTb.o: Usb2Fifo.o
+
+Usb2FifoEpTb.o: Usb2FifoEpTb.o Usb2FifoEp.o Usb2Core.o
 
 $(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
 

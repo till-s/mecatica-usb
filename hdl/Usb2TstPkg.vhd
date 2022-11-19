@@ -9,6 +9,8 @@ use     work.UsbUtilPkg.all;
 
 package Usb2TstPkg is
 
+   function ulpiTstNumBits(constant x: in natural) return natural;
+
    type UlpiTstObType is record
       dir  : std_logic;
       nxt  : std_logic;
@@ -186,6 +188,20 @@ package Usb2TstPkg is
 end package Usb2TstPkg;
 
 package body Usb2TstPkg is
+
+   function ulpiTstNumBits(constant x: in natural)
+   return natural is
+      variable tst : natural := 2;
+      variable n   : natural := 1;
+   begin
+-- does not work; log2(8) is slightly less than 3
+--      return natural( floor( log2( real( x ) ) ) ) + 1;
+      while x >= tst loop
+         n   := n + 1;
+         tst := 2*tst;
+      end loop;
+      return n;
+   end function ulpiTstNumBits;
 
    constant MAX_ENDPOINTS_C : natural := 16;
 
