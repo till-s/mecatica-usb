@@ -16,7 +16,7 @@ entity UlpiIO is
    port (
       rst           :  in    std_logic := '0';
       clk           :  in    std_logic;
-      stp           :  out   std_logic := '0';
+      stp           :  out   std_logic := '1'; -- section 3.12
       dir           :  in    std_logic;
       nxt           :  in    std_logic;
       dat           :  inout std_logic_vector(7 downto 0);
@@ -49,7 +49,7 @@ architecture Impl of UlpiIO is
    constant TX_REG_INIT_C : TxRegType := (
       state       => INIT,
       rep         => ULPI_REG_REP_INIT_C,
-      stp         => '0',
+      stp         => '1', -- section 3.12
       pktState    => IDLE
    );
 
@@ -287,7 +287,7 @@ begin
             dir_r   <= '1';
             din_r   <= (others => '0');
             nxt_r   <= '0';
-            stp_r   <= '0';
+            stp_r   <= '1';
             trn_r   <= '0';
          else
             dir_r   <= dir;
