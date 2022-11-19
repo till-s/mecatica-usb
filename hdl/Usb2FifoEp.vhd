@@ -106,8 +106,10 @@ begin
       fifoWen             <= wenInp and not halted;
       fullInp             <= fifoFull or halted;
 
-      fifoRen             <= usb2EpOb.subInp.rdy and not halted;
-      usb2EpIb.mstInp.vld <= not fifoEmpty       and not halted;
+      -- only freeze user-access in halted state; EP interaction with the packet
+      -- engine proceeds
+      fifoRen             <= usb2EpOb.subInp.rdy;
+      usb2EpIb.mstInp.vld <= not fifoEmpty;
       usb2EpIb.stalledInp <= halted;
       usb2EpIb.bFramedInp <= '1'; -- no framing
       usb2EpIb.mstInp.err <= '0';
@@ -189,10 +191,12 @@ begin
          end if;
       end process P_HALT;
 
-      fifoWen             <= usb2EpOb.mstOut.vld and not halted;
+      -- only freeze user-access in halted state; EP interaction with the packet
+      -- engine proceeds
+      fifoWen             <= usb2EpOb.mstOut.vld;
+      usb2EpIb.subOut.rdy <= fifoRdy;
       emptyOut            <= fifoEmpty or halted;
       fifoRen             <= renOut and not halted;
-      usb2EpIb.subOut.rdy <= fifoRdy and not halted;
 
       usb2EpIb.stalledOut <= halted;
       filledOut           <= fifoFilled;
