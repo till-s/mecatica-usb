@@ -127,7 +127,8 @@ package Usb2TstPkg is
       constant rtr : in    natural := 0;                 -- resend 'rtr' times (mimick lost ACK)
       constant w   : in    natural := 0;                 -- wait cycles
       constant timo: in    natural := 30;                -- timeout to wait for handshake
-      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C -- expected handshake
+      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake
+      constant fram: in    boolean                      := true -- frame with small tail packet
    );
 
    -- send data breaking longer sequences in fragments that fit the maxPktSize
@@ -141,7 +142,8 @@ package Usb2TstPkg is
       constant rtr : in    natural := 0;                 -- resend 'rtr' times (mimick lost ACK)
       constant w   : in    natural := 0;                 -- wait cycles
       constant timo: in    natural := 30;                -- timeout to wait for handshake
-      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C -- expected handshake
+      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake
+      constant fram: in    boolean                      := true -- frame with small tail packet
    );
 
 
@@ -434,11 +436,12 @@ report "Timed out; ticks " & integer'image(tim);
       constant rtr : in    natural := 0;                 -- resend 'rtr' times (mimick lost ACK)
       constant w   : in    natural := 0;                 -- wait cycles
       constant timo: in    natural := 30;                -- timeout to wait for handshake
-      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C -- expected handshake
+      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake
+      constant fram: in    boolean                      := true -- frame with small tail packet
    ) is
       variable stalled : boolean;
    begin
-      ulpiTstSendDat(ob, stalled, v, epo, dva, stup, rtr, w, timo, epid);
+      ulpiTstSendDat(ob, stalled, v, epo, dva, stup, rtr, w, timo, epid, fram);
       assert stalled = false report "Unexpected stall" severity failure;
    end procedure ulpiTstSendDat;
 
@@ -454,7 +457,8 @@ report "Timed out; ticks " & integer'image(tim);
       constant rtr : in    natural := 0;                 -- resend 'rtr' times (mimick lost ACK)
       constant w   : in    natural := 0;                 -- wait cycles
       constant timo: in    natural := 30;                -- timeout to wait for handshake
-      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C -- expected handshake
+      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake
+      constant fram: in    boolean                      := true -- frame with small tail packet
    ) is
       variable idx : natural;
       constant epou: natural := to_integer( unsigned( epo ) );
@@ -494,7 +498,7 @@ report "Timed out; ticks " & integer'image(tim);
             end if;
             assert pid = epid report "unexpected handshake response to data TX" &
 "got " & integer'image(to_integer(unsigned(pid))) & " exp " & integer'image(to_integer(unsigned(epid))) severity failure;
-            if ( rr = rtr ) then
+            if ( rr = rtr and pid = USB2_PID_HSK_ACK_C ) then
                -- accept the last one
                dtglOut( epou ) := not dtglOut( epou );
                -- setup initializes in/out toggles to '1'
@@ -505,7 +509,7 @@ report "Timed out; ticks " & integer'image(tim);
             ulpiClkTick;
          end loop;
          idx := idx + cln;
-         if ( cln < MSZ or stup ) then
+         if ( cln < MSZ or ( (idx = v'high + 1 ) and  ( stup or not fram ) ) ) then
             -- SETUP does not need a zero-length terminator!
             exit L_FRAG;
          end if;
@@ -554,7 +558,7 @@ report "ABORT";
          assert (ulpiTstIb.stp = '0'   )  report "unexpected STP" severity failure;
          if ( i <= eda'high ) then
 if ( ulpiTstIb.dat /= eda(i) ) then
-report integer'image(to_integer(unsigned(ulpiTstIb.dat))) & " " & integer'image(to_integer(unsigned(eda(i))));
+report "got " & integer'image(to_integer(unsigned(ulpiTstIb.dat))) & " exp " & integer'image(to_integer(unsigned(eda(i))));
 end if;
             assert (ulpiTstIb.dat = eda(i))  report "unexpected data @ " & integer'image(i) severity failure;
          end if;
@@ -630,7 +634,7 @@ end if;
             end if;
             ulpiClkTick;
          end loop;
-         if ( cln < MSZ or nofr ) then
+         if ( cln < MSZ or (idx = eda'high + 1 and nofr ) ) then
             exit L_FRAG;
          end if;
       end loop;

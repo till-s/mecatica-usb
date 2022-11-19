@@ -58,7 +58,7 @@ Usb2FifoEp.o: Usb2Fifo.o
 
 Usb2FifoTb.o: Usb2Fifo.o
 
-Usb2FifoEpTb.o: Usb2FifoEpTb.o Usb2FifoEp.o Usb2Core.o
+Usb2FifoEpTb.o: Usb2FifoEp.o Usb2Core.o
 
 $(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
 

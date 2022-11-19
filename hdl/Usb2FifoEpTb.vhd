@@ -216,6 +216,8 @@ begin
       constant strdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(stridx + 4 to stridx + 9);
       variable epCfg          : Usb2TstEpCfgArray      := (others => USB2_TST_EP_CFG_INIT_C);
 
+      variable idx            : natural;
+
    begin
       epCfg( to_integer( USB2_ENDP_ZERO_C ) ).maxPktSizeInp := to_integer(unsigned(EP0_SZ_C));
       epCfg( to_integer( USB2_ENDP_ZERO_C ) ).maxPktSizeOut := to_integer(unsigned(EP0_SZ_C));
@@ -230,10 +232,57 @@ begin
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C,     val => (x"00" & CONFIG_VALUE_C ) );
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
 
-report "pre-dat";
-      ulpiTstSendDat(ulpiTstOb, d2, EP1, DEV_ADDR_C);
+      ulpiTstSendDat(ulpiTstOb, d2, EP1, DEV_ADDR_C, fram => false);
+      ulpiTstSendDat(ulpiTstOb, d2(0 to 0), EP1, DEV_ADDR_C, fram => false, epid => USB2_PID_HSK_NAK_C);
+
+      idx := 0;
+      fifoRenOut <= '1';
+      ulpiClkTick;
+      while ( fifoEmptyOut = '0' ) loop
+         assert d2(idx) = fifoDatOut report "OUT fifo mismatch" severity failure;
+         idx := idx + 1; 
+         ulpiClkTick;
+      end loop;
+      fifoRenOut <= '0';
+      ulpiClkTick;
+      assert idx = d2'length report "OUT fifo - not all elements read" severity failure;
+
+      -- must resend NAKed data!
+      ulpiTstSendDat(ulpiTstOb, d2(0 to 0), EP1, DEV_ADDR_C, fram => false);
+      ulpiTstSendDat(ulpiTstOb, d2(1 to 12), EP1, DEV_ADDR_C, fram => false);
 
       ulpiClkTick;
+
+      idx := 0;
+      while ( fifoFullInp = '0' ) loop
+         fifoRenOut <= '1';
+         ulpiClkTick;
+         fifoDatInp <= fifoDatOut;
+         fifoWenInp <= '1';
+         fifoRenOut <= '0';
+         idx := idx + 1;
+         ulpiClkTick;
+         fifoWenInp <= '0';
+         ulpiClkTick;
+      end loop;
+      ulpiClkTick;
+
+      ulpiTstWaitDat(ulpiTstOb, d2(0 to 9), EP1, DEV_ADDR_C, nofr => true);
+
+      L_CPY : while ( (fifoEmptyOut or fifoFullInp) = '0' ) loop
+         fifoRenOut <= '1';
+         ulpiClkTick;
+         fifoDatInp <= fifoDatOut;
+         fifoWenInp <= '1';
+         fifoRenOut <= '0';
+         idx := idx + 1;
+         ulpiClkTick;
+         fifoWenInp <= '0';
+         ulpiClkTick;
+      end loop;
+      ulpiClkTick;
+
+      ulpiTstWaitDat(ulpiTstOb, d2(10 to 12), EP1, DEV_ADDR_C, nofr => true);
 
       for i in 0 to 20 loop
          ulpiClkTick;

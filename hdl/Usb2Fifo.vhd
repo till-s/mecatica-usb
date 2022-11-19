@@ -88,17 +88,20 @@ architecture Impl of Usb2Fifo is
    signal fifoFull  : std_logic;
    signal fifoWen   : std_logic;
    signal fifoRen   : std_logic;
-   signal advance   : std_logic;
+   signal advanceReg: std_logic;
+   signal advanceMem: std_logic;
 
    signal fillOff   : IdxType := (others => '0');
 
 begin
 
-   fifoFull  <= isFull( r );
-   fifoWen   <= not isFull( r ) and wen;
-   fifoEmpty <= not r.vld(0) or rin.delayRd;
+   fifoFull   <= isFull( r );
+   fifoWen    <= not isFull( r ) and wen;
+   fifoEmpty  <= not r.vld(0) or rin.delayRd;
 
-   advance   <= not r.vld(0) or (ren and not rin.delayRd);
+   advanceReg <= not r.vld(0) or (ren and not rin.delayRd);
+   -- if there is no register then advanceMem == advanceReg
+   advanceMem <= not r.vld(r.vld'left) or advanceReg;
 
    G_THR_EXACT : if ( EXACT_THR_G ) generate
       P_FILL_OFF : process ( r ) is
@@ -114,7 +117,7 @@ begin
       end process P_FILL_OFF;
    end generate G_THR_EXACT;
 
-   P_COMB : process ( r, wen, ren, minFill, fillOff, timer, fifoWen, advance ) is
+   P_COMB : process ( r, wen, ren, minFill, fillOff, timer, fifoWen, advanceReg, advanceMem ) is
       variable v : RegType;
    begin
       v := r;
@@ -136,13 +139,17 @@ begin
          v.delayRd := not r.vld(0);
       end if;
 
-      if ( advance = '1' ) then
-         -- advance register pipeline while there is space (r.vld(0) = '0') or
-         -- the last entry is popped (r.vld(0) = '1' and ren = '1')
-         v.vld := not isEmpty(r) & r.vld(r.vld'left downto 1);
+      -- advance register pipeline while there is space (r.vld(0) = '0') or
+      -- the last entry is popped (r.vld(0) = '1' and ren = '1')
+
+      if ( advanceMem = '1' ) then
+         v.vld(v.vld'left) := not isEmpty(r);
          if ( isEmpty(r) = '0' ) then
             v.rdPtr := r.rdPtr + 1;
          end if;
+      end if;
+      if ( advanceReg = '1' ) then
+         v.vld := v.vld(v.vld'left) & r.vld(r.vld'left downto 1);
       end if;
 
       if ( fifoWen = '1' ) then
@@ -181,8 +188,8 @@ begin
          rdata        => open,
          wdata        => din,
 
-         enb          => advance,
-         ceb          => advance,
+         enb          => advanceMem,
+         ceb          => advanceReg,
          web          => open,
          addrb        => r.rdPtr(r.rdPtr'left - 1 downto 0),
          rdatb        => dou,
