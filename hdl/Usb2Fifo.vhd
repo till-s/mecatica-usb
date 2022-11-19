@@ -139,7 +139,7 @@ begin
       if ( advance = '1' ) then
          -- advance register pipeline while there is space (r.vld(0) = '0') or
          -- the last entry is popped (r.vld(0) = '1' and ren = '1')
-         v.vld := not isEmpty(r) & r.vld(r.vld'left - 1 downto 0);
+         v.vld := not isEmpty(r) & r.vld(r.vld'left downto 1);
          if ( isEmpty(r) = '0' ) then
             v.rdPtr := r.rdPtr + 1;
          end if;
