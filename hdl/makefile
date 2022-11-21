@@ -18,7 +18,7 @@ SRCS+= Usb2PktTxTb.vhd
 SRCS+= Usb2FifoTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
-SRCS+= CDCACMLineBreak.vhd
+SRCS+= CDCACMSendBreak.vhd
 
 GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
