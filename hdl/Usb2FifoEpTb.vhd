@@ -290,11 +290,11 @@ begin
       ulpiTstWaitDat(ulpiTstOb, d2(10 to 12), EP1, DEV_ADDR_C, nofr => true);
 
       assert lineBreak = '0' report "line-break initially not 0" severity failure;
-      ulpiTstSendCtlReq(ulpiTstOb, x"23", DEV_ADDR_C, val => x"ffff");
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SEND_BREAK_C, DEV_ADDR_C, val => x"ffff");
       assert lineBreak = '1' report "line-break not 1" severity failure;
-      ulpiTstSendCtlReq(ulpiTstOb, x"23", DEV_ADDR_C, val => x"0000");
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SEND_BREAK_C, DEV_ADDR_C, val => x"0000");
       assert lineBreak = '0' report "line-break not reset to 0" severity failure;
-      ulpiTstSendCtlReq(ulpiTstOb, x"23", DEV_ADDR_C, val => x"0001");
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SEND_BREAK_C, DEV_ADDR_C, val => x"0001");
       assert lineBreak = '1' report "line-break not 1 (2nd time)" severity failure;
       ulpiTstSendTok(ulpiTstOb, USB2_PID_TOK_SOF_C, "0000", "0000000" );
       -- 1 frame time = 'at least' 1 frame...

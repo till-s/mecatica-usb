@@ -302,6 +302,11 @@ package Usb2Pkg is
    constant USB2_REQ_STD_SET_INTERFACE_C           : Usb2StdRequestCodeType     := x"B";
    constant USB2_REQ_STD_SYNCH_FRAME_C             : Usb2StdRequestCodeType     := x"C";
 
+   subtype  Usb2CtlRequestCodeType                 is unsigned(7 downto 0);
+
+   -- class-specific request
+   constant USB2_REQ_CLS_CDC_SEND_BREAK_C : Usb2CtlRequestCodeType := x"23";
+
    subtype  Usb2StdDescriptorTypeType              is unsigned(3 downto 0);
    constant USB2_STD_DESC_TYPE_DEVICE_C            : Usb2StdDescriptorTypeType  := x"1";
    constant USB2_STD_DESC_TYPE_CONFIGURATION_C     : Usb2StdDescriptorTypeType  := x"2";
@@ -326,7 +331,7 @@ package Usb2Pkg is
       reqType   : std_logic_vector( 1 downto 0);
       recipient : std_logic_vector( 1 downto 0);
       -- hold all bits to support non-std requests
-      request   : unsigned        ( 7 downto 0);   
+      request   : Usb2CtlRequestCodeType;
       value     : std_logic_vector(15 downto 0);
       index     : std_logic_vector(15 downto 0);
       length    : unsigned        (15 downto 0);

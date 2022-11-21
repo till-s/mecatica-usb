@@ -37,8 +37,6 @@ architecture Impl of CDCACMSendBreak is
    signal r    : RegType := REG_INIT_C;
    signal rin  : RegType;
 
-   constant USB2_REQ_CLS_CDC_SEND_BREAK_C : unsigned(7 downto 0) := x"23";
-
    function accept(constant x: Usb2CtlReqParamType)
    return boolean is
    begin
