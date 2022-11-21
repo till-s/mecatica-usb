@@ -175,6 +175,11 @@ architecture sim of Usb2FifoEpTb is
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
    signal devStatus                : Usb2DevStatusType;
+   signal usb2SOF                  : std_logic;
+   signal lineBreak                : std_logic;
+
+   signal ep0ReqParam              : Usb2CtlReqParamType;
+   signal ep0CtlExt                : Usb2CtlExtType;
 
    signal fifoDatInp               : Usb2ByteType := (others => 'U');
    signal fifoDatOut               : Usb2ByteType;
@@ -284,6 +289,18 @@ begin
 
       ulpiTstWaitDat(ulpiTstOb, d2(10 to 12), EP1, DEV_ADDR_C, nofr => true);
 
+      assert lineBreak = '0' report "line-break initially not 0" severity failure;
+      ulpiTstSendCtlReq(ulpiTstOb, x"23", DEV_ADDR_C, val => x"ffff");
+      assert lineBreak = '1' report "line-break not 1" severity failure;
+      ulpiTstSendCtlReq(ulpiTstOb, x"23", DEV_ADDR_C, val => x"0000");
+      assert lineBreak = '0' report "line-break not reset to 0" severity failure;
+      ulpiTstSendCtlReq(ulpiTstOb, x"23", DEV_ADDR_C, val => x"0001");
+      assert lineBreak = '1' report "line-break not 1 (2nd time)" severity failure;
+      ulpiTstSendTok(ulpiTstOb, USB2_PID_TOK_SOF_C, "0000", "0000000" );
+      -- 1 frame time = 'at least' 1 frame...
+      ulpiTstSendTok(ulpiTstOb, USB2_PID_TOK_SOF_C, "0000", "0000000" );
+      assert lineBreak = '0' report "line-break not 0 (2nd time)" severity failure;
+
       for i in 0 to 20 loop
          ulpiClkTick;
       end loop;
@@ -310,9 +327,10 @@ begin
 
       usb2DevStatus                => devStatus,
       usb2PktHdr                   => open,
+      usb2SOF                      => usb2SOF,
 
-      usb2Ep0ReqParam              => open,
-      usb2Ep0CtlExt                => open,
+      usb2Ep0ReqParam              => ep0ReqParam,
+      usb2Ep0CtlExt                => ep0CtlExt,
       usb2Ep0CtlEpExt              => open,
 
       usb2EpIb                     => epIb,
@@ -356,6 +374,17 @@ begin
          clrHalt                   => devStatus.clrHalt,
          selHaltInp                => devStatus.selHaltInp(TST_EP_IDX_C),
          selHaltOut                => devStatus.selHaltOut(TST_EP_IDX_C)
+      );
+
+   U_BRK : entity work.CDCACMSendBreak
+      port map (
+         clk                       => ulpiTstClk,
+         rst                       => open,
+
+         usb2SOF                   => usb2SOF,
+         usb2Ep0ReqParam           => ep0ReqParam,
+         usb2Ep0CtlExt             => ep0CtlExt,
+         lineBreak                 => lineBreak
       );
 
    P_EP_1  : process ( ulpiTstClk ) is

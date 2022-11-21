@@ -4,7 +4,7 @@ use     ieee.numeric_std.all;
 
 use     work.Usb2Pkg.all;
 
-entity CDCACMLineBreak is
+entity CDCACMSendBreak is
    port (
       clk             : in  std_logic;
       rst             : in  std_logic := '0';
@@ -14,9 +14,9 @@ entity CDCACMLineBreak is
       usb2Ep0CtlExt   : out Usb2CtlExtType;
       lineBreak       : out std_logic
    );
-end entity CDCACMLineBreak;
+end entity CDCACMSendBreak;
 
-architecture Impl of CDCACMLineBreak is
+architecture Impl of CDCACMSendBreak is
 
    type StateType is (IDLE, ACK, DONE);
 
@@ -77,7 +77,7 @@ begin
                   v.timer(16)          := '1';
                   if    ( usb2Ep0ReqParam.value = x"0000" ) then
                      v.indef     := false;
-                     v.timer(16) := '1';
+                     v.timer(16) := '0';
                   elsif ( usb2Ep0ReqParam.value = x"ffff" ) then
                      v.indef     := true;
                   end if;

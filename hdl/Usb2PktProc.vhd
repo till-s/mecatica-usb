@@ -30,7 +30,7 @@ entity Usb2PktProc is
       rxDataMst       : in  Usb2StrmMstType;
       -- asserted for one cycle when a SOF token is seen;
       -- synchronous with rxPktHdr.vld
-      usbSOF          : out std_logic
+      usb2SOF         : out std_logic
    );
 end entity Usb2PktProc;
 
@@ -787,7 +787,7 @@ begin
       end if;
 
       epObDbg <= epObLoc( to_integer( rd.epIdx ) );
-      usbSof  <= sof;
+      usb2SOF <= sof;
 
    end process P_COMB;
 

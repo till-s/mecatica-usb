@@ -46,6 +46,7 @@ entity Usb2Core is
       usb2DevStatus                : out   Usb2DevStatusType;
       -- incoming packet headers; e.g., SOFs can be seen here
       usb2PktHdr                   : out   Usb2PktHdrType;
+      usb2SOF                      : out   std_logic;
 
       -- control ports for extending EP0 functionality (e.g., to handle
       -- class-specific requests). See Usb2StdCtlEp.vhd for more comments.
@@ -156,6 +157,7 @@ begin
 
       ulpiRx          => ulpiRx,
       rxActive        => rxActive,
+      usb2SOF         => usb2SOF,
 
       txDataMst       => txDataMst,
       txDataSub       => txDataSub,

@@ -334,6 +334,7 @@ report "GET_DESCRIPTOR(STR)";
 
       usb2DevStatus                => open,
       usb2PktHdr                   => open,
+      usb2SOF                      => open,
 
       usb2Ep0ReqParam              => open,
       usb2Ep0CtlExt                => open,

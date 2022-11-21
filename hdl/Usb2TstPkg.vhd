@@ -177,7 +177,7 @@ package Usb2TstPkg is
    -- send a control sequence
    procedure ulpiTstSendCtlReq(
       signal   ob  : inout UlpiTstObType;
-      constant cod : in    Usb2StdRequestCodeType;                            -- request code (supported by this procedure)
+      constant cod : in    unsigned;                                          -- request code (supported by this procedure)
       constant dva : in    Usb2DevAddrType;                                   -- usb device address
       constant val : in    std_logic_vector(15 downto 0) := (others => '0');  -- request value
       constant idx : in    std_logic_vector(15 downto 0) := (others => '0');  -- request index
@@ -643,7 +643,7 @@ end if;
    -- send a control sequence
    procedure ulpiTstSendCtlReq(
       signal   ob  : inout UlpiTstObType;
-      constant cod : in    Usb2StdRequestCodeType;                            -- request code (supported by this procedure)
+      constant cod : in    unsigned;                                          -- request code (supported by this procedure)
       constant dva : in    Usb2DevAddrType;                                   -- usb device address
       constant val : in    std_logic_vector(15 downto 0) := (others => '0');  -- request value
       constant idx : in    std_logic_vector(15 downto 0) := (others => '0');  -- request index
@@ -663,33 +663,38 @@ end if;
       variable len       : unsigned(15 downto 0) := to_unsigned(eda'length, 16);
       variable v         : Usb2ByteArray(0 to 7);
       variable stalled   : boolean;
+      constant codl      : unsigned(7 downto 0) := resize(cod, 8);
    begin
       v             := (others => (others => '0'));
-      v(1)          := x"0" & std_logic_vector(cod);
+      v(1)          := std_logic_vector( resize(cod, v(1)'length) );
       v(VAL_I_L_C)  := val( 7 downto 0);
       v(VAL_I_H_C)  := val(15 downto 8);
       v(IDX_I_L_C)  := idx( 7 downto 0);
       v(IDX_I_H_C)  := idx(15 downto 8);
       v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
       v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
-      case ( cod ) is
-         when USB2_REQ_STD_GET_CONFIGURATION_C =>
+      case ( codl ) is
+         when x"0" & USB2_REQ_STD_GET_CONFIGURATION_C =>
             v(TYP_I_C)(7) := '1';
 
-         when USB2_REQ_STD_GET_INTERFACE_C =>
+         when x"0" & USB2_REQ_STD_GET_INTERFACE_C =>
             v(TYP_I_C)(7) := '1';
 
-         when USB2_REQ_STD_GET_DESCRIPTOR_C =>
+         when x"0" & USB2_REQ_STD_GET_DESCRIPTOR_C =>
             v(TYP_I_C)(7) := '1';
             len           := len + 20;
             v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
             v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
             
 
-         when USB2_REQ_STD_SET_ADDRESS_C =>
+         when x"0" & USB2_REQ_STD_SET_ADDRESS_C =>
 
-         when USB2_REQ_STD_SET_CONFIGURATION_C =>
-         when USB2_REQ_STD_SET_INTERFACE_C =>
+         when x"0" & USB2_REQ_STD_SET_CONFIGURATION_C =>
+         when x"0" & USB2_REQ_STD_SET_INTERFACE_C =>
+
+         -- hack; works as long as this doesn't overlap with other codes
+         when x"23" =>
+           v(TYP_I_C) := "00100001";
           
          when others =>
             assert false report "Unsupported request code" severity failure;
