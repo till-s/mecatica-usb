@@ -366,9 +366,15 @@ package Usb2Pkg is
       don       : std_logic;
    end record Usb2CtlExtType;
 
-   constant USB2_CTL_EXT_INIT_C : Usb2CtlExtType := (
+   constant USB2_CTL_EXT_NAK_C : Usb2CtlExtType := (
       ack       => '1',
       err       => '1',
+      don       => '0'
+   );
+
+   constant USB2_CTL_EXT_INIT_C : Usb2CtlExtType := (
+      ack       => '0',
+      err       => '0',
       don       => '0'
    );
 

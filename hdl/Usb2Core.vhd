@@ -50,7 +50,7 @@ entity Usb2Core is
       -- control ports for extending EP0 functionality (e.g., to handle
       -- class-specific requests). See Usb2StdCtlEp.vhd for more comments.
       usb2Ep0ReqParam              : out   Usb2CtlReqParamType;
-      usb2Ep0CtlExt                : in    Usb2CtlExtType     := USB2_CTL_EXT_INIT_C;
+      usb2Ep0CtlExt                : in    Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
       usb2Ep0CtlEpExt              : in    Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
 
       -- Endpoints are attached here (1 and up)
