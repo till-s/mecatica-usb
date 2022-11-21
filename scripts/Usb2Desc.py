@@ -344,6 +344,29 @@ class Usb2DescContext(list):
       self.cont[4+n] = v & 0xff
       return self
 
+  @factory
+  class Usb2CDCFuncEthernetDesc(Usb2CDCDesc.clazz):
+
+    DSC_ETH_SUP_MC_PERFECT = 0x8000 # flag in wNumberMCFilters
+
+    def __init__(self):
+      super().__init__(13, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_ETHERNET_NETWORKING )
+      self.bmEthernetStatistics( 0 )
+      self.wMaxSegmentSize( 1514 )
+      self.wNumberMCFilters( 0 )
+      self.bNumberPowerFilters( 0 )
+    @acc(3)
+    def iMACAddress(self, v): return self.addString(vo
+    @acc(4,4)
+    def bmEthernetStatistics(self, v): return v
+    @acc(8,2)
+    def wMaxSegmentSize(self, v): return v
+    @acc(10, 2)
+    def wNumberMCFilters(self, v): return v
+    @acc(12)
+    def bNumberPowerFilters(self, v): return v
+
 def basicACM(epPktSize=8):
   c  = Usb2DescContext()
 
@@ -390,7 +413,7 @@ def basicACM(epPktSize=8):
   d.bControlInterface( 0 )
   d.bSubordinateInterface( 0, 1 )
 
-  # Endpoint -- unused but linux cdc-acm driver refuses to load w/o it
+  # Endpoint -- unused but linux cdc-acm driver refuses to bind w/o it
   # endpoint 2, INTERRUPT IN
   d = c.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_IN  | 0x02 )
