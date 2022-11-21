@@ -18,6 +18,7 @@ SRCS+= Usb2PktTxTb.vhd
 SRCS+= Usb2FifoTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
+SRCS+= CDCACMLineBreak.vhd
 
 GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
@@ -47,6 +48,8 @@ Usb2PktProc.o: Usb2Bram.o
 Usb2Core.o: UlpiIO.o Usb2PktProc.o Usb2PktRx.o Usb2PktTx.o Usb2StdCtlEp.o
 
 Usb2PktTxTb.o: UlpiIO.o Usb2PktTx.o
+
+CDCACMLineBreak.o: Usb2Pkg.o
 
 Usb2DescPkg.o: Usb2AppCfgPkg.o
 Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
