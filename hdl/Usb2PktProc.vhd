@@ -27,7 +27,10 @@ entity Usb2PktProc is
       txDataMst       : out Usb2StrmMstType;
       txDataSub       : in  Usb2StrmSubType;
       rxPktHdr        : in  Usb2PktHdrType;
-      rxDataMst       : in  Usb2StrmMstType
+      rxDataMst       : in  Usb2StrmMstType;
+      -- asserted for one cycle when a SOF token is seen;
+      -- synchronous with rxPktHdr.vld
+      usbSOF          : out std_logic
    );
 end entity Usb2PktProc;
 
@@ -209,18 +212,14 @@ architecture Impl of Usb2PktProc is
    function checkTokHdr(
       constant h: Usb2PktHdrType;
       constant s: Usb2DevStatusType;
-      constant c: Usb2EndpPairConfigArray) return boolean
+      constant c: Usb2EndpPairConfigArray
+   ) return boolean
    is
       variable epidx : Usb2EndpIdxType;
       variable daddr : Usb2DevAddrType;
    begin
       epidx := usb2TokenPktEndp( h );
       daddr := usb2TokenPktAddr( h );
-
-      -- reject non-tokens or SOF tokens
-      if ( not usb2PidIsTok( h.pid ) or ( USB2_PID_TOK_SOF_C(3 downto 2) = h.pid(3 downto 2) ) ) then
-         return false;
-      end if;
 
       if ( epidx = USB2_ENDP_ZERO_C ) then
          -- directed to default control pipe
@@ -294,10 +293,12 @@ begin
    P_COMB : process ( r, rd, devStatus, epConfig, epIb, epObLoc, txDataSub, rxPktHdr, rxDataMst, bufReadbackInp, ulpiRx, rxActive ) is
       variable v  : RegType;
       variable ei : Usb2EndpPairIbType;
+      variable sof: std_logic;
    begin
       v                := r;
       v.prevDevState   := devStatus.state;
       ei               := epIb( to_integer( r.epIdx ) );
+      sof              := '0';
       epIbDbg          <= ei;
 
       txDataMst        <= ei.mstInp;
@@ -373,77 +374,85 @@ begin
 
       case ( r.state ) is
          when IDLE =>
-            if ( ( rxPktHdr.vld = '1' ) and checkTokHdr( rxPktHdr, devStatus, epConfig ) ) then
-               -- ignore SE0-J in hi-speed mode
-               v.se0JSeen       := devStatus.hiSpeed;
-               v.tok            := rxPktHdr.pid;
-               v.epIdx          := usb2TokenPktEndp( rxPktHdr );
-               v.donFlg         := '0';
-               v.timer          := USB2_TIMER_EXPIRED_C;
-               ei               := epIb( to_integer( v.epIdx ) );
-               if ( isTokInp( rxPktHdr.pid ) ) then
-                  v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
-                  v.timer       := TIME_DATA_TX_C;
-                  v.state       := WAIT_TX;
-                  if    ( ei.stalledInp = '1' ) then
-                     v.pid      := USB2_PID_HSK_STALL_C;
-                     v.timer    := TIME_HSK_TX_C;
-                     v.nxtState := HSK;
-                  elsif ( epConfig( to_integer( v.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
-                     v.nxtState := ISO_INP;
-                     v.pid      := USB2_PID_DAT_DATA0_C;
-                  elsif ( (ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' ) then
-                     v.pid      := USB2_PID_HSK_NAK_C;
-                     v.timer    := TIME_HSK_TX_C;
-                     v.nxtState := HSK;
-                  else
+            if ( ( rxPktHdr.vld = '1' ) ) then
+               if ( usb2PidIsTok( rxPktHdr.pid ) ) then
+                  if ( USB2_PID_TOK_SOF_C(3 downto 2) = rxPktHdr.pid(3 downto 2) ) then
+                     sof := '1';
+                  elsif ( checkTokHdr( rxPktHdr, devStatus, epConfig ) ) then
+                     -- ignore SE0-J in hi-speed mode
+                     v.se0JSeen       := devStatus.hiSpeed;
+                     v.tok            := rxPktHdr.pid;
+                     v.epIdx          := usb2TokenPktEndp( rxPktHdr );
+                     v.donFlg         := '0';
+                     v.timer          := USB2_TIMER_EXPIRED_C;
+                     ei               := epIb( to_integer( v.epIdx ) );
+                     if ( isTokInp( rxPktHdr.pid ) ) then
+                        v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
+                        v.timer       := TIME_DATA_TX_C;
+                        v.state       := WAIT_TX;
+                        if    ( ei.stalledInp = '1' ) then
+                           v.pid      := USB2_PID_HSK_STALL_C;
+                           v.timer    := TIME_HSK_TX_C;
+                           v.nxtState := HSK;
+                        elsif ( epConfig( to_integer( v.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
+                           v.nxtState := ISO_INP;
+                           v.pid      := USB2_PID_DAT_DATA0_C;
+                           -- must send a null packet if there is no data (usb 5.6.5)
+                           v.donFlg   := not ei.mstInp.vld;
+                        elsif ( (ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' ) then
+                           v.pid      := USB2_PID_HSK_NAK_C;
+                           v.timer    := TIME_HSK_TX_C;
+                           v.nxtState := HSK;
+                        else
 -- For now we retry forever
---                  if ( r.bufInpVld = '1' ) then
---                     -- a retry
---                     if ( r.retries < 2 ) then
---                        v.retries := r.retries + 1;
---                        v.state   := DATA_REP;
---                        v.timer   := TIME_DATA_TX_C;
---                     else
---                        -- should stall/halt the device or endpoint? for now we just drop
---                        v.retries   := 0;
---                        v.bufRWIdx  := r.bufVldIdx;
---                        v.bufInpVld := '0';
---
-                     if ( r.dataTglInp( to_integer( v.epIdx ) ) = '0' ) then
-                        v.pid := USB2_PID_DAT_DATA0_C;
-                     else
-                        v.pid := USB2_PID_DAT_DATA1_C;
-                     end if;
-                     if ( (r.bufInpVld or r.bufInpPart) = '1' ) then
-                        v.nxtState  := DATA_REP;
-                        -- pre-load next readout
-                        v.bufRWIdx  := r.bufRWIdx + 1;
-                        v.tmpVld    := '0';
-                        if ( r.bufRWIdx = r.bufEndIdx ) then
-                           -- empty packet - avoid DATA_REP; the WAIT_ACK phase
-                           -- handles the 'don' handshaking
-                           v.nxtState := WAIT_DON;
-                           v.donFlg   := '1';
-                           v.bufRWIdx := r.bufRWIdx;
+--                        if ( r.bufInpVld = '1' ) then
+--                           -- a retry
+--                           if ( r.retries < 2 ) then
+--                              v.retries := r.retries + 1;
+--                              v.state   := DATA_REP;
+--                              v.timer   := TIME_DATA_TX_C;
+--                           else
+--                              -- should stall/halt the device or endpoint? for now we just drop
+--                              v.retries   := 0;
+--                              v.bufRWIdx  := r.bufVldIdx;
+--                              v.bufInpVld := '0';
+--      
+                           if ( r.dataTglInp( to_integer( v.epIdx ) ) = '0' ) then
+                              v.pid := USB2_PID_DAT_DATA0_C;
+                           else
+                              v.pid := USB2_PID_DAT_DATA1_C;
+                           end if;
+                           if ( (r.bufInpVld or r.bufInpPart) = '1' ) then
+                              v.nxtState  := DATA_REP;
+                              -- pre-load next readout
+                              v.bufRWIdx  := r.bufRWIdx + 1;
+                              v.tmpVld    := '0';
+                              if ( r.bufRWIdx = r.bufEndIdx ) then
+                                 -- empty packet - avoid DATA_REP; the WAIT_ACK phase
+                                 -- handles the 'don' handshaking
+                                 v.nxtState := WAIT_DON;
+                                 v.donFlg   := '1';
+                                 v.bufRWIdx := r.bufRWIdx;
+                              end if;
+                           else
+                              v.nxtState := DATA_INP;
+                           end if;
                         end if;
                      else
-                        v.nxtState := DATA_INP;
+                        v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeOut - 1;
+                        v.timer       := TIME_WAIT_DATA_PID_C;
+                        v.state       := DATA_PID;
+-- This happens anyways...
+--                      if (     ( r.lstWasInp( ei ) = '1' ) and
+--                           and ( epConfig( to_integer( v.epIdx ) ).transferTypeOut = USB2_TT_CONTROL_C ) then
+--                         -- this must be a status transaction; if the last ack was lost then we take
+--                         -- this as an ACK (8.5.3.3)
+--                      invalidateBuffer( v );
+--                      end if;
+                        -- make sure there is nothing left in the write area
+                        invalidateBuffer( v );
                      end if;
                   end if;
-               else
-                  v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeOut - 1;
-                  v.timer       := TIME_WAIT_DATA_PID_C;
-                  v.state       := DATA_PID;
--- This happens anyways...
---                if (     ( r.lstWasInp( ei ) = '1' ) and
---                     and ( epConfig( to_integer( v.epIdx ) ).transferTypeOut = USB2_TT_CONTROL_C ) then
---                   -- this must be a status transaction; if the last ack was lost then we take
---                   -- this as an ACK (8.5.3.3)
---                invalidateBuffer( v );
---                end if;
-                  -- make sure there is nothing left in the write area
-                  invalidateBuffer( v );
                end if;
             end if;
 
@@ -503,7 +512,18 @@ begin
                epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy;
                txDataMst.vld                            <= ei.mstInp.vld;
                txDataMst.don                            <= ei.mstInp.don;
-               
+
+               if ( ei.bFramedInp = '1' ) then
+                  -- if they don't want us to frame the input data
+                  -- then we must assert txDatMst.don as soon as ei.mstInp.vld turns off
+                  -- we then proceed to the ACK phase
+                  txDataMst.don <= not ei.mstInp.vld;
+
+                  if ( ei.mstInp.vld = '0' ) then
+                     v.donFlg      := '1';
+                  end if;
+               end if;
+              
                -- consume one item and create a fragment if we filled the segment
                if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
                   v.dataCounter := r.dataCounter - 1;
@@ -767,6 +787,7 @@ begin
       end if;
 
       epObDbg <= epObLoc( to_integer( rd.epIdx ) );
+      usbSof  <= sof;
 
    end process P_COMB;
 
