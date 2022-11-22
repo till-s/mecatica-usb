@@ -305,7 +305,7 @@ package Usb2Pkg is
    subtype  Usb2CtlRequestCodeType                 is unsigned(7 downto 0);
 
    -- class-specific request
-   constant USB2_REQ_CLS_CDC_SEND_BREAK_C : Usb2CtlRequestCodeType := x"23";
+   constant USB2_REQ_CLS_CDC_SEND_BREAK_C          : Usb2CtlRequestCodeType     := x"23";
 
    subtype  Usb2StdDescriptorTypeType              is unsigned(3 downto 0);
    constant USB2_STD_DESC_TYPE_DEVICE_C            : Usb2StdDescriptorTypeType  := x"1";
