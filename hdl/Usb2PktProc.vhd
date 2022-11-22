@@ -350,6 +350,7 @@ begin
       -- this happens *before* rxActive or dir are deasserted 
       if ( devStatus.hiSpeed ) then
          v.se0JTimer := (others => '0');
+         v.se0JSeen  := true;
       else
          if ( rxActive = '1' ) then
             if ( r.rxActive = '0' ) then
@@ -374,8 +375,18 @@ begin
 
       case ( r.state ) is
          when IDLE =>
+            v.donFlg := '0';
             if ( ( rxPktHdr.vld = '1' ) ) then
-               if ( usb2PidIsTok( rxPktHdr.pid ) ) then
+               if ( devStatus.hiSpeed and r.tok /= USB2_PID_TOK_SETUP_C and rxPktHdr.pid = USB2_PID_SPC_PING_C ) then
+                  if ( epIb( to_integer( v.epIdx ) ).subOut.rdy = '1' ) then
+                     v.pid := USB2_PID_HSK_ACK_C;
+                  else
+                     v.pid := USB2_PID_HSK_NAK_C;
+                  end if;
+                  v.timer    := TIME_HSK_TX_C;
+                  v.nxtState := HSK;
+                  v.state    := WAIT_TX;
+               elsif ( usb2PidIsTok( rxPktHdr.pid ) ) then
                   if ( USB2_PID_TOK_SOF_C(3 downto 2) = rxPktHdr.pid(3 downto 2) ) then
                      sof := '1';
                   elsif ( checkTokHdr( rxPktHdr, devStatus, epConfig ) ) then
@@ -383,7 +394,6 @@ begin
                      v.se0JSeen       := devStatus.hiSpeed;
                      v.tok            := rxPktHdr.pid;
                      v.epIdx          := usb2TokenPktEndp( rxPktHdr );
-                     v.donFlg         := '0';
                      v.timer          := USB2_TIMER_EXPIRED_C;
                      ei               := epIb( to_integer( v.epIdx ) );
                      if ( isTokInp( rxPktHdr.pid ) ) then
@@ -757,10 +767,15 @@ begin
             end if;
 
          when HSK =>
+            -- one cycle delay in case we change v.pid
+            txDataMst.don <= r.donFlg;
+            v.donFlg      := '1';
+            if ( devStatus.hiSpeed and r.pid = USB2_PID_HSK_ACK_C and ei.subOut.rdy = '0' ) then
+               v.pid := USB2_PID_HSK_NYET_C;
+            end if;
             if ( (ei.stalledInp or ei.stalledOut) = '1' ) then
                v.pid := USB2_PID_HSK_STALL_C;
             end if;
-            txDataMst.don <= '1';
             if ( txDataSub.don = '1' ) then
                -- no need to wait until transmission is done;
                -- we can go back to idle - the phy cannot receive
