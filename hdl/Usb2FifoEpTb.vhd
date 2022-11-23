@@ -175,7 +175,7 @@ architecture sim of Usb2FifoEpTb is
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
    signal devStatus                : Usb2DevStatusType;
-   signal usb2SOF                  : std_logic;
+   signal usb2Rx                   : Usb2RxType;
    signal lineBreak                : std_logic;
 
    signal ep0ReqParam              : Usb2CtlReqParamType;
@@ -299,6 +299,10 @@ begin
       ulpiTstSendTok(ulpiTstOb, USB2_PID_TOK_SOF_C, "0000", "0000000" );
       -- 1 frame time = 'at least' 1 frame...
       ulpiTstSendTok(ulpiTstOb, USB2_PID_TOK_SOF_C, "0000", "0000000" );
+
+      for i in 0 to 10 loop
+         ulpiClkTick;
+      end loop;
       assert lineBreak = '0' report "line-break not 0 (2nd time)" severity failure;
 
       for i in 0 to 20 loop
@@ -326,8 +330,7 @@ begin
       ulpiDat                      => ulpiDatIO,
 
       usb2DevStatus                => devStatus,
-      usb2PktHdr                   => open,
-      usb2SOF                      => usb2SOF,
+      usb2Rx                       => usb2Rx,
 
       usb2Ep0ReqParam              => ep0ReqParam,
       usb2Ep0CtlExt                => ep0CtlExt,
@@ -381,7 +384,7 @@ begin
          clk                       => ulpiTstClk,
          rst                       => open,
 
-         usb2SOF                   => usb2SOF,
+         usb2SOF                   => usb2rx.pktHdr.sof,
          usb2Ep0ReqParam           => ep0ReqParam,
          usb2Ep0CtlExt             => ep0CtlExt,
          lineBreak                 => lineBreak

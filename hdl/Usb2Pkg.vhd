@@ -62,12 +62,14 @@ package Usb2Pkg is
    type Usb2PktHdrType is record
       pid     : Usb2PidType;
       tokDat  : std_logic_vector(10 downto 0);
+      sof     : boolean;   -- header is a SOF
       vld     : std_logic; -- asserted for 1 cycle
    end record Usb2PktHdrType;
 
    constant USB2_PKT_HDR_INIT_C : Usb2PktHdrType := (
       pid     => USB2_PID_SPC_NONE_C,
       tokDat  => (others => '0'),
+      sof     => false,
       vld     => '0'
    );
 
@@ -105,6 +107,22 @@ package Usb2Pkg is
       rdy   => '0',
       err   => '0',
       don   => '0'
+   );
+
+   type Usb2RxType is record
+      pktHdr       : Usb2PktHdrType;
+      rxCmd        : Usb2ByteType; -- last RXCMD seen
+      isRxCmd      : boolean;      -- this cycle carries new RXCMD
+      rxActive     : boolean;
+      mst          : Usb2StrmMstType;
+   end record Usb2RxType;
+
+   constant USB2_RX_INIT_C : Usb2RxType := (
+      pktHdr       => USB2_PKT_HDR_INIT_C,
+      rxCmd        => (others => '0'),
+      isRxCmd      => false,
+      rxActive     => false,
+      mst          => USB2_STRM_MST_INIT_C
    );
 
    constant USB2_CRC5_POLY_C  : std_logic_vector(15 downto 0) := x"0014";

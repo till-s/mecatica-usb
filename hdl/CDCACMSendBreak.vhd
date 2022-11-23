@@ -9,7 +9,7 @@ entity CDCACMSendBreak is
       clk             : in  std_logic;
       rst             : in  std_logic := '0';
       
-      usb2SOF         : in  std_logic;
+      usb2SOF         : in  boolean;
       usb2Ep0ReqParam : in  Usb2CtlReqParamType;
       usb2Ep0CtlExt   : out Usb2CtlExtType;
       lineBreak       : out std_logic
@@ -58,7 +58,7 @@ begin
       v.ctlExt.err := '0';
       v.ctlExt.don := '0';
 
-      if ( (usb2SOF and r.timer(r.timer'left)) = '1' and not r.indef ) then
+      if ( usb2SOF and ( r.timer(r.timer'left) = '1' ) and not r.indef ) then
          v.timer := r.timer - 1;
       end if;
 

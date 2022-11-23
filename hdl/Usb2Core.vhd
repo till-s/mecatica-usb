@@ -45,8 +45,7 @@ entity Usb2Core is
       -- device state (ADDRESS->CONFIGURED) and other info
       usb2DevStatus                : out   Usb2DevStatusType;
       -- incoming packet headers; e.g., SOFs can be seen here
-      usb2PktHdr                   : out   Usb2PktHdrType;
-      usb2SOF                      : out   std_logic;
+      usb2Rx                       : out   Usb2RxType;
 
       -- control ports for extending EP0 functionality (e.g., to handle
       -- class-specific requests). See Usb2StdCtlEp.vhd for more comments.
@@ -71,18 +70,15 @@ architecture Impl of Usb2Core is
    constant NUM_ENDPOINTS_C : natural         := USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G);
 
    signal ulpiRx            : UlpiRxType      := ULPI_RX_INIT_C;
+   signal usb2RxLoc         : Usb2RxType      := USB2_RX_INIT_C;
    signal ulpiTxReq         : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep         : UlpiTxRepType;
-   signal rxActive          : std_logic;
 
    signal txDataMst         : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal txDataSub         : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
-   signal rxDataMst         : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
 
    signal devStatus         : Usb2DevStatusType := USB2_DEV_STATUS_INIT_C;
    signal epConfig          : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1);
-
-   signal rxPktHdr          : Usb2PktHdrType;
 
    signal epIb              : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb              : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
@@ -90,7 +86,7 @@ architecture Impl of Usb2Core is
 begin
 
    usb2DevStatus        <= devStatus;
-   usb2PktHdr           <= rxPktHdr;
+   usb2Rx               <= usb2RxLoc;
    usb2EpOb             <= epOb;
    epIb(1 to epIb'high) <= usb2EpIb;
 
@@ -123,9 +119,7 @@ begin
       clk             => clk,
       rst             => usb2Rst,
       ulpiRx          => ulpiRx,
-      rxActive        => rxActive,
-      pktHdr          => rxPktHdr,
-      rxData          => rxDataMst
+      usb2Rx          => usb2RxLoc
    );
 
    U_TX : entity work.Usb2PktTx
@@ -155,14 +149,10 @@ begin
       epIb            => epIb,
       epOb            => epOb,
 
-      ulpiRx          => ulpiRx,
-      rxActive        => rxActive,
-      usb2SOF         => usb2SOF,
+      usb2Rx          => usb2RxLoc,
 
       txDataMst       => txDataMst,
-      txDataSub       => txDataSub,
-      rxPktHdr        => rxPktHdr,
-      rxDataMst       => rxDataMst
+      txDataSub       => txDataSub
    );
 
    U_CTL_EP0 : entity work.Usb2StdCtlEp
@@ -179,7 +169,7 @@ begin
       usrEpIb         => epIb(1 to epIb'high),
 
       param           => usb2Ep0ReqParam,
-      pktHdr          => rxPktHdr,
+      pktHdr          => usb2RxLoc.pktHdr,
       ctlExt          => usb2Ep0CtlExt,
       ctlEpExt        => usb2Ep0CtlEpExt,
 

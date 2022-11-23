@@ -15,9 +15,7 @@ entity Usb2PktRx is
       clk            : in  std_logic;
       rst            : in  std_logic := '0';
       ulpiRx         : in  UlpiRxType;
-      pktHdr         : out Usb2PktHdrType;
-      rxData         : out Usb2StrmMstType;
-      rxActive       : out std_logic
+      usb2Rx         : out Usb2RxType
    );
 end entity Usb2PktRx;
 
@@ -53,6 +51,7 @@ architecture Impl of Usb2PktRx is
       datPipe     : RxBufArray;
       datDon      : std_logic;
       datErr      : std_logic;
+      rxCmd       : Usb2ByteType;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -62,7 +61,8 @@ architecture Impl of Usb2PktRx is
       extraDat    => false,
       datPipe     => (others => ( dat => (others => '0'), nxt => '0' )),
       datDon      => '0',
-      datErr      => '0'
+      datErr      => '0',
+      rxCmd       => (others => '0')
    );
 
    signal r             : RegType := REG_INIT_C;
@@ -79,20 +79,28 @@ begin
    P_COMB : process ( r, ulpiRx, crc5Out, crc16Out ) is
       variable v        : RegType;
       variable rxAct    : std_logic;
+      variable isRxCmd  : boolean;
    begin
       v              := r;
+      v.pktHdr.sof   := false;
       if ( r.pktHdr.vld = '1' ) then
          v.pktHdr.vld := '0';
          v.pktHdr.pid := USB2_PID_SPC_NONE_C;
       end if;
       rxAct          := rxActive_f( ulpiRx );
       v.datDon       := '0';
+      isRxCmd        := ulpiIsRxCmd( ulpiRx );
+
+      if ( isRxCmd ) then
+         v.rxCmd := ulpiRx.dat;
+      end if;
 
       if ( ( rxAct = '0' ) and ( r.state /= WAIT_FOR_START ) ) then
          if ( r.state = WAIT_FOR_EOP ) then
-            if ( usb2PidIsHsk( r.pktHdr.pid ) and not r.extraDat ) then
-               -- handshake is only valid if delimited by EOP
+            if ( ( usb2PidIsHsk( r.pktHdr.pid ) or usb2PidIsTok( r.pktHdr.pid ) ) and not r.extraDat ) then
+               -- handshake and token are only valid if delimited by EOP
                v.pktHdr.vld := '1';
+               v.pktHdr.sof := (r.pktHdr.pid = USB2_PID_TOK_SOF_C);
             end if;
          else
          -- FIXME unexpected EOP
@@ -159,9 +167,10 @@ begin
          when TOK2 =>
             if ( ulpiRx.nxt = '1' ) then
                v.pktHdr.tokDat(10 downto 8) := ulpiRx.dat(2 downto 0);
+               v.extraDat                   := false;
                v.state                      := WAIT_FOR_EOP;
-               if ( crc5Out(USB2_CRC5_CHCK_C'range) = USB2_CRC5_CHCK_C ) then
-                  v.pktHdr.vld := '1';
+               if ( crc5Out(USB2_CRC5_CHCK_C'range) /= USB2_CRC5_CHCK_C ) then
+                  v.extraDat := true; -- will cause the bad token to be rejected
                end if;
             end if;
 
@@ -172,12 +181,13 @@ begin
                v.datPipe(1).nxt := '1';
                v.crc            := crc16Out xor (x"00" & r.crc(15 downto 8));
             end if;
-
       end case;
       end if;
 
-      rxActive <= rxAct;
-      rin      <= v;
+      usb2Rx.rxCmd      <= v.rxCmd;
+      usb2Rx.isRxCmd    <= isRxCmd;
+      usb2Rx.rxActive   <= rxAct = '1';
+      rin               <= v;
    end process P_COMB;
 
    P_SEQ : process ( clk ) is
@@ -212,11 +222,11 @@ begin
       );
 
 
-   pktHdr     <= r.pktHdr;
+   usb2Rx.pktHdr  <= r.pktHdr;
 
-   rxData.dat <= r.datPipe(0).dat;
-   rxData.vld <= r.datPipe(0).nxt and ulpiRx.nxt;
-   rxData.don <= r.datDon;
-   rxData.err <= r.datErr;
+   usb2Rx.mst.dat <= r.datPipe(0).dat;
+   usb2Rx.mst.vld <= r.datPipe(0).nxt and ulpiRx.nxt;
+   usb2Rx.mst.don <= r.datDon;
+   usb2Rx.mst.err <= r.datErr;
 
 end architecture Impl;

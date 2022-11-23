@@ -1,6 +1,8 @@
 GHDL=ghdl
 VIVADO=/opt/ghdl/v2.0.0-gcc/vivado-2021.2/
 
+-include config.mk
+
 SRCS+= UsbUtilPkg.vhd
 SRCS+= UlpiPkg.vhd Usb2Pkg.vhd
 SRCS+= Usb2TstPkg.vhd
