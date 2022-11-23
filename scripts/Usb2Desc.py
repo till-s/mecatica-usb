@@ -1,20 +1,88 @@
+# Module to create USB descriptors
+
+# Create a context
+#  c = Usb2DescContext()
+#
+# add desriptors (they end up in the binary representation in
+# in the order in which they were added to the context!)
+#
+#  dd = c.Usb2DeviceDesc()
+#
+# modify attributes
+#
+#  dd.idVendor(0x1234)
+#  dd.iProduct("My Product String")
+#
+# eventually, 'wrap up' the context (it computes and fills in a few
+# numbers such as the number of interfaces etc., appends string 
+# descriptors etc.)
+#
+#  c.wrapup()
+#
+# and eventually a VHDL representation can be emitted
+#
+#  with io.open("Myfile","w") as f:
+#    c.vhdl( f )
+#
 import sys
 import io
 
-# accessor for an attribute
+# Helper class (see below)
+class CvtReader(object):
+  def __init__(self, o):
+    super().__init__()
+    self._obj = o
+  @property
+  def obj(self):
+    return self._obj
+  @obj.setter
+  def obj(self,new):
+    self._obj = new
+
+# accessor for an attribute; the attribute
+# maps to a sequence of 'sz' bytes at offset 'off'
+# in the binary representation of the descriptor
+#
+# The actual class method is just a converter to/from
+# binary representation (in most cases the identity
+# transformation just returning the argument).
+#
+# The converter must operate in both directions
+#  - read (convert binary representation in descriptor
+#    to user-readable value
+#  - write (convert user-value into binary representation)
+#
+# For the converter to distinguish between read vs write
+# access w/o the need of extra arguments (and more typing
+# when defining attributes) the argument in 'read' direction
+# is wrapped into a (dummy) CvtRead class object and in 'write'
+# direction it is not.
+#
+# See the 'cvtString' method for an example.
+#  - when writing it finds or adds a string to the string table and
+#    returns its index for entry into the binary descriptor
+#  - when reading it converts the index into the corresponding string
 def acc(off,sz=1):
     def deco(func):
+      fqn = func.__qualname__
+      cls = globals()
+      for k in fqn.split('.')[:-1]:
+         cls = cls[k]
       def setter(self, v = None):
          if ( v is None ):
             v = 0
             for i in range(sz):
                v |= (self.cont[off+i] << (8*i))
-            return v
+            # cheap hack so that the 'func' can distinguish
+            # between read (isinstance(CvtReader)) and write access
+            return func(self, CvtReader(v)).obj
          v = func(self, v)
          for i in range(sz):
             self.cont[off + i] = (v & 0xff)
             v >>= 8
          return self
+      setattr(setter, "origName", func.__name__)
+      setattr(setter, "clazz", cls)
       return setter
     return deco
 
@@ -42,31 +110,46 @@ class Usb2DescContext(list):
       self.strtbl_.append(s)
       return len(self.strtbl_)
 
+  def getString(self, i):
+    if i < 1:
+      return None
+    return self.strtbl_[i-1]
+
   def wrapup(self):
     if ( self.wrapped ):
        raise RuntimeError("Context is already wrapped")
     cnf  = None
     totl = 0
     numi = 0
+    nume = 0
+    intf = None
     ns   = self.Usb2Desc.clazz
     seti = set()
     for d in self:
       if ( d.bDescriptorType() == ns.DSC_TYPE_CONFIGURATION ):
         if ( not cnf is None ):
-          break
+          raise RuntimeError("Multiple Configuratoins Not Supported (shouldn't be hard to add)")
         cnf  = d
         totl = 0
         numi = 0
         seti = set()
       if ( d.bDescriptorType() == ns.DSC_TYPE_INTERFACE ):
+        if (not intf is None):
+           intf.bNumEndpoints(nume)
+        nume = 0
+        intf = d
         ifn =  d.bInterfaceNumber()
         if not ifn in seti:
            numi += 1
            seti.add(ifn)
+      if ( d.bDescriptorType() == ns.DSC_TYPE_ENDPOINT ):
+        nume += 1
       totl += d.bLength()
-    print("Total length {:d}, num interfaces {:d}".format(totl, numi))
+    if ( not intf is None ):
+       intf.bNumEndpoints(nume)
     cnf.wTotalLength(totl)
     cnf.bNumInterfaces(numi)
+    print("Configuration total length {:d}, num interfaces {:d}".format(totl, numi))
     # append string descriptors
     if ( len( self.strtbl_ ) > 0 ):
       # lang-id at string index 0
@@ -84,11 +167,16 @@ class Usb2DescContext(list):
       with io.open(f, "w") as f:
          self.vhdl(f)
     else:
-      i = 0
+      i   = 0
+      eol = ""
       for x in self:
+        print('{}      -- {}'.format(eol, x.className()), file = f)
+        eol = ""
         for b in x.cont:
-           print('      {:3d} => x"{:02x}",'.format(i, b), file = f)
+           print('{}      {:3d} => x"{:02x}"'.format(eol, i, b), end = "", file = f)
            i += 1
+           eol = ",\n"
+      print(file = f)
 
 
   # the 'factory' decorator converts local classes
@@ -142,6 +230,7 @@ class Usb2DescContext(list):
       self.bLength( length )
       self.bDescriptorType( typ )
       self.ctxt_ = None
+      self.nams_ = dict()
 
     def setContext(self, ctxt):
       self.ctxt_ = ctxt
@@ -150,11 +239,20 @@ class Usb2DescContext(list):
     def context(self):
       return self.ctxt_
 
-    def addString(self, s):
-      return self.context.addString(s)
+    def cvtString(self, s):
+      if isinstance(s,CvtReader):
+        # read conversion indicated by 's' arg being a list
+        s.obj = self.context.getString(s.obj) 
+      else:
+        # write conversion
+        s = self.context.addString(s)
+      return s
 
     def len(self):
       return len(self.cont)
+
+    def className(self):
+      return self.__class__.__name__
 
     @property
     def cont(self):
@@ -197,11 +295,11 @@ class Usb2DescContext(list):
     @acc(12,2)
     def bcdDevice(self,v): return v 
     @acc(14)
-    def iManufacturer(self, v): return self.addString(v)
+    def iManufacturer(self, v): return self.cvtString(v)
     @acc(15)
-    def iProduct(self, v): return self.addString(v)
+    def iProduct(self, v): return self.cvtString(v)
     @acc(16)
-    def iSerialNumber(self, v): return self.addString(v)
+    def iSerialNumber(self, v): return self.cvtString(v)
     @acc(17)
     def bNumConfigurations(self, v): return v
 
@@ -221,7 +319,7 @@ class Usb2DescContext(list):
     @acc(5)
     def bConfigurationValue(self, v): return v
     @acc(6)
-    def iConfiguration(self, v): return self.addString(v)
+    def iConfiguration(self, v): return self.cvtString(v)
     @acc(7)
     def bmAttributes(self, v): return v | 0x80
     @acc(8)
@@ -244,7 +342,7 @@ class Usb2DescContext(list):
     @acc(7)
     def bInterfaceProtocol(self, v): return v
     @acc(8)
-    def iInterface(self, v): return self.addString(v)
+    def iInterface(self, v): return self.cvtString(v)
 
   @factory
   class Usb2EndpointDesc(Usb2Desc.clazz):
@@ -357,7 +455,7 @@ class Usb2DescContext(list):
       self.wNumberMCFilters( 0 )
       self.bNumberPowerFilters( 0 )
     @acc(3)
-    def iMACAddress(self, v): return self.addString(vo
+    def iMACAddress(self, v): return self.cvtString(v)
     @acc(4,4)
     def bmEthernetStatistics(self, v): return v
     @acc(8,2)
@@ -367,7 +465,7 @@ class Usb2DescContext(list):
     @acc(12)
     def bNumberPowerFilters(self, v): return v
 
-def basicACM(epPktSize=8):
+def basicACM(epAddr, epPktSize=8, sendBreak=False):
   c  = Usb2DescContext()
 
   # device
@@ -406,7 +504,10 @@ def basicACM(epPktSize=8):
 
   # functional descriptors; header
   d = c.Usb2CDCFuncACMDesc()
-  d.bmCapabilities(0)
+  v = 0
+  if ( sendBreak ):
+    v |= d.DSC_ACM_SUP_SEND_BREAK
+  d.bmCapabilities(v)
 
   # functional descriptors; union
   d = c.Usb2CDCFuncUnionDesc( numSubordinateInterfaces = 1 )
@@ -416,7 +517,7 @@ def basicACM(epPktSize=8):
   # Endpoint -- unused but linux cdc-acm driver refuses to bind w/o it
   # endpoint 2, INTERRUPT IN
   d = c.Usb2EndpointDesc()
-  d.bEndpointAddress( d.ENDPOINT_IN  | 0x02 )
+  d.bEndpointAddress( d.ENDPOINT_IN  | (epAddr + 1) )
   d.bmAttributes( d.ENDPOINT_TT_INTERRUPT )
   d.wMaxPacketSize(8)
   d.bInterval(255) #ms
@@ -432,17 +533,22 @@ def basicACM(epPktSize=8):
 
   # endpoint 1, BULK IN
   d = c.Usb2EndpointDesc()
-  d.bEndpointAddress( d.ENDPOINT_IN | 0x01 )
+  d.bEndpointAddress( d.ENDPOINT_IN | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
   d.wMaxPacketSize(epPktSize)
   d.bInterval(0)
 
   # endpoint 1, BULK OUT
   d = c.Usb2EndpointDesc()
-  d.bEndpointAddress( d.ENDPOINT_OUT | 0x01 )
+  d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
   d.wMaxPacketSize(epPktSize)
   d.bInterval(0)
 
   c.wrapup()
   return c
+
+c=Usb2DescContext()
+d=c.Usb2DeviceDesc()
+d.iProduct("hello")
+co=c.Usb2ConfigurationDesc()
