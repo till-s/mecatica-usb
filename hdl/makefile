@@ -19,6 +19,7 @@ SRCS+= Usb2FifoTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
 SRCS+= CDCACMSendBreak.vhd
+SRCS+= UlpiLineState.vhd
 
 GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
@@ -62,6 +63,8 @@ Usb2FifoEp.o: Usb2Fifo.o
 Usb2FifoTb.o: Usb2Fifo.o
 
 Usb2FifoEpTb.o: Usb2FifoEp.o Usb2Core.o CDCACMSendBreak.o
+
+UlpiLineState.o: UlpiPkg.o UsbUtilPkg.o
 
 $(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
 
