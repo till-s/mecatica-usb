@@ -333,8 +333,7 @@ report "GET_DESCRIPTOR(STR)";
       ulpiDat                      => ulpiDatIO,
 
       usb2DevStatus                => open,
-      usb2PktHdr                   => open,
-      usb2SOF                      => open,
+      usb2Rx                       => open,
 
       usb2Ep0ReqParam              => open,
       usb2Ep0CtlExt                => open,

@@ -21,16 +21,10 @@ entity Usb2PktProc is
       epIb            : in  Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_G - 1);
       epOb            : out Usb2EndpPairObArray(0 to NUM_ENDPOINTS_G - 1);
 
-      ulpiRx          : in  UlpiRxType;
-      rxActive        : in  std_logic;
+      usb2Rx          : in  usb2RxType;
 
       txDataMst       : out Usb2StrmMstType;
-      txDataSub       : in  Usb2StrmSubType;
-      rxPktHdr        : in  Usb2PktHdrType;
-      rxDataMst       : in  Usb2StrmMstType;
-      -- asserted for one cycle when a SOF token is seen;
-      -- synchronous with rxPktHdr.vld
-      usb2SOF         : out std_logic
+      txDataSub       : in  Usb2StrmSubType
    );
 end entity Usb2PktProc;
 
@@ -125,7 +119,7 @@ architecture Impl of Usb2PktProc is
       se0JTimer       : Usb2TimerType;
       se0JSeen        : boolean;
       lineState       : std_logic_vector(1 downto 0);
-      rxActive        : std_logic;
+      rxActive        : boolean;
       prevDevState    : Usb2DevStateType;
       tok             : Usb2PidType;
       epIdx           : Usb2EndpIdxType;
@@ -151,7 +145,7 @@ architecture Impl of Usb2PktProc is
       se0JTimer       => (others => '0'),
       se0JSeen        => false,
       lineState       => "11",
-      rxActive        => '0',
+      rxActive        => false,
       prevDevState    => DEFAULT,
       tok             => USB2_PID_SPC_NONE_C,
       epIdx           => USB2_ENDP_ZERO_C,
@@ -220,6 +214,11 @@ architecture Impl of Usb2PktProc is
    begin
       epidx := usb2TokenPktEndp( h );
       daddr := usb2TokenPktAddr( h );
+
+      -- reject SOF tokens
+      if ( h.sof ) then
+         return false;
+      end if;
 
       if ( epidx = USB2_ENDP_ZERO_C ) then
          -- directed to default control pipe
@@ -290,15 +289,13 @@ begin
    -- the algorithm must be changed.
    assert to_integer( TIME_DATA_TX_C ) /= 0 report "TIME_DATA_TX_C must not be zero!" severity failure;
 
-   P_COMB : process ( r, rd, devStatus, epConfig, epIb, epObLoc, txDataSub, rxPktHdr, rxDataMst, bufReadbackInp, ulpiRx, rxActive ) is
+   P_COMB : process ( r, rd, devStatus, epConfig, epIb, epObLoc, txDataSub, bufReadbackInp, usb2Rx ) is
       variable v  : RegType;
       variable ei : Usb2EndpPairIbType;
-      variable sof: std_logic;
    begin
       v                := r;
       v.prevDevState   := devStatus.state;
       ei               := epIb( to_integer( r.epIdx ) );
-      sof              := '0';
       epIbDbg          <= ei;
 
       txDataMst        <= ei.mstInp;
@@ -306,7 +303,7 @@ begin
       txDataMst.don    <= '0';
       txDataMst.usr    <= r.pid;
       bufWrEna         <= '0';
-      bufWriteInp      <= '0' & rxDataMst.dat;
+      bufWriteInp      <= '0' & usb2Rx.mst.dat;
 
       for i in epObLoc'range loop
          epObLoc(i).subInp <= USB2_STRM_SUB_INIT_C;
@@ -326,7 +323,7 @@ begin
          else
             epObLoc(i).mstCtl  <= USB2_STRM_MST_INIT_C;
             if ( epConfig( i ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
-               epObLoc(i).mstOut        <= rxDataMst;
+               epObLoc(i).mstOut        <= usb2Rx.mst;
                epObLoc(i).mstOut.vld    <= '0';
                epObLoc(i).mstOut.don    <= '0';
             else
@@ -340,11 +337,11 @@ begin
       end loop;
 
       -- record line state
-      if ( ulpiIsRxCmd( ulpiRx ) ) then
-         v.lineState := ulpiRx.dat(1 downto 0);
+      if ( usb2Rx.isRxCmd ) then
+         v.lineState := usb2Rx.rxCmd(1 downto 0);
       end if;
 
-      v.rxActive := rxActive;
+      v.rxActive := usb2Rx.rxActive;
 
       -- count time since SE0 -> J (well, we assume it's J)
       -- this happens *before* rxActive or dir are deasserted 
@@ -352,8 +349,8 @@ begin
          v.se0JTimer := (others => '0');
          v.se0JSeen  := true;
       else
-         if ( rxActive = '1' ) then
-            if ( r.rxActive = '0' ) then
+         if ( usb2Rx.rxActive ) then
+            if ( not r.rxActive ) then
                -- rx just became active
                -- reset and hold timer until SE0
                v.se0JTimer := USB2_TIMER_EXPIRED_C;
@@ -376,8 +373,8 @@ begin
       case ( r.state ) is
          when IDLE =>
             v.donFlg := '0';
-            if ( ( rxPktHdr.vld = '1' ) ) then
-               if ( devStatus.hiSpeed and r.tok /= USB2_PID_TOK_SETUP_C and rxPktHdr.pid = USB2_PID_SPC_PING_C ) then
+            if ( ( usb2Rx.pktHdr.vld = '1' ) ) then
+               if ( devStatus.hiSpeed and r.tok /= USB2_PID_TOK_SETUP_C and usb2Rx.pktHdr.pid = USB2_PID_SPC_PING_C ) then
                   if ( epIb( to_integer( v.epIdx ) ).subOut.rdy = '1' ) then
                      v.pid := USB2_PID_HSK_ACK_C;
                   else
@@ -386,17 +383,15 @@ begin
                   v.timer    := TIME_HSK_TX_C;
                   v.nxtState := HSK;
                   v.state    := WAIT_TX;
-               elsif ( usb2PidIsTok( rxPktHdr.pid ) ) then
-                  if ( USB2_PID_TOK_SOF_C(3 downto 2) = rxPktHdr.pid(3 downto 2) ) then
-                     sof := '1';
-                  elsif ( checkTokHdr( rxPktHdr, devStatus, epConfig ) ) then
+               elsif ( usb2PidIsTok( usb2Rx.pktHdr.pid ) ) then
+                  if ( checkTokHdr( usb2Rx.pktHdr, devStatus, epConfig ) ) then
                      -- ignore SE0-J in hi-speed mode
                      v.se0JSeen       := devStatus.hiSpeed;
-                     v.tok            := rxPktHdr.pid;
-                     v.epIdx          := usb2TokenPktEndp( rxPktHdr );
+                     v.tok            := usb2Rx.pktHdr.pid;
+                     v.epIdx          := usb2TokenPktEndp( usb2Rx.pktHdr );
                      v.timer          := USB2_TIMER_EXPIRED_C;
                      ei               := epIb( to_integer( v.epIdx ) );
-                     if ( isTokInp( rxPktHdr.pid ) ) then
+                     if ( isTokInp( usb2Rx.pktHdr.pid ) ) then
                         v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
                         v.timer       := TIME_DATA_TX_C;
                         v.state       := WAIT_TX;
@@ -467,14 +462,14 @@ begin
             end if;
 
          when DATA_PID =>
-            if ( ( rxPktHdr.vld = '1' ) ) then
-               if ( checkDatHdr( rxPktHdr ) ) then
+            if ( ( usb2Rx.pktHdr.vld = '1' ) ) then
+               if ( checkDatHdr( usb2Rx.pktHdr ) ) then
                   if ( ei.stalledOut = '1' ) then
                      v.pid   := USB2_PID_HSK_STALL_C;
                      v.state := DRAIN;
                   elsif ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                      v.state := ISO_OUT; 
-                  elsif ( not sequenceOutMatch( v, rxPktHdr ) ) then
+                  elsif ( not sequenceOutMatch( v, usb2Rx.pktHdr ) ) then
                      -- sequence mismatch; discard packet and ACK
                      v.pid   := USB2_PID_HSK_ACK_C;
                      v.state := DRAIN;
@@ -506,8 +501,8 @@ begin
             end if;   
 
          when ISO_OUT =>
-            epObLoc( to_integer( r.epIdx ) ).mstOut <= rxDataMst;
-            if ( rxDataMst.don = '1' ) then
+            epObLoc( to_integer( r.epIdx ) ).mstOut <= usb2Rx.mst;
+            if ( usb2Rx.mst.don = '1' ) then
                v.state := IDLE;
             end if;
 
@@ -556,13 +551,13 @@ begin
 
          when DATA_OUT | DRAIN =>
             if ( r.state = DATA_OUT ) then
-               bufWrEna <= rxDataMst.vld;
-               if ( rxDataMst.vld = '1' ) then
+               bufWrEna <= usb2Rx.mst.vld;
+               if ( usb2Rx.mst.vld = '1' ) then
                   v.bufRWIdx := r.bufRWIdx + 1;
                end if;
             end if;
-            if ( rxDataMst.don = '1' ) then
-               if ( rxDataMst.err = '1' ) then
+            if ( usb2Rx.mst.don = '1' ) then
+               if ( usb2Rx.mst.err = '1' ) then
                   -- corrupted; no handshake
                   v.state   := IDLE;
                else
@@ -733,19 +728,19 @@ begin
             end if;
 
          when WAIT_FS_SE0 =>
-            if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_SE0_C ) ) then
+            if ( usb2Rx.isRxCmd and ( usb2Rx.rxCmd(1 downto 0) = ULPI_RXCMD_LINE_STATE_SE0_C ) ) then
                v.state    := WAIT_FS_J;
             end if;
 
          when WAIT_FS_J =>
-            if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) ) then
+            if ( usb2Rx.isRxCmd and ( usb2Rx.rxCmd(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) ) then
                v.state := WAIT_FS_K;
                -- now start the timer
                usb2TimerStart( v.timer );
             end if;
 
          when WAIT_FS_K =>
-            if ( ulpiIsRxCmd( ulpiRx ) and ( ulpiRx.dat(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_K_C ) ) then
+            if ( usb2Rx.isRxCmd and ( usb2Rx.rxCmd(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_K_C ) ) then
                v.state    := WAIT_ACK;
                v.timer    := USB2_TIMER_MAX_C; -- should never expire; frame has started already
                -- we still use a timeout so that we can simply bypass the WAIT_FS... states
@@ -753,12 +748,12 @@ begin
             end if;
 
          when WAIT_ACK =>
-            if ( ( rxPktHdr.vld = '1' ) and ( rxPktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
+            if ( ( usb2Rx.pktHdr.vld = '1' ) and ( usb2Rx.pktHdr.pid = USB2_PID_HSK_ACK_C ) ) then
                v.dataTglInp( to_integer( r.epIdx ) ) := not r.dataTglInp( to_integer( r.epIdx ) );
                -- ok to throw stored data away
                invalidateBuffer( v );
                v.state := IDLE;
-            elsif ( usb2TimerExpired( r.timer ) or ( rxPktHdr.vld = '1' ) ) then
+            elsif ( usb2TimerExpired( r.timer ) or ( usb2Rx.pktHdr.vld = '1' ) ) then
                -- timeout or NAK: save buffer
                v.bufEndIdx   := r.bufRWIdx;
                -- set bufRWIdx early so that readback data will be available
@@ -802,7 +797,6 @@ begin
       end if;
 
       epObDbg <= epObLoc( to_integer( rd.epIdx ) );
-      usb2SOF <= sof;
 
    end process P_COMB;
 

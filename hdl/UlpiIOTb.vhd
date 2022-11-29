@@ -31,6 +31,7 @@ architecture Sim of UlpiIOTb is
    signal jamdir          : std_logic := '0';
 
    signal ulpiRx          : UlpiRxType;
+   signal usb2Rx          : usb2RxType;
    signal ulpiTxReq       : UlpiTxReqType := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep       : UlpiTxRepType;
    signal pktHdr          : Usb2PktHdrType;
@@ -249,6 +250,9 @@ architecture Sim of UlpiIOTb is
 
 begin
 
+   pktHdr <= usb2Rx.pktHdr;
+   rxData <= usb2Rx.mst;
+
    P_CLK : process is
    begin
       if ( run ) then wait for 10 ns; clk <= not clk; else wait; end if;
@@ -420,8 +424,7 @@ begin
          clk         => clk,
          rst         => rst,
          ulpiRx      => ulpiRx,
-         pktHdr      => pktHdr,
-         rxData      => rxData
+         usb2Rx      => usb2Rx
       );
 
    U_TXPKTDUT : entity work.Usb2PktTx
