@@ -397,15 +397,18 @@ begin
                    |   USB2_REQ_STD_SET_FEATURE_C       =>
                      if    ( r.reqParam.recipient = USB2_REQ_TYP_RECIPIENT_DEV_C )
                      then
-                        if ( not r.tblRdDone ) then
-                           v.tblIdx   := r.cfgIdx;
-                           v.tblOff   := USB2_CFG_DESC_IDX_ATTRIBUTES_C;
-                           v.retState := r.state;
-                           v.state    := READ_TBL;
-                        else
-                           if ( r.retVal(5) = '1' ) then
-                              v.devStatus.remWakeup := ( r.reqParam.request(3 downto 0) = USB2_REQ_STD_SET_FEATURE_C );
-                              v.state               := STATUS;
+                        if ( Usb2StdFeatureType( r.reqParam.value(1 downto 0) ) = USB2_STD_FEAT_DEVICE_REMOTE_WAKEUP_C ) then
+                           if ( not r.tblRdDone ) then
+                              v.tblIdx   := r.cfgIdx;
+                              v.tblOff   := USB2_CFG_DESC_IDX_ATTRIBUTES_C;
+                              v.retState := r.state;
+                              v.state    := READ_TBL;
+                           else
+                              if ( r.retVal(5) = '1' ) then
+                                 -- device supports the feature
+                                 v.devStatus.remWakeup := ( r.reqParam.request(3 downto 0) = USB2_REQ_STD_SET_FEATURE_C );
+                                 v.state               := STATUS;
+                              end if;
                            end if;
                         end if;
                      elsif (    ( r.devStatus.state = CONFIGURED )
