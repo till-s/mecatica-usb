@@ -8,7 +8,7 @@ use     work.UsbUtilPkg.all;
 
 -- NOTE: we currently don't support putting the phy into low-power mode as
 --         - it is not clear how we could operate without the clock (assuming
---           the PHY drives the clock.
+--           the PHY drives the fpga clock.
 --         - power saving in the PHY compared to what an FPGA is eating is
 --           very small.
 
@@ -106,27 +106,56 @@ architecture Impl of UlpiLineState is
    -- disable bit-stuff and nrzi
    constant ULPI_FUN_CTL_OP_CHR_C   : std_logic_vector(7 downto 0) := x"10";
    constant ULPI_FUN_CTL_RST_C      : std_logic_vector(7 downto 0) := x"20";
-   constant ULPI_FUN_CTL_SUSPEND_C  : std_logic_vector(7 downto 0) := x"40";
+   constant ULPI_FUN_CTL_SUSPENDM_C : std_logic_vector(7 downto 0) := x"40";
 
    constant ULPI_FUN_CTL_FS_C       : std_logic_vector(7 downto 0) :=
          ULPI_FUN_CTL_X_FS_C
       or ULPI_FUN_CTL_TERM_C
-      or ULPI_FUN_CTL_OP_NRM_C;
+      or ULPI_FUN_CTL_OP_NRM_C
+      or ULPI_FUN_CTL_SUSPENDM_C;
 
    constant ULPI_FUN_CTL_HS_C       : std_logic_vector(7 downto 0) :=
          ULPI_FUN_CTL_X_HS_C
-      or ULPI_FUN_CTL_OP_NRM_C;
+      or ULPI_FUN_CTL_OP_NRM_C
+      or ULPI_FUN_CTL_SUSPENDM_C;
 
    constant ULPI_FUN_CTL_CHIRP_C    : std_logic_vector(7 downto 0) :=
          ULPI_FUN_CTL_X_HS_C
       or ULPI_FUN_CTL_TERM_C
-      or ULPI_FUN_CTL_OP_CHR_C;
+      or ULPI_FUN_CTL_OP_CHR_C
+      or ULPI_FUN_CTL_SUSPENDM_C;
 
+   constant ULPI_FUN_CTL_WKUP_K_C   : std_logic_vector(7 downto 0) :=
+         ULPI_FUN_CTL_X_FS_C
+      or ULPI_FUN_CTL_TERM_C
+      or ULPI_FUN_CTL_OP_CHR_C
+      or ULPI_FUN_CTL_SUSPENDM_C;
 
    -- hopefully this can be used as a 'never seen a RXCMD' marker...
    constant ULPI_LINE_STATE_INI_C   : std_logic_vector(1 downto 0) := "11";
 
-   type StateType is (INIT, INIT1, INIT2, FS_RUN, DRIVE_CHIRP, WAIT_FS, SUSPEND, WRITE_REG);
+   type StateType is (
+      INIT,
+      INIT1,
+      INIT2,
+      FS_RUN,
+      HS_RUN,
+      HS_INIT,
+      HS_INIT1,
+      INIT_CHIRP,
+      DRIVE_CHIRP,
+      DETECT_CHIRP,
+      HOST_CHIRP,
+      WAIT_FS,
+      WAITRSTHS_START,
+      WAITRSTHS,
+      SUSPEND,
+      DEBOUNCE_SE0,
+      RESUME,
+      WAKEUP,
+      DRIVE_K,
+      WRITE_REG
+   );
 
    type RegType   is record
       state       : StateType;
@@ -134,6 +163,7 @@ architecture Impl of UlpiLineState is
       txReq       : UlpiTxReqType;
       regReq      : UlpiRegReqType;
       lineState   : std_logic_vector(1 downto 0);
+      lineWanted  : std_logic_vector(1 downto 0);
       usb2Rst     : std_logic;
       usb2Suspend : std_logic;
       usb2hiSpeed : std_logic;
@@ -154,6 +184,7 @@ architecture Impl of UlpiLineState is
       txReq       => ULPI_TX_REQ_INIT_C,
       regReq      => ULPI_REG_REQ_INIT_C,
       lineState   => ULPI_LINE_STATE_INI_C,
+      lineWanted  => ULPI_LINE_STATE_INI_C,
       usb2Rst     => '0',
       usb2Suspend => '0',
       usb2HiSpeed => '0',
@@ -161,16 +192,22 @@ architecture Impl of UlpiLineState is
       time120     => (others => '0'),
       time1200    => (others => '0'),
       time3060    => (others => '0'),
+      time5060    => (others => '0'),
       count       => (others => '0'),
       se0Seen     => false,
       kSeen       => false,
       jSeen       => false
    );
 
-   signal r   : RegType := REG_INIT_C;
-   signal rin : RegType;
+   signal r                  : RegType := REG_INIT_C;
+   signal rin                : RegType;
 
-   attribute MARK_DEBUG of r : signal is toStr( MARK_DEBUG_G );
+   signal remWakeDbg         : std_logic;
+   signal hiSpeedEnDbg       : std_logic;
+
+   attribute MARK_DEBUG of r            : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of remWakeDbg   : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of hiSpeedEnDbg : signal is toStr( MARK_DEBUG_G );
 
    procedure loadTimer(variable t: out unsigned; constant p : in natural) is
    begin
@@ -215,18 +252,23 @@ architecture Impl of UlpiLineState is
 
 begin
 
+   remWakeDbg   <= usb2RemWake;
+   hiSpeedEnDbg <= hiSpeedEn;
+
    P_COMB : process ( r, ulpiRx, ulpiTxRep, ulpiRegRep, usb2RemWake, hiSpeedEn ) is
       variable v : RegType;
 
       variable start120  : boolean;
       variable start1200 : boolean;
       variable start3060 : boolean;
+      variable start5060 : boolean;
    begin
       v            := r;
 
       start120     := false;
       start1200    := false;
       start3060    := false;
+      start5060    := false;
 
       -- get the line state
       if ( ulpiIsRxCmd( ulpiRx ) ) then
@@ -244,11 +286,10 @@ begin
          v.presc := r.presc - 1;
       end if;
 
-      -- remote wakeup
-      if ( r.usb2Suspend = '0' ) then
-         resetTimer( v.time5060 );
-      elsif ( ( usb2RemWake = '1' ) and expiredTimer( v.time5060 ) ) then
-         v.state := WAKEUP;
+      -- drive K as soon as the NOPID command byte has been
+      -- has been consumed
+      if ( ulpiTxRep.nxt = '1' ) then
+         v.txReq.dat := (others => '0');
       end if;
 
       case ( r.state ) is
@@ -262,7 +303,11 @@ begin
 
          when INIT2 =>
             if ( v.lineState /= ULPI_LINE_STATE_INI_C ) then
-               v.state   := FS_RUN;
+               v.state       := FS_RUN;
+               v.se0Seen     := false;
+               v.jSeen       := false;
+               v.usb2Rst     := '0';
+               v.usb2Suspend := '0';
             end if;
 
          when FS_RUN =>
@@ -272,8 +317,7 @@ begin
                v.se0Seen := true;
                if ( r.se0Seen ) then
                   if ( expiredTimer( r.time1200 ) ) then
-                     v.state   := DRIVE_CHIRP;
-                     start1200 := true;
+                     v.state   := INIT_CHIRP;
                   end if;
                else
                   start1200 := true;
@@ -296,63 +340,153 @@ begin
 --               resetTimer( v.time3060 );
             end if;
 
+         when HS_INIT =>
+            writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_HS_C );
+            v.nxtState := HS_INIT1;
+
+         when HS_INIT1 =>
+            start3060     := true;
+            v.usb2Rst     := '0';
+            v.usb2HiSpeed := '1';
+            v.usb2Suspend := '0';
+            v.state       := HS_RUN;
+
+         when HS_RUN =>
+            if ( expiredTimer( r.time3060 ) ) then
+               writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_FS_C );
+               v.nxtState := WAITRSTHS_START;
+            elsif ( v.lineState /= ULPI_RXCMD_LINE_STATE_SE0_C ) then
+               start3060  := true;
+            end if;
+
+         when WAITRSTHS_START =>
+            start120 := true;
+            v.state  := WAITRSTHS;
+
+         when WAITRSTHS =>
+            if ( expiredTimer( r.time120 ) ) then
+               if ( v.lineState = ULPI_RXCMD_LINE_STATE_SE0_C ) then
+                  v.state := INIT_CHIRP;
+               else
+                  v.state := SUSPEND;
+               end if;
+            end if;
+
+         when INIT_CHIRP =>
+            if ( hiSpeedEn = '1' ) then
+               writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_CHIRP_C );
+               v.nxtState    := DRIVE_CHIRP;
+            else
+               -- TUCH + TWTFS >= 2000, <= 3500
+               start3060     := true ;
+               v.state       := WAIT_FS;
+            end if;
+            v.usb2Rst     := '1';
+            v.usb2HiSpeed := '0';
+
          when DRIVE_CHIRP =>
-            if ( hiSpeedEn = '1' and false ) then -- FIXME actually drive chirp
+            v.nxtState := DETECT_CHIRP;
+            v.state    := DRIVE_K;
+
+         when DETECT_CHIRP =>
+            start1200    := true;
+            v.count      := to_unsigned(5, v.count'length);
+            v.lineWanted := ULPI_RXCMD_LINE_STATE_FS_K_C;
+            v.state      := HOST_CHIRP;
+            start120     := true;
+
+         when HOST_CHIRP =>
+            if ( expiredTimer( r.time120 ) ) then
+               if ( r.count = 0 ) then
+                  v.state := HS_INIT;
+               else
+                  start120     := true;
+                  v.lineWanted := not r.lineWanted; -- J <=> K
+                  v.count      := r.count - 1;
+               end if;
+            elsif ( v.lineState /= r.lineWanted ) then
+               start120 := true;
             end if;
             if ( expiredTimer( r.time1200 ) ) then
-               v.state   := WAIT_FS;
+               v.state := INIT1;
             end if;
 
          when WAIT_FS =>
-            if ( r.usb2Rst = '0' ) then
-               v.usb2Rst := '1';
-               start1200 := true;
-            elsif ( expiredTimer( v.time1200 ) ) then
-               v.usb2Rst     := '0';
-               v.state       := INIT2; -- sample initial line state before going into FS_RUN
+            if ( expiredTimer( r.time3060 ) ) then
+               -- ensure OP_MODE is correct
+               v.state       := INIT1;
             end if;
 
          when SUSPEND =>
-            v.se0Seen := false;
-            v.kSeen   := false;
             if ( r.usb2Suspend = '0' ) then
                v.usb2Suspend := '1';
-               loadTimer(v.time5060, PERIOD_5060_C);
+               start5060     := true;
             else
-               if ( expiredTimer( r.time6000 ) then
-                  -- no stable reset seen; keep trying
-                  -- It is not quite clear what that means, though; the 
-                  -- spec says that if this timer expires we go back to 'suspend'
-                  -- but if SE0 keeps being flaky then we end up looping.
-                  -- So I don't understand how this would be different to not using a T0
-                  -- timer at all and simply waiting for a stable SE0
-                  v.se0Seen := false;
-                  resetTimer( v.time1200 );
-               elsif ( expiredTimer( r.time1200 ) )
-                  v.state       := RESET;
-                  resetTimer( v.time6000 );
-                  v.usb2Suspend := '0';
-                  v.usb2Rst     := '1';
-               end if;
-               -- when we enter for the first time the 'seen' flags are reset
-               -- due to the single cycle when usb2Suspend was not yet asserted
                if    ( v.lineState = ULPI_RXCMD_LINE_STATE_SE0_C  ) then
-                  v.se0Seen := true;
-                  if ( not r.se0Seen ) then
-                     start6000 := true;
-                     start1200 := true;
-                  end if;
+                  start5060 := true;
+                  start120  := true;
+                  v.state   := DEBOUNCE_SE0;
                elsif    ( v.lineState = ULPI_RXCMD_LINE_STATE_FS_K_C ) then
-                  -- resume; we keep it simple go directly to run state
-               else
-                  start1200 := true;
+                  v.state   := RESUME;
+               elsif ( ( usb2RemWake = '1' ) and expiredTimer( v.time5060 ) ) then
+                  -- remote wakeup
+                  writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_WKUP_K_C);
+                  v.nxtState  := WAKEUP;
                end if;
+            end if;
+
+         when DEBOUNCE_SE0 =>
+            if ( expiredTimer( r.time5060 ) ) then
+               -- no stable reset seen; keep trying
+               -- It is not quite clear what that means, though; the 
+               -- spec says that if this timer expires we go back to 'suspend'
+               -- but if SE0 keeps being flaky then we end up looping.
+               -- So I don't understand how this would be different to not using a T0
+               -- timer at all and simply waiting for a stable SE0
+               start5060 := true;
+               v.state   := SUSPEND;
+            elsif ( expiredTimer( r.time120 ) ) then
+               v.state       := DRIVE_CHIRP;
+            elsif    ( v.lineState /= ULPI_RXCMD_LINE_STATE_SE0_C  ) then
+               start120      := true;
+            end if;
+
+         when RESUME =>
+            if ( (hiSpeedEn and r.usb2HiSpeed) = '1' ) then
+               if ( v.lineState = ULPI_RXCMD_LINE_STATE_SE0_C  ) then
+                  v.state := HS_INIT;
+               end if;
+            else
+               if ( v.lineState = ULPI_RXCMD_LINE_STATE_FS_J_C  ) then
+                  -- ensure OP_MODE normal
+                  v.state := INIT1;
+               end if;
+            end if;
+
+         when WAKEUP =>
+            v.nxtState := RESUME;
+            v.state    := DRIVE_K;
+
+         -- driving remote wakeup and hi-speed chirp requires the
+         -- same timing and txReq signal
+         when DRIVE_K =>
+            if ( r.txReq.vld = '0' ) then
+               v.txReq.vld := '1';
+               v.txReq.dat := ULPI_TXCMD_TX_C & x"0"; -- NOPID
+               start1200   := true;
+            elsif ( expiredTimer( r.time1200 ) ) then
+               if ( ulpiTxRep.nxt = '1' ) then
+                  v.txReq.vld := '0';
+                  v.state     := r.nxtState;
+               end if;
+            end if;
 
          when WRITE_REG =>
             if ( r.regReq.vld = '0' ) then
                v.regReq.vld   := '1';
                v.regReq.rdnwr := '0';
-            elsif ( ulpiRegRep.ack = '1' ) then
+            elsif ( (ulpiRegRep.ack = '1') and (ulpiRegRep.err = '0') ) then
+               -- if there is an error (aborted by PHY) we keep retrying
                v.regReq.vld   := '0';
                v.state        := r.nxtState;
             end if;
@@ -366,6 +500,9 @@ begin
       end if;
       if ( start3060 ) then
          loadTimer( v.time3060, PERIOD_3060_C );
+      end if;
+      if ( start5060 ) then
+         loadTimer( v.time5060, PERIOD_5060_C );
       end if;
 
       rin <= v;
