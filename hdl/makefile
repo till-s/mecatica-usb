@@ -48,7 +48,7 @@ UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
 Usb2PktProcTb.o: Usb2TstPkg.o Usb2PktProc.o Usb2StdCtlEp.o
 Usb2PktProc.o: Usb2Bram.o
 
-Usb2Core.o: UlpiIO.o Usb2PktProc.o Usb2PktRx.o Usb2PktTx.o Usb2StdCtlEp.o
+Usb2Core.o: UlpiIO.o Usb2PktProc.o Usb2PktRx.o Usb2PktTx.o Usb2StdCtlEp.o UlpiLineState.o
 
 Usb2PktTxTb.o: UlpiIO.o Usb2PktTx.o
 

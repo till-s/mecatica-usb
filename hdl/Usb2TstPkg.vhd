@@ -187,6 +187,26 @@ package Usb2TstPkg is
       constant timo: in    natural := 30;                                     -- timeout (passed down)
       constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C -- expected handshake response to SETUP
    );
+
+   -- wait for a register transaction (on ulpi)
+   procedure ulpiTstRegWait(
+      signal    ob : inout UlpiTstObType;
+      variable   a : out   natural; -- address
+      variable  rnw: out   boolean; -- read (write when false)
+      variable   d : out   std_logic_vector(7 downto 0) -- write data
+   );
+
+   -- complete a register read transaction (on ulpi)
+   procedure ulpiTstRegReadComplete(
+      signal    ob : inout UlpiTstObType;
+      constant   d : in    std_logic_vector(7 downto 0) -- read data
+   );
+
+   -- handle initial PHY setup
+   procedure ulpiTstHandlePhyInit(
+      signal    ob : inout UlpiTstObType
+   );
+
 end package Usb2TstPkg;
 
 package body Usb2TstPkg is
@@ -728,6 +748,69 @@ end if;
     begin
        epCfg := cfg;
     end procedure usb2TstPkgConfig;
+
+   -- wait for a register transaction
+   procedure ulpiTstRegWait(
+      signal    ob : inout UlpiTstObType;
+      variable   a : out   natural;
+      variable  rnw: out   boolean;
+      variable   d : out   std_logic_vector(7 downto 0)
+   ) is
+   begin
+      while ulpiTstIb.dat(7) /= '1' loop
+         ulpiClkTick;
+      end loop;
+      a   := to_integer(unsigned(ulpiTstIb.dat(4 downto 0)));
+      rnw := (ulpiTstIb.dat(6) = '1');
+      d   := (others => 'U');
+      ob.nxt <= '1';
+      ulpiClkTick;
+      if ( ulpiTstIb.dat(6) = '0' ) then
+         -- a write
+         ulpiClkTick;
+         d := ulpiTstIb.dat;
+         ob.nxt <= '0';
+         ulpiClkTick;
+         assert (ulpiTstIb.stp = '1') report "ulpiTstRegWait missing STP" severity failure;
+      end if;
+   end procedure ulpiTstRegWait;
+
+   -- complete a register read transaction (on ulpi)
+   procedure ulpiTstRegReadComplete(
+      signal    ob : inout UlpiTstObType;
+      constant   d : in    std_logic_vector(7 downto 0) -- read data
+   ) is
+   begin
+      ob.nxt <= '0';
+      ob.dir <= '1';
+      ulpiClkTick; -- turn-around
+      ob.dat <= d;
+      ulpiClkTick;
+      ob.dir <= '0'; -- turn-around
+      ulpiClkTick;
+   end procedure ulpiTstRegReadComplete;
+
+   procedure ulpiTstHandlePhyInit(
+      signal    ob : inout UlpiTstObType
+   ) is
+      variable regAddr        : natural;
+      variable regIsRd        : boolean;
+      variable regDat         : std_logic_vector(7 downto 0);
+   begin
+
+      ulpiTstRegWait(ob, regAddr, regIsRd, regDat);
+
+      assert not regIsRd report "ulpiTstHandlePhyInit: Register write expected" severity failure;
+      assert regAddr = to_integer(unsigned(ULPI_REG_OTG_CTL_C)) report "ulpiTstHandlePhyInit: unexpected register address (not OTGCTL)" severity failure;
+      assert regDat  = x"00" report "ulpiTstHandlePhyInit: unexpected OTG register contents" severity failure;
+
+      ulpiTstRegWait(ob, regAddr, regIsRd, regDat);
+
+      assert not regIsRd report "ulpiTstHandlePhyInit: Register write expected" severity failure;
+      assert regAddr = to_integer(unsigned(ULPI_REG_FUN_CTL_C)) report "ulpiTstHandlePhyInit: unexpected register address (not FUNCTL)" severity failure;
+      assert regDat  = x"45" report "ulpiTstHandlePhyInit: unexpected FUN register contents" severity failure;
+
+   end procedure ulpiTstHandlePhyInit;
 
 end package body Usb2TstPkg;
 

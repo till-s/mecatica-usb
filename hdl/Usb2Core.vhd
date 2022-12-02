@@ -15,6 +15,7 @@ entity Usb2Core is
       -- to speed things up
       SIMULATION_G                 : boolean := false;
       MARK_DEBUG_ULPI_IO_G         : boolean := true;
+      MARK_DEBUG_ULPI_LINE_STATE_G : boolean := true;
       MARK_DEBUG_PKT_RX_G          : boolean := true;
       MARK_DEBUG_PKT_TX_G          : boolean := true;
       MARK_DEBUG_PKT_PROC_G        : boolean := true;
@@ -53,6 +54,9 @@ entity Usb2Core is
       usb2Ep0CtlExt                : in    Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
       usb2Ep0CtlEpExt              : in    Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
 
+      usb2HiSpeedEn                : in    std_logic          := '0';
+      usb2RemoteWake               : in    std_logic          := '0';
+
       -- Endpoints are attached here (1 and up)
       usb2EpIb                     : in    Usb2EndpPairIbArray(1 to USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_IB_INIT_C );
@@ -72,7 +76,19 @@ architecture Impl of Usb2Core is
    signal ulpiRx            : UlpiRxType      := ULPI_RX_INIT_C;
    signal usb2RxLoc         : Usb2RxType      := USB2_RX_INIT_C;
    signal ulpiTxReq         : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
+   signal ulpiPktTxReq      : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
+   signal ulpiLineTxReq     : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
    signal ulpiTxRep         : UlpiTxRepType;
+
+   signal regReq            : UlpiRegReqType  := ULPI_REG_REQ_INIT_C;
+   signal regRep            : UlpiRegRepType;
+
+   signal lineStateRegReq   : UlpiRegReqType;
+   signal lineStateRegRep   : UlpiRegRepType  := ULPI_REG_REP_INIT_C;
+
+   signal rstReq            : std_logic;
+   signal suspended         : std_logic;
+   signal isHiSpeed         : std_logic;
 
    signal txDataMst         : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal txDataSub         : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
@@ -83,12 +99,84 @@ architecture Impl of Usb2Core is
    signal epIb              : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb              : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
+   type RegMuxState is (IDLE, LINESTATE, EXT);
+
+   signal regMux            : RegMuxState := IDLE;
+   signal regMuxIn          : RegMuxState;
+
+   signal remWake           : std_logic;
+
 begin
 
-   usb2DevStatus        <= devStatus;
    usb2Rx               <= usb2RxLoc;
    usb2EpOb             <= epOb;
    epIb(1 to epIb'high) <= usb2EpIb;
+
+   P_COMB : process (
+      devStatus,
+      usb2RemoteWake,
+      rstReq,
+      isHiSpeed,
+      suspended,
+      ulpiPktTxReq,
+      ulpiLineTxReq,
+      lineStateRegReq,
+      ulpiRegReq,
+      regRep,
+      regMux
+   ) is 
+      variable v      : RegMuxState;
+      variable selExt : boolean;
+   begin
+      v                          := regMux;
+      usb2DevStatus              <= devStatus;
+      usb2DevStatus.hiSpeed      <= (isHiSpeed = '1');
+      -- is remote wakeup enabled?
+      if ( not devStatus.remWakeup ) then
+         remWake <= '0';
+      else
+         remWake <= usb2RemoteWake;
+      end if;
+      ulpiTxReq <= ulpiPktTxReq;
+      if ( ( rstReq or suspended ) = '1' ) then
+         ulpiTxReq <= ulpiLineTxReq;
+      end if;
+      -- default
+      ulpiRegRep      <= ULPI_REG_REP_INIT_C;
+      regReq          <= lineStateRegReq;
+      lineStateRegRep <= regRep;
+      selExt          := (regMux = EXT);
+      case ( regMux ) is
+         when IDLE =>
+            if ( lineStateRegReq.vld = '1' ) then
+               v      := LINESTATE;
+            elsif ( ulpiRegReq.vld = '1' ) then
+               v      := EXT;
+               selExt := true;
+            end if;
+         when others =>
+            if ( regRep.ack = '1' ) then
+               v := IDLE;
+            end if;
+      end case;
+      if ( selExt ) then
+         lineStateRegRep <= ULPI_REG_REP_INIT_C;
+         regReq          <= ulpiRegReq;
+         ulpiRegRep      <= regRep;
+      end if;
+      regMuxIn <= v;
+   end process P_COMB;
+
+   P_REG_MUX : process ( clk ) is
+   begin
+      if ( rising_edge( clk ) ) then
+         if ( ulpiRst = '1' ) then
+            regMux <= IDLE;
+         else
+            regMux <= regMuxIn;
+         end if;
+      end if;
+   end process P_REG_MUX;
 
    U_ULPI_IO : entity work.UlpiIO
    generic map (
@@ -107,9 +195,34 @@ begin
       ulpiTxReq       => ulpiTxReq,
       ulpiTxRep       => ulpiTxRep,
 
-      regReq          => ulpiRegReq,
-      regRep          => ulpiRegRep
+      regReq          => regReq,
+      regRep          => regRep
    );
+
+   U_LINE_STATE : entity work.UlpiLineState
+      generic map (
+         MARK_DEBUG_G => MARK_DEBUG_ULPI_LINE_STATE_G
+      )
+      port map (
+         clk          => clk,
+         rst          => ulpiRst,
+
+         ulpiRx       => ulpiRx,
+
+         ulpiRegReq   => lineStateRegReq,
+         ulpiRegRep   => lineStateRegRep,
+
+         ulpiTxReq    => ulpiLineTxReq,
+         ulpiTxRep    => ulpiTxRep,
+
+         usb2HiSpeedEn=> usb2HiSpeedEn,
+
+         usb2Rst      => rstReq,
+         usb2Suspend  => suspended,
+         usb2HiSpeed  => isHiSpeed,
+
+         usb2RemWake  => remWake
+      );
 
    U_PKT_RX : entity work.Usb2PktRx
    generic map (
@@ -129,7 +242,7 @@ begin
    port map (
       clk             => clk,
       rst             => usb2Rst,
-      ulpiTxReq       => ulpiTxReq,
+      ulpiTxReq       => ulpiPktTxReq,
       ulpiTxRep       => ulpiTxRep,
       txDataMst       => txDataMst,
       txDataSub       => txDataSub

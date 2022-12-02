@@ -10,6 +10,30 @@ package UlpiPkg is
    constant ULPI_RXCMD_LINE_STATE_FS_J_C   : std_logic_vector(1 downto 0) := "01";
    constant ULPI_RXCMD_LINE_STATE_FS_K_C   : std_logic_vector(1 downto 0) := "10";
 
+   constant ULPI_REG_FUN_CTL_C      : std_logic_vector(3 downto 0) := x"4";
+   constant ULPI_REG_OTG_CTL_C      : std_logic_vector(3 downto 0) := x"A";
+
+   -- disable D-/D+ pull-down resistors
+   constant ULPI_OTG_CTL_INI_C      : std_logic_vector(7 downto 0) := x"00";
+
+   -- transceiver control
+   constant ULPI_FUN_CTL_X_MSK_C    : std_logic_vector(7 downto 0) := x"03";
+   -- hi-speed
+   constant ULPI_FUN_CTL_X_HS_C     : std_logic_vector(7 downto 0) := x"00";
+   -- full-speed
+   constant ULPI_FUN_CTL_X_FS_C     : std_logic_vector(7 downto 0) := x"01";
+   -- term select
+   constant ULPI_FUN_CTL_TERM_C     : std_logic_vector(7 downto 0) := x"04";
+
+   constant ULPI_FUN_CTL_OP_MSK_C   : std_logic_vector(7 downto 0) := x"18";
+   -- normal operation
+   constant ULPI_FUN_CTL_OP_NRM_C   : std_logic_vector(7 downto 0) := x"00";
+   -- disable bit-stuff and nrzi
+   constant ULPI_FUN_CTL_OP_CHR_C   : std_logic_vector(7 downto 0) := x"10";
+   constant ULPI_FUN_CTL_RST_C      : std_logic_vector(7 downto 0) := x"20";
+   constant ULPI_FUN_CTL_SUSPENDM_C : std_logic_vector(7 downto 0) := x"40";
+
+
    type UlpiRegReqType is record
       addr  : std_logic_vector(7 downto 0);
       wdat  : std_logic_vector(7 downto 0);

@@ -31,7 +31,7 @@ entity UlpiLineState is
       ulpiTxReq      : out UlpiTxReqType;
       ulpiTxRep      : in  UlpiTxRepType;
 
-      hiSpeedEn      : in  std_logic := '0';
+      usb2HiSpeedEn  : in  std_logic := '0';
 
       -- generated control signals
       usb2Rst        : out std_logic;
@@ -56,20 +56,27 @@ architecture Impl of UlpiLineState is
 --   TFILT               2.5us
 --   TUCHEND                     7000us
 --   TWTFS              1000us   2500us
+-- 7.1.7.6
+--   T2SUSP                     10000us (min seems to be 3ms)
 -- 7.1.7.7
 --   TWTRSM             5000us          bus must be idle
 --                                      for this time before
 --                                      device may remote-wakeup
 --   TDRSMUP            1000us  15000us remote-wakeup hold resume signalling
+-- Tbl 7-13
+--   TDCHBIT              40us     60us (one chirp bit sent by host)
 --
 -- How many timers do we need:
---   HS negotiation: TWFS > 6*TFILT;
---       if we make TFILT  = 120us then
+--   HS negotiation: TWFS > 6*TFILT;  TFILT < TDCHBIT => tfilt < 40us
+--       if we make TFILT  = 20us then
 --                  TUCH   = 1200us
 --                  TWFS   = 1200us
 --                  TWTREV = 3050us
---           T2 = T3 (1200us); TWTRSTFS = TWTRSTHS = TFILTSE0 = TFILT (120us)
---           TWTREV = IDLE (3060us)
+--      20us: TFILT = TFILTSE0
+--     120us: TWTRSTHS
+--    1200us: TUCH = TWTRSTFS = TWTFS = TDRSMUP
+--    3060us: TWTREV = IDLE (T2SUSP) = (TUCH + TWTFS) 
+--    5060us: TWTRSM = TUCHEND - TUCH
 --
 
    -- prescale time to 10us ticks
@@ -80,33 +87,11 @@ architecture Impl of UlpiLineState is
    constant LD_TIME_1200_C          : natural := 7;
    constant LD_TIME_3060_C          : natural := 9;
    constant LD_TIME_5060_C          : natural := 9;
+   constant PERIOD_20_C             : natural := 20   / PRESC_US_C;
    constant PERIOD_120_C            : natural := 120  / PRESC_US_C;
    constant PERIOD_1200_C           : natural := 1200 / PRESC_US_C;
    constant PERIOD_3060_C           : natural := 3060 / PRESC_US_C;
    constant PERIOD_5060_C           : natural := 5060 / PRESC_US_C;
-
-   constant ULPI_REG_FUN_CTL_C      : std_logic_vector(3 downto 0) := x"4";
-   constant ULPI_REG_OTG_CTL_C      : std_logic_vector(3 downto 0) := x"A";
-
-   -- disable D-/D+ pull-down resistors
-   constant ULPI_OTG_CTL_INI_C      : std_logic_vector(7 downto 0) := x"00";
-
-   -- transceiver control
-   constant ULPI_FUN_CTL_X_MSK_C    : std_logic_vector(7 downto 0) := x"03";
-   -- hi-speed
-   constant ULPI_FUN_CTL_X_HS_C     : std_logic_vector(7 downto 0) := x"00";
-   -- full-speed
-   constant ULPI_FUN_CTL_X_FS_C     : std_logic_vector(7 downto 0) := x"01";
-   -- term select
-   constant ULPI_FUN_CTL_TERM_C     : std_logic_vector(7 downto 0) := x"04";
-
-   constant ULPI_FUN_CTL_OP_MSK_C   : std_logic_vector(7 downto 0) := x"18";
-   -- normal operation
-   constant ULPI_FUN_CTL_OP_NRM_C   : std_logic_vector(7 downto 0) := x"00";
-   -- disable bit-stuff and nrzi
-   constant ULPI_FUN_CTL_OP_CHR_C   : std_logic_vector(7 downto 0) := x"10";
-   constant ULPI_FUN_CTL_RST_C      : std_logic_vector(7 downto 0) := x"20";
-   constant ULPI_FUN_CTL_SUSPENDM_C : std_logic_vector(7 downto 0) := x"40";
 
    constant ULPI_FUN_CTL_FS_C       : std_logic_vector(7 downto 0) :=
          ULPI_FUN_CTL_X_FS_C
@@ -168,11 +153,11 @@ architecture Impl of UlpiLineState is
       usb2Suspend : std_logic;
       usb2hiSpeed : std_logic;
       presc       : unsigned(    LD_PRESC_C downto 0);
-      time120     : unsigned(LD_TIME_120_C  downto 0);
+      timeSmall   : unsigned(LD_TIME_120_C  downto 0);
       time1200    : unsigned(LD_TIME_1200_C downto 0);
       time3060    : unsigned(LD_TIME_3060_C downto 0);
       time5060    : unsigned(LD_TIME_5060_C downto 0);
-      count       : unsigned(             2 downto 0);
+      count       : unsigned(             3 downto 0);
       se0Seen     : boolean;
       kSeen       : boolean;
       jSeen       : boolean;
@@ -189,7 +174,7 @@ architecture Impl of UlpiLineState is
       usb2Suspend => '0',
       usb2HiSpeed => '0',
       presc       => (others => '0'),
-      time120     => (others => '0'),
+      timeSmall   => (others => '0'),
       time1200    => (others => '0'),
       time3060    => (others => '0'),
       time5060    => (others => '0'),
@@ -253,11 +238,12 @@ architecture Impl of UlpiLineState is
 begin
 
    remWakeDbg   <= usb2RemWake;
-   hiSpeedEnDbg <= hiSpeedEn;
+   hiSpeedEnDbg <= usb2HiSpeedEn;
 
-   P_COMB : process ( r, ulpiRx, ulpiTxRep, ulpiRegRep, usb2RemWake, hiSpeedEn ) is
+   P_COMB : process ( r, ulpiRx, ulpiTxRep, ulpiRegRep, usb2RemWake, usb2HiSpeedEn ) is
       variable v : RegType;
 
+      variable start20   : boolean;
       variable start120  : boolean;
       variable start1200 : boolean;
       variable start3060 : boolean;
@@ -265,6 +251,7 @@ begin
    begin
       v            := r;
 
+      start20      := false;
       start120     := false;
       start1200    := false;
       start3060    := false;
@@ -278,10 +265,10 @@ begin
       if ( r.presc(r.presc'left) = '0' ) then
          loadTimer( v.presc, PRESC_PERIOD_C );
          -- run the timers
-         decrTimer( v.time120  );
-         decrTimer( v.time1200 );
-         decrTimer( v.time3060 );
-         decrTimer( v.time5060 );
+         decrTimer( v.timeSmall );
+         decrTimer( v.time1200  );
+         decrTimer( v.time3060  );
+         decrTimer( v.time5060  );
       else
          v.presc := r.presc - 1;
       end if;
@@ -320,6 +307,7 @@ begin
                      v.state   := INIT_CHIRP;
                   end if;
                else
+                  -- TWTRSTFS
                   start1200 := true;
                   resetTimer( v.time3060 );
                end if;
@@ -330,6 +318,7 @@ begin
                      v.state := SUSPEND;
                   end if;
                else
+                  -- T2SUSP
                   start3060 := true;
                   resetTimer( v.time1200 );
                end if;
@@ -345,6 +334,7 @@ begin
             v.nxtState := HS_INIT1;
 
          when HS_INIT1 =>
+            -- TWTREV
             start3060     := true;
             v.usb2Rst     := '0';
             v.usb2HiSpeed := '1';
@@ -356,15 +346,17 @@ begin
                writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_FS_C );
                v.nxtState := WAITRSTHS_START;
             elsif ( v.lineState /= ULPI_RXCMD_LINE_STATE_SE0_C ) then
+               -- TWTREV
                start3060  := true;
             end if;
 
          when WAITRSTHS_START =>
+            -- TWTRSTHS
             start120 := true;
             v.state  := WAITRSTHS;
 
          when WAITRSTHS =>
-            if ( expiredTimer( r.time120 ) ) then
+            if ( expiredTimer( r.timeSmall ) ) then
                if ( v.lineState = ULPI_RXCMD_LINE_STATE_SE0_C ) then
                   v.state := INIT_CHIRP;
                else
@@ -373,7 +365,7 @@ begin
             end if;
 
          when INIT_CHIRP =>
-            if ( hiSpeedEn = '1' ) then
+            if ( usb2HiSpeedEn = '1' ) then
                writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_CHIRP_C );
                v.nxtState    := DRIVE_CHIRP;
             else
@@ -389,23 +381,29 @@ begin
             v.state    := DRIVE_K;
 
          when DETECT_CHIRP =>
+            -- TWTFS
             start1200    := true;
-            v.count      := to_unsigned(5, v.count'length);
+            -- 'count' is not formally a timer but uses the same algorithm
+            loadTimer( v.count, 6 );
             v.lineWanted := ULPI_RXCMD_LINE_STATE_FS_K_C;
             v.state      := HOST_CHIRP;
-            start120     := true;
+            -- TFILT
+            start20      := true;
 
          when HOST_CHIRP =>
-            if ( expiredTimer( r.time120 ) ) then
-               if ( r.count = 0 ) then
+            if ( expiredTimer( r.timeSmall ) ) then
+               -- again: 'count' is not a timer but uses the same semantics
+               if ( expiredTimer( r.count ) ) then
                   v.state := HS_INIT;
                else
-                  start120     := true;
+                  -- TFILT
+                  start20      := true;
                   v.lineWanted := not r.lineWanted; -- J <=> K
                   v.count      := r.count - 1;
                end if;
             elsif ( v.lineState /= r.lineWanted ) then
-               start120 := true;
+               -- TFILT
+               start20 := true;
             end if;
             if ( expiredTimer( r.time1200 ) ) then
                v.state := INIT1;
@@ -419,15 +417,24 @@ begin
 
          when SUSPEND =>
             if ( r.usb2Suspend = '0' ) then
-               v.usb2Suspend := '1';
-               start5060     := true;
+               v.usb2Suspend   := '1';
+               -- The 5060 timer serves two purposes: 
+               --  - while in SUSPEND state it times TWTRSM, the time we must wait
+               --    until honoring a remote-wakeup.
+               --  - when in DEBOUNCE_SE0 state it times TUCHEND - TUCH, the time
+               --    when we must return to SUSPEND>
+               -- TWTRSM
+               start5060       := true;
             else
                if    ( v.lineState = ULPI_RXCMD_LINE_STATE_SE0_C  ) then
-                  start5060 := true;
-                  start120  := true;
-                  v.state   := DEBOUNCE_SE0;
+                  -- TUCHEND - TUCH
+                  start5060   := true;
+                  -- TFILTSE0
+                  start20     := true;
+                  v.state     := DEBOUNCE_SE0;
                elsif    ( v.lineState = ULPI_RXCMD_LINE_STATE_FS_K_C ) then
-                  v.state   := RESUME;
+                  v.state     := RESUME;
+               -- TWTRSM expired?
                elsif ( ( usb2RemWake = '1' ) and expiredTimer( v.time5060 ) ) then
                   -- remote wakeup
                   writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_WKUP_K_C);
@@ -436,23 +443,29 @@ begin
             end if;
 
          when DEBOUNCE_SE0 =>
+            -- TUCHEND - TUCH expired?
             if ( expiredTimer( r.time5060 ) ) then
                -- no stable reset seen; keep trying
                -- It is not quite clear what that means, though; the 
                -- spec says that if this timer expires we go back to 'suspend'
                -- but if SE0 keeps being flaky then we end up looping.
                -- So I don't understand how this would be different to not using a T0
-               -- timer at all and simply waiting for a stable SE0
-               start5060 := true;
-               v.state   := SUSPEND;
-            elsif ( expiredTimer( r.time120 ) ) then
-               v.state       := DRIVE_CHIRP;
+               -- timer at all and simply waiting for a stable SE0.
+               -- One difference: the machine checks for 'K' only in SUSPEND state.
+
+               -- TWTRSM (see comment above)
+               start5060     := true;
+               v.state       := SUSPEND;
+            elsif ( expiredTimer( r.timeSmall ) ) then
+               v.state       := INIT_CHIRP;
             elsif    ( v.lineState /= ULPI_RXCMD_LINE_STATE_SE0_C  ) then
-               start120      := true;
+               -- TFILTSE0
+               start20       := true;
             end if;
 
          when RESUME =>
-            if ( (hiSpeedEn and r.usb2HiSpeed) = '1' ) then
+            -- FIXME: should we have a timeout here?
+            if ( (usb2HiSpeedEn and r.usb2HiSpeed) = '1' ) then
                if ( v.lineState = ULPI_RXCMD_LINE_STATE_SE0_C  ) then
                   v.state := HS_INIT;
                end if;
@@ -473,6 +486,7 @@ begin
             if ( r.txReq.vld = '0' ) then
                v.txReq.vld := '1';
                v.txReq.dat := ULPI_TXCMD_TX_C & x"0"; -- NOPID
+               -- TUCH / TDRSMUP
                start1200   := true;
             elsif ( expiredTimer( r.time1200 ) ) then
                if ( ulpiTxRep.nxt = '1' ) then
@@ -493,7 +507,10 @@ begin
       end case;
 
       if ( start120  ) then
-         loadTimer( v.time120,  PERIOD_120_C  );
+         loadTimer( v.timeSmall,  PERIOD_120_C  );
+      end if;
+      if ( start20  ) then
+         loadTimer( v.timeSmall,  PERIOD_20_C );
       end if;
       if ( start1200 ) then
          loadTimer( v.time1200, PERIOD_1200_C );
