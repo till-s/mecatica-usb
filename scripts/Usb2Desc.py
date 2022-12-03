@@ -65,9 +65,6 @@ class CvtReader(object):
 def acc(off,sz=1):
     def deco(func):
       fqn = func.__qualname__
-      cls = globals()
-      for k in fqn.split('.')[:-1]:
-         cls = cls[k]
       def setter(self, v = None):
          if ( v is None ):
             v = 0
@@ -82,7 +79,6 @@ def acc(off,sz=1):
             v >>= 8
          return self
       setattr(setter, "origName", func.__name__)
-      setattr(setter, "clazz", cls)
       return setter
     return deco
 
@@ -547,8 +543,3 @@ def basicACM(epAddr, epPktSize=8, sendBreak=False):
 
   c.wrapup()
   return c
-
-c=Usb2DescContext()
-d=c.Usb2DeviceDesc()
-d.iProduct("hello")
-co=c.Usb2ConfigurationDesc()
