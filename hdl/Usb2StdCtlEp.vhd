@@ -54,7 +54,7 @@ architecture Impl of Usb2StdCtlEp is
 
    alias DSC_C : Usb2ByteArray is DESCRIPTORS_G;
 
-   function pr(constant x: Usb2ByteArray) return natural is
+   procedure pr(constant x: Usb2ByteArray) is
       variable s : string(1 to 8);
    begin
       for i in x'range loop
@@ -63,7 +63,7 @@ architecture Impl of Usb2StdCtlEp is
          end loop;
          report "D[" & integer'image(i) & "]  => " & s;
       end loop;
-   end function pr;
+   end procedure pr;
 
    constant MAX_ALTSETTINGS_C  : natural          := USB2_APP_MAX_ALTSETTINGS_F( DESCRIPTORS_G );
    constant MAX_INTERFACES_C   : natural          := USB2_APP_MAX_INTERFACES_F ( DESCRIPTORS_G );
@@ -119,8 +119,9 @@ architecture Impl of Usb2StdCtlEp is
          when 32 => return 5;
          when 64 => return 6;
          when others =>
-           assert false report "Illegal MaxPktSize" severity failure;
       end case;
+      assert false report "Illegal MaxPktSize" severity failure;
+      return 0; -- silence vivado warning about missing return value
    end function ep0MaxPktSizeLd;
 
    constant EP0_PKT_SIZE_MSK_C : unsigned(ep0MaxPktSizeLd - 1 downto 0) := (others => '0');
