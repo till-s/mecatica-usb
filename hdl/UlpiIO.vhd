@@ -21,6 +21,8 @@ entity UlpiIO is
       nxt           :  in    std_logic;
       dat           :  inout std_logic_vector(7 downto 0);
 
+      forceStp      :  in    std_logic := '0';
+
       ulpiRx        :  out   UlpiRxType;
       ulpiTxReq     :  in    UlpiTxReqType  := ULPI_TX_REQ_INIT_C;
       ulpiTxRep     :  out   UlpiTxRepType ;
@@ -135,7 +137,7 @@ begin
    stateVec  <= to_unsigned( TxStateType'pos( rTx.state ), stateVec'length );
 
 
-   P_COMB_TX : process ( rTx, regReq, dir_r, din_r, nxt_r, nxt, ulpiTxReq ) is
+   P_COMB_TX : process ( rTx, regReq, dir_r, din_r, nxt_r, nxt, ulpiTxReq, forceStp ) is
       variable v : TxRegType;
    begin
       v          := rTx;
@@ -248,6 +250,10 @@ begin
                v.rep.ack   := '1';
             end if;
       end case;
+
+      if ( forceStp = '1' ) then
+         stp_tx <= '1';
+      end if;
 
       rinTx         <= v;
    end process P_COMB_TX;
