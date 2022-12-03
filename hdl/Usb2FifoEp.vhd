@@ -69,6 +69,14 @@ architecture Impl of Usb2FifoEp is
       if ( c ) then return a; else return b; end if;
    end function ite;  
 
+   signal haltedInp             : std_logic := '1';
+   signal haltedOut             : std_logic := '1';
+   signal mstInpVld             : std_logic := '0';
+   signal mstInpDon             : std_logic := '0';
+   signal fifoDatInp            : std_logic_vector(7 downto 0) := (others => '0');
+   signal bFramedInp            : std_logic := '0';
+   signal subOutRdy             : std_logic := '0';
+
 begin
 
    assert MAX_PKT_SIZE_INP_G = 0 or MAX_PKT_SIZE_INP_G <= 2**LD_FIFO_DEPTH_INP_G
@@ -103,17 +111,16 @@ begin
          end if;
       end process P_HALT;
 
-      fifoWen             <= wenInp and not halted;
-      fullInp             <= fifoFull or halted;
+      haltedInp           <= halted;
+      fifoWen             <= wenInp and not haltedInp;
+      fullInp             <= fifoFull or haltedInp;
+      mstInpVld           <= not fifoEmpty;
+      bFramedInp          <= '1'; -- no framing
+      mstInpDon           <= '0'; -- no framing
 
       -- only freeze user-access in halted state; EP interaction with the packet
       -- engine proceeds
       fifoRen             <= usb2EpOb.subInp.rdy;
-      usb2EpIb.mstInp.vld <= not fifoEmpty;
-      usb2EpIb.stalledInp <= halted;
-      usb2EpIb.bFramedInp <= '1'; -- no framing
-      usb2EpIb.mstInp.err <= '0';
-      usb2EpIb.mstInp.don <= '0'; -- no framing
 
       U_FIFO : entity work.Usb2Fifo
          generic map (
@@ -130,7 +137,7 @@ begin
             wen          => fifoWen,
             full         => fifoFull,
 
-            dou          => usb2EpIb.mstInp.dat,
+            dou          => fifoDatInp,
             ren          => fifoRen,
             empty        => fifoEmpty,
 
@@ -140,13 +147,6 @@ begin
          );
 
    end generate G_INP_FIFO;
-
-   G_INP_NO_FIFO : if ( MAX_PKT_SIZE_INP_G = 0 ) generate
-   begin
-      usb2EpIb.mstInp     <= USB2_STRM_MST_INIT_C;
-      usb2EpIb.stalledInp <= '1';
-      usb2EpIb.bFramedInp <= '0';
-   end generate G_INP_NO_FIFO;
 
    G_OUT_FIFO : if ( MAX_PKT_SIZE_OUT_G > 0 ) generate
       signal halted       : std_logic := '0';
@@ -158,13 +158,13 @@ begin
       signal lastWen      : std_logic := '0';
    begin
 
-      P_HALT : process ( clk ) is
+      P_SEQ : process ( clk ) is
       begin
          if ( rising_edge( clk ) ) then
             if ( rst = '1' ) then
-               halted  <= '0';
-               fifoRdy <= '0';
-               lastWen <= '0';
+               halted    <= '0';
+               fifoRdy   <= '0';
+               lastWen   <= '0';
             else
                if ( (setHalt and selHaltOut) = '1' ) then
                   halted <= '1';
@@ -189,16 +189,16 @@ begin
                end if;
             end if;
          end if;
-      end process P_HALT;
+      end process P_SEQ;
 
       -- only freeze user-access in halted state; EP interaction with the packet
       -- engine proceeds
+      haltedOut           <= halted;
       fifoWen             <= usb2EpOb.mstOut.vld;
-      usb2EpIb.subOut.rdy <= fifoRdy;
-      emptyOut            <= fifoEmpty or halted;
-      fifoRen             <= renOut and not halted;
+      subOutRdy           <= fifoRdy;
+      emptyOut            <= fifoEmpty or haltedOut;
+      fifoRen             <= renOut and not haltedOut;
 
-      usb2EpIb.stalledOut <= halted;
       filledOut           <= fifoFilled;
 
       U_FIFO : entity work.Usb2Fifo
@@ -227,10 +227,17 @@ begin
 
    end generate G_OUT_FIFO;
 
-   G_OUT_NO_FIFO : if ( MAX_PKT_SIZE_OUT_G = 0 ) generate
+   P_COMB : process ( mstInpVld, haltedInp, fifoDatInp, bFramedInp, mstInpDon, haltedOut, subOutRdy ) is
    begin
-      usb2EpIb.subOut     <= USB2_STRM_SUB_INIT_C;
-      usb2EpIb.stalledOut <= '1';
-   end generate G_OUT_NO_FIFO;
+      usb2EpIb            <= USB2_ENDP_PAIR_IB_INIT_C;
+      usb2EpIb.mstInp.vld <= mstInpVld;
+      usb2EpIb.stalledInp <= haltedInp;
+      usb2EpIb.bFramedInp <= bFramedInp;
+      usb2EpIb.mstInp.err <= '0';
+      usb2EpIb.mstInp.don <= mstInpDon;
+      usb2EpIb.mstInp.dat <= fifoDatInp;
+      usb2EpIb.stalledOut <= haltedOut;
+      usb2EpIb.subOut.rdy <= subOutRdy;
+   end process P_COMB;
 
 end architecture Impl;

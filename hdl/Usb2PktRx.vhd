@@ -184,9 +184,16 @@ begin
       end case;
       end if;
 
+      usb2Rx            <= USB2_RX_INIT_C;
+      usb2Rx.pktHdr     <= r.pktHdr;
+      usb2Rx.mst.dat    <= r.datPipe(0).dat;
+      usb2Rx.mst.vld    <= r.datPipe(0).nxt and ulpiRx.nxt;
+      usb2Rx.mst.don    <= r.datDon;
+      usb2Rx.mst.err    <= r.datErr;
       usb2Rx.rxCmd      <= v.rxCmd;
       usb2Rx.isRxCmd    <= isRxCmd;
-      usb2Rx.rxActive   <= rxAct = '1';
+      usb2Rx.rxActive   <= ( rxAct = '1' );
+
       rin               <= v;
    end process P_COMB;
 
@@ -220,13 +227,5 @@ begin
          x   => crcInp,
          y   => crc16Out
       );
-
-
-   usb2Rx.pktHdr  <= r.pktHdr;
-
-   usb2Rx.mst.dat <= r.datPipe(0).dat;
-   usb2Rx.mst.vld <= r.datPipe(0).nxt and ulpiRx.nxt;
-   usb2Rx.mst.don <= r.datDon;
-   usb2Rx.mst.err <= r.datErr;
 
 end architecture Impl;
