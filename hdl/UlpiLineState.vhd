@@ -139,6 +139,7 @@ architecture Impl of UlpiLineState is
       RESUME,
       WAKEUP,
       DRIVE_K,
+      WAIT_K_DON,
       WRITE_REG
    );
 
@@ -483,16 +484,19 @@ begin
          -- driving remote wakeup and hi-speed chirp requires the
          -- same timing and txReq signal
          when DRIVE_K =>
+            v.txReq.vld := '1';
+            v.txReq.dat := ULPI_TXCMD_TX_C & x"0"; -- NOPID
+            -- TUCH / TDRSMUP
+            start1200   := true;
+            v.state     := WAIT_K_DON;
+
+         when WAIT_K_DON =>
             if ( r.txReq.vld = '0' ) then
-               v.txReq.vld := '1';
-               v.txReq.dat := ULPI_TXCMD_TX_C & x"0"; -- NOPID
-               -- TUCH / TDRSMUP
-               start1200   := true;
-            elsif ( expiredTimer( r.time1200 ) ) then
-               if ( ulpiTxRep.nxt = '1' ) then
-                  v.txReq.vld := '0';
-                  v.state     := r.nxtState;
-               end if;
+               v.state     := r.nxtState;
+            elsif ( expiredTimer( r.time1200 ) and ( ulpiTxRep.nxt = '1' ) ) then
+               v.txReq.vld := '0';
+               -- don't load nxtState from here in order to reduce
+               -- combinatorial path length from 'nxt' for timing reasons.
             end if;
 
          when WRITE_REG =>
