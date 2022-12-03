@@ -40,6 +40,8 @@ entity Usb2Core is
       ulpiStp                      : out   std_logic;
       ulpiDat                      : inout std_logic_vector(7 downto 0);
 
+      ulpiForceStp                 : in    std_logic       := '0';
+
       ulpiRegReq                   : in    UlpiRegReqType  := ULPI_REG_REQ_INIT_C;
       ulpiRegRep                   : out   UlpiRegRepType;
 
@@ -190,6 +192,8 @@ begin
       stp             => ulpiStp,
       nxt             => ulpiNxt,
       dat             => ulpiDat,
+
+      forceStp        => ulpiForceStp,
 
       ulpiRx          => ulpiRx,
       ulpiTxReq       => ulpiTxReq,
