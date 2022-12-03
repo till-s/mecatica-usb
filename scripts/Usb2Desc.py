@@ -481,6 +481,7 @@ def basicACM(epAddr, epPktSize=8, sendBreak=False):
   d.bNumInterfaces(2)
   d.bConfigurationValue(1)
   d.bMaxPower(0x32)
+  d.bmAttributes( d.CONF_ATT_REMOTE_WAKEUP )
 
   # interface 0
   d = c.Usb2InterfaceDesc()
