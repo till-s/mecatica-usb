@@ -138,8 +138,8 @@ package Usb2Pkg is
    type Usb2DevStatusType is record
       state      : Usb2DevStateType;
       devAddr    : Usb2DevAddrType;
-      remWakeup  : boolean;
-      hiSpeed    : boolean;
+      remWakeup  : boolean; -- whether remote wakeup is supported and enabled
+      hiSpeed    : boolean; -- device is in hi-speed mode (supported and enabled)
       selHaltInp : std_logic_vector(15 downto 0);
       selHaltOut : std_logic_vector(15 downto 0);
       clrHalt    : std_logic;
