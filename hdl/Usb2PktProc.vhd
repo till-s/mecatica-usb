@@ -765,7 +765,8 @@ begin
             -- one cycle delay in case we change v.pid
             txDataMst.don <= r.donFlg;
             v.donFlg      := '1';
-            if ( devStatus.hiSpeed and r.pid = USB2_PID_HSK_ACK_C and ei.subOut.rdy = '0' ) then
+            -- SETUP does not participate in PING protocol
+            if ( devStatus.hiSpeed and r.pid = USB2_PID_HSK_ACK_C and r.tok /= USB2_PID_TOK_SETUP_C and ei.subOut.rdy = '0' ) then
                v.pid := USB2_PID_HSK_NYET_C;
             end if;
             if ( (ei.stalledInp or ei.stalledOut) = '1' ) then
