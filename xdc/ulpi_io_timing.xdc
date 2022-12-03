@@ -20,6 +20,8 @@ set_output_delay -clock ulpiClk -max 4.000 [all_fanout -flat -endpoints_only [ge
 #Thus, we define the max delay = period + max output delay (this removes the internal output delay)
 #     = 16.667 + 4.0 = 20.667
 set_max_delay -datapath_only -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]] 20.667
+# set_min_delay does not accept -datapath_only; furthermore set_max_delay -datapath_only marks
+# a false-path for hold check (c.f. set_max_delay -help)
 #set_min_delay  0.0 -datapath_only -from [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/dir_r_reg/D}]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]]
 
 
