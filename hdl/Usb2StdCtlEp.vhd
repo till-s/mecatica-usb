@@ -45,6 +45,9 @@ entity Usb2StdCtlEp is
       ctlExt          : in  Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
       ctlEpExt        : in  Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
 
+      suspend         : in  std_logic          := '0';
+      hiSpeed         : in  std_logic          := '0';
+
       devStatus       : out Usb2DevStatusType;
       epConfig        : out Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1)
    );
@@ -265,7 +268,7 @@ begin
 
    allEpIb(1 to NUM_ENDPOINTS_G - 1) <= usrEpIb;
 
-   P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt, pktHdr ) is
+   P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt, pktHdr, suspend, hiSpeed ) is
       variable v       : RegType;
       variable descVal : Usb2ByteType;
    begin
@@ -282,6 +285,7 @@ begin
       v.devStatus.selHaltOut    := (others => '0');
 
       v.reqParam.vld            := '0';
+      v.devStatus.hiSpeed       := (hiSpeed = '1');
 
       if ( epIb.mstCtl.vld = '0' ) then
          v.setupDone := true;
@@ -831,6 +835,11 @@ begin
             end if;
       end case;
 
+      devStatus <= r.devStatus;
+      if ( suspend = '1' ) then
+         devStatus.state <= SUSPENDED;
+      end if;
+
       rin <= v;
    end process P_COMB;
 
@@ -846,7 +855,6 @@ begin
    end process P_SEQ;
 
    param     <= r.reqParam;
-   devStatus <= r.devStatus;
    epConfig  <= r.epConfig;
 
 end architecture Impl;

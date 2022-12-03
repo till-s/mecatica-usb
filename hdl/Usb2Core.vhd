@@ -89,7 +89,7 @@ architecture Impl of Usb2Core is
    signal lineStateRegRep   : UlpiRegRepType  := ULPI_REG_REP_INIT_C;
 
    signal rstReq            : std_logic;
-   signal suspended         : std_logic;
+   signal suspend           : std_logic;
    signal isHiSpeed         : std_logic;
 
    signal txDataMst         : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
@@ -108,6 +108,8 @@ architecture Impl of Usb2Core is
 
    signal remWake           : std_logic;
 
+--   attribute MARK_DEBUG    of regMux : signal is "TRUE";
+
 begin
 
    usb2Rx               <= usb2RxLoc;
@@ -118,8 +120,7 @@ begin
       devStatus,
       usb2RemoteWake,
       rstReq,
-      isHiSpeed,
-      suspended,
+      suspend,
       ulpiPktTxReq,
       ulpiLineTxReq,
       lineStateRegReq,
@@ -132,7 +133,6 @@ begin
    begin
       v                          := regMux;
       usb2DevStatus              <= devStatus;
-      usb2DevStatus.hiSpeed      <= (isHiSpeed = '1');
       -- is remote wakeup enabled?
       if ( not devStatus.remWakeup ) then
          remWake <= '0';
@@ -140,7 +140,7 @@ begin
          remWake <= usb2RemoteWake;
       end if;
       ulpiTxReq <= ulpiPktTxReq;
-      if ( ( rstReq or suspended ) = '1' ) then
+      if ( ( rstReq or suspend ) = '1' ) then
          ulpiTxReq <= ulpiLineTxReq;
       end if;
       -- default
@@ -222,7 +222,7 @@ begin
          usb2HiSpeedEn=> usb2HiSpeedEn,
 
          usb2Rst      => rstReq,
-         usb2Suspend  => suspended,
+         usb2Suspend  => suspend,
          usb2HiSpeed  => isHiSpeed,
 
          usb2RemWake  => remWake
@@ -289,6 +289,9 @@ begin
       pktHdr          => usb2RxLoc.pktHdr,
       ctlExt          => usb2Ep0CtlExt,
       ctlEpExt        => usb2Ep0CtlEpExt,
+
+      suspend         => suspend,
+      hiSpeed         => isHiSpeed,
 
       devStatus       => devStatus,
       epConfig        => epConfig
