@@ -469,7 +469,7 @@ def basicACM(epAddr, epPktSize=8, sendBreak=False):
   d.bDeviceClass( d.DSC_DEV_CLASS_NONE )
   d.bDeviceSubClass( d.DSC_DEV_SUBCLASS_NONE )
   d.bDeviceProtocol( d.DSC_DEV_PROTOCOL_NONE )
-  d.bMaxPacketSize0( 8 )
+  d.bMaxPacketSize0( 64 )
   d.idVendor(0x0123)
   d.idProduct(0xabcd)
   d.bcdDevice(0x0100)
