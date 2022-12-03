@@ -137,23 +137,25 @@ begin
                   -- FIXME ERROR
                else
                   v.pktHdr.pid := ulpiRx.dat(3 downto 0);
-                  case ( usb2PidGroup( v.pktHdr.pid ) ) is
-                     when USB2_PID_GROUP_TOK_C =>
-                        -- TOKEN PID
-                        v.state        := TOK1;
-                        v.crc          := USB2_CRC5_INIT_C;
-                     when USB2_PID_GROUP_HSK_C =>
-                        v.extraDat     := false;
-                        v.state        := WAIT_FOR_EOP;
-                     when USB2_PID_GROUP_DAT_C =>
-                        v.state        := DAT;
-                        v.crc          := USB2_CRC16_INIT_C;
-                        v.datErr       := '1'; -- reset when OK checksum is in
-                        v.pktHdr.vld   := '1';
-                     when others =>
-                        -- FIXME not implemented
-                        v.state        := WAIT_FOR_EOP;
-                  end case;
+
+                  if ( usb2PidIsTok( v.pktHdr.pid ) ) then
+                     v.state := TOK1;
+                     v.crc   := USB2_CRC5_INIT_C;
+                  else
+                     case ( usb2PidGroup( v.pktHdr.pid ) ) is
+                        when USB2_PID_GROUP_HSK_C =>
+                           v.extraDat     := false;
+                           v.state        := WAIT_FOR_EOP;
+                        when USB2_PID_GROUP_DAT_C =>
+                           v.crc          := USB2_CRC16_INIT_C;
+                           v.datErr       := '1'; -- reset when OK checksum is in
+                           v.pktHdr.vld   := '1';
+                           v.state        := DAT;
+                        when others =>
+                           -- token is already caught above
+                           v.state        := WAIT_FOR_EOP;
+                     end case;
+                  end if;
                end if;
             end if;
 

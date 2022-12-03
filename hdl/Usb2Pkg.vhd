@@ -425,7 +425,7 @@ package body Usb2Pkg is
 
    function usb2PidIsTok(constant x : in Usb2PidType) return boolean is
    begin
-      return x(1 downto 0) = "01";
+      return ( x(1 downto 0) = "01" ) or ( x = USB2_PID_SPC_PING_C );
    end function usb2PidIsTok;
 
    function usb2PidIsDat(constant x : in Usb2PidType) return boolean is

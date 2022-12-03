@@ -220,6 +220,11 @@ architecture Impl of Usb2PktProc is
          return false;
       end if;
 
+      -- ping only in hi-speed mode
+      if ( ( USB2_PID_SPC_PING_C = h.pid ) and not s.hiSpeed ) then
+         return false;
+      end if;
+
       if ( epidx = USB2_ENDP_ZERO_C ) then
          -- directed to default control pipe
          -- always accept the default pipe at the default address
@@ -234,9 +239,11 @@ architecture Impl of Usb2PktProc is
       if ( ( daddr /= s.devAddr ) or ( s.state /= CONFIGURED ) ) then
          return false;
       end if;
+
       -- the endpoint must exist
-      if (    USB2_PID_TOK_OUT_C  (3 downto 2) = h.pid(3 downto 2) 
-           or USB2_PID_TOK_SETUP_C(3 downto 2) = h.pid(3 downto 2)  ) then
+      if (    USB2_PID_TOK_OUT_C   = h.pid
+           or USB2_PID_SPC_PING_C  = h.pid
+           or USB2_PID_TOK_SETUP_C = h.pid ) then
          if ( c( to_integer( epidx ) ).maxPktSizeOut = 0 ) then
             return false;
          end if;
@@ -246,7 +253,7 @@ architecture Impl of Usb2PktProc is
          end if;
       end if;
       -- setup transactions can only go to control endpoints
-      if ( USB2_PID_TOK_SETUP_C(3 downto 2) = h.pid(3 downto 2) ) then
+      if ( USB2_PID_TOK_SETUP_C = h.pid ) then
          if ( c( to_integer( epidx ) ).transferTypeOut /= USB2_TT_CONTROL_C ) then
             return false;
          end if;
@@ -258,7 +265,7 @@ architecture Impl of Usb2PktProc is
    -- assume the PID is a INP/OUT/SETUP token!
    function isTokInp(constant x : Usb2PidType) return boolean is
    begin
-      return x(3 downto 2) = USB2_PID_TOK_IN_C(3 downto 2);
+      return x = USB2_PID_TOK_IN_C;
    end function isTokInp;
 
    function checkDatHdr(constant h: Usb2PktHdrType) return boolean is
@@ -374,41 +381,40 @@ begin
          when IDLE =>
             v.donFlg := '0';
             if ( ( usb2Rx.pktHdr.vld = '1' ) ) then
-               if ( devStatus.hiSpeed and r.tok /= USB2_PID_TOK_SETUP_C and usb2Rx.pktHdr.pid = USB2_PID_SPC_PING_C ) then
-                  if ( epIb( to_integer( v.epIdx ) ).subOut.rdy = '1' ) then
-                     v.pid := USB2_PID_HSK_ACK_C;
-                  else
-                     v.pid := USB2_PID_HSK_NAK_C;
-                  end if;
-                  v.timer    := TIME_HSK_TX_C;
-                  v.nxtState := HSK;
-                  v.state    := WAIT_TX;
-               elsif ( usb2PidIsTok( usb2Rx.pktHdr.pid ) ) then
-                  if ( checkTokHdr( usb2Rx.pktHdr, devStatus, epConfig ) ) then
-                     -- ignore SE0-J in hi-speed mode
-                     v.se0JSeen       := devStatus.hiSpeed;
-                     v.tok            := usb2Rx.pktHdr.pid;
-                     v.epIdx          := usb2TokenPktEndp( usb2Rx.pktHdr );
-                     v.timer          := USB2_TIMER_EXPIRED_C;
-                     ei               := epIb( to_integer( v.epIdx ) );
-                     if ( isTokInp( usb2Rx.pktHdr.pid ) ) then
-                        v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
-                        v.timer       := TIME_DATA_TX_C;
-                        v.state       := WAIT_TX;
-                        if    ( ei.stalledInp = '1' ) then
-                           v.pid      := USB2_PID_HSK_STALL_C;
-                           v.timer    := TIME_HSK_TX_C;
-                           v.nxtState := HSK;
-                        elsif ( epConfig( to_integer( v.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
-                           v.nxtState := ISO_INP;
-                           v.pid      := USB2_PID_DAT_DATA0_C;
-                           -- must send a null packet if there is no data (usb 5.6.5)
-                           v.donFlg   := not ei.mstInp.vld;
-                        elsif ( (ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' ) then
-                           v.pid      := USB2_PID_HSK_NAK_C;
-                           v.timer    := TIME_HSK_TX_C;
-                           v.nxtState := HSK;
-                        else
+               if ( checkTokHdr( usb2Rx.pktHdr, devStatus, epConfig ) ) then
+                  -- ignore SE0-J in hi-speed mode
+                  v.se0JSeen       := devStatus.hiSpeed;
+                  v.tok            := usb2Rx.pktHdr.pid;
+                  v.epIdx          := usb2TokenPktEndp( usb2Rx.pktHdr );
+                  v.timer          := USB2_TIMER_EXPIRED_C;
+                  ei               := epIb( to_integer( v.epIdx ) );
+                  if ( USB2_PID_SPC_PING_C = usb2Rx.pktHdr.pid ) then
+                     if ( epIb( to_integer( v.epIdx ) ).subOut.rdy = '1' ) then
+                        v.pid := USB2_PID_HSK_ACK_C;
+                     else
+                        v.pid := USB2_PID_HSK_NAK_C;
+                     end if;
+                     v.timer    := TIME_HSK_TX_C;
+                     v.nxtState := HSK;
+                     v.state    := WAIT_TX;
+                  elsif ( isTokInp( usb2Rx.pktHdr.pid ) ) then
+                     v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
+                     v.timer       := TIME_DATA_TX_C;
+                     v.state       := WAIT_TX;
+                     if    ( ei.stalledInp = '1' ) then
+                        v.pid      := USB2_PID_HSK_STALL_C;
+                        v.timer    := TIME_HSK_TX_C;
+                        v.nxtState := HSK;
+                     elsif ( epConfig( to_integer( v.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
+                        v.nxtState := ISO_INP;
+                        v.pid      := USB2_PID_DAT_DATA0_C;
+                        -- must send a null packet if there is no data (usb 5.6.5)
+                        v.donFlg   := not ei.mstInp.vld;
+                     elsif ( (ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' ) then
+                        v.pid      := USB2_PID_HSK_NAK_C;
+                        v.timer    := TIME_HSK_TX_C;
+                        v.nxtState := HSK;
+                     else
 -- For now we retry forever
 --                        if ( r.bufInpVld = '1' ) then
 --                           -- a retry
@@ -422,41 +428,40 @@ begin
 --                              v.bufRWIdx  := r.bufVldIdx;
 --                              v.bufInpVld := '0';
 --      
-                           if ( r.dataTglInp( to_integer( v.epIdx ) ) = '0' ) then
-                              v.pid := USB2_PID_DAT_DATA0_C;
-                           else
-                              v.pid := USB2_PID_DAT_DATA1_C;
-                           end if;
-                           if ( (r.bufInpVld or r.bufInpPart) = '1' ) then
-                              v.nxtState  := DATA_REP;
-                              -- pre-load next readout
-                              v.bufRWIdx  := r.bufRWIdx + 1;
-                              v.tmpVld    := '0';
-                              if ( r.bufRWIdx = r.bufEndIdx ) then
-                                 -- empty packet - avoid DATA_REP; the WAIT_ACK phase
-                                 -- handles the 'don' handshaking
-                                 v.nxtState := WAIT_DON;
-                                 v.donFlg   := '1';
-                                 v.bufRWIdx := r.bufRWIdx;
-                              end if;
-                           else
-                              v.nxtState := DATA_INP;
-                           end if;
+                        if ( r.dataTglInp( to_integer( v.epIdx ) ) = '0' ) then
+                           v.pid := USB2_PID_DAT_DATA0_C;
+                        else
+                           v.pid := USB2_PID_DAT_DATA1_C;
                         end if;
-                     else
-                        v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeOut - 1;
-                        v.timer       := TIME_WAIT_DATA_PID_C;
-                        v.state       := DATA_PID;
--- This happens anyways...
---                      if (     ( r.lstWasInp( ei ) = '1' ) and
---                           and ( epConfig( to_integer( v.epIdx ) ).transferTypeOut = USB2_TT_CONTROL_C ) then
---                         -- this must be a status transaction; if the last ack was lost then we take
---                         -- this as an ACK (8.5.3.3)
---                      invalidateBuffer( v );
---                      end if;
-                        -- make sure there is nothing left in the write area
-                        invalidateBuffer( v );
+                        if ( (r.bufInpVld or r.bufInpPart) = '1' ) then
+                           v.nxtState  := DATA_REP;
+                           -- pre-load next readout
+                           v.bufRWIdx  := r.bufRWIdx + 1;
+                           v.tmpVld    := '0';
+                           if ( r.bufRWIdx = r.bufEndIdx ) then
+                              -- empty packet - avoid DATA_REP; the WAIT_ACK phase
+                              -- handles the 'don' handshaking
+                              v.nxtState := WAIT_DON;
+                              v.donFlg   := '1';
+                              v.bufRWIdx := r.bufRWIdx;
+                           end if;
+                        else
+                           v.nxtState := DATA_INP;
+                        end if;
                      end if;
+                  else
+                     v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeOut - 1;
+                     v.timer       := TIME_WAIT_DATA_PID_C;
+                     v.state       := DATA_PID;
+-- This happens anyways...
+--                   if (     ( r.lstWasInp( ei ) = '1' ) and
+--                        and ( epConfig( to_integer( v.epIdx ) ).transferTypeOut = USB2_TT_CONTROL_C ) then
+--                      -- this must be a status transaction; if the last ack was lost then we take
+--                      -- this as an ACK (8.5.3.3)
+--                   invalidateBuffer( v );
+--                   end if;
+                  -- make sure there is nothing left in the write area
+                     invalidateBuffer( v );
                   end if;
                end if;
             end if;
@@ -766,7 +771,7 @@ begin
             txDataMst.don <= r.donFlg;
             v.donFlg      := '1';
             -- SETUP does not participate in PING protocol
-            if ( devStatus.hiSpeed and r.pid = USB2_PID_HSK_ACK_C and r.tok /= USB2_PID_TOK_SETUP_C and ei.subOut.rdy = '0' ) then
+            if ( devStatus.hiSpeed and r.pid = USB2_PID_HSK_ACK_C and r.tok = USB2_PID_TOK_OUT_C and ei.subOut.rdy = '0' ) then
                v.pid := USB2_PID_HSK_NYET_C;
             end if;
             if ( (ei.stalledInp or ei.stalledOut) = '1' ) then
