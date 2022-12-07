@@ -118,7 +118,8 @@ begin
       ulpiTxReq                    => ulpiTxReq,
       ulpiTxRep                    => ulpiTxRep,
       txDataMst                    => txDataMst,
-      txDataSub                    => txDataSub
+      txDataSub                    => txDataSub,
+      hiSpeed                      => '0'
    );
 
    U_ULPI_IO : entity work.UlpiIO

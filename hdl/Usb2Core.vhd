@@ -249,7 +249,8 @@ begin
       ulpiTxReq       => ulpiPktTxReq,
       ulpiTxRep       => ulpiTxRep,
       txDataMst       => txDataMst,
-      txDataSub       => txDataSub
+      txDataSub       => txDataSub,
+      hiSpeed         => isHiSpeed
    );
 
    U_PKT_PROCESSOR : entity work.Usb2PktProc

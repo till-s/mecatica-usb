@@ -434,7 +434,8 @@ begin
          ulpiTxReq   => ulpiTxReq,
          ulpiTxRep   => ulpiTxRep,
          txDataMst   => txDataMst,
-         txDataSub   => txDataSub
+         txDataSub   => txDataSub,
+         hiSpeed     => '0'
       );
 
 

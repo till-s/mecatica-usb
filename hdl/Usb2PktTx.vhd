@@ -17,7 +17,8 @@ entity Usb2PktTx is
       ulpiTxReq      : out UlpiTxReqType;
       ulpiTxRep      : in  UlpiTxRepType;
       txDataMst      : in  Usb2StrmMstType;
-      txDataSub      : out Usb2StrmSubType
+      txDataSub      : out Usb2StrmSubType;
+      hiSpeed        : in  std_logic
    );
 end entity Usb2PktTx;
 
@@ -205,12 +206,12 @@ begin
       rin <= v;
    end process P_COMB;
 
-   P_MUX : process ( r, txDataMst, ulpiTxReqLoc.vld ) is
+   P_MUX : process ( r, txDataMst, ulpiTxReqLoc.vld, hiSpeed ) is
    begin
       if ( r.nxtr = '1' ) then
          if ( ulpiTxReqLoc.vld = '0' ) then
             -- valid was just turned off -- send status
-            ulpiTxReqLoc.dat <= (others => r.err);
+            ulpiTxReqLoc.dat <= (others => (r.err and not hiSpeed) );
          elsif ( r.state = CHK2 ) then
             ulpiTxReqLoc.dat <= not r.crc(15 downto 8);
          elsif ( txDataMst.vld = '0' ) then
