@@ -269,7 +269,7 @@ begin
       end if;
    end process P_SEQ_TX;
 
-   dirCtl  <= dir or dir_r;
+   dirCtl  <= dir ; -- or dir_r;
 
    dat_o   <= dou_r;
 
