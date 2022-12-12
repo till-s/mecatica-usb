@@ -58,9 +58,6 @@ architecture Impl of Usb2PktProc is
    --       and        1 clock delay (for PID) in Usb2PktTx
    --       and        1 clock delay in HSK state
 
-   -- NOTE: Ulpi says
-   --
-
    -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks
    constant TIME_HSK_TX_C        : Usb2TimerType := simt(20,   1);
 
