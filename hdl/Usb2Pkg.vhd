@@ -144,10 +144,10 @@ package Usb2Pkg is
       selHaltOut : std_logic_vector(15 downto 0);
       clrHalt    : std_logic;
       setHalt    : std_logic;
+      usb2Rst    : std_logic;
    end record;
 
    constant USB2_DEV_STATUS_INIT_C : Usb2DevStatusType := (
-      -- FIXME should be POWERED until initial USB reset done
       state      => DEFAULT,
       devAddr    => (others => '0'),
       hiSpeed    => false,
@@ -155,7 +155,8 @@ package Usb2Pkg is
       selHaltInp => (others => '0'),
       selHaltOut => (others => '0'),
       clrHalt    => '0',
-      setHalt    => '0'
+      setHalt    => '0',
+      usb2Rst    => '0'
    );
 
    -- HANDSHAKE

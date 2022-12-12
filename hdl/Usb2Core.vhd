@@ -133,6 +133,7 @@ begin
    begin
       v                          := regMux;
       usb2DevStatus              <= devStatus;
+      usb2DevStatus.usb2Rst      <= rstReq;
       -- is remote wakeup enabled?
       if ( not devStatus.remWakeup ) then
          remWake <= '0';
