@@ -31,11 +31,11 @@ end entity Usb2PktProc;
 architecture Impl of Usb2PktProc is
 
    function simt(constant a,b: in natural) return Usb2TimerType is
-      variable v : natural;
+      variable v : integer;
    begin
       if ( SIMULATION_G ) then v := a; else v := b; end if;
-      v := v - 1; -- timer expired = '-1'
-      return Usb2TimerType(to_unsigned(v, Usb2TimerType'length));
+      v := v - 2; -- timer expired = '-1'
+      return Usb2TimerType(to_signed(v, Usb2TimerType'length));
    end function simt;
 
    function toStr(constant x : std_logic_vector) return string is
@@ -55,15 +55,17 @@ architecture Impl of Usb2PktProc is
 
    -- NOTE: there is a 1 clock delay in the receive path due to IO buffering
    --       also     a 1 clock delay in the transmit path due to IO buffering
+   --       and        1 clock delay (for PID) in Usb2PktTx
+   --       and        1 clock delay in HSK state
 
    -- NOTE: Ulpi says
    --
 
    -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks
-   constant TIME_HSK_TX_C        : Usb2TimerType := simt(20,  10);
+   constant TIME_HSK_TX_C        : Usb2TimerType := simt(20,   1);
 
    -- receive (tok) -transmit (tx-data)     ; ULPI: HS: 1-14 clocks, FS: 7-18 clocks
-   constant TIME_DATA_TX_C       : Usb2TimerType := simt(20,  10);
+   constant TIME_DATA_TX_C       : Usb2TimerType := simt(20,   1);
    -- transmit (tx-data) - receive (hsk)    ; ULPI: HS: 92  clocks, FS: 80 clocks (no range given)
    -- transmit (tx-data) - receive (hsk)    ; USB2: HS: 92-102   clocks, FS: 80 - 90 clocks
    -- ULPI: RXCMD delay     2-4 (HS+FS)
