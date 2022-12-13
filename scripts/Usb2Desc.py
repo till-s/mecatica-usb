@@ -461,7 +461,7 @@ class Usb2DescContext(list):
     @acc(12)
     def bNumberPowerFilters(self, v): return v
 
-def basicACM(epAddr, epPktSize=8, sendBreak=False):
+def singleCfgDevice(idVendor, idDevice, nInterfaces = 1, remWake = False):
   c  = Usb2DescContext()
 
   # device
@@ -470,18 +470,26 @@ def basicACM(epAddr, epPktSize=8, sendBreak=False):
   d.bDeviceSubClass( d.DSC_DEV_SUBCLASS_NONE )
   d.bDeviceProtocol( d.DSC_DEV_PROTOCOL_NONE )
   d.bMaxPacketSize0( 64 )
-  d.idVendor(0x0123)
-  d.idProduct(0xabcd)
+  d.idVendor(idVendor)
+  d.idProduct(idDevice)
   d.bcdDevice(0x0100)
   d.iProduct( "Till's ULPI Test Board" )
   d.bNumConfigurations(1)
 
   # configuration
   d = c.Usb2ConfigurationDesc()
-  d.bNumInterfaces(2)
+  d.bNumInterfaces(nInterfaces)
   d.bConfigurationValue(1)
   d.bMaxPower(0x32)
-  d.bmAttributes( d.CONF_ATT_REMOTE_WAKEUP )
+  if ( remWake ):
+    d.bmAttributes( d.CONF_ATT_REMOTE_WAKEUP )
+  return c
+
+
+def basicACM(epAddr, epPktSize=8, sendBreak=False):
+  nIfc    = 2
+  remWake = True
+  c  = singleCfgDevice(0x0123, 0xabcd, nIfc, remWake)
 
   # interface 0
   d = c.Usb2InterfaceDesc()

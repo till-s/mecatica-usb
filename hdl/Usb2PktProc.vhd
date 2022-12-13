@@ -109,11 +109,17 @@ architecture Impl of Usb2PktProc is
       WAIT_FS_K
    );
 
+   subtype IsoXactNumType is unsigned(1 downto 0);
+
+   type IsoXactNumArray is array(natural range <>) of IsoXactNumType;
+
    type RegType   is record
       state           : StateType;
       nxtState        : StateType;
       dataTglInp      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
       dataTglOut      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
+      isoXactInp      : IsoXactNumArray (0 to NUM_ENDPOINTS_G - 1);
+      isoXactOut      : IsoXactNumArray (0 to NUM_ENDPOINTS_G - 1);
       timer           : Usb2TimerType;
       se0JTimer       : Usb2TimerType;
       se0JSeen        : boolean;
@@ -140,6 +146,8 @@ architecture Impl of Usb2PktProc is
       nxtState        => IDLE,
       dataTglInp      => (others => '0'),
       dataTglOut      => (others => '0'),
+      isoXactInp      => (others => (others => '1' )),
+      isoXactOut      => (others => (others => '1' )),
       timer           => USB2_TIMER_EXPIRED_C,
       se0JTimer       => (others => '0'),
       se0JSeen        => false,
@@ -311,6 +319,11 @@ begin
       bufWrEna         <= '0';
       bufWriteInp      <= '0' & usb2Rx.mst.dat;
 
+      if ( usb2Rx.pktHdr.vld = '1' and usb2Rx.pktHdr.sof ) then
+         v.isoXactInp := (others => (others => '1'));
+         v.isoXactOut := (others => (others => '1'));
+      end if;
+
       for i in epObLoc'range loop
          epObLoc(i).subInp <= USB2_STRM_SUB_INIT_C;
 
@@ -330,6 +343,7 @@ begin
             epObLoc(i).mstCtl  <= USB2_STRM_MST_INIT_C;
             if ( epConfig( i ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                epObLoc(i).mstOut        <= usb2Rx.mst;
+               epObLoc(i).mstOut.usr    <= "00" & std_logic_vector( r.isoXactOut(i) );
                epObLoc(i).mstOut.vld    <= '0';
                epObLoc(i).mstOut.don    <= '0';
             else
@@ -400,15 +414,32 @@ begin
                      v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
                      v.timer       := TIME_DATA_TX_C;
                      v.state       := WAIT_TX;
-                     if    ( ei.stalledInp = '1' ) then
+                     if    ( epConfig( to_integer( v.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
+                        if ( r.isoXactInp( to_integer( r.epIdx ) ) = "00" ) then
+                           -- if the last transaction (r.ixoXactInp = "00") has already been sent then wait for the next
+                           -- microframe!
+                        else
+                           v.nxtState := ISO_INP;
+                           v.pid      := USB2_PID_DAT_DATA0_C;
+                           -- must send a null packet if there is no data (usb 5.6.5)
+                           v.donFlg   := not ei.mstInp.vld;
+                           if ( ei.mstInp.vld = '1' ) then
+                              if ( r.isoXactInp( to_integer( r.epIdx ) ) = "11" ) then
+                                 v.isoXactInp( to_integer( r.epIdx ) ) := unsigned( ei.mstInp.usr(1 downto 0) );
+                              else
+                                 v.isoXactInp( to_integer( r.epIdx ) ) := r.isoXactInp( to_integer( r.epIdx ) ) - 1;
+                              end if;
+                              case ( v.isoXactInp( to_integer( r.epIdx ) ) ) is
+                                 when "01" => v.pid := USB2_PID_DAT_DATA1_C;
+                                 when "10" => v.pid := USB2_PID_DAT_DATA2_C;
+                                 when others =>
+                              end case;
+                           end if;
+                        end if;
+                     elsif ( ei.stalledInp = '1' ) then
                         v.pid      := USB2_PID_HSK_STALL_C;
                         v.timer    := TIME_HSK_TX_C;
                         v.nxtState := HSK;
-                     elsif ( epConfig( to_integer( v.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
-                        v.nxtState := ISO_INP;
-                        v.pid      := USB2_PID_DAT_DATA0_C;
-                        -- must send a null packet if there is no data (usb 5.6.5)
-                        v.donFlg   := not ei.mstInp.vld;
                      elsif ( (ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' ) then
                         v.pid      := USB2_PID_HSK_NAK_C;
                         v.timer    := TIME_HSK_TX_C;
@@ -467,12 +498,28 @@ begin
 
          when DATA_PID =>
             if ( ( usb2Rx.pktHdr.vld = '1' ) ) then
-               if ( checkDatHdr( usb2Rx.pktHdr ) ) then
+               if    ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
+                  v.pid   := USB2_PID_SPC_NONE_C;
+                  v.state := DRAIN;
+                  if ( usb2PidGroup( usb2Rx.pktHdr.pid ) = USB2_PID_GROUP_DAT_C and ei.stalledOut = '0' ) then
+                     -- no super-sophisticated sequence checking; in particular: we don't check if the
+                     -- EP configuration actually asked for multiple transactions per micro-frame
+                     if (   (    r.isoXactOut( to_integer( r.epIdx ) ) = "11"
+                             and (   USB2_PID_DAT_DATA0_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2)
+                                  or USB2_PID_DAT_MDATA_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2) ) ) 
+                         or (     r.isoXactOut( to_integer( r.epIdx ) ) = "00"
+                             and (   USB2_PID_DAT_DATA1_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2)
+                                  or USB2_PID_DAT_MDATA_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2) ) ) 
+                         or (     r.isoXactOut( to_integer( r.epIdx ) ) = "01"
+                             and (   USB2_PID_DAT_DATA2_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2) ) ) ) then
+                        v.isoXactOut( to_integer( r.epIdx ) ) := r.isoXactOut( to_integer( r.epIdx ) ) + 1;
+                        v.state := ISO_OUT; 
+                     end if;
+                  end if;
+               elsif ( checkDatHdr( usb2Rx.pktHdr ) ) then
                   if ( ei.stalledOut = '1' ) then
                      v.pid   := USB2_PID_HSK_STALL_C;
                      v.state := DRAIN;
-                  elsif ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
-                     v.state := ISO_OUT; 
                   elsif ( not sequenceOutMatch( v, usb2Rx.pktHdr ) ) then
                      -- sequence mismatch; discard packet and ACK
                      v.pid   := USB2_PID_HSK_ACK_C;
@@ -505,7 +552,8 @@ begin
             end if;   
 
          when ISO_OUT =>
-            epObLoc( to_integer( r.epIdx ) ).mstOut <= usb2Rx.mst;
+            epObLoc( to_integer( r.epIdx ) ).mstOut.vld <= usb2Rx.mst.vld;
+            epObLoc( to_integer( r.epIdx ) ).mstOut.don <= usb2Rx.mst.don;
             if ( usb2Rx.mst.don = '1' ) then
                v.state := IDLE;
             end if;
@@ -519,8 +567,8 @@ begin
                end if;
             else
                epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy;
-               txDataMst.vld                            <= ei.mstInp.vld;
-               txDataMst.don                            <= ei.mstInp.don;
+               txDataMst.vld                               <= ei.mstInp.vld;
+               txDataMst.don                               <= ei.mstInp.don;
 
                if ( ei.bFramedInp = '1' ) then
                   -- if they don't want us to frame the input data
@@ -561,8 +609,8 @@ begin
                end if;
             end if;
             if ( usb2Rx.mst.don = '1' ) then
-               if ( usb2Rx.mst.err = '1' ) then
-                  -- corrupted; no handshake
+               if ( usb2Rx.mst.err = '1' or r.pid = USB2_PID_SPC_NONE_C ) then
+                  -- corrupted or ISO_OUT; no handshake
                   v.state   := IDLE;
                else
                   if ( r.state = DATA_OUT ) then

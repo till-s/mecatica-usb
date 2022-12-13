@@ -1,18 +1,30 @@
 # ulpiClk must be defined by user (clock at input/output pin that receives/drives the ulpi clock
 
-set_input_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[][0-7][]]/D}]]
-set_input_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/nxt_r_reg/D]]
-set_input_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]]
+# set the min. input delay to
+# min(data_trace_delay - clock_trace_delay) + min. delay when data source is valid after active clock
 
-set_input_delay -clock ulpiClk -max 7.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[][0-7][]]/D}]]
-set_input_delay -clock ulpiClk -max 7.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/nxt_r_reg/D]]
-set_input_delay -clock ulpiClk -max 7.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[][0-7][]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/nxt_r_reg/D]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]]
 
-set_output_delay -clock ulpiClk -min 0.500 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]]
-set_output_delay -clock ulpiClk -max 4.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]]
+# set the max. input delay to
+# max(data_trace_delay - clock_trace_delay) + max. delay when data source is valid after active clock
 
-set_output_delay -clock ulpiClk -min 0.500 [all_fanout -flat -endpoints_only [get_pins -hier -regex .*/stp_r_reg/Q]]
-set_output_delay -clock ulpiClk -max 4.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex .*/stp_r_reg/Q]]
+set_input_delay -add_delay -clock ulpiClk -max 7.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[][0-7][]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -max 7.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/nxt_r_reg/D]]
+set_input_delay -add_delay -clock ulpiClk -max 7.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]]
+
+# set the max. output delay to
+#  max(data_trace_delay - clock_trace_delay) + ULPI_setup_time
+
+# set the min. output delay to
+#  min(data_trace_delay - clock_trace_delay) - ULPI_hold_time
+
+set_output_delay -add_delay -clock ulpiClk -min 0.500 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -max 4.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]]
+
+set_output_delay -add_delay -clock ulpiClk -min 0.500 [all_fanout -flat -endpoints_only [get_pins -hier -regex .*/stp_r_reg/Q]]
+set_output_delay -add_delay -clock ulpiClk -max 4.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex .*/stp_r_reg/Q]]
 
 #delay from DIR until outputs are high-z (or back on)
 #note that the input delay into DIR and output delay out of the data outputs is 'included' in the max_delay - however, there is no

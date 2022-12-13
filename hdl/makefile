@@ -23,10 +23,11 @@ SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
 SRCS+= CDCACMSendBreak.vhd
 SRCS+= UlpiLineState.vhd
+SRCS+= Usb2IsoTb.vhd
 
 GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
-PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb
+PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb Usb2IsoTb
 
 all: $(PROG)
 	for i in $(PROG); do if ! ./$$i; then echo "$$i FAILED"; exit 1; fi  done
@@ -46,8 +47,9 @@ Usb2PktProcTb.o UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2Core.o
 Usb2FifoEpTb.o Usb2FifoEp.o Usb2PktTxTb.o Usb2HskTb.o Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o Usb2TstPkg.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o Usb2DescPkg.o
 Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
-Usb2PktProcTb.o: Usb2TstPkg.o Usb2PktProc.o Usb2StdCtlEp.o
+Usb2PktProcTb.o: Usb2Core.o Usb2TstPkg.o Usb2PktProc.o Usb2StdCtlEp.o
 Usb2PktProc.o: Usb2Bram.o
+Usb2IsoTb.o: Usb2Core.o Usb2TstPkg.o
 
 Usb2Core.o: UlpiIO.o Usb2PktProc.o Usb2PktRx.o Usb2PktTx.o Usb2StdCtlEp.o UlpiLineState.o
 
