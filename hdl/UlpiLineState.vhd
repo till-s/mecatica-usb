@@ -48,8 +48,8 @@ architecture Impl of UlpiLineState is
 -- Fig. C-2 timers
 --                          min   max
 --   TWTREV:            3000us   3125us
---   TWTRSTHS:           100us    875us  
---   TWTRSTFS:           2.5us   3000us  
+--   TWTRSTHS:           100us    875us
+--   TWTRSTFS:           2.5us   3000us
 --   TFILTSE0:           2.5us
 -- Fig. C-3 timers
 --   TUCH               1000us
@@ -75,7 +75,7 @@ architecture Impl of UlpiLineState is
 --      20us: TFILT = TFILTSE0
 --     120us: TWTRSTHS
 --    1200us: TUCH = TWTRSTFS = TWTFS = TDRSMUP
---    3060us: TWTREV = IDLE (T2SUSP) = (TUCH + TWTFS) 
+--    3060us: TWTREV = IDLE (T2SUSP) = (TUCH + TWTFS)
 --    5060us: TWTRSM = TUCHEND - TUCH
 --
 
@@ -419,7 +419,7 @@ begin
          when SUSPEND =>
             if ( r.usb2Suspend = '0' ) then
                v.usb2Suspend   := '1';
-               -- The 5060 timer serves two purposes: 
+               -- The 5060 timer serves two purposes:
                --  - while in SUSPEND state it times TWTRSM, the time we must wait
                --    until honoring a remote-wakeup.
                --  - when in DEBOUNCE_SE0 state it times TUCHEND - TUCH, the time
@@ -447,7 +447,7 @@ begin
             -- TUCHEND - TUCH expired?
             if ( expiredTimer( r.time5060 ) ) then
                -- no stable reset seen; keep trying
-               -- It is not quite clear what that means, though; the 
+               -- It is not quite clear what that means, though; the
                -- spec says that if this timer expires we go back to 'suspend'
                -- but if SE0 keeps being flaky then we end up looping.
                -- So I don't understand how this would be different to not using a T0
@@ -493,10 +493,6 @@ begin
          when WAIT_K_DON =>
             if ( r.txReq.vld = '0' ) then
                v.state     := r.nxtState;
-            elsif ( expiredTimer( r.time1200 ) and ( ulpiTxRep.nxt = '1' ) ) then
-               v.txReq.vld := '0';
-               -- don't load nxtState from here in order to reduce
-               -- combinatorial path length from 'nxt' for timing reasons.
             end if;
 
          when WRITE_REG =>
@@ -509,6 +505,12 @@ begin
                v.state        := r.nxtState;
             end if;
       end case;
+
+      if ( r.txReq.vld = '1' and expiredTimer( r.time1200 ) and ( ulpiTxRep.nxt = '1' ) ) then
+         -- r.txReq.vld is only set in 'WAIT_K_DON' state; reduce combinatorial path
+         -- for ulpiTxRep.nxt by moving this out of the case statement.
+         v.txReq.vld := '0';
+      end if;
 
       if ( start120  ) then
          loadTimer( v.timeSmall,  PERIOD_120_C  );

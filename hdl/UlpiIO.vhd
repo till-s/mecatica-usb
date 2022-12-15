@@ -16,6 +16,7 @@ entity UlpiIO is
    port (
       rst           :  in    std_logic := '0';
       clk           :  in    std_logic;
+      oclk          :  in    std_logic;
       stp           :  out   std_logic := '1'; -- section 3.12
       dir           :  in    std_logic;
       nxt           :  in    std_logic;
@@ -39,19 +40,17 @@ architecture Impl of UlpiIO is
 
    type TxStateType       is (INIT, IDLE, TX1, TX2, WR, RD1, RD2, DON);
 
-   type TxPktStateType    is (IDLE, RUN, LAST);
+   type TxPktStateType    is (IDLE, RUN);
 
    type TxRegType is record
       state       : TxStateType;
       rep         : UlpiRegRepType;
-      stp         : std_logic;
       pktState    : TxPktStateType;
    end record TxRegType;
 
    constant TX_REG_INIT_C : TxRegType := (
       state       => INIT,
       rep         => ULPI_REG_REP_INIT_C,
-      stp         => '1', -- section 3.12
       pktState    => IDLE
    );
 
@@ -92,32 +91,11 @@ architecture Impl of UlpiIO is
    signal rTx     : TxRegType := TX_REG_INIT_C;
    signal rinTx   : TxRegType;
    signal dou_tx  : std_logic_vector(7 downto 0) := (others => '0');
-   signal stp_tx  : std_logic := '0';
+   signal stp_tx  : std_logic := '1';
 
    -- blank DIR for the RX channel during register-RX back-to-back cycle
    signal blank   : std_logic := '0';
 
-   component Ila_256 is
-      port (
-         clk          : in  std_logic;
-         probe0       : in  std_logic_vector(63 downto 0) := (others => '0');
-         probe1       : in  std_logic_vector(63 downto 0) := (others => '0');
-         probe2       : in  std_logic_vector(63 downto 0) := (others => '0');
-         probe3       : in  std_logic_vector(63 downto 0) := (others => '0');
-         trig_in      : in  std_logic := '0';
-         trig_in_ack  : out std_logic;
-         trig_out     : out std_logic;
-         trig_out_ack : in  std_logic := '0'
-      );
-   end component Ila_256;
-
-   signal stateVec  : unsigned(2 downto 0);
-   signal regReqDbg : UlpiRegReqType;
-
-   attribute KEEP       of stateVec  : signal is toStr( GEN_ILA_G );
-   attribute KEEP       of regReqDbg : signal is toStr( GEN_ILA_G );
-
-   
    attribute MARK_DEBUG of  din_r          : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of  dou_tx         : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of  dou_rst        : signal is toStr( MARK_DEBUG_G );
@@ -125,17 +103,17 @@ architecture Impl of UlpiIO is
    attribute MARK_DEBUG of  dir_r          : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of  nxt_r          : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of  stp_tx         : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG of  regReqDbg      : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of  trn_r          : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG of  stateVec       : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of  blank          : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG of  rTx            : signal is toStr( MARK_DEBUG_G );
+-- MARK_DEBUG prevents FSM extraction; explicitly create a copy of the state for debugging
+--   attribute MARK_DEBUG of  rTx            : signal is toStr( MARK_DEBUG_G );
+
+   signal rTxStateDbg                      : unsigned(2 downto 0);
+   attribute MARK_DEBUG of rTxStateDbg     : signal is toStr( MARK_DEBUG_G );
 
 begin
 
-   regReqDbg <= regReq;
-   stateVec  <= to_unsigned( TxStateType'pos( rTx.state ), stateVec'length );
-
+   rTxStateDbg <= to_unsigned( TxStateType'pos( rTx.state ), rTxStateDbg'length );
 
    P_COMB_TX : process ( rTx, regReq, dir_r, din_r, nxt_r, nxt, ulpiTxReq, forceStp ) is
       variable v : TxRegType;
@@ -208,7 +186,6 @@ begin
                   -- this is a packet data transmission
                   if ( ulpiTxReq.vld = '0' ) then
                      -- transmission done; the last cycle registers the TX status
-                     v.pktState := LAST;
                      stp_tx     <= '1';
                      v.state    := DON;
                   end if;
@@ -275,13 +252,15 @@ begin
 
    dou_rst <= rst or dir_r;
 
-   P_DOU  : process ( clk ) is
+   P_DOU  : process ( oclk ) is
    begin
-      if ( rising_edge( clk ) ) then
+      if ( rising_edge( oclk ) ) then
          if ( dou_rst = '1' ) then
             dou_r <= (others => '0');
+            stp_r <= '1';
          elsif ( dou_ce = '1' ) then
             dou_r <= dou_tx;
+            stp_r <= stp_tx;
          end if;
       end if;
    end process P_DOU;
@@ -293,13 +272,11 @@ begin
             dir_r   <= '1';
             din_r   <= (others => '0');
             nxt_r   <= '0';
-            stp_r   <= '1';
             trn_r   <= '0';
          else
             dir_r   <= dir;
             din_r   <= dat_i;
             nxt_r   <= nxt;
-            stp_r   <= stp_tx;
             -- is the registered cycle a turn-around cycle?
             trn_r   <= ( dir xor dir_r );
          end if;
@@ -317,43 +294,6 @@ begin
    ulpiRx.nxt <= nxt_r;
    ulpiRx.dir <= dir_r and not blank;
    ulpiRx.trn <= trn_r;
-
-   G_ILA : if ( GEN_ILA_G ) generate
-   begin
-
-      U_ULPI_ILA : component Ila_256
-         port map (
-            clk                  => clk,
-            trig_in              => '0',
-            trig_out_ack         => '1',
-
-            probe0( 7 downto  0) => din_r,
-            probe0(15 downto  8) => dou_tx,
-            probe0(          16) => dou_rst,
-            probe0(          17) => dou_ce,
-            probe0(          18) => dir_r,
-            probe0(          19) => nxt_r,
-            probe0(          20) => stp_tx,
-            probe0(          21) => regReqDbg.vld,
-            probe0(          22) => regReqDbg.extnd,
-            probe0(          23) => trn_r,
-            probe0(31 downto 24) => regReqDbg.addr,
-            probe0(39 downto 32) => regReqDbg.wdat,
-            probe0(42 downto 40) => std_logic_vector( stateVec ), 
-            probe0(          43) => blank,
-            probe0(          44) => rTx.rep.ack,
-            probe0(          45) => rTx.rep.err,
-            probe0(53 downto 46) => rTx.rep.rdat,
-            probe0(63 downto 54) => (others => '0'),
-
-            probe1(63 downto  0) => (others => '0'),
-
-            probe2(63 downto  0) => (others => '0'),
-
-            probe3(63 downto  0) => (others => '0')
-
-         );
-   end generate G_ILA;
 
    ulpiTxRep.nxt <= dou_ce;
    ulpiTxRep.err <= rTx.rep.err;

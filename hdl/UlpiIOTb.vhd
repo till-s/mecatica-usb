@@ -408,6 +408,7 @@ begin
       port map (
          rst         => rst,
          clk         => clk,
+         oclk        => clk,
          stp         => stp,
          dir         => dir,
          nxt         => nxt,

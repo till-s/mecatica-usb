@@ -27,7 +27,7 @@ SRCS+= Usb2IsoTb.vhd
 
 GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
-PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb Usb2IsoTb
+PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb 
 
 all: $(PROG)
 	for i in $(PROG); do if ! ./$$i; then echo "$$i FAILED"; exit 1; fi  done
