@@ -256,10 +256,8 @@ begin
       if ( rising_edge( clk ) ) then
          if ( dou_rst = '1' ) then
             dou_r <= (others => '0');
-            stp_r <= '1';
          elsif ( dou_ce = '1' ) then
             dou_r <= dou_tx;
-            stp_r <= stp_tx;
          end if;
       end if;
    end process P_DOU;
@@ -271,11 +269,13 @@ begin
             dir_r   <= '1';
             din_r   <= (others => '0');
             nxt_r   <= '0';
+            stp_r   <= '1';
             trn_r   <= '0';
          else
             dir_r   <= dir;
             din_r   <= dat_i;
             nxt_r   <= nxt;
+            stp_r   <= stp_tx;
             -- is the registered cycle a turn-around cycle?
             trn_r   <= ( dir xor dir_r );
          end if;
