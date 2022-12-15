@@ -16,7 +16,6 @@ entity UlpiIO is
    port (
       rst           :  in    std_logic := '0';
       clk           :  in    std_logic;
-      oclk          :  in    std_logic;
       stp           :  out   std_logic := '1'; -- section 3.12
       dir           :  in    std_logic;
       nxt           :  in    std_logic;
@@ -105,8 +104,8 @@ architecture Impl of UlpiIO is
    attribute MARK_DEBUG of  stp_tx         : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of  trn_r          : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of  blank          : signal is toStr( MARK_DEBUG_G );
+
 -- MARK_DEBUG prevents FSM extraction; explicitly create a copy of the state for debugging
---   attribute MARK_DEBUG of  rTx            : signal is toStr( MARK_DEBUG_G );
 
    signal rTxStateDbg                      : unsigned(2 downto 0);
    attribute MARK_DEBUG of rTxStateDbg     : signal is toStr( MARK_DEBUG_G );
@@ -252,9 +251,9 @@ begin
 
    dou_rst <= rst or dir_r;
 
-   P_DOU  : process ( oclk ) is
+   P_DOU  : process ( clk ) is
    begin
-      if ( rising_edge( oclk ) ) then
+      if ( rising_edge( clk ) ) then
          if ( dou_rst = '1' ) then
             dou_r <= (others => '0');
             stp_r <= '1';

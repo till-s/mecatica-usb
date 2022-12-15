@@ -25,7 +25,6 @@ entity Usb2Core is
 
    port (
       clk                          : in    std_logic;
-      oclk                         : in    std_logic;
 
       -- resets only the ULPI interface
       ulpiRst                      : in    std_logic := '0';
@@ -188,7 +187,6 @@ begin
    )
    port map (
       clk             => clk,
-      oclk            => oclk,
       rst             => ulpiRst,
 
       dir             => ulpiDir,
