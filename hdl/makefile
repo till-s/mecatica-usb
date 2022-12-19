@@ -24,10 +24,12 @@ SRCS+= Usb2FifoEpTb.vhd
 SRCS+= CDCACMSendBreak.vhd
 SRCS+= UlpiLineState.vhd
 SRCS+= Usb2IsoTb.vhd
+SRCS+= UlpiIOBuf.vhd
+SRCS+= UlpiIOBufTb.vhd
 
 GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
-PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb 
+PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb UlpiIOBufTb
 
 all: $(PROG)
 	for i in $(PROG); do if ! ./$$i; then echo "$$i FAILED"; exit 1; fi  done
@@ -70,6 +72,10 @@ Usb2FifoTb.o: Usb2Fifo.o
 Usb2FifoEpTb.o: Usb2FifoEp.o Usb2Core.o CDCACMSendBreak.o
 
 UlpiLineState.o: UlpiPkg.o UsbUtilPkg.o
+
+UlpiIOBuf.o: UlpiPkg.o UsbUtilPkg.o
+
+UlpiIOBufTb.o: UlpiIOBuf.o
 
 $(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
 

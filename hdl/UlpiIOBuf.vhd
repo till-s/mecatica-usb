@@ -4,13 +4,15 @@ use     ieee.std_logic_1164.all;
 use     work.UlpiPkg.all;
 use     work.UsbUtilPkg.all;
 
-entity iotst is
+entity UlpiIOBuf is
    generic (
       MARK_DEBUG_G : boolean := true
    );
    port (
       ulpiClk    : in  std_logic;
 
+      -- whether to generate a stop after transmitting
+      -- (must be suppressed in the case of a register read)
       genStp     : in  std_logic;
 
       -- TX interface
@@ -28,9 +30,9 @@ entity iotst is
       ulpiIb     : in  UlpiIbType;
       ulpiOb     : out UlpiObType
    );
-end entity iotst;
+end entity UlpiIOBuf;
 
-architecture Impl of iotst is
+architecture Impl of UlpiIOBuf is
 
    -- direct synthesis to use RST and CE as coded (minimize lut cascading for timing)
    attribute DIRECT_ENABLE : string;

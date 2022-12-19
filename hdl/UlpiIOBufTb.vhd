@@ -2,10 +2,12 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
-entity iotsttb is
-end entity iotsttb;
+entity UlpiIOBufTb is
+end entity UlpiIOBufTb;
 
-architecture sim of iotsttb is
+use work.UlpiPkg.all;
+
+architecture sim of UlpiIOBufTb is
    signal clk : std_logic := '0';
    signal dat : std_logic_vector(7 downto 0) := (others => 'X');
    signal dou : std_logic_vector(7 downto 0) := (others => 'X');
@@ -14,6 +16,9 @@ architecture sim of iotsttb is
    signal stp : std_logic;
    signal rdy : std_logic;
    signal run : boolean   := true;
+   signal rx  : UlpiRxType;
+   signal ui  : UlpiIbType;
+   signal uo  : UlpiObType;
  
    procedure tick is begin wait until rising_edge(clk); end procedure tick;
 
@@ -105,17 +110,30 @@ begin
       wait;
    end process P_RCV;
 
-   U_DUT : entity work.iotst
+   ui.dir <= '0';
+   ui.nxt <= nxt;
+   ui.dat <= (others => 'X');
+
+   stp    <= uo.stp;
+   dou    <= uo.dat;
+
+   U_DUT : entity work.UlpiIOBuf
       port map (
-         clk    => clk,
-         din    => dat,
-         vld    => vld,
-         nxt    => nxt,
-         dir    => '0',
-         genStp => '1',
-         dou    => dou,
-         stp    => stp,
-         rdy    => rdy
+         ulpiClk    => clk,
+
+         genStp     => '1',
+ 
+         txVld      => vld,
+         txDat      => dat,
+         txRdy      => rdy,
+         txSta      => '0',
+         txDon      => open,
+         txErr      => open,
+
+         ulpiRx     => rx,
+
+         ulpiIb     => ui,
+         ulpiOb     => uo
       );
 
 end architecture sim;
