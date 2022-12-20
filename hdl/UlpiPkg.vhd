@@ -105,7 +105,6 @@ package UlpiPkg is
       dir   : std_logic;
       nxt   : std_logic;
       dat   : std_logic_vector(7 downto 0);
-      stp   : std_logic; -- readback for diagnostic purposes
    end record UlpiIbType;
 
    type UlpiObType is record

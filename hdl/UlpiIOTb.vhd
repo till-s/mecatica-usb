@@ -45,13 +45,16 @@ architecture Sim of UlpiIOTb is
    signal txDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal txDataSub       : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
 
+   signal ulpiIb          : UlpiIbType;
+   signal ulpiOb          : UlpiObType;
+
    type Slv9Array         is array ( natural range <> ) of std_logic_vector(8 downto 0);
 
    type StateType is (RESET, IDLE, ADD, ADDLY, WR, RD, JAMMED, RXCMD, TX, RX);
 
    type RegType   is record
          state       : StateType;
-         cnt         : natural;
+         cnt         : integer;
          dly         : natural;
          dir         : std_logic;
          nxt         : std_logic;
@@ -295,6 +298,8 @@ begin
       end loop;
       end loop;
 
+      report "first set of loops passed";
+
       for i in 0 to 5 loop
       for j in 0 to 2 loop
       for k in 0 to 2 loop
@@ -304,18 +309,21 @@ begin
          a2dly <= k;
          wdly  <= l;
          tick;
-         wr(regReq, regRep, 12, x"ab", toSl(jam < 3 + adly +         wdly));
+         wr(regReq, regRep, 12, x"ab", toSl(jam < 2 + adly +         wdly));
          passed := passed + 1;
-         wr(regReq, regRep, 65, x"ab", toSl(jam < 4 + adly + a2dly + wdly));
+         wr(regReq, regRep, 65, x"ab", toSl(jam < 3 + adly + a2dly + wdly));
          passed := passed + 1;
-         rd(regReq, regRep, 12, res  , toSl(jam < 4 + adly               ));
+         rd(regReq, regRep, 12, res  , toSl(jam < 3 + adly               ));
          passed := passed + 1;
-         rd(regReq, regRep, 65, res  , toSl(jam < 5 + adly + a2dly       ));
+         rd(regReq, regRep, 65, res  , toSl(jam < 4 + adly + a2dly       ));
          passed := passed + 1;
       end loop;
       end loop;
       end loop;
       end loop;
+
+      report "2nd set of loops passed";
+
       jam   <= -1;
       adly  <= 0;
       a2dly <= 0;
@@ -356,7 +364,9 @@ begin
          tick;
       end loop;
 
-      assert checkRx = tokSeen report "Token count mismatch" severity warning;
+      assert checkRx = tokSeen
+         report "Token count mismatch"
+         severity failure;
       passed := passed + checkRx;
 
       for i in 0 to 3 loop
@@ -401,17 +411,18 @@ begin
       wait;
    end process P_TST;
 
+   stp <= ulpiOb.stp;
+   dat <= ulpiOb.dat;
+
    U_DUT : entity work.UlpiIO
-      generic map (
-         GEN_ILA_G   => false
-      )
       port map (
          rst         => rst,
-         clk         => clk,
-         stp         => stp,
-         dir         => dir,
-         nxt         => nxt,
-         dat         => dat,
+         ulpiClk     => clk,
+         ulpiIb      => ulpiIb,
+         ulpiOb      => ulpiOb,
+
+         forceStp    => '0',
+
          regReq      => regReq,
          regRep      => regRep,
          ulpiRx      => ulpiRx,
@@ -443,13 +454,14 @@ begin
       procedure PROCJAM(variable v : inout RegType) is
       begin
          v       := v;
-         if ( v.jam > 0 ) then
-            if ( v.jam = 1 ) then
+         if ( v.jam >= 0 ) then
+            if ( v.jam = 0 ) then
                v.dir   := '1';
                v.nxt   := '1';
                v.state := JAMMED;
+            else
+               v.jam := v.jam - 1;
             end if;
-            v.jam := v.jam - 1;
          end if;
       end procedure PROCJAM;
 
@@ -492,7 +504,7 @@ begin
                   v.dir   := '0';
                   v.nxt   := '0';
                   v.state := IDLE;
-                  v.jam   := 0;
+                  v.jam   := -1;
                end if;
               
             when IDLE  =>
@@ -567,8 +579,11 @@ begin
                   else
                      regs   ( v.add ) <= dat;
                   end if;
+               end if;
+               if ( v.cnt = -1 ) then
+                  assert stp = '1' report "STP not asserted after write" severity failure;
                   v.state := IDLE;
-                  v.jam   := 0;
+                  v.jam   := -1;
                else
                   v.cnt   := v.cnt - 1;
                end if;
@@ -582,7 +597,7 @@ begin
                if ( v.cnt = 0 ) then
                   v.dir   := '0';
                   v.state := IDLE;
-                  v.jam   := 0;
+                  v.jam   := -1;
                else
                   if ( v.cnt = 1 ) then
                      v.dat   := (others => 'Z');
@@ -673,15 +688,18 @@ begin
       end if;
    end process P_JAM;
 
-   dir <= dbg1.dir or jamdir;
-   nxt <= dbg1.nxt or jamdir;
+   dir <= dbg1.dir;
+   nxt <= dbg1.nxt;
+
+   ulpiIb.dir <= dir;
+   ulpiIb.nxt <= nxt;
 
    P_DAT : process ( dbg1 ) is
    begin
       if ( dbg1.dir = '1' ) then
-         dat <= dbg1.dat;
+         ulpiIb.dat <= dbg1.dat;
       else
-         dat <= (others => 'Z');
+         ulpiIb.dat <= (others => 'Z');
       end if;
    end process P_DAT;
 

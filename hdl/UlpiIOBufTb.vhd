@@ -122,6 +122,7 @@ begin
          ulpiClk    => clk,
 
          genStp     => '1',
+         waiNxt     => '0',
  
          txVld      => vld,
          txDat      => dat,

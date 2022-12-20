@@ -55,6 +55,8 @@ Usb2IsoTb.o: Usb2Core.o Usb2TstPkg.o
 
 Usb2Core.o: UlpiIO.o Usb2PktProc.o Usb2PktRx.o Usb2PktTx.o Usb2StdCtlEp.o UlpiLineState.o
 
+UlpiIO.o: UlpiIOBuf.o
+
 Usb2HskTb.o Usb2PktTxTb.o: UlpiIO.o Usb2PktTx.o
 
 CDCACMLineBreak.o: Usb2Pkg.o
