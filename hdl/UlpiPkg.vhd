@@ -86,11 +86,13 @@ package UlpiPkg is
    type UlpiTxReqType is record
       dat   :  std_logic_vector(7 downto 0);
       vld   :  std_logic;
+      err   :  std_logic;
    end record UlpiTxReqType;
 
    constant ULPI_TX_REQ_INIT_C : UlpiTxReqType := (
       dat   => (others => '0'),
-      vld   => '0'
+      vld   => '0',
+      err   => '0'
    );
    
    type UlpiTxRepType is record

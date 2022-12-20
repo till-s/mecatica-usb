@@ -183,6 +183,7 @@ begin
             txNxt <= ulpiTxReq.vld and txRdy;
             txDat <= ulpiTxReq.dat;
             txVld <= ulpiTxReq.vld;
+            txSta <= ulpiTxReq.err;
             if ( txDon = '1' ) then
                v.state := IDLE;
             end if;
@@ -236,7 +237,7 @@ begin
    regRep        <= rTx.rep;
 
    ulpiTxRep.nxt <= txNxt;
-   ulpiTxRep.err <= rTx.rep.err;
+   ulpiTxRep.err <= txErr;
    ulpiTxRep.don <= toSl( rTx.state = TX ) and txDon;
 
 end architecture Impl;
