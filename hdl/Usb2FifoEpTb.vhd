@@ -326,10 +326,8 @@ begin
       ulpiRst                      => open,
       usb2Rst                      => open,
 
-      ulpiDir                      => ulpiTstOb.dir,
-      ulpiStp                      => ulpiTstIb.stp,
-      ulpiNxt                      => ulpiTstOb.nxt,
-      ulpiDat                      => ulpiDatIO,
+      ulpiIb                       => ulpiTstOb,
+      ulpiOb                       => ulpiTstIb,
 
       usb2DevStatus                => devStatus,
       usb2Rx                       => usb2Rx,

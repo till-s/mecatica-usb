@@ -20,6 +20,7 @@ entity Usb2Core is
       MARK_DEBUG_PKT_TX_G          : boolean := true;
       MARK_DEBUG_PKT_PROC_G        : boolean := true;
       MARK_DEBUG_EP0_G             : boolean := true;
+      MUST_MASK_STP_G              : boolean := true;
       DESCRIPTORS_G                : Usb2ByteArray
    );
 
@@ -35,10 +36,8 @@ entity Usb2Core is
 
       -- ULPI interface; connects directly to device
       -- pins (IOBs)
-      ulpiDir                      : in    std_logic;
-      ulpiNxt                      : in    std_logic;
-      ulpiStp                      : out   std_logic;
-      ulpiDat                      : inout std_logic_vector(7 downto 0);
+      ulpiIb                       : in    UlpiIbType;
+      ulpiOb                       : out   UlpiObType;
 
       ulpiForceStp                 : in    std_logic       := '0';
 
@@ -183,16 +182,15 @@ begin
 
    U_ULPI_IO : entity work.UlpiIO
    generic map (
-      MARK_DEBUG_G    => MARK_DEBUG_ULPI_IO_G
+      MARK_DEBUG_G    => MARK_DEBUG_ULPI_IO_G,
+      MUST_MASK_STP_G => MUST_MASK_STP_G
    )
    port map (
-      clk             => clk,
+      ulpiClk         => clk,
       rst             => ulpiRst,
 
-      dir             => ulpiDir,
-      stp             => ulpiStp,
-      nxt             => ulpiNxt,
-      dat             => ulpiDat,
+      ulpiIb          => ulpiIb,
+      ulpiOb          => ulpiOb,
 
       forceStp        => ulpiForceStp,
 

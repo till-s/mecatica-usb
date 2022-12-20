@@ -330,10 +330,8 @@ report "GET_DESCRIPTOR(STR)";
       ulpiRst                      => open,
       usb2Rst                      => open,
 
-      ulpiDir                      => ulpiTstOb.dir,
-      ulpiStp                      => ulpiTstIb.stp,
-      ulpiNxt                      => ulpiTstOb.nxt,
-      ulpiDat                      => ulpiDatIO,
+      ulpiIb                       => ulpiTstOb,
+      ulpiOb                       => ulpiTstIb,
 
       usb2DevStatus                => open,
       usb2Rx                       => open,

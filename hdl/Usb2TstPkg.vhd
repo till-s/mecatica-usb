@@ -11,28 +11,6 @@ package Usb2TstPkg is
 
    function ulpiTstNumBits(constant x: in natural) return natural;
 
-   type UlpiTstObType is record
-      dir  : std_logic;
-      nxt  : std_logic;
-      dat  : std_logic_vector(7 downto 0);
-   end record UlpiTstObType;
-
-   constant ULPI_TST_OB_INIT_C : UlpiTstObType := (
-      dir  => '0',
-      nxt  => '0',
-      dat  => (others => '0')
-   );
-
-   type UlpiTstIbType is record
-      stp  : std_logic;
-      dat  : std_logic_vector(7 downto 0);
-   end record UlpiTstIbType;
-
-   constant ULPI_TST_IB_INIT_C : UlpiTstIbType := (
-      stp  => '0',
-      dat  => (others => '0')
-   );
-
    type Usb2TstEpCfgType is record
       maxPktSizeInp : natural;
       maxPktSizeOut : natural;
@@ -47,8 +25,8 @@ package Usb2TstPkg is
 
    constant USB2_TST_NULL_DATA_C : Usb2ByteArray(0 to -1) := ( others => (others => '0') );
 
-   signal ulpiTstOb              : ulpiTstObType          := ULPI_TST_OB_INIT_C;
-   signal ulpiTstIb              : ulpiTstIbType          := ULPI_TST_IB_INIT_C;
+   signal ulpiTstOb              : ulpiIbType             := ULPI_IB_INIT_C;
+   signal ulpiTstIb              : ulpiObType             := ULPI_OB_INIT_C;
    signal ulpiDatIO              : Usb2ByteType           := (others => 'Z');
 
    signal ulpiTstClk             : std_logic              := '0';
@@ -64,7 +42,7 @@ package Usb2TstPkg is
 
    -- send a byte vector on ULPI
    procedure ulpiTstSendVec(
-      signal   ob : inout UlpiTstObType;
+      signal   ob : inout UlpiIbType;
       constant vc : in    Usb2ByteArray;
       constant s  : in    boolean := true; -- start the transaction (send K RXCMD)
       constant e  : in    boolean := true; -- end the transaction (turn bus, signal EOP)
@@ -80,7 +58,7 @@ package Usb2TstPkg is
 
    -- send a token on ULPI
    procedure ulpiTstSendTok(
-      signal   ob : inout UlpiTstObType;
+      signal   ob : inout UlpiIbType;
       constant t  : in  std_logic_vector;             -- token to send
       constant e  : in  Usb2EndpIdxType;              -- endpoint
       constant a  : in  Usb2DevAddrType               -- usb device address
@@ -88,20 +66,20 @@ package Usb2TstPkg is
 
    -- send handshake on ULPI
    procedure ulpiTstSendHsk(
-      signal   ob : inout UlpiTstObType;
+      signal   ob : inout UlpiIbType;
       constant t  : in  std_logic_vector(3 downto 0) -- handshake PID
    );
 
    -- wait for and return PID
    procedure ulpiTstWaitPid (
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       variable pid : out   std_logic_vector(3 downto 0); -- return PID here
       constant tim : in    natural := 30                 -- timeout (returns NAK in PID)
    );
 
    -- wait for handshake and return in PID
    procedure ulpiTstWaitHsk (
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       variable pid : inout std_logic_vector(3 downto 0);
       constant timo: in    natural                      := 30;
       constant st  : in    std_logic_vector(7 downto 0) := x"00" -- expected status (00/ff)
@@ -109,7 +87,7 @@ package Usb2TstPkg is
 
    -- send a data packet (compute + append checksum)
    procedure ulpiTstSendDatPkt(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       constant pid : in    std_logic_vector(3 downto 0); -- DATA0/DATA1
       constant v   : in    Usb2ByteArray;                -- payload
       constant w   : in    natural := 0                  -- wait cycles
@@ -118,7 +96,7 @@ package Usb2TstPkg is
    -- send data breaking longer sequences in fragments that fit the maxPktSize
    -- the last fragment is < maxPktSize (possibly an empty packet)
    procedure ulpiTstSendDat(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       variable stl : out   boolean;                      -- stalled
       constant v   : in    Usb2ByteArray;                -- payload
       constant epo : in    Usb2EndpIdxType;              -- endpoint
@@ -134,7 +112,7 @@ package Usb2TstPkg is
    -- send data breaking longer sequences in fragments that fit the maxPktSize
    -- the last fragment is < maxPktSize (possibly an empty packet)
    procedure ulpiTstSendDat(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       constant v   : in    Usb2ByteArray;                -- payload
       constant epo : in    Usb2EndpIdxType;              -- endpoint
       constant dva : in    Usb2DevAddrType;              -- usb device address
@@ -149,7 +127,7 @@ package Usb2TstPkg is
 
    -- wait for a data packet; may return NAK in 'epi' if endpoint has no data
    procedure ulpiTstWaitDatPkt (
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       variable epi : inout std_logic_vector(3 downto 0); -- expected PID (DATA0/DATA1); returns actual received pid
       constant eda : in    Usb2ByteArray;                -- expected data
       constant w   : in    integer := 0;                 -- wait cycles
@@ -161,7 +139,7 @@ package Usb2TstPkg is
 
    -- wait for data reassembling until short packet is detected
    procedure ulpiTstWaitDat(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       constant eda : in    Usb2ByteArray;                     -- expected data
       constant epi : in    Usb2EndpIdxType;                   -- endpoint
       constant dva : in    Usb2DevAddrType;                   -- usb device address
@@ -176,7 +154,7 @@ package Usb2TstPkg is
 
    -- send a control sequence
    procedure ulpiTstSendCtlReq(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       constant cod : in    unsigned;                                          -- request code (supported by this procedure)
       constant dva : in    Usb2DevAddrType;                                   -- usb device address
       constant val : in    std_logic_vector(15 downto 0) := (others => '0');  -- request value
@@ -190,7 +168,7 @@ package Usb2TstPkg is
 
    -- wait for a register transaction (on ulpi)
    procedure ulpiTstRegWait(
-      signal    ob : inout UlpiTstObType;
+      signal    ob : inout UlpiIbType;
       variable   a : out   natural; -- address
       variable  rnw: out   boolean; -- read (write when false)
       variable   d : out   std_logic_vector(7 downto 0) -- write data
@@ -198,13 +176,13 @@ package Usb2TstPkg is
 
    -- complete a register read transaction (on ulpi)
    procedure ulpiTstRegReadComplete(
-      signal    ob : inout UlpiTstObType;
+      signal    ob : inout UlpiIbType;
       constant   d : in    std_logic_vector(7 downto 0) -- read data
    );
 
    -- handle initial PHY setup
    procedure ulpiTstHandlePhyInit(
-      signal    ob : inout UlpiTstObType
+      signal    ob : inout UlpiIbType
    );
 
 end package Usb2TstPkg;
@@ -240,7 +218,7 @@ package body Usb2TstPkg is
 
    -- send a byte vector on ULPI
    procedure ulpiTstSendVec(
-      signal   ob : inout UlpiTstObType;
+      signal   ob : inout UlpiIbType;
       constant vc : in    Usb2ByteArray;
       constant s  : in    boolean := true; -- start the transaction (send K RXCMD)
       constant e  : in    boolean := true; -- end the transaction (turn bus)
@@ -318,7 +296,7 @@ package body Usb2TstPkg is
    end procedure ulpiTstCrc;
 
    procedure ulpiTstSendRxCmd(
-      signal   ob : inout UlpiTstObType;
+      signal   ob : inout UlpiIbType;
       constant x  : in Usb2ByteType
    ) is
       variable turn : boolean;
@@ -344,7 +322,7 @@ package body Usb2TstPkg is
 
    -- send a token on ULPI
    procedure ulpiTstSendTok(
-      signal   ob : inout UlpiTstObType;
+      signal   ob : inout UlpiIbType;
       constant t  : in  std_logic_vector;             -- token to send
       constant e  : in  Usb2EndpIdxType;              -- endpoint
       constant a  : in  Usb2DevAddrType               -- usb device address
@@ -372,7 +350,7 @@ package body Usb2TstPkg is
 
    -- send handshake on ULPI
    procedure ulpiTstSendHsk(
-      signal   ob : inout UlpiTstObType;
+      signal   ob : inout UlpiIbType;
       constant t  : in  std_logic_vector(3 downto 0) -- handshake PID
    ) is
       constant c : Usb2ByteArray := ( 0 => (not t & t ) );
@@ -382,7 +360,7 @@ package body Usb2TstPkg is
 
    -- wait for and return PID
    procedure ulpiTstWaitPid (
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       variable pid : out   std_logic_vector(3 downto 0); -- return PID here
       constant tim : in    natural := 30                 -- timeout (returns NAK in PID)
    ) is
@@ -407,14 +385,14 @@ report "Timed out; ticks " & integer'image(tim);
 
    -- wait for handshake and return in PID
    procedure ulpiTstWaitHsk (
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       variable pid : inout std_logic_vector(3 downto 0);
       constant timo: in    natural                      := 30;
       constant st  : in    std_logic_vector(7 downto 0) := x"00" -- expected status (00/ff)
    ) is
    begin
        ulpiTstWaitPid(ob, pid, timo);
-       ob.nxt <= '0';
+-- usb3340 expects NXT during STP  ob.nxt <= '0';
        assert ulpiTstIb.stp = '0' report "unexpected STP" severity failure;
        ulpiClkTick;
        assert ( ulpiTstIb.stp = '1' )                       report "HSK not stopped"     severity failure;
@@ -426,7 +404,7 @@ report "Timed out; ticks " & integer'image(tim);
 
    -- send a data packet (compute + append checksum)
    procedure ulpiTstSendDatPkt(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       constant pid : in    std_logic_vector(3 downto 0); -- DATA0/DATA1
       constant v   : in    Usb2ByteArray;                -- payload
       constant w   : in    natural := 0                  -- wait cycles
@@ -448,7 +426,7 @@ report "Timed out; ticks " & integer'image(tim);
    end procedure ulpiTstSendDatPkt;
 
    procedure ulpiTstSendDat(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       constant v   : in    Usb2ByteArray;                -- payload
       constant epo : in    Usb2EndpIdxType;              -- endpoint
       constant dva : in    Usb2DevAddrType;              -- usb device address
@@ -468,7 +446,7 @@ report "Timed out; ticks " & integer'image(tim);
    -- send data breaking longer sequences in fragments that fit the maxPktSize
    -- the last fragment is < maxPktSize (possibly an empty packet)
    procedure ulpiTstSendDat(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       variable stl : out   boolean;                      -- aborted due to stalled
       constant v   : in    Usb2ByteArray;                -- payload
       constant epo : in    Usb2EndpIdxType;              -- endpoint
@@ -538,7 +516,7 @@ report "Timed out; ticks " & integer'image(tim);
 
    -- wait for a data packet; may return NAK in 'epi' if endpoint has no data
    procedure ulpiTstWaitDatPkt (
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       variable epi : inout std_logic_vector(3 downto 0); -- expected PID (DATA0/DATA1); returns actual received pid
       constant eda : in    Usb2ByteArray;                -- excected data
       constant w   : in    integer := 0;                 -- wait cycles
@@ -595,7 +573,7 @@ end if;
 
    -- wait for data reassembling until short packet is detected
    procedure ulpiTstWaitDat(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       constant eda : in    Usb2ByteArray;                     -- expected data
       constant epi : in    Usb2EndpIdxType;                   -- endpoint
       constant dva : in    Usb2DevAddrType;                   -- usb device address
@@ -662,7 +640,7 @@ end if;
 
    -- send a control sequence
    procedure ulpiTstSendCtlReq(
-      signal   ob  : inout UlpiTstObType;
+      signal   ob  : inout UlpiIbType;
       constant cod : in    unsigned;                                          -- request code (supported by this procedure)
       constant dva : in    Usb2DevAddrType;                                   -- usb device address
       constant val : in    std_logic_vector(15 downto 0) := (others => '0');  -- request value
@@ -751,7 +729,7 @@ end if;
 
    -- wait for a register transaction
    procedure ulpiTstRegWait(
-      signal    ob : inout UlpiTstObType;
+      signal    ob : inout UlpiIbType;
       variable   a : out   natural;
       variable  rnw: out   boolean;
       variable   d : out   std_logic_vector(7 downto 0)
@@ -777,7 +755,7 @@ end if;
 
    -- complete a register read transaction (on ulpi)
    procedure ulpiTstRegReadComplete(
-      signal    ob : inout UlpiTstObType;
+      signal    ob : inout UlpiIbType;
       constant   d : in    std_logic_vector(7 downto 0) -- read data
    ) is
    begin
@@ -791,7 +769,7 @@ end if;
    end procedure ulpiTstRegReadComplete;
 
    procedure ulpiTstHandlePhyInit(
-      signal    ob : inout UlpiTstObType
+      signal    ob : inout UlpiIbType
    ) is
       variable regAddr        : natural;
       variable regIsRd        : boolean;

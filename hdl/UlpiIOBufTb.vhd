@@ -19,6 +19,7 @@ architecture sim of UlpiIOBufTb is
    signal rx  : UlpiRxType;
    signal ui  : UlpiIbType;
    signal uo  : UlpiObType;
+   signal pass: natural   := 0;
  
    procedure tick is begin wait until rising_edge(clk); end procedure tick;
 
@@ -55,12 +56,16 @@ architecture sim of UlpiIOBufTb is
 
    procedure rcv (
       signal    n : inout std_logic;
-      constant  w : in  natural
+      constant  w : in    natural;
+      signal    p : inout natural
    ) is
+     variable exp : natural;
    begin
+     p <= p;
      while ( dou = x"00" ) loop
         tick;
      end loop;
+     exp := 1;
      while ( stp = '0' ) loop
        for i in 0 to w loop
           n <= '0';
@@ -69,7 +74,12 @@ architecture sim of UlpiIOBufTb is
           end if;
           tick;
           if ( n = '1' ) then
-             report integer'image( to_integer( unsigned( dou ) ) );
+             if ( stp = '1' ) then
+                exp := 0;
+             end if;
+             assert exp = to_integer( unsigned( dou ) ) report "unexpected data" severity failure;
+             exp := exp + 1;
+             p   <= p + 1;
           end if;
        end loop;
      end loop;
@@ -99,13 +109,17 @@ begin
    P_RCV : process is
    begin
       tick;
-      rcv(nxt, 0);
+      rcv(nxt, 0, pass);
       tick;
-      rcv(nxt, 0);
+      rcv(nxt, 0, pass);
       tick;
-      rcv(nxt, 1);
+      rcv(nxt, 1, pass);
       tick;
-      rcv(nxt, 2);
+      rcv(nxt, 2, pass);
+      tick;
+      -- includes comparison of data during STP
+      assert pass = 2 + 3*5 report "missed some test" severity failure;
+      report "TEST PASSED";
       run <= false;
       wait;
    end process P_RCV;
@@ -118,11 +132,15 @@ begin
    dou    <= uo.dat;
 
    U_DUT : entity work.UlpiIOBuf
+      generic map (
+         MUST_MASK_STP_G => true
+      )
       port map (
          ulpiClk    => clk,
 
          genStp     => '1',
-         waiNxt     => '0',
+         waiNxt     => '1',
+         frcStp     => '0',
  
          txVld      => vld,
          txDat      => dat,

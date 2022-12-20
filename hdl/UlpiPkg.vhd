@@ -109,10 +109,22 @@ package UlpiPkg is
       dat   : std_logic_vector(7 downto 0);
    end record UlpiIbType;
 
+   constant ULPI_IB_INIT_C : UlpiIbType := (
+      dir  => '0',
+      nxt  => '0',
+      dat  => (others => '0')
+   );
+
    type UlpiObType is record
       dat   : std_logic_vector(7 downto 0);
       stp   : std_logic;
    end record UlpiObType;
+
+   constant ULPI_OB_INIT_C : UlpiObType := (
+      stp  => '0',
+      dat  => (others => '0')
+   );
+
 
 end package UlpiPkg;
 
