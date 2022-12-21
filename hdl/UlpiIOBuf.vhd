@@ -47,6 +47,7 @@ architecture Impl of UlpiIOBuf is
    attribute DIRECT_ENABLE : string;
    attribute DIRECT_RESET  : string;
    attribute IOB           : string;
+   attribute IOBDELAY      : string;
    attribute MARK_DEBUG    : string;
 
    signal dou_r            : std_logic_vector(7 downto 0) := (others => '0');
@@ -70,12 +71,15 @@ architecture Impl of UlpiIOBuf is
    attribute MARK_DEBUG    of lst_r    : signal is toStr( MARK_DEBUG_G );
    signal din_r            : std_logic_vector(7 downto 0) := (others => '0');
    attribute IOB           of din_r    : signal is "TRUE";
+   attribute IOBDELAY      of din_r  : signal is "IFD";
    attribute MARK_DEBUG    of din_r    : signal is toStr( MARK_DEBUG_G );
    signal dir_r            : std_logic                    := '1';
-   attribute IOB of dir_r  : signal is "TRUE";
+   attribute IOB           of dir_r  : signal is "TRUE";
+   attribute IOBDELAY      of dir_r  : signal is "IFD";
    attribute MARK_DEBUG    of dir_r    : signal is toStr( MARK_DEBUG_G );
    signal nxt_r            : std_logic                    := '0';
    attribute IOB of nxt_r  : signal is "TRUE";
+   attribute IOBDELAY      of nxt_r  : signal is "IFD";
    attribute MARK_DEBUG    of nxt_r    : signal is toStr( MARK_DEBUG_G );
    signal trn_r            : std_logic                    := '0';
    attribute MARK_DEBUG    of trn_r    : signal is toStr( MARK_DEBUG_G );
