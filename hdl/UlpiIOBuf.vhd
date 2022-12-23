@@ -7,11 +7,23 @@ use     work.UsbUtilPkg.all;
 entity UlpiIOBuf is
    generic (
       MARK_DEBUG_G    : boolean := true;
+      -- whether to request the NXT register to be placed in a IOB;
+      -- this is good in ulpi input-clock mode but may be disadvantageous
+      -- in ulpi output-clock mode; if a phase-shifted clock is used
+      -- (for timing reasons) then putting the register into the fabric
+      -- gives the tool freedom to tweak hold-timing.
+      ULPI_NXT_IOB_G  : boolean := true;
+      -- whether to request the DIR register to be placed in a IOB;
+      -- (see additional comments above)
+      ULPI_DIR_IOB_G  : boolean := true;
+      -- whether to request the data input registers to be placed in IOB;
+      -- (see additional comments above)
+      ULPI_DIN_IOB_G  : boolean := true;
       -- whether STP must not be asserted while NXT is low
       -- during trasmit (USB3340) - bad because it requires
       -- combinatorials after the STP register which means
       -- this register cannot be placed into IOB :-(
-      MUST_MASK_STP_G : boolean := true
+      ULPI_STP_MODE_G : UlpiStpModeType := NORMAL
    );
    port (
       ulpiClk    : in  std_logic;
@@ -47,7 +59,6 @@ architecture Impl of UlpiIOBuf is
    attribute DIRECT_ENABLE : string;
    attribute DIRECT_RESET  : string;
    attribute IOB           : string;
-   attribute IOBDELAY      : string;
    attribute MARK_DEBUG    : string;
 
    signal dou_r            : std_logic_vector(7 downto 0) := (others => '0');
@@ -65,21 +76,22 @@ architecture Impl of UlpiIOBuf is
    attribute DIRECT_ENABLE of lastCE   : signal is "TRUE";
    signal stopCE           : std_logic;
    attribute DIRECT_ENABLE of stopCE   : signal is "TRUE";
+   signal stopRst          : std_logic;
+   attribute DIRECT_RESET  of stopRst  : signal is "TRUE";
    signal stp_r            : std_logic                    := '0';
    attribute IOB           of stp_r    : signal is "TRUE";
    signal lst_r            : std_logic                    := '0';
    attribute MARK_DEBUG    of lst_r    : signal is toStr( MARK_DEBUG_G );
+   signal lst_rr           : std_logic                    := '0';
+   attribute MARK_DEBUG    of lst_rr   : signal is toStr( MARK_DEBUG_G );
    signal din_r            : std_logic_vector(7 downto 0) := (others => '0');
-   attribute IOB           of din_r    : signal is "TRUE";
-   attribute IOBDELAY      of din_r  : signal is "IFD";
+   attribute IOB of din_r              : signal is toStr( ULPI_DIN_IOB_G );
    attribute MARK_DEBUG    of din_r    : signal is toStr( MARK_DEBUG_G );
    signal dir_r            : std_logic                    := '1';
-   attribute IOB           of dir_r  : signal is "TRUE";
-   attribute IOBDELAY      of dir_r  : signal is "IFD";
+   attribute IOB of dir_r              : signal is toStr( ULPI_DIR_IOB_G );
    attribute MARK_DEBUG    of dir_r    : signal is toStr( MARK_DEBUG_G );
    signal nxt_r            : std_logic                    := '0';
-   attribute IOB of nxt_r  : signal is "TRUE";
-   attribute IOBDELAY      of nxt_r  : signal is "IFD";
+   attribute IOB of nxt_r              : signal is toStr( ULPI_NXT_IOB_G );
    attribute MARK_DEBUG    of nxt_r    : signal is toStr( MARK_DEBUG_G );
    signal trn_r            : std_logic                    := '0';
    attribute MARK_DEBUG    of trn_r    : signal is toStr( MARK_DEBUG_G );
@@ -147,7 +159,7 @@ begin
             lst_r <= '1';
          end if;
 
-         if ( douRst = '1' ) then
+         if ( stopRst = '1' ) then
             stp_r <= '0';
          elsif ( stopCE = '1' ) then
             stp_r <= genStp or frcStp;
@@ -161,10 +173,12 @@ begin
          nxt_r             <= ulpiIb.nxt;
          -- is the registered cycle a turn-around cycle?
          trn_r             <= ( ulpiIb.dir xor dir_r );
+         lst_rr            <= lst_r;
       end if;
    end process P_SEQ;
 
    lastCE     <= last;
+   stopRst    <= not lstFrcStp and ( ( lst_r and (ulpiIb.nxt or not waiNxtLoc) ) or dir_r );
    stopCE     <= last or lstFrcStp;
 
    douRst     <= ( lst_r and (ulpiIb.nxt or not waiNxtLoc) ) or dir_r;
@@ -173,15 +187,21 @@ begin
 
    ulpiOb.dat <= dou_r;
 
-   G_MSK_STP : if ( MUST_MASK_STP_G ) generate
+   G_MSKD_STP : if ( ULPI_STP_MODE_G =  WAIT_FOR_NXT_MASKED ) generate
       ulpiOb.stp <= stp_r and (ulpiIb.nxt or not waiNxtLoc);
-      waiNxtLoc  <= waiNxt;
-   end generate G_MSK_STP;
+   end generate G_MSKD_STP;
 
-   G_NO_MSK_STP : if ( not MUST_MASK_STP_G ) generate
+   G_UNMSKD_STP : if ( ULPI_STP_MODE_G /=  WAIT_FOR_NXT_MASKED ) generate
       ulpiOb.stp <= stp_r;
+   end generate G_UNMSKD_STP;
+
+   G_WAI_STP : if ( ULPI_STP_MODE_G /= NORMAL ) generate
+      waiNxtLoc  <= waiNxt;
+   end generate G_WAI_STP;
+
+   G_NO_WAI_STP : if ( ULPI_STP_MODE_G = NORMAL ) generate
       waiNxtLoc  <= '0';
-   end generate G_NO_MSK_STP;
+   end generate G_NO_WAI_STP;
 
    err_i      <= dir_r and (douVld or lst_r);
    txDon      <= err_i or don_r;

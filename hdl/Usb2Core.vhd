@@ -13,14 +13,17 @@ entity Usb2Core is
    generic (
       -- with simulation enabled timing may be changed
       -- to speed things up
-      SIMULATION_G                 : boolean := false;
-      MARK_DEBUG_ULPI_IO_G         : boolean := true;
-      MARK_DEBUG_ULPI_LINE_STATE_G : boolean := true;
-      MARK_DEBUG_PKT_RX_G          : boolean := true;
-      MARK_DEBUG_PKT_TX_G          : boolean := true;
-      MARK_DEBUG_PKT_PROC_G        : boolean := true;
-      MARK_DEBUG_EP0_G             : boolean := true;
-      MUST_MASK_STP_G              : boolean := true;
+      SIMULATION_G                 : boolean         := false;
+      MARK_DEBUG_ULPI_IO_G         : boolean         := true;
+      MARK_DEBUG_ULPI_LINE_STATE_G : boolean         := true;
+      MARK_DEBUG_PKT_RX_G          : boolean         := true;
+      MARK_DEBUG_PKT_TX_G          : boolean         := true;
+      MARK_DEBUG_PKT_PROC_G        : boolean         := true;
+      MARK_DEBUG_EP0_G             : boolean         := true;
+      ULPI_NXT_IOB_G               : boolean         := true;
+      ULPI_DIR_IOB_G               : boolean         := true;
+      ULPI_DIN_IOB_G               : boolean         := true;
+      ULPI_STP_MODE_G              : UlpiStpModeType := NORMAL;
       DESCRIPTORS_G                : Usb2ByteArray
    );
 
@@ -183,7 +186,10 @@ begin
    U_ULPI_IO : entity work.UlpiIO
    generic map (
       MARK_DEBUG_G    => MARK_DEBUG_ULPI_IO_G,
-      MUST_MASK_STP_G => MUST_MASK_STP_G
+      ULPI_NXT_IOB_G  => ULPI_NXT_IOB_G,
+      ULPI_DIR_IOB_G  => ULPI_DIR_IOB_G,
+      ULPI_DIN_IOB_G  => ULPI_DIN_IOB_G,
+      ULPI_STP_MODE_G => ULPI_STP_MODE_G
    )
    port map (
       ulpiClk         => clk,

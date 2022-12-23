@@ -133,7 +133,7 @@ begin
 
    U_DUT : entity work.UlpiIOBuf
       generic map (
-         MUST_MASK_STP_G => true
+         ULPI_STP_MODE_G => WAIT_FOR_NXT_MASKED
       )
       port map (
          ulpiClk    => clk,

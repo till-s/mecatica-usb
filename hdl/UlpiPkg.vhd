@@ -33,6 +33,25 @@ package UlpiPkg is
    constant ULPI_FUN_CTL_RST_C      : std_logic_vector(7 downto 0) := x"20";
    constant ULPI_FUN_CTL_SUSPENDM_C : std_logic_vector(7 downto 0) := x"40";
 
+   -- how to generate 'STP'
+   --  NORMAL             : assert STP for 1 cycle (regardless of NXT)
+   --  WAIT_FOR_NXT       : keep STP asserted until NXT is also asserted
+   --  WAIT_FOR_NXT_MASKED: wait until NXT is asserted and assert STP
+   --                       simultaneously with NXT. Note that this requires
+   --                       a combinatorial path that is unlikely to make
+   --                       timing.
+   -- While the ULPI spec does not elaborate on NXT during a STP cycle; it
+   -- says "when the link has consumed the last byte, the link asserts STP
+   -- for 1 cycle".
+   --
+   -- However, in the USB3340 datasheet we find: "The Link cannot assert STP
+   -- with NXT de-asserted since the USB3340 is expecting to fetch another byte
+   -- from the Link".
+   -- This requires WAIT_FOR_NXT_MASKED but will be very difficult to implement
+   -- without an external logic gate. The timing budget (6ns output delay + 5ns
+   -- setup time leaves ~5ns for board trace delays (small) and in-FPGA (significant)
+   -- delay; (e.g., ARTIX-7 speed grade 1 needs IBUF + routing + OBUF ~ 8ns).
+   type UlpiStpModeType is ( NORMAL, WAIT_FOR_NXT, WAIT_FOR_NXT_MASKED );
 
    type UlpiRegReqType is record
       addr  : std_logic_vector(7 downto 0);

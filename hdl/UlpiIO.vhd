@@ -8,7 +8,10 @@ use     work.UsbUtilPkg.all;
 entity UlpiIO is
    generic (
       MARK_DEBUG_G       : boolean         := true;
-      MUST_MASK_STP_G    : boolean         := true
+      ULPI_NXT_IOB_G     : boolean         := true;
+      ULPI_DIR_IOB_G     : boolean         := true;
+      ULPI_DIN_IOB_G     : boolean         := true;
+      ULPI_STP_MODE_G    : UlpiStpModeType := NORMAL
    );
    port (
       rst                : in    std_logic := '0';
@@ -90,7 +93,10 @@ begin
    U_ULPI_BUF : entity work.UlpiIOBuf
       generic map (
          MARK_DEBUG_G    => MARK_DEBUG_G,
-         MUST_MASK_STP_G => MUST_MASK_STP_G
+         ULPI_NXT_IOB_G  => ULPI_NXT_IOB_G,
+         ULPI_DIR_IOB_G  => ULPI_DIR_IOB_G,
+         ULPI_DIN_IOB_G  => ULPI_DIN_IOB_G,
+         ULPI_STP_MODE_G => ULPI_STP_MODE_G
       )
       port map (
          ulpiClk         => ulpiClk,
