@@ -7,6 +7,12 @@ use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
+-- Module that converts a USB packet
+-- into a low-level ulpi stream;
+-- The PID is sent by the user in 'txDataMst.usr'
+-- and prepended by this module which also takes
+-- care of the CRC.
+
 entity Usb2PktTx is
    generic (
       MARK_DEBUG_G   : boolean := true

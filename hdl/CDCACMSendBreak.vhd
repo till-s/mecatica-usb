@@ -4,6 +4,9 @@ use     ieee.numeric_std.all;
 
 use     work.Usb2Pkg.all;
 
+-- Example for how to extend EP0 functionality.
+-- This module implements 'send-break' for CDC-ACM.
+
 entity CDCACMSendBreak is
    port (
       clk             : in  std_logic;

@@ -7,6 +7,10 @@ use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
+-- Module that handles the USB packet protocol layer,
+-- i.e., converting a low-level stream received from ULPI
+-- into a USB packet (extracting PID and handling checksums)
+
 entity Usb2PktRx is
    generic (
       MARK_DEBUG_G   : boolean := true

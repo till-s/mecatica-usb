@@ -6,6 +6,8 @@ use     ieee.math_real.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
+-- Handle hi-speed negotiation and suspend/resume transitions
+
 -- NOTE: we currently don't support putting the phy into low-power mode as
 --         - it is not clear how we could operate without the clock (assuming
 --           the PHY drives the fpga clock.

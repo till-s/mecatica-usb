@@ -2,6 +2,8 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
+-- CRC table (as a combinatorial process)
+
 entity UsbCrcTbl is
    generic (
       POLY_G : std_logic_vector(15 downto 0)

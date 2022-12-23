@@ -8,6 +8,10 @@ use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2DescPkg.all;
 
+-- Control endpoint 0; handles standard USB requests.
+-- Additional features may be implemented by an external
+-- 'agent' to which unknown requests can be off-loaded.
+
 entity Usb2StdCtlEp is
    generic (
       MARK_DEBUG_G      : boolean  := true;

@@ -8,6 +8,9 @@ use     work.UlpiPkg.all;
 use     work.Usb2Pkg.all;
 use     work.Usb2DescPkg.all;
 
+-- Top-level USB module; ties lower-level modules together
+-- and instantiates EP0.
+
 entity Usb2Core is
 
    generic (

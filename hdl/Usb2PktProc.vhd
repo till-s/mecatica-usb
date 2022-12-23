@@ -7,6 +7,10 @@ use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
+-- Main USB packet processing engine; it handles USB
+-- transaction sequences and muxes/demuxes from/to
+-- endpoints.
+
 entity Usb2PktProc is
    generic (
       SIMULATION_G    : boolean  := false;

@@ -5,6 +5,9 @@ use     ieee.numeric_std.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
+-- Module to arbitrate packet RX/TX vs. register access
+-- and handles the low-level details (e.g., of register access)
+
 entity UlpiIO is
    generic (
       MARK_DEBUG_G       : boolean         := true;
@@ -16,24 +19,28 @@ entity UlpiIO is
    port (
       rst                : in    std_logic := '0';
       ulpiClk            : in    std_logic;
+      -- ULPI signals (routed to buffers and then pins)
       ulpiIb             : in    UlpiIbType;
       ulpiOb             : out   UlpiObType;
 
+      -- if the PHY is stuck with DIR asserted then
+      -- 'forceStp' may bring it back to reason (mostly
+      -- useful during testing).
       forceStp           : in    std_logic := '0';
 
+      -- Packet RX interface
       ulpiRx             : out   UlpiRxType;
+      -- Packet TX interface
       ulpiTxReq          : in    UlpiTxReqType  := ULPI_TX_REQ_INIT_C;
       ulpiTxRep          : out   UlpiTxRepType ;
 
+      -- Register access interface
       regReq             : in    UlpiRegReqType := ULPI_REG_REQ_INIT_C;
       regRep             : out   UlpiRegRepType
    );
 end entity UlpiIO;
 
 architecture Impl of UlpiIO is
-
-   attribute IOB        : string;
-   attribute IOBDELAY   : string;
 
    type TxStateType       is (INIT, IDLE, TXREG1, TXREG2, TX, RD1, DON);
 

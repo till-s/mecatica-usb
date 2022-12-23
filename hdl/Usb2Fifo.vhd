@@ -3,6 +3,8 @@ use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
+-- Bram based FIFO
+
 entity Usb2Fifo is
    generic (
       DATA_WIDTH_G : natural;

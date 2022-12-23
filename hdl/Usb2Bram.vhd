@@ -3,6 +3,8 @@ use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
+-- RAM ram module (written so that vivado may infer block ram)
+
 entity Usb2Bram is
    generic (
       -- 9-bits into parity seems to work when using 
