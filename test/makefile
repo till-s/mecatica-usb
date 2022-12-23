@@ -1,9 +1,11 @@
 GHDL=ghdl
 VIVADO=/opt/ghdl/v2.0.0-gcc/vivado-2021.2/
+vpath %.vhd ../hdl
+GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
 -include config.mk
 
-SRCS+= UsbUtilPkg.vhd
+SRCS+= Usb2UtilPkg.vhd
 SRCS+= UlpiPkg.vhd Usb2Pkg.vhd
 SRCS+= Usb2TstPkg.vhd
 SRCS+= Usb2AppCfgPkg.vhd
@@ -18,6 +20,7 @@ SRCS+= Usb2Core.vhd
 SRCS+= Usb2PktProcTb.vhd
 SRCS+= Usb2PktTxTb.vhd
 SRCS+= Usb2HskTb.vhd
+SRCS+= Usb2Fifo.vhd
 SRCS+= Usb2FifoTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
@@ -27,9 +30,8 @@ SRCS+= Usb2IsoTb.vhd
 SRCS+= UlpiIOBuf.vhd
 SRCS+= UlpiIOBufTb.vhd
 
-GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
-PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb UlpiIOBufTb
+PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb UlpiIOBufTb Usb2IsoTb
 
 all: $(PROG)
 	for i in $(PROG); do if ! ./$$i; then echo "$$i FAILED"; exit 1; fi  done
@@ -40,13 +42,16 @@ build: $(PROG)
 %.o: %.vhd
 	$(GHDL) -a $(GHDLFLAGS) $<
 
-.SECONDEXPANSION:
-
-$(PROG): $$@.o $(patsubst %.vhd,%.o,$(filter-out $(addsuffix .vhd,$(PROG)),$(SRCS)))
+$(PROG): %Tb : %Tb.o
 	$(GHDL) -e $(GHDLFLAGS) -o $@ -Wl,-no-pie $@
 
+$(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o
+
+Usb2DescPkg.o: Usb2AppCfgPkg.o
+Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
+
 Usb2PktProcTb.o UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2Core.o
-Usb2FifoEpTb.o Usb2FifoEp.o Usb2PktTxTb.o Usb2HskTb.o Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o Usb2TstPkg.o: UsbUtilPkg.o UlpiPkg.o Usb2Pkg.o Usb2DescPkg.o
+Usb2FifoEpTb.o Usb2FifoEp.o Usb2PktTxTb.o Usb2HskTb.o Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o Usb2TstPkg.o: Usb2UtilPkg.o UlpiPkg.o Usb2Pkg.o Usb2DescPkg.o
 Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
 UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
 Usb2PktProcTb.o: Usb2Core.o Usb2TstPkg.o Usb2PktProc.o Usb2StdCtlEp.o
@@ -61,8 +66,6 @@ Usb2HskTb.o Usb2PktTxTb.o: UlpiIO.o Usb2PktTx.o
 
 CDCACMLineBreak.o: Usb2Pkg.o
 
-Usb2DescPkg.o: Usb2AppCfgPkg.o
-Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
 Usb2StdCtlEp.o: Usb2DescPkg.o
 
 Usb2Fifo.o: Usb2Bram.o
@@ -73,9 +76,9 @@ Usb2FifoTb.o: Usb2Fifo.o
 
 Usb2FifoEpTb.o: Usb2FifoEp.o Usb2Core.o CDCACMSendBreak.o
 
-UlpiLineState.o: UlpiPkg.o UsbUtilPkg.o
+UlpiLineState.o: UlpiPkg.o Usb2UtilPkg.o
 
-UlpiIOBuf.o: UlpiPkg.o UsbUtilPkg.o
+UlpiIOBuf.o: UlpiPkg.o Usb2UtilPkg.o
 
 UlpiIOBufTb.o: UlpiIOBuf.o
 

@@ -5,7 +5,7 @@ use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
-use     work.UsbUtilPkg.all;
+use     work.Usb2UtilPkg.all;
 
 package Usb2TstPkg is
 
@@ -799,7 +799,7 @@ use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
-use     work.UsbUtilPkg.all;
+use     work.Usb2UtilPkg.all;
 use     work.Usb2TstPkg.all;
 
 entity Usb2TstPkgProcesses is

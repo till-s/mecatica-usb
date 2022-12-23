@@ -3,7 +3,7 @@ use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
-package UsbUtilPkg is
+package Usb2UtilPkg is
 
    attribute KEEP       : string;
    attribute MARK_DEBUG : string;
@@ -12,9 +12,9 @@ package UsbUtilPkg is
 
    function toSl(constant x : in boolean) return std_logic;
 
-end package UsbUtilPkg;
+end package Usb2UtilPkg;
 
-package body UsbUtilPkg is
+package body Usb2UtilPkg is
 
    function toStr(constant x : in boolean) return string is
    begin
@@ -26,4 +26,4 @@ package body UsbUtilPkg is
       if ( x ) then return '1'; else return '0'; end if;
    end function toSl;
 
-end package body UsbUtilPkg;
+end package body Usb2UtilPkg;

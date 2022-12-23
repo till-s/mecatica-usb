@@ -3,7 +3,7 @@ use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
-use     work.UsbUtilPkg.all;
+use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
 use     work.Usb2DescPkg.all;
 

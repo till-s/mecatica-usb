@@ -5,7 +5,7 @@ use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
-use     work.UsbUtilPkg.all;
+use     work.Usb2UtilPkg.all;
 use     work.Usb2DescPkg.all;
 
 entity Usb2StdCtlEp is

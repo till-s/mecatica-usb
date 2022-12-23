@@ -3,7 +3,7 @@ use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
 use     work.UlpiPkg.all;
-use     work.UsbUtilPkg.all;
+use     work.Usb2UtilPkg.all;
 
 entity UlpiIO is
    generic (

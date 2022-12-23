@@ -5,7 +5,7 @@ use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
-use     work.UsbUtilPkg.all;
+use     work.Usb2UtilPkg.all;
 
 entity Usb2PktTx is
    generic (

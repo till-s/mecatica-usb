@@ -4,7 +4,7 @@ use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
 use     work.UlpiPkg.all;
-use     work.UsbUtilPkg.all;
+use     work.Usb2UtilPkg.all;
 
 -- NOTE: we currently don't support putting the phy into low-power mode as
 --         - it is not clear how we could operate without the clock (assuming
