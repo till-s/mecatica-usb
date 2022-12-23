@@ -4,6 +4,10 @@ use     ieee.std_logic_1164.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
+-- Buffering module that aims at keeping the combinatorial path
+-- for NXT and DIR as short as possible: a single 6-input LUT.
+-- Critical registers are placed in IOBs.
+
 entity UlpiIOBuf is
    generic (
       MARK_DEBUG_G    : boolean := true;
@@ -61,15 +65,37 @@ architecture Impl of UlpiIOBuf is
    attribute IOB           : string;
    attribute MARK_DEBUG    : string;
 
+   -- registers that should be pushed into IOBs (except for input-clock mode
+   -- when we want to keep nxt/dir/din in the fabric so the tool can adjust
+   -- hold timing
    signal dou_r            : std_logic_vector(7 downto 0) := (others => '0');
+   signal stp_r            : std_logic                    := '0';
+   signal din_r            : std_logic_vector(7 downto 0) := (others => '0');
+   signal dir_r            : std_logic                    := '1';
+   signal nxt_r            : std_logic                    := '0';
    attribute IOB of dou_r  : signal is "TRUE";
+   attribute IOB of stp_r  : signal is "TRUE";
+   attribute IOB of din_r  : signal is toStr( ULPI_DIN_IOB_G );
+   attribute IOB of dir_r  : signal is toStr( ULPI_DIR_IOB_G );
+   attribute IOB of nxt_r  : signal is toStr( ULPI_NXT_IOB_G );
+
+   -- fabric registers and combinatorial signals
    signal douVld           : std_logic                    := '0';
    signal buf              : std_logic_vector(7 downto 0) := (others => '0');
    signal bufVld           : std_logic                    := '0';
    signal dou_i            : std_logic_vector(7 downto 0) := (others => '0');
+   signal last             : std_logic;
+   signal lst_r            : std_logic                    := '0';
+   signal trn_r            : std_logic                    := '0';
+   signal don_r            : std_logic                    := '0';
+   signal err_i            : std_logic;
+   signal waiNxtLoc        : std_logic                    := '0';
+   signal lstFrcStp        : std_logic                    := '0';
+
+   -- combinatorial signals we direct the tool to use CE and R
+   -- this helps keeping lut cascading down.
    signal douRst           : std_logic                    := '1';
    attribute DIRECT_RESET  of douRst   : signal is "TRUE";
-   signal last             : std_logic;
    signal douCE            : std_logic                    := '0';
    attribute DIRECT_ENABLE of douCE    : signal is "TRUE";
    signal lastCE           : std_logic;
@@ -78,34 +104,18 @@ architecture Impl of UlpiIOBuf is
    attribute DIRECT_ENABLE of stopCE   : signal is "TRUE";
    signal stopRst          : std_logic;
    attribute DIRECT_RESET  of stopRst  : signal is "TRUE";
-   signal stp_r            : std_logic                    := '0';
-   attribute IOB           of stp_r    : signal is "TRUE";
-   signal lst_r            : std_logic                    := '0';
-   attribute MARK_DEBUG    of lst_r    : signal is toStr( MARK_DEBUG_G );
-   signal lst_rr           : std_logic                    := '0';
-   attribute MARK_DEBUG    of lst_rr   : signal is toStr( MARK_DEBUG_G );
-   signal din_r            : std_logic_vector(7 downto 0) := (others => '0');
-   attribute IOB of din_r              : signal is toStr( ULPI_DIN_IOB_G );
-   attribute MARK_DEBUG    of din_r    : signal is toStr( MARK_DEBUG_G );
-   signal dir_r            : std_logic                    := '1';
-   attribute IOB of dir_r              : signal is toStr( ULPI_DIR_IOB_G );
-   attribute MARK_DEBUG    of dir_r    : signal is toStr( MARK_DEBUG_G );
-   signal nxt_r            : std_logic                    := '0';
-   attribute IOB of nxt_r              : signal is toStr( ULPI_NXT_IOB_G );
-   attribute MARK_DEBUG    of nxt_r    : signal is toStr( MARK_DEBUG_G );
-   signal trn_r            : std_logic                    := '0';
-   attribute MARK_DEBUG    of trn_r    : signal is toStr( MARK_DEBUG_G );
-   signal don_r            : std_logic                    := '0';
-   attribute MARK_DEBUG    of don_r    : signal is toStr( MARK_DEBUG_G );
    signal bufCE            : std_logic;
    attribute DIRECT_ENABLE of bufCE    : signal is "TRUE";
    signal bufRST           : std_logic;
    attribute DIRECT_RESET  of bufRST   : signal is "TRUE";
 
-   signal err_i            : std_logic;
-   signal waiNxtLoc        : std_logic                    := '0';
-
-   signal lstFrcStp        : std_logic                    := '0';
+   -- debugging
+   attribute MARK_DEBUG    of lst_r    : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG    of din_r    : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG    of dir_r    : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG    of nxt_r    : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG    of trn_r    : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG    of don_r    : signal is toStr( MARK_DEBUG_G );
 
 begin
 
@@ -173,7 +183,6 @@ begin
          nxt_r             <= ulpiIb.nxt;
          -- is the registered cycle a turn-around cycle?
          trn_r             <= ( ulpiIb.dir xor dir_r );
-         lst_rr            <= lst_r;
       end if;
    end process P_SEQ;
 
