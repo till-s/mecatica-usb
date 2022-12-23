@@ -45,44 +45,31 @@ build: $(PROG)
 $(PROG): %Tb : %Tb.o
 	$(GHDL) -e $(GHDLFLAGS) -o $@ -Wl,-no-pie $@
 
-$(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o
+$(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o Usb2DescPkg.o
 
 Usb2DescPkg.o: Usb2AppCfgPkg.o
 Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
-
-Usb2PktProcTb.o UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2Core.o
-Usb2FifoEpTb.o Usb2FifoEp.o Usb2PktTxTb.o Usb2HskTb.o Usb2Core.o Usb2PktProcTb.o UlpiIO.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o Usb2TstPkg.o: Usb2UtilPkg.o UlpiPkg.o Usb2Pkg.o Usb2DescPkg.o
-Usb2PktRx.o Usb2PktTx.o: UsbCrcTbl.o
-UsbCrcTblTb.o: UsbCrcTbl.o Usb2Pkg.o
-Usb2PktProcTb.o: Usb2Core.o Usb2TstPkg.o Usb2PktProc.o Usb2StdCtlEp.o
-Usb2PktProc.o: Usb2Bram.o
-Usb2IsoTb.o: Usb2Core.o Usb2TstPkg.o
-
-Usb2Core.o: UlpiIO.o Usb2PktProc.o Usb2PktRx.o Usb2PktTx.o Usb2StdCtlEp.o UlpiLineState.o
-
-UlpiIO.o: UlpiIOBuf.o
-
-Usb2HskTb.o Usb2PktTxTb.o: UlpiIO.o Usb2PktTx.o
-
-CDCACMLineBreak.o: Usb2Pkg.o
-
-Usb2StdCtlEp.o: Usb2DescPkg.o
-
-Usb2Fifo.o: Usb2Bram.o
-
-Usb2FifoEp.o: Usb2Fifo.o
-
-Usb2FifoTb.o: Usb2Fifo.o
-
-Usb2FifoEpTb.o: Usb2FifoEp.o Usb2Core.o CDCACMSendBreak.o
-
-UlpiLineState.o: UlpiPkg.o Usb2UtilPkg.o
-
-UlpiIOBuf.o: UlpiPkg.o Usb2UtilPkg.o
-
-UlpiIOBufTb.o: UlpiIOBuf.o
+Usb2TstPkg.o: Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o
 
 $(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
+
+UlpiIO.o: UlpiIOBuf.o
+Usb2Core.o: UlpiIO.o UlpiLineState.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o
+Usb2FifoEp.o: Usb2Fifo.o
+Usb2Fifo.o: Usb2Bram.o
+Usb2PktProc.o: Usb2Bram.o
+Usb2PktRx.o: UsbCrcTbl.o
+Usb2PktTx.o: UsbCrcTbl.o
+
+UlpiIOBufTb.o: UlpiIOBuf.o
+UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o
+Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o CDCACMSendBreak.o
+Usb2FifoTb.o: Usb2Fifo.o
+Usb2HskTb.o: Usb2PktTx.o UlpiIO.o
+Usb2IsoTb.o: Usb2Core.o
+Usb2PktProcTb.o: Usb2Core.o
+Usb2PktTxTb.o: Usb2PktTx.o UlpiIO.o
+UsbCrcTblTb.o: UsbCrcTbl.o
 
 .PHONY: all build clean
 
