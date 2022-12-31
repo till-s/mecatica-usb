@@ -132,7 +132,7 @@ package body Usb2AppCfgPkg is
        99 => x"00",
       -- Usb2Desc
       100 => x"02",
-      101 => x"00"
+      101 => x"ff"
       );
    begin
    return c;

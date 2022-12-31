@@ -519,7 +519,7 @@ def basicACM(epAddr, epPktSize=8, sendBreak=False):
   d.bControlInterface( 0 )
   d.bSubordinateInterface( 0, 1 )
 
-  # Endpoint -- unused but linux cdc-acm driver refuses to bind w/o it
+  # Endpoint -- unused but linux cdc-acm driver refuses to bind w/o it.
   # endpoint 2, INTERRUPT IN
   d = c.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_IN  | (epAddr + 1) )
