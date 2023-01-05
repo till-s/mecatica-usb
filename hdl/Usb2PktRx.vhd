@@ -105,6 +105,8 @@ begin
                -- handshake and token are only valid if delimited by EOP
                v.pktHdr.vld := '1';
                v.pktHdr.sof := (r.pktHdr.pid = USB2_PID_TOK_SOF_C);
+            else
+               -- this includes the case of a corrupted PID (=> SPC_NONE)
             end if;
          else
          -- FIXME unexpected EOP
@@ -137,8 +139,8 @@ begin
             if ( ulpiRx.nxt = '1' ) then
                -- got it
                if ( ( ulpiRx.dat(7 downto 4) xor ulpiRx.dat(3 downto 0) ) /= "1111" ) then
-                  v.state := WAIT_FOR_EOP;
-                  -- FIXME ERROR
+                  v.state      := WAIT_FOR_EOP;
+                  v.pktHdr.pid := USB2_PID_SPC_NONE_C;
                else
                   v.pktHdr.pid := ulpiRx.dat(3 downto 0);
 
