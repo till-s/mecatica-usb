@@ -1,3 +1,8 @@
+package IsoTstPkg is
+   -- not conforming to USB spec but OK for testing (multiple pkt/microframe have larger min size)
+   constant ISO_EP_PKTSZ_C : natural := 8;
+end package IsoTstPkg;
+
 library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
@@ -7,6 +12,8 @@ use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2DescPkg.all;
+
+use     work.IsoTstPkg.all;
 
 package body Usb2AppCfgPkg is
 
@@ -66,17 +73,17 @@ package body Usb2AppCfgPkg is
        36 => x"07",
        37 => x"05",
        38 => x"81",
-       39 => x"01",
-       40 => x"08",
-       41 => x"00",
+       39 => x"01", -- ISO
+       40 => std_logic_vector( to_unsigned( ISO_EP_PKTSZ_C, 8 ) ), -- max pkt
+       41 => x"20", -- 12:11 additional pkts/uFrame
        42 => x"00",
       -- Usb2EndpointDesc
        43 => x"07",
        44 => x"05",
        45 => x"01",
-       46 => x"01",
-       47 => x"08",
-       48 => x"00",
+       46 => x"01", -- ISO
+       47 => std_logic_vector( to_unsigned( ISO_EP_PKTSZ_C, 8 ) ), -- max pkt
+       48 => x"20", -- 12:11 additional pkts/uFrame
        49 => x"00",
       -- Usb2Desc
        50 => x"04",
@@ -151,6 +158,7 @@ use     work.Usb2UtilPkg.all;
 use     work.Usb2TstPkg.all;
 use     work.Usb2AppCfgPkg.all;
 use     work.Usb2DescPkg.all;
+use     work.IsoTstPkg.all;
 
 entity Usb2IsoTb is
 end entity Usb2IsoTb;
@@ -174,6 +182,10 @@ architecture sim of Usb2IsoTb is
    signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
+   signal usb2Rx                   : Usb2RxType := USB2_RX_INIT_C;
+
+   constant EP1_C                  : natural    := TST_EP_IDX_C;
+
    constant d2 : Usb2ByteArray := (
       x"c7",
       x"3d",
@@ -193,6 +205,73 @@ architecture sim of Usb2IsoTb is
       x"ab"
    );
 
+   type RcvStateType is ( IDLE, RCV );
+
+   type RcvRegType is record
+      state        : RcvStateType;
+      framNo       : integer;
+      idx          : natural;
+   end record RcvRegType;
+
+   constant RCV_REG_INIT_C : RcvRegType := (
+      state        => IDLE,
+      framNo       => -1,
+      idx          => 0
+   );
+
+   signal rcvReg : RcvRegType             := RCV_REG_INIT_C;
+
+   function vx(constant l : in natural) return Usb2ByteArray is
+      variable v : Usb2ByteArray(1 to l);
+   begin
+      for i in v'range loop
+         v(i) := std_logic_vector( to_unsigned( i, 8 ) );
+      end loop;
+      return v;
+   end function vx;
+
+   constant V3_C : natural := 3;
+   constant V8_C : natural := 8;
+   constant V9_C : natural := 9;
+   constant V16_C : natural := 16;
+   constant V23_C : natural := 23;
+   constant V24_C : natural := 24;
+
+   procedure SendDat(
+      signal   ob : inout UlpiIbType;
+      constant e  : in    natural;
+      constant d  : in    Usb2ByteArray
+   ) is
+      variable s   : natural;
+      variable l   : natural;
+      variable p   : Usb2PidType;
+      variable r   : integer;
+      constant APF : natural := 2; -- additional pkts per microframe
+   begin
+      s := 1;
+      r := d'length;
+      assert d'length <= (1 + APF)*ISO_EP_PKTSZ_C report "illegal ISO pkt in test" severity failure;
+      p := USB2_PID_DAT_MDATA_C;
+      while ( p = USB2_PID_DAT_MDATA_C ) loop
+         if ( r > ISO_EP_PKTSZ_C or (r = ISO_EP_PKTSZ_C and d'length < (1 + APF)*ISO_EP_PKTSZ_C ) ) then
+            l := ISO_EP_PKTSZ_C;
+         else
+            l := r;
+            if    ( d'length >= 2*ISO_EP_PKTSZ_C ) then
+               p := USB2_PID_DAT_DATA2_C;
+            elsif ( d'length >= 1*ISO_EP_PKTSZ_C ) then
+               p := USB2_PID_DAT_DATA1_C;
+            else
+               p := USB2_PID_DAT_DATA0_C;
+            end if;
+         end if;
+         ulpiTstSendTok   ( ob, USB2_PID_TOK_OUT_C, to_unsigned(e, 4), DEV_ADDR_C );
+         ulpiTstSendDatPkt( ob, p, d(s to s + l - 1) );
+         s := s + l;
+         r := r - l;
+      end loop;
+   end procedure SendDat;
+
 begin
 
    U_TST : entity work.Usb2TstPkgProcesses;
@@ -209,7 +288,8 @@ begin
       variable epCfg          : Usb2TstEpCfgArray      := (others => USB2_TST_EP_CFG_INIT_C);
 
       constant EP0_SZ_C       : Usb2ByteType           := USB2_APP_DESCRIPTORS_F(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
-      constant EP1_SZ_C       : Usb2ByteType           := x"08"; -- must match value in descriptor
+      constant EP1_SZ_C       : Usb2ByteType           := std_logic_vector( to_unsigned( ISO_EP_PKTSZ_C, 8 ) );
+
 
    begin
       epCfg( to_integer( USB2_ENDP_ZERO_C ) ).maxPktSizeInp := to_integer(unsigned(EP0_SZ_C));
@@ -234,10 +314,85 @@ report "SET_INTERFACE";
          ulpiClkTick;
       end loop;
 
-      ulpiTstRun <= false;
-      report "TEST PASSED";
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 0, 11 ) );
+      ulpiClkTick;
+      SendDat( ulpiTstOb, EP1_C, vx(V3_C) );
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 1, 11 ) );
+      ulpiClkTick;
+      SendDat( ulpiTstOb, EP1_C, vx(V3_C) );
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( V8_C, 11 ) );
+      ulpiClkTick;
+      SendDat( ulpiTstOb, EP1_C, vx(V8_C) );
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( V9_C, 11 ) );
+      ulpiClkTick;
+      SendDat( ulpiTstOb, EP1_C, vx(V9_C) );
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( V16_C, 11 ) );
+      ulpiClkTick;
+      SendDat( ulpiTstOb, EP1_C, vx(V16_C) );
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( V23_C, 11 ) );
+      ulpiClkTick;
+      SendDat( ulpiTstOb, EP1_C, vx(V23_C) );
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( V24_C, 11 ) );
+      ulpiClkTick;
+      SendDat( ulpiTstOb, EP1_C, vx(V24_C) );
+
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 255, 11 ) );
       wait;
    end process P_TST;
+
+   P_RCV : process ( ulpiTstClk ) is
+   begin
+      if ( rising_edge( ulpiTstClk ) ) then
+         case ( rcvReg.state ) is
+            when IDLE =>
+               if ( usb2Rx.pktHdr.vld = '1' and usb2Rx.pktHdr.sof ) then
+                  rcvReg.framNo <= to_integer(unsigned(usb2Rx.pktHdr.tokDat));
+                  rcvReg.idx    <= 1;
+                  rcvReg.state  <= RCV;
+               end if;
+            when RCV =>
+               if ( epOb(EP1_C).mstOut.vld = '1' ) then
+                  assert unsigned(epOb(EP1_C).mstOut.usr(1 downto 0)) = (rcvReg.idx - 1) / ISO_EP_PKTSZ_C report "ISO: unexpected USR bits" severity failure;
+                  assert to_integer( unsigned( epOb(EP1_C).mstOut.dat ) ) = rcvReg.idx report "ISO RX mismatch" severity failure;
+                  rcvReg.idx <= rcvReg.idx + 1;
+               end if;
+               case ( rcvReg.framNo ) is
+                  when 0 | 1 =>
+                     if ( epOb(EP1_C).mstOut.don = '1' ) then
+                        assert rcvReg.idx = V3_C + 1 report "idx count mismatch" severity failure;
+                        rcvReg.state <= IDLE;
+                     end if;
+                  when V8_C | V9_C =>
+                     if ( epOb(EP1_C).mstOut.usr(1 downto 0) = "01" and epOb(EP1_C).mstOut.don = '1' ) then
+                        assert rcvReg.idx = rcvReg.framNo + 1 report "idx count mismatch" severity failure;
+                        rcvReg.state <= IDLE;
+                     end if;
+                  when V16_C | V23_C | V24_C =>
+                     if ( epOb(EP1_C).mstOut.usr(1 downto 0) = "10" and epOb(EP1_C).mstOut.don = '1' ) then
+                        assert rcvReg.idx = rcvReg.framNo + 1 report "idx count mismatch" severity failure;
+                        rcvReg.state <= IDLE;
+                     end if;
+                  when 255 =>
+                     ulpiTstRun <= false;
+                     report "TEST PASSED";
+
+                  when others =>
+               end case;
+         end case;
+      end if;
+   end process P_RCV;
 
    U_DUT : entity work.Usb2Core
    generic map (
@@ -254,7 +409,7 @@ report "SET_INTERFACE";
       ulpiOb                       => ulpiTstIb,
 
       usb2DevStatus                => open,
-      usb2Rx                       => open,
+      usb2Rx                       => usb2Rx,
 
       usb2Ep0ReqParam              => open,
       usb2Ep0CtlExt                => open,

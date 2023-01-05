@@ -150,8 +150,8 @@ architecture Impl of Usb2PktProc is
       nxtState        => IDLE,
       dataTglInp      => (others => '0'),
       dataTglOut      => (others => '0'),
-      isoXactInp      => (others => (others => '1' )),
-      isoXactOut      => (others => (others => '1' )),
+      isoXactInp      => (others => (others => '0' )),
+      isoXactOut      => (others => (others => '0' )),
       timer           => USB2_TIMER_EXPIRED_C,
       se0JTimer       => (others => '0'),
       se0JSeen        => false,
@@ -507,7 +507,9 @@ begin
                   v.state := DRAIN;
                   if ( usb2PidGroup( usb2Rx.pktHdr.pid ) = USB2_PID_GROUP_DAT_C and ei.stalledOut = '0' ) then
                      -- no super-sophisticated sequence checking; in particular: we don't check if the
-                     -- EP configuration actually asked for multiple transactions per micro-frame
+                     -- EP configuration actually asked for multiple transactions per micro-frame.
+                     -- When needed the user may track the number of packets received (usr) as well as the PIDs
+                     -- and identify lost packets.
                      if (   (    r.isoXactOut( to_integer( r.epIdx ) ) = "11"
                              and (   USB2_PID_DAT_DATA0_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2)
                                   or USB2_PID_DAT_MDATA_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2) ) ) 

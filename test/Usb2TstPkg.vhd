@@ -59,15 +59,27 @@ package Usb2TstPkg is
    -- send a token on ULPI
    procedure ulpiTstSendTok(
       signal   ob : inout UlpiIbType;
-      constant t  : in  std_logic_vector;             -- token to send
-      constant e  : in  Usb2EndpIdxType;              -- endpoint
-      constant a  : in  Usb2DevAddrType               -- usb device address
+      constant t  : in    std_logic_vector;             -- token to send
+      constant e  : in    Usb2EndpIdxType;              -- endpoint
+      constant a  : in    Usb2DevAddrType               -- usb device address
+   );
+
+   -- send a token on ULPI
+   procedure ulpiTstSendTok(
+      signal   ob : inout UlpiIbType;
+      constant t  : in    std_logic_vector;             -- token to send
+      constant x  : in    std_logic_vector(10 downto 0) -- data
+   );
+
+   procedure ulpiTstSendSOF(
+      signal   ob : inout UlpiIbType;
+      constant f  : in    unsigned(10 downto 0)         -- frame number
    );
 
    -- send handshake on ULPI
    procedure ulpiTstSendHsk(
       signal   ob : inout UlpiIbType;
-      constant t  : in  std_logic_vector(3 downto 0) -- handshake PID
+      constant t  : in    std_logic_vector(3 downto 0) -- handshake PID
    );
 
    -- wait for and return PID
@@ -323,30 +335,49 @@ package body Usb2TstPkg is
    -- send a token on ULPI
    procedure ulpiTstSendTok(
       signal   ob : inout UlpiIbType;
-      constant t  : in  std_logic_vector;             -- token to send
-      constant e  : in  Usb2EndpIdxType;              -- endpoint
-      constant a  : in  Usb2DevAddrType               -- usb device address
+      constant t  : in    std_logic_vector;             -- token to send
+      constant e  : in    Usb2EndpIdxType;              -- endpoint
+      constant a  : in    Usb2DevAddrType               -- usb device address
+   ) is
+      variable x : std_logic_vector(10 downto 0);
+   begin
+      x := std_logic_vector( e ) & a;
+      ulpiTstSendTok( ob, t, x );
+   end procedure ulpiTstSendTok;
+
+   procedure ulpiTstSendTok(
+      signal   ob : inout UlpiIbType;
+      constant t  : in    std_logic_vector;             -- token to send
+      constant x  : in    std_logic_vector(10 downto 0) -- data
    ) is
       variable v : Usb2ByteArray(0 to 2);
-      variable x : std_logic_vector(10 downto 0);
       variable c : std_logic_vector( 4 downto 0);
+      variable e : Usb2EndpIdxType;
    begin
       if ( t'length = 2 ) then
          v(0) := not t & "10" & t & "01";
       else
          v(0) := not t & t;
       end if;
-      x    := std_logic_vector( e ) & a;
       c    := USB2_CRC5_INIT_C(c'range);
       ulpiTstCrc( c, USB2_CRC5_POLY_C(c'range), x );
       v(1) := x(7 downto 0);
       v(2) := not c & x(10 downto 8);
       ulpiTstSendVec( ob, v );
       if ( v(0)(3 downto 0) = USB2_PID_TOK_SETUP_C ) then
+         e := Usb2EndpIdxType( x(10 downto 7) );
          dtglInp( to_integer( unsigned( e ) ) ) := '0';
          dtglOut( to_integer( unsigned( e ) ) ) := '0';
       end if;
    end procedure ulpiTstSendTok;
+
+   procedure ulpiTstSendSOF(
+      signal   ob : inout UlpiIbType;
+      constant f  : in    unsigned(10 downto 0)         -- frame number
+   ) is
+   begin
+      ulpiTstSendTok( ob, USB2_PID_TOK_SOF_C, std_logic_vector( f ) );
+   end procedure ulpiTstSendSOF;
 
    -- send handshake on ULPI
    procedure ulpiTstSendHsk(
