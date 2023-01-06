@@ -75,7 +75,6 @@ architecture top_level of ZyboTop is
    end function ite;
 
    constant  GEN_ULPI_C                  : boolean := true;
-   constant  GEN_ILA_C                   : boolean := false;
 
    constant  USE_ETH_CLK_C               : boolean := false;
 
@@ -115,6 +114,9 @@ architecture top_level of ZyboTop is
    signal ulpiClk                        : std_logic;
    signal ulpiRst                        : std_logic := '0';
    signal refLocked                      : std_logic;
+
+   signal axiClk                         : std_logic;
+   signal axiRst                         : std_logic;
    
    signal roRegs                         : Slv32Array(0 to N_RO_REGS_C - 1) := ( others => (others => '0') );
 
@@ -177,7 +179,7 @@ begin
          FCLK_RESET0_N                 => sysRstN,
          IRQ_F2P                       => cpuIrqs,
          MIO(53 downto 0)              => FIXED_IO_mio,
-         M_AXI_GP0_ACLK                => sysClk,
+         M_AXI_GP0_ACLK                => axiClk,
          M_AXI_GP0_ARADDR(31 downto 0) => axiReadMst.araddr(31 downto 0),
          M_AXI_GP0_ARBURST(1 downto 0) => axiReadMst.arburst,
          M_AXI_GP0_ARCACHE(3 downto 0) => axiReadMst.arcache,
@@ -223,6 +225,9 @@ begin
          USB0_VBUS_PWRFAULT            => '0',
          USB0_VBUS_PWRSELECT           => open
       );
+
+   axiClk <= ulpiClk;
+   axiRst <= ulpiRst;
       
    U_AXI : entity work.Axi4lsWrapper
       generic map (
@@ -230,8 +235,8 @@ begin
          ASYNC_STAGES_G                => 2
       )
       port map (
-         axiClk                        => sysClk,
-         axiRst                        => sysRst,
+         axiClk                        => axiClk,
+         axiRst                        => axiRst,
          axiWriteMst                   => axiWriteMst,
          axiWriteSub                   => axiWriteSub,
          axiReadMst                    => axiReadMst,
@@ -244,46 +249,7 @@ begin
          locBusSub                     => locBusSub
       );
 
-   G_TSTREG : if ( not GEN_ULPI_C ) generate
-      type RegArray is array (natural range 0 to 7) of std_logic_vector(31 downto 0);
-
-      signal regs : RegArray := (others => (others => '0'));
-   begin
-      ulpiClk <= sysClk;
-      ulpiRst <= sysRst;
-
-      P_REG : process ( ulpiClk ) is
-      begin
-         if ( rising_edge( ulpiClk ) ) then
-            locBusSub.rvalid   <= locBusMst.rs;
-            if ( unsigned(locBusMst.raddr(31 downto 6)) /= 0 ) then
-               locBusSub.rerr  <= '1';
-            else
-               if ( locBusMst.raddr(5 downto 2) /= "0000" ) then
-                  regs(0)         <= locBusMst.raddr;
-               end if;
-               locBusSub.rdata <= regs( to_integer( unsigned( locBusMst.raddr(5 downto 2) ) ) );
-               locBusSub.rerr  <= '0';
-            end if;
-
-            locBusSub.wready   <= locBusMst.ws;
-            if ( unsigned(locBusMst.waddr(31 downto 6)) /= 0 ) then
-               locBusSub.werr  <= '1';
-            else
-               locBusSub.werr  <= '0';
-               for i in 0 to 3 loop
-                  if ( locBusMst.wstrb(i) = '1' ) then
-                     regs( to_integer( unsigned( locBusMst.waddr(5 downto 2) ) ) )(7+8*i downto 8*i) <= locBusMst.wdata(7+8*i downto 8*i);
-                  end if;
-               end loop;
-               regs(0)         <= locBusMst.waddr;
-            end if;
-         end if;
-      end process P_REG;
-
-   end generate G_TSTREG;
-
-   G_ULPI_REG : if ( GEN_ULPI_C ) generate
+   B_ULPI_REG : block is
       type StateType is ( IDLE, WAI, DON );
       type RegType   is record
          state       :  StateType;
@@ -483,7 +449,7 @@ begin
 
       locBusSub <= r.sub;
       regReq    <= r.req;
-   end generate G_ULPI_REG;
+   end block B_ULPI_REG;
 
    P_LED : process ( refLocked, lineBreak ) is
    begin

@@ -3,7 +3,8 @@
 --   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
 -- This notice must not be removed.
 
--- Instantiation of a CDC ACM Endpoint with a FIFO interface
+-- Instantiation of a CDC ACM Endpoint with a FIFO interface as well
+-- as the necessary IO-Buffers
 
 library ieee;
 use     ieee.std_logic_1164.all;
@@ -385,7 +386,7 @@ begin
       ulpiIb.dir <= ulpiDirNDly;
       ulpiIb.nxt <= ulpiNxtNDly;
 
-      U_STP_BUF : OBUF port map ( I => ulpiOb.stp, O => ulpiStp    );
+      U_STP_BUF : OBUF port map ( I => ulpiOb.stp, O => ulpiStp     );
       U_DIR_BUF : IBUF port map ( I => ulpiDir   , O => ulpiDirNDly );
       U_NXT_BUF : IBUF port map ( I => ulpiNxt   , O => ulpiNxtNDly );
 
