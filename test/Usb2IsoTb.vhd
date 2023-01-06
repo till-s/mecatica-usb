@@ -205,7 +205,7 @@ architecture sim of Usb2IsoTb is
       x"ab"
    );
 
-   type RcvStateType is ( IDLE, RCV );
+   type RcvStateType is ( IDLE, RCV, SND );
 
    type RcvRegType is record
       state        : RcvStateType;
@@ -230,12 +230,15 @@ architecture sim of Usb2IsoTb is
       return v;
    end function vx;
 
+   constant V0_C : natural := 0;
    constant V3_C : natural := 3;
    constant V8_C : natural := 8;
    constant V9_C : natural := 9;
    constant V16_C : natural := 16;
    constant V23_C : natural := 23;
    constant V24_C : natural := 24;
+
+   constant APF_C : natural := 2; -- additional pkts per microframe
 
    procedure SendDat(
       signal   ob : inout UlpiIbType;
@@ -246,14 +249,13 @@ architecture sim of Usb2IsoTb is
       variable l   : natural;
       variable p   : Usb2PidType;
       variable r   : integer;
-      constant APF : natural := 2; -- additional pkts per microframe
    begin
       s := 1;
       r := d'length;
-      assert d'length <= (1 + APF)*ISO_EP_PKTSZ_C report "illegal ISO pkt in test" severity failure;
+      assert d'length <= (1 + APF_C)*ISO_EP_PKTSZ_C report "illegal ISO pkt in test" severity failure;
       p := USB2_PID_DAT_MDATA_C;
       while ( p = USB2_PID_DAT_MDATA_C ) loop
-         if ( r > ISO_EP_PKTSZ_C or (r = ISO_EP_PKTSZ_C and d'length < (1 + APF)*ISO_EP_PKTSZ_C ) ) then
+         if ( r > ISO_EP_PKTSZ_C or (r = ISO_EP_PKTSZ_C and d'length < (1 + APF_C)*ISO_EP_PKTSZ_C ) ) then
             l := ISO_EP_PKTSZ_C;
          else
             l := r;
@@ -272,6 +274,43 @@ architecture sim of Usb2IsoTb is
       end loop;
    end procedure SendDat;
 
+   procedure RecvDat(
+      signal   ob  : inout UlpiIbType;
+      constant e   : in    natural;
+      constant eda : in    Usb2ByteArray
+   ) is
+      variable epi   : std_logic_vector(3 downto 0);
+      variable s,l,r : natural;
+   begin
+      s := 1;
+      r := eda'length - s + 1;
+      if    ( r < ISO_EP_PKTSZ_C or (r = ISO_EP_PKTSZ_C and APF_C = 0 ) ) then
+         epi := USB2_PID_DAT_DATA0_C;
+      elsif ( r < 2*ISO_EP_PKTSZ_C or (r = 2*ISO_EP_PKTSZ_C and APF_C = 1 ) ) then
+         epi := USB2_PID_DAT_DATA1_C;
+      else
+         epi := USB2_PID_DAT_DATA2_C;
+      end if;
+      L_FRAG : while ( true ) loop
+         ulpiTstSendTok ( ob, USB2_PID_TOK_IN_C, to_unsigned(e, 4), DEV_ADDR_C );
+         ulpiClkTick;
+         if ( r < ISO_EP_PKTSZ_C ) then
+            l := r;
+         else
+            l := ISO_EP_PKTSZ_C;
+         end if;
+         ulpiTstWaitDatPkt( ob, epi, eda(s to s + l - 1), npid => true );
+         s   := s + l;
+         r   := r - l;
+         if    ( epi = USB2_PID_DAT_DATA2_C ) then
+            epi := USB2_PID_DAT_DATA1_C;
+         elsif ( epi = USB2_PID_DAT_DATA1_C ) then
+            epi := USB2_PID_DAT_DATA0_C;
+         else
+            exit L_FRAG;
+         end if;
+      end loop L_FRAG;
+   end procedure RecvDat;
 begin
 
    U_TST : entity work.Usb2TstPkgProcesses;
@@ -314,12 +353,12 @@ report "SET_INTERFACE";
          ulpiClkTick;
       end loop;
 
-      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 0, 11 ) );
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( V0_C, 11 ) );
       ulpiClkTick;
-      SendDat( ulpiTstOb, EP1_C, vx(V3_C) );
+      SendDat( ulpiTstOb, EP1_C, vx(V0_C) );
 
       ulpiClkTick;
-      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 1, 11 ) );
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( V3_C, 11 ) );
       ulpiClkTick;
       SendDat( ulpiTstOb, EP1_C, vx(V3_C) );
 
@@ -348,19 +387,74 @@ report "SET_INTERFACE";
       ulpiClkTick;
       SendDat( ulpiTstOb, EP1_C, vx(V24_C) );
 
-      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 255, 11 ) );
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 1024 + V0_C, 11 ) );
+      ulpiClkTick;
+      RecvDat( ulpiTstOb, EP1_C, vx(V0_C) );
+      ulpiClkTick;
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 1024 + V3_C, 11 ) );
+      ulpiClkTick;
+      RecvDat( ulpiTstOb, EP1_C, vx(V3_C) );
+      ulpiClkTick;
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 1024 + V8_C, 11 ) );
+      ulpiClkTick;
+      RecvDat( ulpiTstOb, EP1_C, vx(V8_C) );
+      ulpiClkTick;
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 1024 + V9_C, 11 ) );
+      ulpiClkTick;
+      RecvDat( ulpiTstOb, EP1_C, vx(V9_C) );
+      ulpiClkTick;
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 1024 + V16_C, 11 ) );
+      ulpiClkTick;
+      RecvDat( ulpiTstOb, EP1_C, vx(V16_C) );
+      ulpiClkTick;
+
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 1024 + V23_C, 11 ) );
+      ulpiClkTick;
+      RecvDat( ulpiTstOb, EP1_C, vx(V23_C) );
+      ulpiClkTick;
+
+
+      ulpiClkTick;
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 1024 + V24_C, 11 ) );
+      ulpiClkTick;
+      RecvDat( ulpiTstOb, EP1_C, vx(V24_C) );
+      ulpiClkTick;
+
+
+      ulpiTstSendSOF( ulpiTstOb, to_unsigned( 2047, 11 ) );
       wait;
    end process P_TST;
 
    P_RCV : process ( ulpiTstClk ) is
+      variable framNo : integer;
    begin
       if ( rising_edge( ulpiTstClk ) ) then
          case ( rcvReg.state ) is
             when IDLE =>
                if ( usb2Rx.pktHdr.vld = '1' and usb2Rx.pktHdr.sof ) then
-                  rcvReg.framNo <= to_integer(unsigned(usb2Rx.pktHdr.tokDat));
+                  framNo        := to_integer(unsigned(usb2Rx.pktHdr.tokDat));
+                  if ( framNo = 2047 ) then
+                     ulpiTstRun <= false;
+                     report "TEST PASSED";
+                  elsif ( framNo >= 1024 ) then
+                     framNo       := framNo - 1024;
+                     rcvReg.state <= SND;
+                  else
+                     rcvReg.state <= RCV;
+                  end if;
+                  rcvReg.framNo <= framNo;
                   rcvReg.idx    <= 1;
-                  rcvReg.state  <= RCV;
                end if;
             when RCV =>
                if ( epOb(EP1_C).mstOut.vld = '1' ) then
@@ -369,9 +463,10 @@ report "SET_INTERFACE";
                   rcvReg.idx <= rcvReg.idx + 1;
                end if;
                case ( rcvReg.framNo ) is
-                  when 0 | 1 =>
+                  when V0_C | V3_C =>
                      if ( epOb(EP1_C).mstOut.don = '1' ) then
-                        assert rcvReg.idx = V3_C + 1 report "idx count mismatch" severity failure;
+                        assert epOb(EP1_C).mstOut.usr(1 downto 0) = "00" report "RCV: unexpected USR" severity failure;
+                        assert rcvReg.idx = rcvReg.framNo + 1 report "idx count mismatch" severity failure;
                         rcvReg.state <= IDLE;
                      end if;
                   when V8_C | V9_C =>
@@ -384,15 +479,55 @@ report "SET_INTERFACE";
                         assert rcvReg.idx = rcvReg.framNo + 1 report "idx count mismatch" severity failure;
                         rcvReg.state <= IDLE;
                      end if;
-                  when 255 =>
-                     ulpiTstRun <= false;
-                     report "TEST PASSED";
+                  when others =>
+               end case;
 
+            when SND =>
+               if ( ( epIb(EP1_C).mstInp.don and epOb(EP1_C).subInp.rdy ) = '1' ) then
+                  epIb(EP1_C).mstInp.don <= '0';
+               end if;
+               case ( rcvReg.framNo ) is
+                  when V0_C | V3_C | V8_C | V9_C | V16_C | V23_C | V24_C =>
+                     if ( ( epIb(EP1_C).mstInp.vld and epIb(EP1_C).mstInp.don ) = '0' ) then
+                        if ( rcvReg.idx > rcvReg.framNo ) then
+                           epIb(EP1_C).mstInp.don <= '1';
+                           -- if this is a null packet increment idx so that next time
+                           -- we test if a null packet needs to be appended the test fails.
+                           rcvReg.idx             <= rcvReg.idx + 1;
+                        else
+                           epIb(EP1_C).mstInp.vld <= '1';
+                        end if;
+                        if ( rcvReg.framNo = (1 + APF_C) * ISO_EP_PKTSZ_C ) then
+                           epIb(EP1_C).mstInp.usr <= "00" & std_logic_vector( to_unsigned( APF_C , 2 ) );
+                        else
+                           epIb(EP1_C).mstInp.usr <= "00" & std_logic_vector( to_unsigned( rcvReg.framNo / ISO_EP_PKTSZ_C, 2 ) );
+                        end if;
+                     end if;
+                     if ( epOb(EP1_C).subInp.rdy = '1' ) then
+                        if    ( epIb(EP1_C).mstInp.don = '1' ) then
+                           epIb(EP1_C).mstInp.don <= '0';
+                           if ( rcvReg.idx > rcvReg.framNo ) then
+                              if ( ( (rcvReg.idx - 1) mod ISO_EP_PKTSZ_C = 0 ) and rcvReg.framNo < (1 + APF_C) * ISO_EP_PKTSZ_C ) then
+                                 -- need to append a NULL packet;
+                              else
+                                 rcvReg.state <= IDLE;
+                              end if;
+                           end if;
+                        elsif ( epIb(EP1_C).mstInp.vld = '1' ) then
+                           if ( (rcvReg.idx = rcvReg.framNo) or ((rcvReg.idx mod ISO_EP_PKTSZ_C) = 0) ) then
+                              epIb(EP1_C).mstInp.vld <= '0';
+                              epIb(EP1_C).mstInp.don <= '1';
+                           end if;
+                           rcvReg.idx <= rcvReg.idx + 1;
+                        end if;
+                     end if;
                   when others =>
                end case;
          end case;
       end if;
    end process P_RCV;
+
+   epIb(EP1_C).mstInp.dat <= std_logic_vector( to_unsigned( rcvReg.idx, 8 ) );
 
    U_DUT : entity work.Usb2Core
    generic map (
