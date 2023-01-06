@@ -1,3 +1,8 @@
+# Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.
+# You may obtain a copy of the license at
+#   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+# This notice must not be removed.
+
 GHDL=ghdl
 VIVADO=/opt/ghdl/v2.0.0-gcc/vivado-2021.2/
 vpath %.vhd ../hdl

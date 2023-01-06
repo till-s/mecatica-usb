@@ -1,4 +1,9 @@
-# IO timing constraints when the ULPI clock is driven by the PHY, i.e. ULPI OUTPUT clock mode
+# Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.
+# You may obtain a copy of the license at
+#   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+# This notice must not be removed.
+
+# IO timing constraints (Xilinx-Vivado) when the ULPI clock is driven by the PHY, i.e. ULPI OUTPUT clock mode
 #
 # NOTE:
 #  - values in this file reflect ULPI std; it is likely that modern transceivers have
@@ -6,7 +11,7 @@
 #  - board trace delays are assumed to be ~0.7ns (max)/0.25 ns(min) in these examples
 #    and completely balanced (not 100% realistic).
 #
-# ulpiClk must be defined by user (clock at output pin that drives the ulpi clock)
+#  - ulpiClk must be defined by user (clock at output pin that drives the ulpi clock)
 
 # set the min. input delay to
 # min(data_trace_delay - clock_trace_delay) + min. delay when data source is valid after active clock (ULPI: 0ns)
