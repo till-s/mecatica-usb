@@ -22,12 +22,12 @@ entity Usb2Core is
       -- with simulation enabled timing may be changed
       -- to speed things up
       SIMULATION_G                 : boolean         := false;
-      MARK_DEBUG_ULPI_IO_G         : boolean         := true;
-      MARK_DEBUG_ULPI_LINE_STATE_G : boolean         := true;
-      MARK_DEBUG_PKT_RX_G          : boolean         := true;
-      MARK_DEBUG_PKT_TX_G          : boolean         := true;
-      MARK_DEBUG_PKT_PROC_G        : boolean         := true;
-      MARK_DEBUG_EP0_G             : boolean         := true;
+      MARK_DEBUG_ULPI_IO_G         : boolean         := false;
+      MARK_DEBUG_ULPI_LINE_STATE_G : boolean         := false;
+      MARK_DEBUG_PKT_RX_G          : boolean         := false;
+      MARK_DEBUG_PKT_TX_G          : boolean         := false;
+      MARK_DEBUG_PKT_PROC_G        : boolean         := false;
+      MARK_DEBUG_EP0_G             : boolean         := false;
       ULPI_NXT_IOB_G               : boolean         := true;
       ULPI_DIR_IOB_G               : boolean         := true;
       ULPI_DIN_IOB_G               : boolean         := true;
