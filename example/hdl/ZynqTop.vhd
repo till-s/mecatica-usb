@@ -23,7 +23,7 @@ entity ZynqTop is
    generic (
       -- ulpi 'INPUT clock mode is when the link generates the clock'
       -- NOTE: constraints matching the clock configuration have to be applied
-      ULPI_CLK_MODE_INP_G : boolean := true
+      ULPI_CLK_MODE_INP_G : integer := 1
    );
    port (
       ethClk            : in    std_logic;
@@ -80,6 +80,7 @@ architecture top_level of ZynqTop is
    constant  GEN_ULPI_C                  : boolean := true;
 
    constant  USE_ETH_CLK_C               : boolean := false;
+   constant  ULPI_CLK_MODE_INP_C         : boolean := (ULPI_CLK_MODE_INP_G /= 0);
 
    -- must cover all registers
    constant  ADDR_WIDTH_C                : natural := 8;
@@ -330,7 +331,7 @@ begin
       U_ULPI_TOP : entity work.Usb2CdcAcmDev
          generic map (
             SYS_CLK_PERIOD_NS_G  => SYS_CLK_PERIOD_NS_C,
-            ULPI_CLK_MODE_INP_G  => ULPI_CLK_MODE_INP_G,
+            ULPI_CLK_MODE_INP_G  => ULPI_CLK_MODE_INP_C,
             REF_CLK_DIV_G        => REF_CLK_DIV_C,
             CLK_MULT_F_G         => CLK_MULT_F_C,
             CLK0_DIV_G           => CLK0_DIV_C,

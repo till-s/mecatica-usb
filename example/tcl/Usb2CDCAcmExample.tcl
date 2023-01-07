@@ -143,6 +143,7 @@ proc print_help {} {
   puts "$script_file"
   puts "$script_file -tclargs \[--origin_dir <path>\]"
   puts "$script_file -tclargs \[--project_name <name>\]"
+  puts "$script_file -tclargs \[--ulpi_clk_mode_inp <1/0>\]"
   puts "$script_file -tclargs \[--help\]\n"
   puts "Usage:"
   puts "Name                   Description"
@@ -154,9 +155,20 @@ proc print_help {} {
   puts "\[--project_name <name>\] Create project with the specified name. Default"
   puts "                       name is the name of the project from where this"
   puts "                       script was generated.\n"
+  puts "\[--ulpi_clk_mode_inp <1/0>\] Select ULPI clock mode."
+  puts "                       1: Link generates clock (must be supported by PHY)"
+  puts "                       0: PHY  generates clock."
+  puts "                       The default is '1', i.e., ULPI 'input' clock mode.\n"
   puts "\[--help\]               Print help information for this script"
   puts "-------------------------------------------------------------------------\n"
   exit 0
+}
+
+set clk_mode_inp 1
+
+# Use clk_mode_inp variable, if specified in the tcl shell
+if { [info exists ::user_clk_mode_inp] } {
+  set clk_mode_inp $::user_clk_mode_inp
 }
 
 if { $::argc > 0 } {
@@ -165,6 +177,7 @@ if { $::argc > 0 } {
     switch -regexp -- $option {
       "--origin_dir"   { incr i; set origin_dir [lindex $::argv $i] }
       "--project_name" { incr i; set _xil_proj_name_ [lindex $::argv $i] }
+      "--ulpi_clk_mode_inp" { incr i; set clk_mode_inp [lindex $::argv $i] }
       "--help"         { print_help }
       default {
         if { [regexp {^-} $option] } {
@@ -175,6 +188,8 @@ if { $::argc > 0 } {
     }
   }
 }
+
+set clk_mode_out [expr ! ${clk_mode_inp}]
 
 # Set the directory path for the original project from where this script was exported
 set orig_proj_dir "[file normalize "$origin_dir/../Usb2CDCAcmExample"]"
@@ -192,6 +207,10 @@ if { $validate_required } {
 
 # Create project
 create_project ${_xil_proj_name_} ./${_xil_proj_name_} -part xc7z010clg400-1
+
+# Create IP
+source "$origin_dir/gen-zybo-ps.tcl"
+source "$origin_dir/gen-axi2axil-tcl"
 
 # Set the directory path for the new project
 set proj_dir [get_property directory [current_project]]
@@ -375,9 +394,9 @@ set_property -name "file_type" -value "VHDL" -objects $file_obj
 
 # Set 'sources_1' fileset properties
 set obj [get_filesets sources_1]
-set_property -name "generic" -value "ULPI_CLK_MODE_INP_G=true" -objects $obj
+set_property -name "generic" -value "ULPI_CLK_MODE_INP_G=${clk_mode_inp}" -objects $obj
 set_property -name "top" -value "ZynqTop" -objects $obj
-set_property -name "vhdl_generic" -value "ULPI_CLK_MODE_INP_G=true" -objects $obj
+set_property -name "vhdl_generic" -value "ULPI_CLK_MODE_INP_G=${clk_mode_inp}" -objects $obj
 
 # Set 'sources_1' fileset object
 set obj [get_filesets sources_1]
@@ -444,6 +463,7 @@ set file "$origin_dir/../xdc/clk_inp.xdc"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
+set_property -name "is_enabled" -value "${clk_mode_inp}" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
 set file "[file normalize "$origin_dir/../xdc/clk_out.xdc"]"
@@ -452,7 +472,7 @@ set file "$origin_dir/../xdc/clk_out.xdc"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
-set_property -name "is_enabled" -value "0" -objects $file_obj
+set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
 set file "[file normalize "$origin_dir/../../xdc/usb3340_clkinp_io_timing.xdc"]"
@@ -461,6 +481,7 @@ set file "$origin_dir/../../xdc/usb3340_clkinp_io_timing.xdc"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
+set_property -name "is_enabled" -value "${clk_mode_inp}" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
 set file "[file normalize "$origin_dir/../../xdc/usb3340_clkout_io_timing.xdc"]"
@@ -469,7 +490,7 @@ set file "$origin_dir/../../xdc/usb3340_clkout_io_timing.xdc"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
-set_property -name "is_enabled" -value "0" -objects $file_obj
+set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
 
 # Set 'constrs_1' fileset properties
 set obj [get_filesets constrs_1]
