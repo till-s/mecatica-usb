@@ -1,3 +1,12 @@
+-- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.
+-- You may obtain a copy of the license at
+--   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+-- This notice must not be removed.
+
+-- Top-level module for ZYNQ instantiating the example CDC ACM device.
+-- It is assumed that the boot-loader or OS initializes the PS
+-- to match the IP configuration.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -5,15 +14,15 @@ use ieee.numeric_std.all;
 library unisim;
 use unisim.vcomponents.all;
 
+use work.StdLogPkg.all;
 use work.Ps7Pkg.all;
-use work.Axi4vPkg.all;
 use work.UlpiPkg.all;
 use work.Usb2Pkg.all;
-use work.StdLogPkg.all;
 
-entity ZyboTop is
+entity ZynqTop is
    generic (
       -- ulpi 'INPUT clock mode is when the link generates the clock'
+      -- NOTE: constraints matching the clock configuration have to be applied
       ULPI_CLK_MODE_INP_G : boolean := true
    );
    port (
@@ -40,29 +49,23 @@ entity ZyboTop is
       FIXED_IO_ps_porb  : inout STD_LOGIC;
       FIXED_IO_ps_srstb : inout STD_LOGIC;
 
-      JB1_P             : out   std_logic;
-      JB1_N             : out   std_logic;
-      JB2_P             : in    std_logic;
-      JB3_P             : inout std_logic;
-      JB4_P             : in    std_logic;
-      JC1_P             : inout std_logic;
-      JC2_P             : inout std_logic;
-      JC3_P             : inout std_logic;
-      JC4_P             : inout std_logic;
-      JD1_P             : inout std_logic;
-      JD2_P             : inout std_logic;
-      JD3_P             : inout std_logic;
-      JD4_P             : inout std_logic;
+      ulpiStp           : out   std_logic;
+      ulpiRstb          : out   std_logic;
+      ulpiDir           : in    std_logic;
+      ulpiClk           : inout std_logic;
+      ulpiNxt           : in    std_logic;
+      ulpiDat           : inout std_logic_vector(7 downto 0);
       
       SW                : in    std_logic_vector(3 downto 0);
 
       LED               : out   std_logic_vector(3 downto 0) := (others => '0')
    );
-end ZyboTop;
+end ZynqTop;
 
-architecture top_level of ZyboTop is
+architecture top_level of ZynqTop is
 
    attribute IO_BUFFER_TYPE              : string;
+   attribute ASYNC_REG                   : string;
 
    function  ite(constant c: boolean; constant a,b: integer) return integer is
    begin
@@ -95,8 +98,10 @@ architecture top_level of ZyboTop is
    signal axiWriteMst                    : AxiWriteMstType;
    signal axiWriteSub                    : AxiWriteSubType := AXI_WRITE_SUB_FORCE_C;
 
-   signal locBusMst                      : LocBusMstType;
-   signal locBusSub                      : LocBusSubType   := LOC_BUS_SUB_INIT_C;
+   signal axilReadMst                    : AxiReadMstType;
+   signal axilReadSub                    : AxiReadSubType  := AXI_READ_SUB_FORCE_C;
+   signal axilWriteMst                   : AxiWriteMstType;
+   signal axilWriteSub                   : AxiWriteSubType := AXI_WRITE_SUB_FORCE_C;
 
    signal regReq                         : UlpiRegReqType;
    signal regRep                         : UlpiRegRepType;
@@ -111,9 +116,11 @@ architecture top_level of ZyboTop is
    signal plClk                          : std_logic;
    signal sysClk                         : std_logic;
    signal sysRst, sysRstN                : std_logic;
-   signal ulpiClk                        : std_logic;
-   signal ulpiRst                        : std_logic := '0';
+   signal ulpiClkLoc                     : std_logic;
+   signal ulpiRst                        : std_logic := '1';
    signal refLocked                      : std_logic;
+   signal refLockedSync                  : std_logic_vector(1 downto 0) := (others => '0');
+   attribute ASYNC_REG of refLockedSync  : signal is "TRUE";
 
    signal axiClk                         : std_logic;
    signal axiRst                         : std_logic;
@@ -127,6 +134,8 @@ architecture top_level of ZyboTop is
    signal fifoOutRen                     : std_logic;
    signal fifoInpWen                     : std_logic;
 
+   -- USB3340 requires reset to be asserted for min. 1us; UlpiLineState subsequently waits until DIR is deasserted
+   signal ulpiRstCnt                     : unsigned(7 downto 0) := (others => '1');
 
 begin
 
@@ -226,48 +235,97 @@ begin
          USB0_VBUS_PWRSELECT           => open
       );
 
-   axiClk <= ulpiClk;
+   axiClk <= ulpiClkLoc;
    axiRst <= ulpiRst;
-      
-   U_AXI : entity work.Axi4lsWrapper
-      generic map (
-         ADDR_WIDTH_G                  => ADDR_WIDTH_C,
-         ASYNC_STAGES_G                => 2
-      )
+
+   U_AXI2AXIL : component axi2axil_converter_0
       port map (
-         axiClk                        => axiClk,
-         axiRst                        => axiRst,
-         axiWriteMst                   => axiWriteMst,
-         axiWriteSub                   => axiWriteSub,
-         axiReadMst                    => axiReadMst,
-         axiReadSub                    => axiReadSub,
-
-         locBusClk                     => ulpiClk,
-         locBusRst                     => ulpiRst,
-
-         locBusMst                     => locBusMst,
-         locBusSub                     => locBusSub
+         aclk                        => axiClk,
+         aresetn                     => '1',
+         s_axi_awid                  => axiWriteMst.awid,
+         s_axi_awaddr                => axiWriteMst.awaddr,
+         s_axi_awlen                 => axiWriteMst.awlen,
+         s_axi_awsize                => axiWriteMst.awsize,
+         s_axi_awburst               => axiWriteMst.awburst,
+         s_axi_awlock                => axiWriteMst.awlock,
+         s_axi_awcache               => axiWriteMst.awcache,
+         s_axi_awprot                => axiWriteMst.awprot,
+         s_axi_awqos                 => axiWriteMst.awqos,
+         s_axi_awvalid               => axiWriteMst.awvalid,
+         s_axi_awready               => axiWriteSub.awready,
+         s_axi_wid                   => axiWriteMst.wid,
+         s_axi_wdata                 => axiWriteMst.wdata,
+         s_axi_wstrb                 => axiWriteMst.wstrb,
+         s_axi_wlast                 => axiWriteMst.wlast,
+         s_axi_wvalid                => axiWriteMst.wvalid,
+         s_axi_wready                => axiWriteSub.wready,
+         s_axi_bid                   => axiWriteSub.bid,
+         s_axi_bresp                 => axiWriteSub.bresp,
+         s_axi_bvalid                => axiWriteSub.bvalid,
+         s_axi_bready                => axiWriteMst.bready,
+         s_axi_arid                  => axiReadMst.arid,
+         s_axi_araddr                => axiReadMst.araddr,
+         s_axi_arlen                 => axiReadMst.arlen,
+         s_axi_arsize                => axiReadMst.arsize,
+         s_axi_arburst               => axiReadMst.arburst,
+         s_axi_arlock                => axiReadMst.arlock,
+         s_axi_arcache               => axiReadMst.arcache,
+         s_axi_arprot                => axiReadMst.arprot,
+         s_axi_arqos                 => axiReadMst.arqos,
+         s_axi_arvalid               => axiReadMst.arvalid,
+         s_axi_arready               => axiReadSub.arready,
+         s_axi_rid                   => axiReadSub.rid,
+         s_axi_rdata                 => axiReadSub.rdata,
+         s_axi_rresp                 => axiReadSub.rresp,
+         s_axi_rlast                 => axiReadSub.rlast,
+         s_axi_rvalid                => axiReadSub.rvalid,
+         s_axi_rready                => axiReadMst.rready,
+         m_axi_awaddr                => axilWriteMst.awaddr,
+         m_axi_awprot                => axilWriteMst.awprot,
+         m_axi_awvalid               => axilWriteMst.awvalid,
+         m_axi_awready               => axilWriteSub.awready,
+         m_axi_wdata                 => axilWriteMst.wdata,
+         m_axi_wstrb                 => axilWriteMst.wstrb,
+         m_axi_wvalid                => axilWriteMst.wvalid,
+         m_axi_wready                => axilWriteSub.wready,
+         m_axi_bresp                 => axilWriteSub.bresp,
+         m_axi_bvalid                => axilWriteSub.bvalid,
+         m_axi_bready                => axilWriteMst.bready,
+         m_axi_araddr                => axilReadMst.araddr,
+         m_axi_arprot                => axilReadMst.arprot,
+         m_axi_arvalid               => axilReadMst.arvalid,
+         m_axi_arready               => axilReadSub.arready,
+         m_axi_rdata                 => axilReadSub.rdata,
+         m_axi_rresp                 => axilReadSub.rresp,
+         m_axi_rvalid                => axilReadSub.rvalid,
+         m_axi_rready                => axilReadMst.rready
       );
 
    B_ULPI_REG : block is
       type StateType is ( IDLE, WAI, DON );
       type RegType   is record
          state       :  StateType;
-         sub         :  LocBusSubType;
+         rsub        :  AxiReadSubType;
+         wsub        :  AxiWriteSubType;
          req         :  UlpiRegReqType;
          rwRegs      :  Slv32Array(0 to N_RW_REGS_C - 1);
+         fifoWen     :  std_logic;
+         fifoRen     :  std_logic;
       end record RegType;
       constant REG_INIT_C : RegType := (
          state       => IDLE,
-         sub         => LOC_BUS_SUB_INIT_C,
+         rsub        => AXI_READ_SUB_INIT_C,
+         wsub        => AXI_WRITE_SUB_INIT_C,
          req         => ULPI_REG_REQ_INIT_C,
-         rwRegs      => (others => (others => '0'))
+         rwRegs      => (others => (others => '0')),
+         fifoWen     => '0',
+         fifoRen     => '0'
       );
       signal r       : RegType := REG_INIT_C;
       signal rin     : RegType;
    begin
 
-      JB1_N <= not ulpiRst; -- RSTb
+      ulpiRstb <= not ulpiRst; -- RSTb
 
       U_ULPI_TOP : entity work.Usb2CdcAcmDev
          generic map (
@@ -283,21 +341,14 @@ begin
          port map (
             sysClk        => sysClk,
 
-            ulpiClkOut    => ulpiClk,
+            ulpiClkOut    => ulpiClkLoc,
 
-            ulpiClk       => JB3_P,
-            ulpiRst       => open,
-            ulpiStp       => JB1_P, -- IO0
-            ulpiDir       => JB2_P, -- IO2
-            ulpiNxt       => JB4_P, -- IO3
-            ulpiDat(0)    => JC1_P, -- IO4
-            ulpiDat(1)    => JC3_P, -- IO5
-            ulpiDat(2)    => JC2_P, -- IO6
-            ulpiDat(3)    => JC4_P, -- IO7
-            ulpiDat(4)    => JD3_P, -- IO8
-            ulpiDat(5)    => JD1_P, -- IO9
-            ulpiDat(6)    => JD4_P, -- IO10
-            ulpiDat(7)    => JD2_P, -- IO11
+            ulpiClk       => ulpiClk,
+            ulpiRst       => ulpiRst,
+            ulpiStp       => ulpiStp,
+            ulpiDir       => ulpiDir,
+            ulpiNxt       => ulpiNxt,
+            ulpiDat       => ulpiDat,
 
             usb2Rst       => open,
             refLocked     => refLocked,
@@ -320,86 +371,101 @@ begin
             fifoInpWen    => fifoInpWen
          );
 
-      -- Loopback
-      fifoInpDat <= fifoOutDat;
-      fifoInpWen <= not fifoOutEmpty;
-      fifoOutRen <= not fifoInpFull;
+      fifoInpDat <= axilWriteMst.wdata(7 downto 0);
 
-      P_COMB : process ( r, locBusMst, regRep, roRegs ) is
+      P_COMB : process ( r, axilReadMst, axilWriteMst, regRep, roRegs, fifoOutEmpty, fifoInpFull, fifoOutDat ) is
          variable v : RegType;
       begin
          v := r;
 
-         v.sub.rvalid := '0';
-         v.sub.wready := '0';
-
-         v.req.extnd  := '0';
+         v.req.extnd    := '0';
+         v.rsub.arready := '0';
+         v.wsub.awready := '0';
+         v.wsub.wready  := '0';
+         v.fifoRen      := '0';
+         v.fifoWen      := '0';
 
          case ( r.state ) is
             when IDLE =>
-               v.sub.rerr := '0';
-               v.sub.werr := '0';
-               if    ( locBusMst.rs = '1' ) then
+               v.rsub.rresp := (others => '0');
+               v.wsub.bresp := (others => '0');
+               if    ( axilReadMst.arvalid = '1' ) then
                   v.req.rdnwr     := '1';
-                  v.sub.rerr      := '1';
+                  v.rsub.rresp    := "11"; -- decerr
                   v.state         := DON;
-                  case ( locBusMst.raddr( 7 downto 6 ) ) is
+                  v.rsub.arready  := '1';
+                  v.rsub.rvalid   := '1';
+                  case ( axilReadMst.araddr( 7 downto 6 ) ) is
                   when "00" =>
-                     if ( locBusMst.raddr(5 downto 0) /= "101111" ) then
-                        v.req.addr   := "00" & locBusMst.raddr(5 downto 0);
-                        v.req.vld    := '1';
-                        v.state      := WAI;
+                     if ( axilReadMst.araddr(5 downto 0) /= "101111" ) then
+                        v.req.addr    := "00" & axilReadMst.araddr(5 downto 0);
+                        v.req.vld     := '1';
+                        v.state       := WAI;
+                        v.rsub.rvalid := '0';
                      end if;
                   when "01" =>
-                     if ( unsigned(locBusMst.raddr(5 downto 2)) < N_RO_REGS_C ) then
-                        v.sub.rdata := roRegs( to_integer(unsigned(locBusMst.raddr(5 downto 2))) );
-                        v.sub.rerr  := '0';
+                     if ( unsigned(axilReadMst.araddr(5 downto 2)) < N_RO_REGS_C ) then
+                        v.rsub.rdata := roRegs( to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
+                        v.rsub.rresp := "00";
                      end if;
                   when "10" =>
-                     if ( unsigned(locBusMst.raddr(5 downto 2)) < N_RW_REGS_C ) then
-                        v.sub.rdata := r.rwRegs( to_integer(unsigned(locBusMst.raddr(5 downto 2))) );
-                        v.sub.rerr  := '0';
+                     if ( unsigned(axilReadMst.araddr(5 downto 2)) < N_RW_REGS_C ) then
+                        v.rsub.rdata := r.rwRegs( to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
+                        v.rsub.rresp := "00";
                      end if;
                   when others =>
+                     v.rsub.rdata(31 downto 8) := ( others => fifoOutEmpty );
+                     v.rsub.rdata( 7 downto 0) := fifoOutDat;
+                     v.fifoRen                 := not fifoOutEmpty;
+                     v.rsub.rresp              := "00";
                   end case;
-               elsif ( locBusMst.ws = '1' ) then
-                  v.req.rdnwr  := '0';
-                  v.sub.werr   := '1';
-                  v.state      := DON;
-                  case ( locBusMst.raddr( 7 downto 6 ) ) is
+               elsif ( ( axilWriteMst.awvalid and axilWriteMst.wvalid ) = '1' ) then
+                  v.req.rdnwr    := '0';
+                  v.wsub.bresp   := "11"; -- decerr
+                  v.wsub.awready := '1';
+                  v.wsub.wready  := '1';
+                  v.wsub.bvalid  := '1';
+                  v.state        := DON;
+                  case ( axilWriteMst.awaddr( 7 downto 6 ) ) is
                   when "00" =>
-                     if ( locBusMst.waddr(5 downto 0) /= "101111" ) then
-                        v.req.vld    := '1';
-                        v.req.addr(7 downto 2) := "00" & locBusMst.waddr(5 downto 2);
-                        v.state      := WAI;
-                        if    ( locBusMst.wstrb = "0001" ) then
+                     if ( axilWriteMst.awaddr(5 downto 0) /= "101111" ) then
+                        v.req.vld     := '1';
+                        v.req.addr(7 downto 2) := "00" & axilWriteMst.awaddr(5 downto 2);
+                        v.state       := WAI;
+                        v.wsub.bvalid := '0';
+                        if    ( axilWriteMst.wstrb = "0001" ) then
                            v.req.addr(1 downto 0) := "00";
-                           v.req.wdat             := locBusMst.wdata( 7 downto  0);
-                        elsif ( locBusMst.wstrb = "0010" ) then
+                           v.req.wdat             := axilWriteMst.wdata( 7 downto  0);
+                        elsif ( axilWriteMst.wstrb = "0010" ) then
                            v.req.addr(1 downto 0) := "01";
-                           v.req.wdat             := locBusMst.wdata(15 downto  8);
-                        elsif ( locBusMst.wstrb = "0100" ) then
+                           v.req.wdat             := axilWriteMst.wdata(15 downto  8);
+                        elsif ( axilWriteMst.wstrb = "0100" ) then
                            v.req.addr(1 downto 0) := "10";
-                           v.req.wdat             := locBusMst.wdata(23 downto 16);
-                        elsif ( locBusMst.wstrb = "1000" ) then
+                           v.req.wdat             := axilWriteMst.wdata(23 downto 16);
+                        elsif ( axilWriteMst.wstrb = "1000" ) then
                            v.req.addr(1 downto 0) := "11";
-                           v.req.wdat             := locBusMst.wdata(31 downto 24);
+                           v.req.wdat             := axilWriteMst.wdata(31 downto 24);
                         else
-                           v.sub.werr  := '1';
-                           v.req.vld   := '0';
-                           v.state     := DON;
+                           v.wsub.bresp  := "10"; -- slverr
+                           v.wsub.bvalid := '1';
+                           v.req.vld     := '0';
+                           v.state       := DON;
                         end if;
                      end if;
                   when "10" =>
-                     if ( unsigned(locBusMst.waddr(5 downto 2)) < N_RW_REGS_C ) then
-                        for i in locBusMst.wstrb'range loop
-                           if ( locBusMst.wstrb(i) = '1' ) then
-                               v.rwRegs( to_integer(unsigned(locBusMst.waddr(5 downto 2))) )(8*i+7 downto 8*i) := locBusMst.wdata(8*i + 7 downto 8*i);
+                     if ( unsigned(axilWriteMst.awaddr(5 downto 2)) < N_RW_REGS_C ) then
+                        for i in axilWriteMst.wstrb'range loop
+                           if ( axilWriteMst.wstrb(i) = '1' ) then
+                               v.rwRegs( to_integer(unsigned(axilWriteMst.awaddr(5 downto 2))) )(8*i+7 downto 8*i) := axilWriteMst.wdata(8*i + 7 downto 8*i);
                            end if;
                         end loop;
-                        v.sub.werr := '0';
+                        v.wsub.bresp := "00";
                      end if;
                   when others =>
+                     if ( axilWriteMst.wstrb(0) = '1' ) then
+                        v.fifoWen    := not fifoInpFull;
+                        v.wsub.bresp := fifoInpFull & '0';
+                     end if;
                   end case;
                end if;
 
@@ -407,38 +473,33 @@ begin
                if ( regRep.ack = '1' ) then
                   v.req.vld := '0';
                   if ( r.req.rdnwr = '1' ) then
-                     v.sub.rdata  := regRep.rdat & regRep.rdat & regRep.rdat & regRep.rdat;
-                     v.sub.rerr   := regRep.err;
-                     v.sub.rvalid := '1';
+                     v.rsub.rdata  := regRep.rdat & regRep.rdat & regRep.rdat & regRep.rdat;
+                     v.rsub.rresp  := regRep.err & '0';
+                     v.rsub.rvalid := '1';
                   else
-                     v.sub.werr   := regRep.err;
-                     v.sub.wready := '1';
+                     v.wsub.bresp  := regRep.err & '0';
+                     v.wsub.bvalid := '1';
                   end if;
                   v.state := DON;
                end if;
 
             when DON =>
-               if ( r.req.rdnwr = '1' ) then
-                  if ( r.sub.rvalid = '1' ) then
-                     v.state := IDLE;
-                  else
-                     v.sub.rvalid := '1';
-                  end if;
-               else
-                  if ( r.sub.wready = '1' ) then
-                     v.state := IDLE;
-                  else
-                     v.sub.wready := '1';
-                  end if;
+               if ( (r.rsub.rvalid and axilReadMst.rready) = '1' ) then
+                  v.rsub.rvalid := '0';
+                  v.state       := IDLE;
+               end if;
+               if ( (r.wsub.bvalid and axilWriteMst.bready) = '1' ) then
+                  v.wsub.bvalid := '0';
+                  v.state       := IDLE;
                end if;
          end case;
 
          rin <= v;
       end process P_COMB;
 
-      P_SEQ : process ( ulpiClk ) is
+      P_SEQ : process ( ulpiClkLoc ) is
       begin
-         if ( rising_edge( ulpiClk ) ) then 
+         if ( rising_edge( ulpiClkLoc ) ) then 
             if ( ulpiRst = '1' ) then
                r <= REG_INIT_C;
             else
@@ -447,9 +508,25 @@ begin
          end if;
       end process P_SEQ;
 
-      locBusSub <= r.sub;
-      regReq    <= r.req;
+      fifoInpWen     <= r.fifoWen;
+      fifoOutRen     <= r.fifoRen;
+
+      axilReadSub    <= r.rsub;
+      axilWriteSub   <= r.wsub;
+      regReq         <= r.req;
    end block B_ULPI_REG;
+
+   P_RST : process ( ulpiClkLoc ) is
+   begin
+      if ( rising_edge( ulpiClkLoc ) ) then
+         refLockedSync <= refLocked & refLockedSync(refLockedSync'left downto 1);
+         if ( ( refLockedSync(0) and ulpiRstCnt(ulpiRstCnt'left) ) = '1' ) then
+            ulpiRstCnt <= ulpiRstCnt - 1;
+         end if;
+      end if;
+   end process P_RST;
+
+   ulpiRst <= ulpiRstCnt(ulpiRstCnt'left);
 
    P_LED : process ( refLocked, lineBreak ) is
    begin

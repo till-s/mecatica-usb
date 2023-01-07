@@ -82,8 +82,10 @@ entity Usb2CdcAcmDev is
       -- iRegs(0)(10 downto 0) : min. fill level of the IN fifo until data are sent to USB
       -- iRegs(0)(27)          : enable 'blast' mode; OUT fifo is constantly drained; IN fifo
       --                         is blast with an incrementing 8-bit counter.
-      -- iRegs(0)(28)          : mask/disable IN/OUT fifo's write/read enable when set.
+      -- iRegs(0)(28)          : disable 'loopback' mode; OUT fifo is fed into IN fifo; loopback
+      --                         is *enabled* by default. Note: 'blast' overrides 'loopback'.
       -- iRegs(0)(29)          : assert forced ULPI STP (useful to bring the PHY to reason if it holds DIR)
+      -- iRegs(0)(30)          : mask/disable IN/OUT fifo's write/read enable when set.
       -- iRegs(0)(31)          : USB remote wakeup
 
       -- iRegs(1)              : IN fifo fill timer (in ulpi CLK cycles)
@@ -155,14 +157,15 @@ architecture Impl of Usb2CdcAcmDev is
 begin
 
    B_FIFO : block is
-      signal fifoDat : Usb2ByteType;
-      signal iWen    : std_logic := '0';
-      signal oRen    : std_logic := '0';
-      signal iFull   : std_logic := '0';
-      signal oEmpty  : std_logic := '0';
-      signal cnt     : unsigned(7 downto 0)         := (others => '0');
-      signal blast   : std_logic := '0';
-      signal iDat    : std_logic_vector(7 downto 0) := (others => '0');
+      signal fifoDat  : Usb2ByteType;
+      signal iWen     : std_logic := '0';
+      signal oRen     : std_logic := '0';
+      signal iFull    : std_logic := '0';
+      signal oEmpty   : std_logic := '0';
+      signal cnt      : unsigned(7 downto 0)         := (others => '0');
+      signal blast    : std_logic := '0';
+      signal loopback : std_logic := '0';
+      signal iDat     : std_logic_vector(7 downto 0) := (others => '0');
    begin
 
       fifoMinFill <= unsigned(iRegs(0)(fifoMinFill'range));
@@ -221,26 +224,40 @@ begin
       end process P_CNT;
 
 
-      P_COMB : process (fifoInpDat, blast, cnt ) is
+      P_COMB : process ( fifoInpDat, fifoDat, blast, loopback, cnt, iRegs(0), iFull, oEmpty, fifoInpWen, fifoOutRen ) is
+         variable wen : std_logic;
+         variable ren : std_logic;
       begin
-         if ( blast = '1' ) then
-            iDat <= std_logic_vector( cnt );
+         fifoOutEmpty <= '1';
+         fifoInpFull  <= '1';
+         wen          := not iFull  and not iRegs(0)(30);
+         ren          := not oEmpty and not iRegs(0)(30);
+         if    ( blast = '1' ) then
+            iDat         <= std_logic_vector( cnt );
+            wen          := wen and '1';
+            ren          := ren and '1';
+         elsif ( loopback = '1' ) then
+            iDat         <= fifoDat;
+            wen          := wen and not oEmpty;
+            ren          := ren and not iFull;
          else
-            iDat <= fifoInpDat;
+            fifoOutEmpty <= oEmpty;
+            fifoInpFull  <= iFull;
+            iDat         <= fifoInpDat;
+            wen          := wen and fifoInpWen;
+            ren          := ren and fifoOutRen;
          end if;
+         iWen <= wen;
+         oRen <= ren;
       end process P_COMB;
 
       blast        <= iRegs(0)(27);
+      loopback     <= not iRegs(0)(28);
 
       fifoOutDat   <= fifoDat;
-      fifoOutEmpty <= oEmpty;
       fifoOutFill  <= resize( fOut, fifoOutFill'length );
 
-      fifoInpFull  <= iFull;
       fifoInpFill  <= resize( fInp, fifoInpFill'length );
-
-      iWen         <= not iFull  and ( fifoInpWen or blast ) and not iRegs(0)(28);
-      oRen         <= not oEmpty and ( fifoOutRen or blast ) and not iRegs(0)(28);
    end block B_FIFO;
 
    G_MMCM : if ( ULPI_CLK_MODE_INP_G or USE_MMCM_C ) generate
@@ -376,7 +393,7 @@ begin
 
    U_REFBUF :  BUFG port map ( I => ulpiClkLocNb,    O => ulpiClkLoc );
 
-   usb2RstLoc <= devStatus.usb2Rst;
+   usb2RstLoc <= devStatus.usb2Rst or ulpiRst;
 
    B_BUF : block is
       signal   ulpiDirNDly : std_logic;

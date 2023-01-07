@@ -13,4 +13,5 @@ create_generated_clock -name ulpiClk -source [get_pins -hier *G_CLKDDR.U_DDR/Q] 
 # case found by the timer is (a bit less than) 1 cycle off.
 # Remedy with a multicycle path
 
-set_multicycle_path 2 -from [get_clocks ulpiClk]
+set_multicycle_path -from [get_clocks ulpiClk] 2
+
