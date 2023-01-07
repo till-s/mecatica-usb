@@ -289,8 +289,11 @@ begin
 
       case ( r.state ) is
          when INIT  =>
-            writeReg(v, ULPI_REG_OTG_CTL_C, ULPI_OTG_CTL_INI_C);
-            v.nxtState := INIT1;
+            -- wait for the PHY to deassert DIR
+            if ( ulpiRx.dir = '0' ) then
+               writeReg(v, ULPI_REG_OTG_CTL_C, ULPI_OTG_CTL_INI_C);
+               v.nxtState := INIT1;
+            end if;
 
          when INIT1 =>
             writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_FS_C );
