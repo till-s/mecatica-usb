@@ -5,6 +5,12 @@
  * This notice must not be removed.
  */
 
+/*
+ * Test the USB CDCAcm Example design with libusb.
+ *
+ * Under linux, read/write throughput of ~47.5MB/s was observed.
+ */
+
 #include <stdio.h>
 #include <libusb-1.0/libusb.h>
 #include <getopt.h>
