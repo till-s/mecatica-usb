@@ -158,7 +158,7 @@ class Usb2DescContext(list):
       for s in self.strtbl_:
          self.Usb2StringDesc( s )
     # append TAIL
-    self.Usb2Desc(2, ns.DSC_TYPE_RESERVED)
+    self.Usb2Desc(2, ns.DSC_TYPE_SENTINEL)
     self.wrapped_ = True
 
   def vhdl(self, f = sys.stdout):
@@ -208,6 +208,8 @@ class Usb2DescContext(list):
     DSC_TYPE_DEVICE_QUALIFIER          = 0x06
     DSC_TYPE_OTHER_SPEED_CONFIGURATION = 0x07
     DSC_TYPE_INTEFACE_POWER            = 0x08
+    # special value we use to terminate the descriptor table
+    DSC_TYPE_SENTINEL                  = 0xFF
 
     DSC_DEV_CLASS_NONE                 = 0x00
     DSC_DEV_SUBCLASS_NONE              = 0x00
@@ -466,7 +468,7 @@ class Usb2DescContext(list):
     @acc(12)
     def bNumberPowerFilters(self, v): return v
 
-def singleCfgDevice(idVendor, idDevice, nInterfaces = 1, remWake = False):
+def singleCfgDevice(idVendor, idDevice, nInterfaces = 1, remWake = False, bcdDevice = 0x0100, iProduct=None):
   c  = Usb2DescContext()
 
   # device
@@ -477,8 +479,9 @@ def singleCfgDevice(idVendor, idDevice, nInterfaces = 1, remWake = False):
   d.bMaxPacketSize0( 64 )
   d.idVendor(idVendor)
   d.idProduct(idDevice)
-  d.bcdDevice(0x0100)
-  d.iProduct( "Till's ULPI Test Board" )
+  d.bcdDevice(bcdDevice)
+  if not iProduct is None:
+    d.iProduct( iProduct )
   d.bNumConfigurations(1)
 
   # configuration
@@ -491,10 +494,10 @@ def singleCfgDevice(idVendor, idDevice, nInterfaces = 1, remWake = False):
   return c
 
 
-def basicACM(epAddr, epPktSize=8, sendBreak=False):
+def basicACM(epAddr, epPktSize=8, sendBreak=False, iProduct=None, doWrap=True):
   nIfc    = 2
   remWake = True
-  c  = singleCfgDevice(0x0123, 0xabcd, nIfc, remWake)
+  c  = singleCfgDevice(0x0123, 0xabcd, nIfc, remWake, iProduct=iProduct)
 
   # interface 0
   d = c.Usb2InterfaceDesc()
@@ -555,5 +558,6 @@ def basicACM(epAddr, epPktSize=8, sendBreak=False):
   d.wMaxPacketSize(epPktSize)
   d.bInterval(0)
 
-  c.wrapup()
+  if ( doWrap ):
+    c.wrapup()
   return c
