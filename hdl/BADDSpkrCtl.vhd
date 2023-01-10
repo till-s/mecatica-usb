@@ -213,11 +213,6 @@ architecture Impl of BADDSpkrCtl is
       return true;
    end function accept;
 
-   signal entityIdD   : natural;
-   signal channelD    : ChannelType;
-   signal codeD       : std_logic_vector(7 downto 0);
-   signal acCtlReqD   : AcReqType;
-
 begin
 
    P_COMB : process ( r, usb2Ep0ReqParam, usb2Ep0IbExt ) is
@@ -252,12 +247,6 @@ begin
       end if;
       code         := usb2Ep0ReqParam.value(15 downto 8);
       boolVal      := '0';
-
-entityIdD   <= entityId;
-channelD    <= channel;
-codeD       <= code;
-acCtlReqD   <= acCtlReq;
-
 
       -- reset flags
       v.ctlExt.ack := '0';
