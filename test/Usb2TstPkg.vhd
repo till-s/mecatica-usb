@@ -683,8 +683,8 @@ end if;
       constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C -- expected handshake response to SETUP
    ) is
       constant TYP_I_C   : natural := 0;
-      constant LEN_I_H_C : natural := 6;
-      constant LEN_I_L_C : natural := 7;
+      constant LEN_I_H_C : natural := 7;
+      constant LEN_I_L_C : natural := 6;
       constant VAL_I_H_C : natural := 3;
       constant VAL_I_L_C : natural := 2;
       constant IDX_I_H_C : natural := 5;
