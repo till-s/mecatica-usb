@@ -34,9 +34,11 @@ SRCS+= UlpiLineState.vhd
 SRCS+= Usb2IsoTb.vhd
 SRCS+= UlpiIOBuf.vhd
 SRCS+= UlpiIOBufTb.vhd
+SRCS+= BADDSpkrCtl.vhd
+SRCS+= BADDSpkrCtlTb.vhd
 
 
-PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb UlpiIOBufTb Usb2IsoTb
+PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb UlpiIOBufTb Usb2IsoTb BADDSpkrCtlTb
 
 all: $(PROG)
 	for i in $(PROG); do if ! ./$$i; then echo "$$i FAILED"; exit 1; fi  done
@@ -75,6 +77,8 @@ Usb2IsoTb.o: Usb2Core.o
 Usb2PktProcTb.o: Usb2Core.o
 Usb2PktTxTb.o: Usb2PktTx.o UlpiIO.o
 UsbCrcTblTb.o: UsbCrcTbl.o
+
+BADDSpkrCtlTb.o: Usb2Core.o BADDSpkrCtl.o
 
 .PHONY: all build clean
 
