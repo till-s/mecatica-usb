@@ -3,6 +3,10 @@
 --   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
 -- This notice must not be removed.
 
+package TstParmPkg is
+   constant IFC_NUM_C : natural := 0;
+end package TstParmPkg;
+
 library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
@@ -12,6 +16,7 @@ use     work.Usb2Pkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2DescPkg.all;
+use     work.TstParmPkg.all;
 
 package body Usb2AppCfgPkg is
 
@@ -90,7 +95,7 @@ package body Usb2AppCfgPkg is
 
       39 => x"09",                                    -- length
       40 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_INTERFACE_C), -- type
-      41 => x"00",                                    -- interface number
+      41 => std_logic_vector(to_unsigned(IFC_NUM_C,8)), -- interface number
       42 => x"01",                                    -- alt-setting
       43 => x"02",                                    -- num-endpoints
       44 => x"FF",                                    -- class
@@ -151,6 +156,7 @@ use     work.Usb2UtilPkg.all;
 use     work.Usb2TstPkg.all;
 use     work.Usb2AppCfgPkg.all;
 use     work.Usb2DescPkg.all;
+use     work.TstParmPkg.all;
 
 entity Usb2FifoEpTb is
 end entity Usb2FifoEpTb;
@@ -385,6 +391,9 @@ begin
       );
 
    U_BRK : entity work.CDCACMSendBreak
+      generic map (
+         CDC_IFC_NUM_G => to_unsigned(IFC_NUM_C, Usb2InterfaceNumType'length)
+      )
       port map (
          clk                       => ulpiTstClk,
          rst                       => open,

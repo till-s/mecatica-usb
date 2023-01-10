@@ -328,6 +328,8 @@ package Usb2Pkg is
 
    subtype  Usb2CtlRequestCodeType                 is unsigned(7 downto 0);
 
+   subtype  Usb2InterfaceNumType                   is unsigned(7 downto 0);
+
    -- class-specific request
    constant USB2_REQ_CLS_CDC_SEND_BREAK_C          : Usb2CtlRequestCodeType     := x"23";
 
@@ -420,6 +422,11 @@ package Usb2Pkg is
    constant USB2_LANGID_EN_UK_C : Usb2Utf16CharType := x"0809";
    constant USB2_LANGID_EN_AU_C : Usb2Utf16CharType := x"0c09";
 
+   function usb2CtlReqDstInterface(
+      constant p : in Usb2CtlReqParamType;
+      constant i : in Usb2InterfaceNumType
+   ) return boolean;
+
 end package Usb2Pkg;
 
 package body Usb2Pkg is
@@ -497,5 +504,15 @@ package body Usb2Pkg is
       t := t;
       t(t'left) := '0';
    end procedure usb2TimerStart;
+
+   function usb2CtlReqDstInterface(
+      constant p : in Usb2CtlReqParamType;
+      constant i : in Usb2InterfaceNumType
+   ) return boolean is
+   begin
+      return      p.recipient = USB2_REQ_TYP_RECIPIENT_IFC_C
+             and  Usb2InterfaceNumType( p.index(7 downto 0) ) = i;
+   end function usb2CtlReqDstInterface;
+
 
 end package body Usb2Pkg;

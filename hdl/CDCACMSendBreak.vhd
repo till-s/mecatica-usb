@@ -13,6 +13,9 @@ use     work.Usb2Pkg.all;
 -- This module implements 'send-break' for CDC-ACM.
 
 entity CDCACMSendBreak is
+   generic (
+      CDC_IFC_NUM_G   : Usb2InterfaceNumType
+   );
    port (
       clk             : in  std_logic;
       rst             : in  std_logic := '0';
@@ -48,7 +51,7 @@ architecture Impl of CDCACMSendBreak is
    function accept(constant x: Usb2CtlReqParamType)
    return boolean is
    begin
-      if ( x.dev2Host or x.reqType /= USB2_REQ_TYP_TYPE_CLASS_C or x.recipient /= USB2_REQ_TYP_RECIPIENT_IFC_C ) then
+      if ( x.dev2Host or x.reqType /= USB2_REQ_TYP_TYPE_CLASS_C or not usb2CtlReqDstInterface( x, CDC_IFC_NUM_G ) ) then
          return false;
       end if;
       return x.request = USB2_REQ_CLS_CDC_SEND_BREAK_C;

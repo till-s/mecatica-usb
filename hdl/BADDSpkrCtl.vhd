@@ -19,7 +19,7 @@ entity BADDSpkrCtl is
       VOL_RNG_MIN_G   : integer range -32767 to 32767 := -32767;
       VOL_RNG_MAX_G   : integer range -32767 to 32767 := +32767;
       VOL_RNG_RES_G   : integer range      1 to 32767 := 1;
-      AC_IFC_NUM_G    : natural
+      AC_IFC_NUM_G    : Usb2InterfaceNumType
    );
    port (
       clk             : in  std_logic;
@@ -197,10 +197,7 @@ architecture Impl of BADDSpkrCtl is
    function accept(constant x: Usb2CtlReqParamType; constant acr : AcReqType; constant ch : ChannelType)
    return boolean is
    begin
-      if ( x.reqType /= USB2_REQ_TYP_TYPE_CLASS_C or x.recipient /= USB2_REQ_TYP_RECIPIENT_IFC_C ) then
-         return false;
-      end if;
-      if ( to_integer( unsigned( x.index(7 downto 0) ) ) /= AC_IFC_NUM_G ) then
+      if ( x.reqType /= USB2_REQ_TYP_TYPE_CLASS_C or not usb2CtlReqDstInterface( x, AC_IFC_NUM_G ) ) then
          return false;
       end if;
       if ( acr = INVALID or (acr = RNG and not x.dev2Host) ) then
