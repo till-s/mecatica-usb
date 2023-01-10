@@ -360,6 +360,7 @@ package Usb2Pkg is
       index     : std_logic_vector(15 downto 0);
       length    : unsigned        (15 downto 0);
       vld       : std_logic;
+      extAbort  : boolean;
    end record Usb2CtlReqParamType;
 
    constant USB2_CTL_REQ_PARAM_INIT_C : Usb2CtlReqParamType := (
@@ -370,7 +371,8 @@ package Usb2Pkg is
       value     => ( others => '0' ),
       index     => ( others => '0' ),
       length    => ( others => '0' ),
-      vld       => '0'
+      vld       => '0',
+      extAbort  => false
     );
 
    type Usb2CtlExtType is record
@@ -393,6 +395,11 @@ package Usb2Pkg is
       --     1    0    1    -> STALL
       --     1    1    1    -> STALL
       don       : std_logic;
+
+      -- if the external agent replies to a 'read' request
+      -- then, during the data phase the external agent also must
+      -- monitor 'extAbort' and abort the data phase (w/o asserting don/ack/err).
+      -- This may happen if the host does not read all of the available data.
    end record Usb2CtlExtType;
 
    constant USB2_CTL_EXT_NAK_C : Usb2CtlExtType := (
