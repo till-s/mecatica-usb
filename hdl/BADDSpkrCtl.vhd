@@ -10,7 +10,9 @@ use     ieee.numeric_std.all;
 use     work.Usb2Pkg.all;
 
 -- Example for how to extend EP0 functionality.
--- This module implements 'send-break' for CDC-ACM.
+-- This module implements the class-specific control endpoint requests for
+-- the UAC3 BADD speaker profile. A slightly more complex example than
+-- CDCACMSendBreak because this agent also must support a data phase.
 
 entity BADDSpkrCtl is
    generic (
