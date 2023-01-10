@@ -278,8 +278,9 @@ begin
    allEpIb(1 to NUM_ENDPOINTS_G - 1) <= usrEpIb;
 
    P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt, pktHdr, suspend, hiSpeed ) is
-      variable v       : RegType;
-      variable descVal : Usb2ByteType;
+      variable v          : RegType;
+      variable descVal    : Usb2ByteType;
+      variable tokOutSeen : boolean;
    begin
       v    := r;
       epOb                      <= USB2_ENDP_PAIR_IB_INIT_C;
@@ -314,9 +315,12 @@ begin
               and            ( ENDPOINT_G                 = USB2_ENDP_ZERO_C     )
             )
          then
-            v.protoStall := '0';
+            v.protoStall          := '0';
+            v.reqParam.extAbort   := false;
          end if;
       end if;
+
+      tokOutSeen:= ( pktHdr.vld = '1' and pktHdr.pid = USB2_PID_TOK_OUT_C );
 
       case ( r.state ) is
          when GET_PARAMS =>
@@ -371,7 +375,12 @@ begin
 
          when WAIT_EXT_DONE =>
             epOb <= ctlEpExt;
-            if ( ctlExt.don = '1' ) then
+            if ( tokOutSeen and r.reqParam.dev2Host ) then
+               -- host does not read all available data
+               v.state               := STATUS;
+               v.statusAck           := '1';
+               v.reqParam.extAbort   := true;
+            elsif ( ctlExt.don = '1' ) then
                v.protoStall := ctlExt.err;
                v.statusAck  := ctlExt.ack;
                if ( ctlExt.err = '1' ) then
@@ -751,7 +760,7 @@ begin
             -- requesting status earlier than indicated by the requested
             -- length...
             -- Thus, if we see an OUT token fly by we move to STATUS
-            if ( pktHdr.vld = '1' and pktHdr.pid = USB2_PID_TOK_OUT_C ) then
+            if ( tokOutSeen ) then
                v.state := STATUS;
             else
                epOb.mstInp.dat <= descVal;
@@ -805,7 +814,7 @@ begin
                   v.statusAck  := '1';
                end if;
 
-               if ( epIb.mstOut.don = '1' ) then
+               if ( (r.statusAck and epIb.mstOut.don) = '1' ) then
                   v.state := GET_PARAMS;
                end if;
 
