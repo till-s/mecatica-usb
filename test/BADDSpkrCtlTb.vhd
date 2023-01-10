@@ -327,6 +327,7 @@ begin
          ulpiClkTick;
       end loop;
 
+      report "Test PASSED";
 
       ulpiTstRun <= false;
       wait;
