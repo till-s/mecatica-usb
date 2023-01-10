@@ -95,6 +95,18 @@ class Usb2DescContext(list):
     # language IDs
     self.wrapped_ = False
 
+  # get nth descriptor of type 'typ'. Count is zero-based, i.e.,
+  # to find the first descriptor pass '0'
+  def getNthDescOfType( self, typ, n = 0 ):
+    inst = 0
+    for d in self:
+      if ( d.bDescriptorType() == typ ):
+         if ( inst == n ):
+            return d
+         else:
+            inst += 1
+    raise KeyError("Requested Descriptor not found")
+
   @property
   def wrapped(self):
     return self.wrapped_
@@ -116,41 +128,48 @@ class Usb2DescContext(list):
       return None
     return self.strtbl_[i-1]
 
+  # compute and insert the following data
+  #  - interface number (added to interface descriptor and interface association descriptor's
+  #    'bFirstInterface')
+  #  - number of endpoints for each interface (added to interface descriptor)
+  #  - number of interfaces (added to configuration descriptor)
+  #  - total config. descriptor length (added to configuration descriptor)
+  #  - create and add string descriptor (for all accumulated strings)
+  #  - create and add sentinel descriptor (non-spec conforming but used by FW)
   def wrapup(self):
     if ( self.wrapped ):
        raise RuntimeError("Context is already wrapped")
     cnf  = None
     totl = 0
-    numi = 0
     nume = 0
     intf = None
     ns   = self.Usb2Desc.clazz
-    seti = set()
+    ifn  = -1
     for d in self:
       if ( d.bDescriptorType() == ns.DSC_TYPE_CONFIGURATION ):
         if ( not cnf is None ):
-          raise RuntimeError("Multiple Configuratoins Not Supported (shouldn't be hard to add)")
+          raise RuntimeError("Multiple Configurations Not Supported (shouldn't be hard to add)")
         cnf  = d
         totl = 0
-        numi = 0
-        seti = set()
-      if ( d.bDescriptorType() == ns.DSC_TYPE_INTERFACE ):
+        ifn  = -1
+      if   ( d.bDescriptorType() == ns.DSC_TYPE_INTERFACE_ASSOCIATION ):
+        d.bFirstInterface( ifn + 1 )
+      elif ( d.bDescriptorType() == ns.DSC_TYPE_INTERFACE ):
         if (not intf is None):
            intf.bNumEndpoints(nume)
         nume = 0
         intf = d
-        ifn =  d.bInterfaceNumber()
-        if not ifn in seti:
-           numi += 1
-           seti.add(ifn)
-      if ( d.bDescriptorType() == ns.DSC_TYPE_ENDPOINT ):
+        if ( intf.bAlternateSetting() == 0 ):
+           ifn += 1
+        intf.bInterfaceNumber( ifn )
+      elif ( d.bDescriptorType() == ns.DSC_TYPE_ENDPOINT ):
         nume += 1
       totl += d.bLength()
     if ( not intf is None ):
        intf.bNumEndpoints(nume)
     cnf.wTotalLength(totl)
-    cnf.bNumInterfaces(numi)
-    print("Configuration total length {:d}, num interfaces {:d}".format(totl, numi))
+    cnf.bNumInterfaces(ifn + 1)
+    print("Configuration total length {:d}, num interfaces {:d}".format(totl, ifn + 1))
     # append string descriptors
     if ( len( self.strtbl_ ) > 0 ):
       # lang-id at string index 0
@@ -207,7 +226,8 @@ class Usb2DescContext(list):
     DSC_TYPE_ENDPOINT                  = 0x05
     DSC_TYPE_DEVICE_QUALIFIER          = 0x06
     DSC_TYPE_OTHER_SPEED_CONFIGURATION = 0x07
-    DSC_TYPE_INTEFACE_POWER            = 0x08
+    DSC_TYPE_INTERFACE_POWER           = 0x08
+    DSC_TYPE_INTERFACE_ASSOCIATION     = 0x0B
     # special value we use to terminate the descriptor table
     DSC_TYPE_SENTINEL                  = 0xFF
 
@@ -215,6 +235,13 @@ class Usb2DescContext(list):
     DSC_DEV_SUBCLASS_NONE              = 0x00
     DSC_DEV_PROTOCOL_NONE              = 0x00
     DSC_DEV_CLASS_CDC                  = 0x02
+    DSC_DEV_CLASS_MISC                 = 0xEF
+
+    DSC_IFC_CLASS_AUDIO                = 0x01
+
+    DSC_FCN_SUBCLASS_AUDIO_SPEAKER     = 0x22
+    DSC_IFC_SUBCLASS_AUDIO_CONTROL     = 0x01
+    DSC_IFC_SUBCLASS_AUDIO_STREAMING   = 0x02
 
     DSC_IFC_CLASS_CDC                  = 0x02
 
@@ -306,6 +333,12 @@ class Usb2DescContext(list):
     @acc(17)
     def bNumConfigurations(self, v): return v
 
+    def setIADMultiFunction(self):
+      # this device uses IAD descriptors
+      self.bDeviceClass( self.DSC_DEV_CLASS_MISC )
+      self.bDeviceSubClass( 0x02 )
+      self.bDeviceProtocol( 0x01 )
+
   @factory
   class Usb2ConfigurationDesc(Usb2Desc.clazz):
 
@@ -346,6 +379,23 @@ class Usb2DescContext(list):
     def bInterfaceProtocol(self, v): return v
     @acc(8)
     def iInterface(self, v): return self.cvtString(v)
+
+  @factory
+  class Usb2InterfaceAssociationDesc(Usb2Desc.clazz):
+    def __init__(self):
+      super().__init__(8, self.DSC_TYPE_INTERFACE_ASSOCIATION)
+    @acc(2)
+    def bFirstInterface(self, v): return v
+    @acc(3)
+    def bInterfaceCount(self, v): return v
+    @acc(4)
+    def bFunctionClass(self, v): return v
+    @acc(5)
+    def bFunctionSubClass(self, v): return v
+    @acc(6)
+    def bFunctionProtocol(self, v): return v
+    @acc(7)
+    def iFunction(self, v): return self.cvtString(v)
 
   @factory
   class Usb2EndpointDesc(Usb2Desc.clazz):
@@ -468,95 +518,164 @@ class Usb2DescContext(list):
     @acc(12)
     def bNumberPowerFilters(self, v): return v
 
-def singleCfgDevice(idVendor, idDevice, nInterfaces = 1, remWake = False, bcdDevice = 0x0100, iProduct=None):
-  c  = Usb2DescContext()
+class SingleCfgDevice(Usb2DescContext):
+  def __init__(self, idVendor, idDevice, remWake = False, bcdDevice = 0x0100):
+    super().__init__()
+    # device
+    d = self.Usb2DeviceDesc()
+    d.bDeviceClass( d.DSC_DEV_CLASS_NONE )
+    d.bDeviceSubClass( d.DSC_DEV_SUBCLASS_NONE )
+    d.bDeviceProtocol( d.DSC_DEV_PROTOCOL_NONE )
+    d.bMaxPacketSize0( 64 )
+    d.idVendor(idVendor)
+    d.idProduct(idDevice)
+    d.bcdDevice(bcdDevice)
+    d.bNumConfigurations(1)
+    self.deviceDesc_ = d
 
-  # device
-  d = c.Usb2DeviceDesc()
-  d.bDeviceClass( d.DSC_DEV_CLASS_NONE )
-  d.bDeviceSubClass( d.DSC_DEV_SUBCLASS_NONE )
-  d.bDeviceProtocol( d.DSC_DEV_PROTOCOL_NONE )
-  d.bMaxPacketSize0( 64 )
-  d.idVendor(idVendor)
-  d.idProduct(idDevice)
-  d.bcdDevice(bcdDevice)
-  if not iProduct is None:
-    d.iProduct( iProduct )
-  d.bNumConfigurations(1)
+    # configuration
+    d = self.Usb2ConfigurationDesc()
+    d.bConfigurationValue(1)
+    d.bMaxPower(0x32)
+    if ( remWake ):
+      d.bmAttributes( d.CONF_ATT_REMOTE_WAKEUP )
+    self.configurationDesc_ = d
+    self.endpointAddr = 1
 
-  # configuration
-  d = c.Usb2ConfigurationDesc()
-  d.bNumInterfaces(nInterfaces)
-  d.bConfigurationValue(1)
-  d.bMaxPower(0x32)
-  if ( remWake ):
-    d.bmAttributes( d.CONF_ATT_REMOTE_WAKEUP )
-  return c
+  @property
+  def deviceDesc(self):
+    return self.deviceDesc_
+
+  @property
+  def configurationDesc(self):
+    return self.configurationDesc_
 
 
-def basicACM(epAddr, epPktSize=8, sendBreak=False, iProduct=None, doWrap=True):
-  nIfc    = 2
-  remWake = True
-  c  = singleCfgDevice(0x0123, 0xabcd, nIfc, remWake, iProduct=iProduct)
-
+def addBasicACM(ctxt, epAddr, epPktSize=8, sendBreak=False, hiSpeed=True):
+  d = ctxt.Usb2InterfaceAssociationDesc()
+  d.bInterfaceCount(2)
+  d.bFunctionClass( d.DSC_IFC_CLASS_CDC )
+  d.bFunctionSubClass( d.DSC_CDC_SUBCLASS_ACM )
+  d.bFunctionProtocol( d.DSC_CDC_PROTOCOL_NONE )
+ 
   # interface 0
-  d = c.Usb2InterfaceDesc()
-  d.bInterfaceNumber(0)
+  d = ctxt.Usb2InterfaceDesc()
   d.bAlternateSetting(0)
-  d.bNumEndpoints(1)
   d.bInterfaceClass( d.DSC_IFC_CLASS_CDC )
   d.bInterfaceSubClass( d.DSC_CDC_SUBCLASS_ACM )
   d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
 
   # functional descriptors; header
-  d = c.Usb2CDCFuncHeaderDesc()
+  d = ctxt.Usb2CDCFuncHeaderDesc()
 
   # functional descriptors; call management
-  d = c.Usb2CDCFuncCallManagementDesc()
+  d = ctxt.Usb2CDCFuncCallManagementDesc()
   d.bDataInterface(1)
 
   # functional descriptors; header
-  d = c.Usb2CDCFuncACMDesc()
+  d = ctxt.Usb2CDCFuncACMDesc()
   v = 0
   if ( sendBreak ):
     v |= d.DSC_ACM_SUP_SEND_BREAK
   d.bmCapabilities(v)
 
   # functional descriptors; union
-  d = c.Usb2CDCFuncUnionDesc( numSubordinateInterfaces = 1 )
+  d = ctxt.Usb2CDCFuncUnionDesc( numSubordinateInterfaces = 1 )
   d.bControlInterface( 0 )
   d.bSubordinateInterface( 0, 1 )
 
   # Endpoint -- unused but linux cdc-acm driver refuses to bind w/o it.
   # endpoint 2, INTERRUPT IN
-  d = c.Usb2EndpointDesc()
+  d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_IN  | (epAddr + 1) )
   d.bmAttributes( d.ENDPOINT_TT_INTERRUPT )
   d.wMaxPacketSize(8)
-  d.bInterval(255) #ms
+  if ( hiSpeed ):
+    d.bInterval(16) # (2**(interval - 1) microframes; 16 is max.
+  else:
+    d.bInterval(255) #ms
 
   # interface 1
-  d = c.Usb2InterfaceDesc()
-  d.bInterfaceNumber(1)
+  d = ctxt.Usb2InterfaceDesc()
   d.bAlternateSetting(0)
-  d.bNumEndpoints(2)
   d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
   d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
   d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
 
   # endpoint 1, BULK IN
-  d = c.Usb2EndpointDesc()
+  d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_IN | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
   d.wMaxPacketSize(epPktSize)
   d.bInterval(0)
 
   # endpoint 1, BULK OUT
-  d = c.Usb2EndpointDesc()
+  d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
   d.wMaxPacketSize(epPktSize)
   d.bInterval(0)
+  # return number of endpoints used
+  return 2
+
+def addBADDSpeaker(ctxt, epAddr, hiSpeed = True, has24Bits = True):
+  d = ctxt.Usb2InterfaceAssociationDesc()
+  d.bInterfaceCount(2)
+  d.bFunctionClass( d.DSC_IFC_CLASS_AUDIO )
+  d.bFunctionSubClass( d.DSC_FCN_SUBCLASS_AUDIO_SPEAKER )
+  d.bFunctionProtocol( 0x30 )
+
+  # AC (audio-control) interface
+  d = ctxt.Usb2InterfaceDesc()
+  d.bAlternateSetting(0)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
+  d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_CONTROL )
+  d.bInterfaceProtocol( 0x30 )
+  # no endpoints (optional interrupt endpoint omitted)
+
+  # AS (audio-streaming interface)
+  d = ctxt.Usb2InterfaceDesc()
+  # zero-bandwidth altsetting 0
+  d.bAlternateSetting(0)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
+  d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_STREAMING )
+  d.bInterfaceProtocol( 0x30 )
+
+  # AS (audio-streaming interface)
+  d = ctxt.Usb2InterfaceDesc()
+  # 1kHz altsetting 1
+  d.bAlternateSetting(1)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
+  d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_STREAMING )
+  d.bInterfaceProtocol( 0x30 )
+  
+  # endpoint 1, ISO OUT
+  d = ctxt.Usb2EndpointDesc()
+  d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
+  d.bmAttributes( d.ENDPOINT_TT_ISOCHRONOUS | d.ENDPOINT_SYNC_SYNCHRONOUS )
+  if ( has24Bits ):
+    smpSize = 3
+  else:
+    smpSize = 2
+  # stereo, 48KHz sample size
+  d.wMaxPacketSize( 48*2*smpSize )
+  if ( hiSpeed ):
+    d.bInterval(0x04)
+  else:
+    d.bInterval(0x01)
+  return 2
+ 
+def basicACM(epAddr, epPktSize=8, sendBreak=False, iProduct=None, doWrap=True):
+  remWake = True
+  c  = SingleCfgDevice(0x0123, 0xabcd, remWake)
+  d  = c.deviceDesc
+  if ( not iProduct is None ):
+    d.iProduct( iProduct )
+  d.setIADMultiFunction()
+
+  epAddr += addBasicACM(c, epAddr, epPktSize, sendBreak)
+
+  epAddr += addBADDSpeaker( c, epAddr )
 
   if ( doWrap ):
     c.wrapup()
