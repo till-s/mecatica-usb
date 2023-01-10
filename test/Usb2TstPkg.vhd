@@ -167,15 +167,16 @@ package Usb2TstPkg is
    -- send a control sequence
    procedure ulpiTstSendCtlReq(
       signal   ob  : inout UlpiIbType;
-      constant cod : in    unsigned;                                          -- request code (supported by this procedure)
-      constant dva : in    Usb2DevAddrType;                                   -- usb device address
-      constant val : in    std_logic_vector(15 downto 0) := (others => '0');  -- request value
-      constant idx : in    std_logic_vector(15 downto 0) := (others => '0');  -- request index
-      constant eda : in    Usb2ByteArray := USB2_TST_NULL_DATA_C;             -- expected data (ctl read)
-      constant rtr : in    natural := 0;                                      -- rtr passed to underlying transactions
-      constant w   : in    natural := 0;                                      -- wait cycles (passed down)
-      constant timo: in    natural := 30;                                     -- timeout (passed down)
-      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C -- expected handshake response to SETUP
+      constant cod : in    unsigned;                                           -- request code (supported by this procedure)
+      constant dva : in    Usb2DevAddrType;                                    -- usb device address
+      constant val : in    std_logic_vector(15 downto 0) := (others => '0');   -- request value
+      constant idx : in    std_logic_vector(15 downto 0) := (others => '0');   -- request index
+      constant eda : in    Usb2ByteArray := USB2_TST_NULL_DATA_C;              -- expected data (ctl read)
+      constant rtr : in    natural := 0;                                       -- rtr passed to underlying transactions
+      constant w   : in    natural := 0;                                       -- wait cycles (passed down)
+      constant timo: in    natural := 30;                                      -- timeout (passed down)
+      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake response to SETUP
+      constant typ : in    std_logic_vector := ""                              -- explicit request type; overrides guessing
    );
 
    -- wait for a register transaction (on ulpi)
@@ -238,7 +239,7 @@ package body Usb2TstPkg is
    ) is
       function RXCMD_F(
          constant act : in std_logic := '1';
-         constant lin : in std_logic_vector(1 downto 0) := ULPI_RXCMD_LINE_STATE_FS_K_C 
+         constant lin : in std_logic_vector(1 downto 0) := ULPI_RXCMD_LINE_STATE_FS_K_C
       ) return Usb2ByteType is
          variable v : Usb2ByteType := (others => '0');
       begin
@@ -672,15 +673,16 @@ end if;
    -- send a control sequence
    procedure ulpiTstSendCtlReq(
       signal   ob  : inout UlpiIbType;
-      constant cod : in    unsigned;                                          -- request code (supported by this procedure)
-      constant dva : in    Usb2DevAddrType;                                   -- usb device address
-      constant val : in    std_logic_vector(15 downto 0) := (others => '0');  -- request value
-      constant idx : in    std_logic_vector(15 downto 0) := (others => '0');  -- request index
-      constant eda : in    Usb2ByteArray := USB2_TST_NULL_DATA_C;             -- expected data (ctl read)
-      constant rtr : in    natural := 0;                                      -- rtr passed to underlying transactions
-      constant w   : in    natural := 0;                                      -- wait cycles (passed down)
-      constant timo: in    natural := 30;                                     -- timeout (passed down)
-      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C -- expected handshake response to SETUP
+      constant cod : in    unsigned;                                           -- request code (supported by this procedure)
+      constant dva : in    Usb2DevAddrType;                                    -- usb device address
+      constant val : in    std_logic_vector(15 downto 0) := (others => '0');   -- request value
+      constant idx : in    std_logic_vector(15 downto 0) := (others => '0');   -- request index
+      constant eda : in    Usb2ByteArray := USB2_TST_NULL_DATA_C;              -- expected data (ctl read)
+      constant rtr : in    natural := 0;                                       -- rtr passed to underlying transactions
+      constant w   : in    natural := 0;                                       -- wait cycles (passed down)
+      constant timo: in    natural := 30;                                      -- timeout (passed down)
+      constant epid: in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake response to SETUP
+      constant typ : in    std_logic_vector := ""                              -- explicit request type; overrides guessing
    ) is
       constant TYP_I_C   : natural := 0;
       constant LEN_I_H_C : natural := 7;
@@ -702,32 +704,39 @@ end if;
       v(IDX_I_H_C)  := idx(15 downto 8);
       v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
       v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
-      case ( codl ) is
-         when x"0" & USB2_REQ_STD_GET_CONFIGURATION_C =>
-            v(TYP_I_C)(7) := '1';
+      -- hacks to pass explicit request type values
+      if ( typ'length = 8 ) then
+         v(TYP_I_C) := typ;
+      elsif ( cod'length = 16 ) then
+         v(TYP_I_C) := std_logic_vector( cod(15 downto 8 ) );
+      else
+         case ( codl ) is
+            when x"0" & USB2_REQ_STD_GET_CONFIGURATION_C =>
+               v(TYP_I_C)(7) := '1';
 
-         when x"0" & USB2_REQ_STD_GET_INTERFACE_C =>
-            v(TYP_I_C)(7) := '1';
+            when x"0" & USB2_REQ_STD_GET_INTERFACE_C =>
+               v(TYP_I_C)(7) := '1';
 
-         when x"0" & USB2_REQ_STD_GET_DESCRIPTOR_C =>
-            v(TYP_I_C)(7) := '1';
-            len           := len + 20;
-            v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
-            v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
-            
+            when x"0" & USB2_REQ_STD_GET_DESCRIPTOR_C =>
+               v(TYP_I_C)(7) := '1';
+               len           := len + 20;
+               v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
+               v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
 
-         when x"0" & USB2_REQ_STD_SET_ADDRESS_C =>
 
-         when x"0" & USB2_REQ_STD_SET_CONFIGURATION_C =>
-         when x"0" & USB2_REQ_STD_SET_INTERFACE_C =>
+            when x"0" & USB2_REQ_STD_SET_ADDRESS_C =>
 
-         -- hack; works as long as this doesn't overlap with other codes
-         when x"23" =>
-           v(TYP_I_C) := "00100001";
-          
-         when others =>
-            assert false report "Unsupported request code" severity failure;
-      end case;
+            when x"0" & USB2_REQ_STD_SET_CONFIGURATION_C =>
+            when x"0" & USB2_REQ_STD_SET_INTERFACE_C =>
+
+            -- hack; works as long as this doesn't overlap with other codes
+            when x"23" =>
+              v(TYP_I_C) := "00100001";
+
+            when others =>
+               assert false report "Unsupported request code" severity failure;
+         end case;
+      end if;
       ulpiTstSendDat( ob, stalled, v, USB2_ENDP_ZERO_C, dva, true, rtr, w, timo );
       if ( epid = USB2_PID_HSK_STALL_C ) then
          if ( stalled ) then
@@ -746,6 +755,9 @@ end if;
           -- STATUS
           ulpiTstSendDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, false, rtr => 2, w => w, timo => timo);
        else
+          if ( eda'length > 0 ) then
+             ulpiTstSendDat( ob, eda, USB2_ENDP_ZERO_C, dva, rtr => 2, w => w, timo => timo );
+          end if;
           ulpiTstWaitDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, rtr => rtr, rak => 2, w => w, timo => timo, estl => (epid = USB2_PID_HSK_STALL_C) );
        end if;
        ulpiClkTick;
