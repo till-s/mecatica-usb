@@ -605,6 +605,7 @@ begin
                            v.ifcIdx   := to_integer(unsigned( r.reqParam.index(7 downto 0)));
                            v.altIdx   := to_integer(unsigned( r.reqParam.value(7 downto 0)));
                            v.tblOff   := USB2_DESC_IDX_LENGTH_C;
+                           v.tblIdx   := r.cfgIdx;
                            v.descType := USB2_STD_DESC_TYPE_INTERFACE_C;
                            v.state    := LOAD_ALT;
                      end if;
