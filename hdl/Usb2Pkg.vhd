@@ -330,6 +330,14 @@ package Usb2Pkg is
 
    subtype  Usb2InterfaceNumType                   is unsigned(7 downto 0);
 
+   function toUsb2InterfaceNumType(
+      constant x : in natural
+   ) return Usb2InterfaceNumType;
+
+   function toUsb2InterfaceNumType(
+      constant x : in std_logic_vector
+   ) return Usb2InterfaceNumType;
+
    -- class-specific request
    constant USB2_REQ_CLS_CDC_SEND_BREAK_C          : Usb2CtlRequestCodeType     := x"23";
 
@@ -513,6 +521,20 @@ package body Usb2Pkg is
       return      p.recipient = USB2_REQ_TYP_RECIPIENT_IFC_C
              and  Usb2InterfaceNumType( p.index(7 downto 0) ) = i;
    end function usb2CtlReqDstInterface;
+
+   function toUsb2InterfaceNumType(
+      constant x : in natural
+   ) return Usb2InterfaceNumType is
+   begin
+      return to_unsigned( x, Usb2InterfaceNumType'length );
+   end function toUsb2InterfaceNumType;
+
+   function toUsb2InterfaceNumType(
+      constant x : in std_logic_vector
+   ) return Usb2InterfaceNumType is
+   begin
+      return resize( unsigned(x), Usb2InterfaceNumType'length );
+   end function toUsb2InterfaceNumType;
 
 
 end package body Usb2Pkg;
