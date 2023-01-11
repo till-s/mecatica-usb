@@ -160,7 +160,7 @@ architecture sim of BADDSpkrCtlTb is
    signal muteRight                : std_logic_vector(0 downto 0);
    signal muteMaster               : std_logic_vector(0 downto 0);
 
-   constant IFN_C                  : Usb2InterfaceNumType         := x"00";
+   constant IFN_C                  : std_logic_vector(7 downto 0) := x"00";
 
    constant CRT_CLS_IFC_RD_C       : std_logic_vector(7 downto 0) := "10100001";
    constant CRT_CLS_IFC_WR_C       : std_logic_vector(7 downto 0) := "00100001";
@@ -221,7 +221,7 @@ architecture sim of BADDSpkrCtlTb is
          typ   => CRT_CLS_IFC_WR_C,
          cod   => cod,
          val   => (sel  & chn),
-         idx   => (eid  & std_logic_vector(IFN_C) ),
+         idx   => (eid  & IFN_C ),
          eda   => toBytes( set ),
          timo  => 100
       );
@@ -233,7 +233,7 @@ architecture sim of BADDSpkrCtlTb is
          typ   => CRT_CLS_IFC_RD_C,
          cod   => cod,
          val   => (sel  & chn),
-         idx   => (eid  & std_logic_vector(IFN_C) ),
+         idx   => (eid  & IFN_C ),
          eda   => toBytes( set ),
          timo  => 100
       );
@@ -273,7 +273,7 @@ begin
          typ   => CRT_CLS_IFC_RD_C,
          cod   => AC_COD_CUR_C,
          val   => (CK_FRQ_C & CH_M_C),
-         idx   => (ID_CK_C  & std_logic_vector(IFN_C) ),
+         idx   => (ID_CK_C  & IFN_C ),
          eda   => (x"80", x"bb", x"00", x"00"),
          timo  => 100
       );
@@ -283,7 +283,7 @@ begin
          typ   => CRT_CLS_IFC_RD_C,
          cod   => AC_COD_RNG_C,
          val   => (CK_FRQ_C & CH_M_C),
-         idx   => (ID_CK_C  & std_logic_vector(IFN_C) ),
+         idx   => (ID_CK_C  & IFN_C ),
          eda   => (x"01", x"00", x"80", x"bb", x"00", x"00", x"80", x"bb", x"00", x"00", x"00", x"00", x"00", x"00"),
          timo  => 100
       );
@@ -303,7 +303,7 @@ begin
          typ   => CRT_CLS_IFC_RD_C,
          cod   => AC_COD_RNG_C,
          val   => (FU_VOL_C & CH_M_C),
-         idx   => (ID_FU_C  & std_logic_vector(IFN_C) ),
+         idx   => (ID_FU_C  & IFN_C ),
          eda   => (x"01", x"00", x"01", x"80", x"ff", x"7f", x"01", x"00"),
          timo  => 100
       );
@@ -313,7 +313,7 @@ begin
          typ   => CRT_CLS_IFC_RD_C,
          cod   => AC_COD_RNG_C,
          val   => (FU_VOL_C & CH_L_C),
-         idx   => (ID_FU_C  & std_logic_vector(IFN_C) ),
+         idx   => (ID_FU_C  & IFN_C ),
          eda   => (x"01", x"00", x"01", x"80", x"ff", x"7f", x"01", x"00"),
          timo  => 100
       );
@@ -323,7 +323,7 @@ begin
          typ   => CRT_CLS_IFC_RD_C,
          cod   => AC_COD_RNG_C,
          val   => (FU_VOL_C & CH_R_C),
-         idx   => (ID_FU_C  & std_logic_vector(IFN_C) ),
+         idx   => (ID_FU_C  & IFN_C ),
          eda   => (x"01", x"00", x"01", x"80", x"ff", x"7f", x"01", x"00"),
          timo  => 100
       );
@@ -365,7 +365,10 @@ begin
 
    U_DUT : entity work.BADDSpkrCtl
       generic map (
-         AC_IFC_NUM_G              => IFN_C
+         VOL_RNG_MIN_G             => -32767,
+         VOL_RNG_MAX_G             => +32767,
+         VOL_RNG_RES_G             => 1,
+         AC_IFC_NUM_G              => toUsb2InterfaceNumType(IFN_C)
       )
       port map (
          clk                       => ulpiTstClk,

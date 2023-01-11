@@ -16,9 +16,9 @@ use     work.Usb2Pkg.all;
 
 entity BADDSpkrCtl is
    generic (
-      VOL_RNG_MIN_G   : integer range -32767 to 32767 := -32767;
-      VOL_RNG_MAX_G   : integer range -32767 to 32767 := +32767;
-      VOL_RNG_RES_G   : integer range      1 to 32767 := 1;
+      VOL_RNG_MIN_G   : integer range -32767 to 32767 := -32767; -- -128 + 1/156 db
+      VOL_RNG_MAX_G   : integer range -32767 to 32767 := +32767; -- +128 - 1/156 db
+      VOL_RNG_RES_G   : integer range      1 to 32767 := 256;    --    1         db
       AC_IFC_NUM_G    : Usb2InterfaceNumType
    );
    port (
@@ -391,9 +391,6 @@ begin
                   v.state      := DONE;
                end if;
             end if;
-            if ( usb2Ep0ReqParam.extAbort ) then
-               v.state := IDLE;
-            end if;
 
          when ACK =>
             v.ctlExt.ack := '1';
@@ -403,6 +400,10 @@ begin
          when DONE => -- flags are asserted during this cycle
             v.state := IDLE;
       end case;
+
+      if ( usb2Ep0ReqParam.extAbort ) then
+         v.state := IDLE;
+      end if;
 
       rin <= v;
    end process P_COMB;
