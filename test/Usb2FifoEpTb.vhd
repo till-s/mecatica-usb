@@ -392,7 +392,7 @@ begin
 
    U_BRK : entity work.CDCACMSendBreak
       generic map (
-         CDC_IFC_NUM_G => to_unsigned(IFC_NUM_C, Usb2InterfaceNumType'length)
+         CDC_IFC_NUM_G => toUsb2InterfaceNumType(IFC_NUM_C)
       )
       port map (
          clk                       => ulpiTstClk,
