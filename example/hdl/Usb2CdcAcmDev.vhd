@@ -15,6 +15,7 @@ use     unisim.vcomponents.all;
 
 use     work.UlpiPkg.all;
 use     work.Usb2Pkg.all;
+use     work.Usb2UtilPkg.all;
 use     work.Usb2DescPkg.all;
 use     work.Usb2AppCfgPkg.all;
 use     work.StdLogPkg.all;
@@ -58,7 +59,8 @@ entity Usb2CdcAcmDev is
       CLK0_OUT_PHASE_G     : real     := 15.0;
 
       NUM_I_REGS_G         : natural  := 2;
-      NUM_O_REGS_G         : natural  := 2
+      NUM_O_REGS_G         : natural  := 2;
+      MARK_DEBUG_G         : boolean  := true
    );
    port (
       sysClk       :  in    std_logic;
@@ -122,6 +124,11 @@ architecture Impl of Usb2CdcAcmDev is
 
    constant N_EP_C                             : natural := USB2_APP_NUM_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
 
+   constant CDC_BULK_EP_IDX_C                  : natural := 1;
+   constant BADD_ISO_EP_IDX_C                  : natural := 3;
+   constant CDC_IF_NUM_C                       : natural := 0;
+   constant BADD_IF_NUM_C                      : natural := 2;
+
    constant MAX_PKT_SIZE_INP_C                 : natural := 512;
    constant MAX_PKT_SIZE_OUT_C                 : natural := 512;
    constant LD_FIFO_DEPTH_INP_C                : natural := 10;
@@ -137,9 +144,22 @@ architecture Impl of Usb2CdcAcmDev is
    signal ulpiIb                               : UlpiIbType;
    signal ulpiOb                               : UlpiObType;
 
+   type   MuxSelType                           is ( NONE, CDC, BADD );
+
    signal usb2Ep0ReqParam                      : Usb2CtlReqParamType;
-   signal usb2Ep0CtlExt                        : Usb2CtlExtType := USB2_CTL_EXT_NAK_C;
+   attribute MARK_DEBUG                        of usb2Ep0ReqParam   : signal is toStr(MARK_DEBUG_G);
+   signal usb2Ep0CDCCtlExt                     : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
+   signal usb2Ep0BADDCtlExt                    : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
+   signal usb2Ep0CtlExt                        : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
+   attribute MARK_DEBUG                        of usb2Ep0CtlExt     : signal is toStr(MARK_DEBUG_G);
+   signal usb2Ep0BADDCtlEpExt                  : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+   signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+   attribute MARK_DEBUG                        of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_G);
    signal devStatus                            : Usb2DevStatusType;
+
+   signal muxSel                               : MuxSelType         := NONE;
+   attribute MARK_DEBUG                        of muxSel            : signal is toStr(MARK_DEBUG_G);
+   signal muxSelIn                             : MuxSelType         := NONE;
 
    signal gnd                                  : std_logic := '0';
 
@@ -155,6 +175,52 @@ architecture Impl of Usb2CdcAcmDev is
    signal fOut                                 : unsigned(LD_FIFO_DEPTH_OUT_C downto 0) := (others => '0');
 
 begin
+
+   P_MUX : process ( muxSel, usb2Ep0ReqParam, usb2Ep0CDCCtlExt, usb2Ep0BADDCtlExt, usb2Ep0BADDCtlEpExt ) is
+      variable v : MuxSelType;
+   begin
+
+      v := muxSel;
+
+      usb2Ep0CtlExt   <= USB2_CTL_EXT_NAK_C;
+      usb2Ep0CtlEpExt <= USB2_ENDP_PAIR_IB_INIT_C;
+
+      if ( usb2Ep0ReqParam.vld = '1' ) then
+         -- new mux setting
+         v := NONE;
+         if ( usb2Ep0ReqParam.reqType = USB2_REQ_TYP_TYPE_CLASS_C ) then
+            if    ( usb2CtlReqDstInterface( usb2Ep0ReqParam, toUsb2InterfaceNumType( CDC_IF_NUM_C ) ) ) then
+               v := CDC;
+            elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParam, toUsb2InterfaceNumType( BADD_IF_NUM_C ) ) ) then
+               v := BADD;
+            end if;
+         end if;
+         -- blank the 'ack' flag during this cycle
+         usb2Ep0CtlExt   <= USB2_CTL_EXT_INIT_C;
+      end if;
+      
+      -- must switch the mux on the same cycle we see 'vld' because that's
+      -- when '
+      if    ( muxSel = CDC  ) then
+         usb2Ep0CtlExt   <= usb2Ep0CDCCtlExt;
+      elsif ( muxSel = BADD ) then
+         usb2Ep0CtlExt   <= usb2Ep0BADDCtlExt;
+         usb2Ep0CtlEpExt <= usb2Ep0BADDCtlEpExt;
+      end if;
+
+      muxSelIn <= v;
+   end process P_MUX;
+
+   P_SEL : process( ulpiClkLoc ) is
+   begin
+      if ( rising_edge( ulpiClkLoc ) ) then
+         if ( usb2RstLoc = '1' ) then
+            muxSel <= NONE;
+         else
+            muxSel <= muxSelIn;
+         end if;
+      end if;
+   end process P_SEL;
 
    B_FIFO : block is
       signal fifoDat  : Usb2ByteType;
@@ -172,12 +238,15 @@ begin
       fifoTimer   <= unsigned(iRegs(1)(fifoTimer'range));
 
       U_BRK : entity work.CDCACMSendBreak
+         generic map (
+            CDC_IFC_NUM_G               => toUsb2InterfaceNumType( CDC_IF_NUM_C )
+         )
          port map (
             clk                         => ulpiClkLoc,
             rst                         => usb2RstLoc,
             usb2SOF                     => usb2Rx.pktHdr.sof,
             usb2Ep0ReqParam             => usb2Ep0ReqParam,
-            usb2Ep0CtlExt               => usb2Ep0CtlExt,
+            usb2Ep0CtlExt               => usb2Ep0CDCCtlExt,
             lineBreak                   => lineBreak
          );
 
@@ -192,8 +261,8 @@ begin
          port map (
             clk                         => ulpiClkLoc,
             rst                         => usb2RstLoc,
-            usb2EpIb                    => usb2EpIb(1),
-            usb2EpOb                    => usb2EpOb(1),
+            usb2EpIb                    => usb2EpIb(CDC_BULK_EP_IDX_C),
+            usb2EpOb                    => usb2EpOb(CDC_BULK_EP_IDX_C),
 
             datInp                      => iDat,
             wenInp                      => iWen,
@@ -260,7 +329,33 @@ begin
       fifoInpFill  <= resize( fInp, fifoInpFill'length );
    end block B_FIFO;
 
+   B_ISO : block is
+   begin
+      U_BADD_CTL : entity work.BADDSpkrCtl
+         generic map (
+            AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_IF_NUM_C)
+         )
+         port map (
+            clk                       => ulpiClkLoc,
+            rst                       => usb2RstLoc,
+
+            usb2Ep0ReqParam           => usb2Ep0ReqParam,
+            usb2Ep0CtlExt             => usb2Ep0BADDCtlExt,
+            usb2Ep0ObExt              => usb2Ep0BADDCtlEpExt,
+            usb2Ep0IbExt              => usb2EpOb(0),
+
+            volLeft                   => open,
+            volRight                  => open,
+            volMaster                 => open,
+            muteLeft                  => open,
+            muteRight                 => open,
+            muteMaster                => open,
+            powerState                => open
+         );
+   end block B_ISO;
+
    G_MMCM : if ( ULPI_CLK_MODE_INP_G or USE_MMCM_C ) generate
+
       signal clkFbI, clkFbO    : std_logic;
       signal refClk            : std_logic;
 
@@ -458,7 +553,7 @@ begin
 
          usb2Ep0ReqParam              => usb2Ep0ReqParam,
          usb2Ep0CtlExt                => usb2Ep0CtlExt,
-         usb2Ep0CtlEpExt              => open,
+         usb2Ep0CtlEpExt              => usb2Ep0CtlEpExt,
 
          usb2HiSpeedEn                => '1',
          usb2RemoteWake               => iRegs(0)(31),
