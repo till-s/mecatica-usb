@@ -54,6 +54,12 @@ set_property IOSTANDARD LVCMOS33 [get_ports -regex ulpi.*]
 #set_property PACKAGE_PIN H16 [get_ports {HDMI_CLK_P}]
 #set_property IOSTANDARD LVCMOS33 [get_ports {HDMI_CLK_P}]
 
+# I2C
+set_property PACKAGE_PIN N17 [get_ports i2c0SDA]
+set_property PACKAGE_PIN N18 [get_ports i2c0SCL]
+
+set_property IOSTANDARD LVCMOS33 [get_ports -regex {i2c[0-1]S..}]
+
 set_property PACKAGE_PIN M14 [get_ports {LED[0]}]
 set_property PACKAGE_PIN M15 [get_ports {LED[1]}]
 set_property PACKAGE_PIN G14 [get_ports {LED[2]}]
@@ -70,9 +76,3 @@ set_property IOSTANDARD LVCMOS33 [get_ports -regex {SW[[][0-9][]]}]
 set_property PACKAGE_PIN L16 [get_ports ethClk]
 set_property IOSTANDARD LVCMOS33 [get_ports ethClk]
 create_clock -period 8.000 -name ethClk [get_ports ethClk]
-
-
-
-
-
-

@@ -55,7 +55,10 @@ entity ZynqTop is
       ulpiClk           : inout std_logic;
       ulpiNxt           : in    std_logic;
       ulpiDat           : inout std_logic_vector(7 downto 0);
-      
+
+      i2c0SDA           : inout std_logic;
+      i2c0SCL           : inout std_logic;
+
       SW                : in    std_logic_vector(3 downto 0);
 
       LED               : out   std_logic_vector(3 downto 0) := (others => '0')
@@ -125,7 +128,7 @@ architecture top_level of ZynqTop is
 
    signal axiClk                         : std_logic;
    signal axiRst                         : std_logic;
-   
+
    signal roRegs                         : Slv32Array(0 to N_RO_REGS_C - 1) := ( others => (others => '0') );
 
    signal fifoOutDat                     : Usb2ByteType;
@@ -137,6 +140,13 @@ architecture top_level of ZynqTop is
 
    -- USB3340 requires reset to be asserted for min. 1us; UlpiLineState subsequently waits until DIR is deasserted
    signal ulpiRstCnt                     : unsigned(7 downto 0) := (others => '1');
+
+   signal i2c0Sda_i                      : std_logic;
+   signal i2c0Sda_o                      : std_logic;
+   signal i2c0Sda_t                      : std_logic;
+   signal i2c0Scl_i                      : std_logic;
+   signal i2c0Scl_o                      : std_logic;
+   signal i2c0Scl_t                      : std_logic;
 
 begin
 
@@ -233,7 +243,29 @@ begin
          PS_SRSTB                      => FIXED_IO_ps_srstb,
          USB0_PORT_INDCTL              => open,
          USB0_VBUS_PWRFAULT            => '0',
-         USB0_VBUS_PWRSELECT           => open
+         USB0_VBUS_PWRSELECT           => open,
+         I2C0_SDA_I                    => i2c0Sda_o,
+         I2C0_SDA_O                    => i2c0Sda_i,
+         I2C0_SDA_T                    => i2c0Sda_t,
+         I2C0_SCL_I                    => i2c0Scl_o,
+         I2C0_SCL_O                    => i2c0Scl_i,
+         I2C0_SCL_T                    => i2c0Scl_t
+      );
+
+   U_BUF_SCK : component IOBUF
+      port map (
+         IO => i2c0Scl,
+         I  => i2c0Scl_i,
+         O  => i2c0Scl_o,
+         T  => i2c0Scl_t
+      );
+
+   U_BUF_SDA : component IOBUF
+      port map (
+         IO => i2c0Sda,
+         I  => i2c0Sda_i,
+         O  => i2c0Sda_o,
+         T  => i2c0Sda_t
       );
 
    axiClk <= ulpiClkLoc;
@@ -354,7 +386,7 @@ begin
             usb2Rst       => open,
             refLocked     => refLocked,
             lineBreak     => lineBreak,
-            
+
             iRegs         => r.rwRegs,
             oRegs         => roRegs,
 
@@ -500,7 +532,7 @@ begin
 
       P_SEQ : process ( ulpiClkLoc ) is
       begin
-         if ( rising_edge( ulpiClkLoc ) ) then 
+         if ( rising_edge( ulpiClkLoc ) ) then
             if ( ulpiRst = '1' ) then
                r <= REG_INIT_C;
             else
