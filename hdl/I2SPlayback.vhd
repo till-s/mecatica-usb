@@ -151,15 +151,17 @@ begin
                v.cnt  := r.cnt - 1;
                v.lst3 := r.cnt(3);
             end if;
-            if ( fifoEmpty = '1' ) then
-               -- resync
-               v.sreg(0) := '0'; -- audio off
-               v.cnt     := COUNT_INIT_C;
-               v.state   := FILL;
-            elsif ( r.cnt(3) /= r.lst3 ) then
+            if ( r.cnt(3) /= r.lst3 ) then
                -- reached a byte-boundary when counter bit3 toggles
-               fifoRen   <= '1';
-               v.sreg    := fifoDou(7 downto 0);
+               if ( fifoEmpty = '1' ) then
+                  -- resync
+                  v.sreg(0) := '0'; -- audio off
+                  v.cnt     := COUNT_INIT_C;
+                  v.state   := FILL;
+               else
+                  fifoRen   <= '1';
+                  v.sreg    := fifoDou(7 downto 0);
+               end if;
             else
                -- shift
                v.sreg    := '0' & r.sreg(r.sreg'left downto 1);
