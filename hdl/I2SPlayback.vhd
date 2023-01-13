@@ -10,6 +10,7 @@
 library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
+use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
 
@@ -22,14 +23,16 @@ entity I2SPlayback is
       NUM_CHANNELS_G      : natural := 2;    -- stereo/mono
       SAMPLING_FREQ_G     : natural := 48000;
       SI_FREQ_G           : natural := 1000; -- service intervals/s
-      SYNCHRONOUS_G       : boolean := true  -- whether audio and USB clocks are synchronous
+      FB_FREQ_G           : natural := 1000
    );
    port (
       usb2Clk             : in  std_logic;
       usb2Rst             : in  std_logic;
+      usb2RstBsy          : out std_logic;
       usb2Rx              : in  Usb2RxType;
       usb2EpIb            : in  Usb2EndpPairObType;
       usb2EpOb            : out Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+      usb2DevStatus       : in  Usb2DevStatusType;
 
       i2sBCLK             : in  std_logic;
       i2sPBLRC            : in  std_logic;
@@ -41,12 +44,149 @@ architecture Impl of I2SPlayback is
 
    attribute ASYNC_REG    : string;
 
-   constant FRMSZ_C       : natural := SAMPLE_SIZE_G * NUM_CHANNELS_G * SAMPLING_FREQ_G / SI_FREQ_G;
+   constant BYTESpSMP_C   : natural := SAMPLE_SIZE_G * NUM_CHANNELS_G;
+
+   constant FRMSZ_C       : natural := BYTESpSMP_C * SAMPLING_FREQ_G / SI_FREQ_G;
+
+   -- Feedback: we must report our sample rate / service interval.
+   -- We count bit-clocks and device by the oversampling rate
+   -- Decompose the oversampling into A*2**P where A is odd.
+   function extract2(constant x : in natural) return natural is
+      variable v : natural;
+   begin
+      v := x;
+      while ( v mod 2 = 0 ) loop
+         v := v/2;
+      end loop;
+      return v;
+   end function extract2;
+
+   function max(constant a, b: integer) return integer is
+   begin
+      if ( a > b ) then return a; else return b; end if;
+   end function max;
+
+   function nbits(constant x : in integer) return integer is
+      variable v : integer;
+      variable s : integer;
+   begin
+      s := 2;
+      v := 1;
+      while x >= s loop
+         v := v + 1;
+         s := s * 2;
+      end loop;
+      return v;
+   end function nbits;
+
+   function ite(
+      constant hs : in std_logic;
+      constant a,b : in integer
+   ) return integer is
+   begin
+      if ( hs = '1' ) then return a; else return b; end if;
+   end function ite;
+
+   constant LD_SOF_CNT_FS_C       : natural := 0;
+   constant LD_SOF_CNT_HS_C       : natural := 3;
+
+   constant SOF_CNT_FS_C          : natural := 2**LD_SOF_CNT_FS_C;
+   constant SOF_CNT_HS_C          : natural := 2**LD_SOF_CNT_HS_C;
+
+   constant LD_SOF_CNT_MAX_C      : natural := max( LD_SOF_CNT_FS_C, LD_SOF_CNT_HS_C );
+
+   constant FODD_C        : natural := extract2(BYTESpSMP_C);
+   constant LD_FODD_C     : natural := nbits( FODD_C );
+   constant LD_OVRSMP_C   : natural := nbits( BYTESpSMP_C * 8 );
+
+   -- accommodate 12 bits for HS and all oversampling 
+   constant LD_RATE_C     : natural := 12 + LD_SOF_CNT_MAX_C + LD_OVRSMP_C + LD_FODD_C;
+
+   -- When measuring the sampling rate we count the bit-clock between SOF events.
+   -- At the end we have to divide by the bits/sample. For powers of two this is easy
+   -- but the odd factor needs attention (if we want to avoid a divider).
+   -- The count can be decomposed into  N = p * F_ODD_C + q   (q = N mod F_ODD_C)
+   -- and thus N/F_ODD_C becomes  p + q/F_ODD_C
+   -- 'p' can be counted by skipping F_ODD_C - 1 out of F_ODD_C pulses; the modulus 'q'
+   -- is also easy to count.
+   -- This is not the end of the story, however, since the result is shifted by a scale
+   -- factor into 10.12 / 16.16 format (full and hi-speed, respectively).
+   -- We need to also compute:
+   --   R = (2**SCALE * q) / F_ODD_C
+   -- If we widen to the next power of two that holds F_ODD_C then
+   --
+   --   N = 2**(SCALE + EXTRA) * p + 2**SCALE (2**EXTRA * q / F_ODD_C)
+   --   N = 2**(SCALE) * ( 2**EXTRA * p +  A * q + B * q / F_ODD_C )
+   --
+   -- with A = F_ODD_C = 1   B = (2**EXTRA - F_ODD_C)
+   -- After FODD increments we obtain
+   --
+   --    A*FODD + B * FODD / FODD = FODD + 2**EXTRA - FODD = 2**EXTRA,
+   --
+   -- i.e., p is automatically incremented:
+   --
+   --   N := N + 1
+   --   b := b + B
+   --   if b >= F_ODD then
+   --      N := N + 1
+   --      b := b - F_ODD
+   --   end if;
+   --
+   -- we can combine this into a single accumulator adding 'EXTRA' bits:
+   -- with E = 2**EXTRA
+   --
+   --   if ( b >= F_ODD - B ):
+   --      N := N + 2*E
+   --      b := b + B - F_ODD
+   --   else
+   --      N := N + E
+   --      b := b + B
+   -- in the first branch: since B >= F_ODD we can at once increment N and subtract - F_ODD
+   --
+   -- if ( b >= F_ODD - B ) then
+   --   N : b += E + E + B - F_ODD = E + 2*B
+   -- else
+   --   N : b += E + B
+
+   constant FODD_CMPL_C : natural := 2**LD_FODD_C - FODD_C;
+
+   -- must divide by the oversampling rate and the extra 2**LD_FODD_C introduced by extending
+   -- the counter
+   constant LD_SCL_FS_C           : integer := 13 - LD_SOF_CNT_FS_C - LD_OVRSMP_C - LD_FODD_C;
+   constant LD_SCL_HS_C           : integer := 16 - LD_SOF_CNT_HS_C - LD_OVRSMP_C - LD_FODD_C;
+
+   -- this is correct for hi and full speed; samples / frame (fs) vs samples/uframe (hs)
+   -- but the HS format is 16.16 (vs full-speed 10.13), i.e., the 3-bit left shift due
+   -- to formatting cancels the division by 8 due to the higher ref. frequency.
+   constant RATE_INIT_C           : std_logic_vector(31 downto 0) := 
+      std_logic_vector( to_unsigned( SAMPLING_FREQ_G * 2**13 / 1000, 32 ) );
+
+   function scale(
+      constant x  : in unsigned;
+      constant hs : in std_logic
+   ) return std_logic_vector is
+      variable v : unsigned(31 downto 0);
+   begin
+      if ( hs = '1' ) then
+         if ( LD_SCL_HS_C >= 0 ) then
+            v := shift_left( resize( x, v'length ), LD_SCL_HS_C );
+         else
+            v := resize( shift_right( x, -LD_SCL_HS_C ), v'length );
+         end if;
+      else
+         if ( LD_SCL_FS_C >= 0 ) then
+            v := shift_left( resize( x, v'length ), LD_SCL_FS_C );
+         else
+            v := resize( shift_right( x, -LD_SCL_FS_C ), v'length );
+         end if;
+      end if;
+      return std_logic_vector( v );
+   end function scale;
 
    -- for now we assume sample_size * num channels < 8
    constant COUNT_W_C     : natural := 3;
 
-   subtype CountType      is unsigned(1 + COUNT_W_C + 8 - 1 downto 0);
+   subtype  CountType     is unsigned(1 + COUNT_W_C + 8 - 1 downto 0);
 
    -- we count down to -1 and then reload with (N-2)
    constant COUNT_RELD_C  : CountType := to_unsigned(8*SAMPLE_SIZE_G * NUM_CHANNELS_G - 2, CountType'length);
@@ -67,6 +207,8 @@ architecture Impl of I2SPlayback is
       lst3    : std_logic;
       pblrlst : std_logic;
       sreg    : std_logic_vector(7 downto 0);
+      sofcnt  : signed(LD_SOF_CNT_MAX_C downto 0);
+      rate    : unsigned(LD_RATE_C - 1 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -74,21 +216,53 @@ architecture Impl of I2SPlayback is
       cnt     => COUNT_INIT_C,
       lst3    => '0',
       pblrlst => '0',
-      sreg    => (others => '0')
+      sreg    => (others => '0'),
+      sofcnt  => (others => '1'),
+      rate    => (others => '0')
    );
 
    signal r               : RegType := REG_INIT_C;
    signal rin             : RegType;
 
+   type   Usb2StateType   is ( IDLE, X0, X1, X2, X3, DON );
+
+   type Usb2RegType is record
+      state : Usb2StateType;
+      -- keep a copy so that we are guaranteed to have a consistent
+      -- value while transmitting.
+      rate  : std_logic_vector(31 downto 8);
+   end record Usb2RegType;
+
+   constant USB2_REG_INIT_C : Usb2RegType := (
+      state => IDLE,
+      rate  => RATE_INIT_C(31 downto 8)
+   );
+
+   signal rusb2           : Usb2RegType := USB2_REG_INIT_C;
+   signal rinusb2         : Usb2RegType;
+
    signal u2sRstSync      : std_logic_vector(2 downto 0) := (others => '0');
    signal s2uRstSync      : std_logic_vector(1 downto 0) := (others => '0');
 
-   attribute ASYNC_REG    of u2sRstSync : signal is "TRUE";
-   attribute ASYNC_REG    of s2uRstSync : signal is "TRUE";
+   signal u2sSpdSync      : std_logic_vector(1 downto 0) := (others => '0');
+   signal u2sSOFSync      : std_logic_vector(2 downto 0) := (others => '0');
+
+   signal s2uUpdtSync     : std_logic_vector(2 downto 0) := (others => '0');
+
+   attribute ASYNC_REG    of u2sRstSync    : signal is "TRUE";
+   attribute ASYNC_REG    of s2uRstSync    : signal is "TRUE";
+   attribute ASYNC_REG    of u2sSOFSync    : signal is "TRUE";
+   attribute ASYNC_REG    of u2sSpdSync    : signal is "TRUE";
+   attribute ASYNC_REG    of s2uUpdtSync   : signal is "TRUE";
 
    signal u2sRstTgl       : std_logic := '1';
    signal s2uRstTgl       : std_logic := '0';
    signal usb2RstLst      : std_logic := '1'; -- initial reset
+   signal rxVldLst        : std_logic := '0';
+
+   signal hiSpeed         : std_logic;
+   signal sofTgl          : std_logic := '0';
+   signal sofFlag         : std_logic;
 
    signal rstCntBclk      : unsigned(3 downto 0) := "1100";
 
@@ -101,32 +275,68 @@ architecture Impl of I2SPlayback is
    signal fifoAlmostEmpty : std_logic;
    signal fifoRst         : std_logic := '0';
 
+   signal rateUpdate      : std_logic := '0';
+
    signal usb2Resetting   : std_logic;
    signal waitForFrame    : std_logic := '1';
    
    signal rstSync         : std_logic_vector(2 downto 0) := (others => '0');
    attribute ASYNC_REG    of rstSync : signal is "TRUE";
 
+   -- this is updated synchronously with SOF from the BCLK domain; it is safe
+   -- to be read by usb2Clk when handling an INP 
+   signal rateMeasBclk    : std_logic_vector(31 downto 0) := RATE_INIT_C;
+   signal rateUpdateTgl   : std_logic := '0';
+
+   signal rateMeasUsb2    : std_logic_vector(31 downto 0) := RATE_INIT_C;
+
 begin
 
    i2sPBDAT <= r.sreg(0);
 
    assert SAMPLE_SIZE_G * NUM_CHANNELS_G <= 8 report "must increase counter width" severity failure;
+   assert FB_FREQ_G <= SI_FREQ_G report "feedback interval should be >= service interval" severity failure;
 
    fifoMinFill <= not fifoAlmostEmpty;
 
-   P_I2S_COMB : process (r, i2sPBLRC, fifoDou, fifoEmpty, fifoMinFill) is
+   P_I2S_COMB : process (r, i2sPBLRC, fifoDou, fifoEmpty, fifoMinFill, sofFlag, hiSpeed) is
       variable v : RegType;
    begin
       v             := r;
       fifoRen       <= '0';
       v.pblrlst     := i2sPBLRC;
+      rateUpdate    <= '0';
+
+      -- rate counter
+      if ( r.rate(LD_FODD_C - 1 downto 0) >= FODD_C - FODD_CMPL_C ) then
+         v.rate    := r.rate + to_unsigned(2**LD_FODD_C + 2*FODD_CMPL_C, r.rate'length);
+      else
+         v.rate    := r.rate + to_unsigned(2**LD_FODD_C + 1*FODD_CMPL_C, r.rate'length);
+      end if;
+
+      if ( sofFlag = '1' ) then
+         if ( r.sofcnt(r.sofcnt'left) = '1' or r.state = INIT ) then
+            if ( hiSpeed = '1' ) then
+               v.sofcnt := to_signed(SOF_CNT_HS_C - 2, r.sofcnt'length);
+            else
+               v.sofcnt := to_signed(SOF_CNT_FS_C - 2, r.sofcnt'length);
+            end if;
+            v.rate   := (others => '0');
+         else
+            v.sofcnt := r.sofcnt - 1;
+         end if;
+         if ( r.state /= INIT and r.sofcnt(r.sofcnt'left) = '1' ) then
+            rateUpdate <= '1';
+         end if;
+      end if;
 
       case ( r.state ) is
          when INIT =>
             -- must ensure RDEN is low for two cycles after reset is deasserted
             if ( r.cnt(r.cnt'left) = '1' ) then
-               v.state := FILL;
+               if ( sofFlag = '1' ) then
+                  v.state := FILL;
+               end if;
             else
                v.cnt   := r.cnt - 1;
             end if;
@@ -184,9 +394,17 @@ begin
    end process P_I2S_SEQ;
 
    P_RST_I2S : process ( i2sBCLK ) is
+      variable b : std_logic;
    begin
       if ( rising_edge( i2sBCLK ) ) then
          u2sRstSync <= u2sRstTgl & u2sRstSync(u2sRstSync'left downto 1);
+         if ( usb2DevStatus.hiSpeed ) then
+            b := '1';
+         else
+            b := '0';
+         end if;
+         u2sSpdSync <= b      & u2sSpdSync(u2sSpdSync'left downto 1);
+         u2sSOFSync <= sofTgl & u2sSOFSync(u2sSOFSync'left downto 1);
          if ( u2sRstSync(1) /= u2sRstSync(0) ) then
             -- new reset event; load counter
             rstCntBclk <= (others => '1');
@@ -197,8 +415,17 @@ begin
             -- delay expired; propagate reset event back to USB
             s2uRstTgl  <= u2sRstSync(0);
          end if;
+         if    ( fifoRst = '1' ) then
+            rateMeasBclk  <= RATE_INIT_C;
+         elsif ( rateUpdate = '1' ) then
+            rateUpdateTgl <= not rateUpdateTgl;
+            rateMeasBclk  <= scale( r.rate, hiSpeed );
+         end if;
       end if;
    end process P_RST_I2S;
+
+   hiSpeed               <= u2sSpdSync(0);
+   sofFlag               <= u2sSOFSync(1) xor u2sSOFSync(0);
 
    usb2Resetting         <= usb2Rst or ( u2sRstTgl xor s2uRstSync(0) );
 
@@ -213,7 +440,8 @@ begin
          if ( (usb2Rst & usb2RstLst) = unsigned'("10") ) then
             u2sRstTgl <= not u2sRstTgl;
          end if;
-         s2uRstSync <= s2uRstTgl & s2uRstSync(s2uRstSync'left downto 1);
+         s2uRstSync  <= s2uRstTgl & s2uRstSync(s2uRstSync'left downto 1);
+         s2uUpdtSync <= rateUpdateTgl & s2uUpdtSync(s2uUpdtSync'left downto 1);
 
          if ( usb2Resetting = '1' ) then
             waitForFrame <= '1';
@@ -223,10 +451,83 @@ begin
                waitForFrame <= '0';
             end if;
          end if;
+         if ( usb2Resetting = '1' ) then
+            rxVldLst     <= '1';
+            rateMeasUsb2 <= RATE_INIT_C;
+         else
+            rxVldLst <= usb2Rx.pktHdr.vld;
+            if ( s2uUpdtSync(1) /= s2uUpdtSync(0) ) then
+               rateMeasUsb2 <= rateMeasBclk;
+            end if;
+            if ( (not rxVldLst and usb2Rx.pktHdr.vld) = '1' and usb2Rx.pktHdr.sof ) then
+               sofTgl <= not sofTgl;
+            end if;
+         end if;
       end if;
    end process P_RST_USB;
 
    fifoRst               <= rstCntBclk( rstCntBclk'left );
+
+   P_USB_COMB : process ( rusb2, usb2DevStatus, usb2EpIb, rateMeasUsb2 ) is
+      variable v : Usb2RegType;
+   begin
+      v                   := rusb2;
+      usb2EpOb            <= USB2_ENDP_PAIR_IB_INIT_C;
+      usb2EpOb.mstInp.don <= '0';
+      usb2EpOb.mstInp.vld <= '1';
+      usb2EpOb.mstInp.usr <= "0000"; -- only one microframe
+      usb2EpOb.bFramedInp <= '1';    -- dont' use DON for framing
+
+      case ( rusb2.state ) is
+         when IDLE =>
+            v.state             := X0;
+            usb2EpOb.mstInp.vld <= '0';
+
+         when X0   =>
+            usb2EpOb.mstInp.dat <= rateMeasUsb2(7 downto 0);
+            -- latch the rest to ensure we send consistent data
+            v.rate := rateMeasUsb2(31 downto 8);
+            if ( usb2EpIb.subInp.rdy = '1' ) then
+               v.state := X1;
+            end if;
+         when X1 =>
+            usb2EpOb.mstInp.dat <= rusb2.rate(15 downto 8);
+            if ( usb2EpIb.subInp.rdy = '1' ) then
+               v.state := X2;
+            end if;
+         when X2 =>
+            usb2EpOb.mstInp.dat <= rusb2.rate(23 downto 16);
+            if ( usb2EpIb.subInp.rdy = '1' ) then
+               if ( usb2DevStatus.hiSpeed ) then
+                  v.state := X3;
+               else
+                  v.state := DON;
+               end if;
+            end if;
+         when X3 =>
+            usb2EpOb.mstInp.dat <= rusb2.rate(31 downto 24);
+            if ( usb2EpIb.subInp.rdy = '1' ) then
+               v.state := DON;
+            end if;
+         when DON =>
+            -- deassert 'vld' for one cycle
+            usb2EpOb.mstInp.vld <= '0';
+            v.state             := X0;
+      end case;
+
+      rinusb2 <= v;
+   end process P_USB_COMB;
+
+   P_USB_SEQ : process ( usb2Clk ) is
+   begin
+      if ( rising_edge( usb2Clk ) ) then
+         if ( usb2Resetting = '1' ) then
+            rusb2 <= USB2_REG_INIT_C;
+         else
+            rusb2 <= rinusb2;
+         end if;
+      end if;
+   end process P_USB_SEQ;
 
    U_FIFO : FIFO18E1
    generic map (
@@ -266,5 +567,7 @@ begin
       DI                     => fifoDin,
       DIP                    => x"0"
    );
+
+   usb2RstBsy <= usb2Resetting;
 
 end architecture Impl;

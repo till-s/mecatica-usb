@@ -25,29 +25,110 @@ architecture sim of I2SPlaybackTb is
    signal pbdat           : std_logic := '1';
    signal pblrclst        : std_logic := '1';
 
+   signal usb2Rx          : Usb2RxType        := USB2_RX_INIT_C;
+   signal usb2DevStatus   : Usb2DevStatusType := USB2_DEV_STATUS_INIT_C;
+
+   signal resetting       : std_logic;
+
+   signal clkCount        : natural := 0;
+
+   signal epOb : usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
+   signal epIb : usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+
+   signal run  : boolean := true;
+
+
+   procedure tick is
+   begin
+      wait until rising_edge( usb2Clk );
+   end procedure tick;
+
+   procedure sendSOF(
+      signal rx : inout Usb2RxType
+   ) is
+   begin
+      rx <= rx;
+      rx.pktHdr.vld <= '1';
+      rx.pktHdr.sof <= true;
+      tick;
+      rx.pktHdr.vld <= '0';
+      rx.pktHdr.sof <= false;
+      tick;
+   end procedure sendSOF;
+
    procedure sendFrame(
       signal ob : inout Usb2EndpPairObType
    ) is
       variable dat : unsigned(7 downto 0);
    begin
-      wait until rising_edge( usb2Clk );
+      tick;
       dat := (others => '0');
       ob.mstOut.vld <= '1';
       for i in 1 to 6*48 loop
         ob.mstOut.dat <= std_logic_vector( dat );
         dat           := dat + 1;
-        wait until rising_edge( usb2Clk );
+        tick;
       end loop;
       ob.mstOut.vld <= '0';
       ob.mstOut.don <= '1';
-      wait until rising_edge( usb2Clk );
+      tick;
       ob.mstOut.don <= '0';
-      wait until rising_edge( usb2Clk );
+      tick;
    end procedure sendFrame;
 
-   signal epOb : usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
+   procedure getRate(
+      signal ob : inout Usb2EndpPairObType
+   ) is
+      variable r : std_logic_vector(31 downto 0) := (others => '0');
+      variable i : natural;
+      variable g : real;
+   begin
+      ob.subInp.rdy <= '0';
+      r             := (others => '0');
+      i             := 0;
+      while ( epIb.mstInp.vld = '0' ) loop
+         tick;
+      end loop;
+      ob.subInp.rdy <= '1';
+      tick;
+      while ( epIb.mstInp.vld = '1' ) loop
+         r(8*i+7 downto 8*i) := epIb.mstInp.dat;
+         i := i + 1;
+         tick;
+      end loop;
+      ob.subInp.rdy <= '0';
+      tick;
+      if ( usb2DevStatus.hiSpeed ) then
+         assert i = 4 report "feedback response invalid (hispeed)" severity failure;
+      else
+         assert i = 3 report "feedback response invalid (hispeed)" severity failure;
+      end if;
+      g := real( to_integer( unsigned( r ) ) )/2.0**13;
+      report "Rate: " & real'image(g);
+      assert abs(48.0 - g) < 0.05 report "feedback freq offset too big" severity failure;
+   end procedure getRate;
 
-   signal run  : boolean := true;
+   procedure completeFrame(
+      signal   rx : inout Usb2RxType;
+      variable  l : inout natural
+   ) is
+      variable per : natural;
+   begin
+      if ( usb2DevStatus.hiSpeed ) then
+         for i in 1 to 8 loop
+            while ( clkCount - l < i*7500 ) loop
+               tick;
+            end loop;
+            sendSOF(rx);
+         end loop;
+      else
+         while ( clkCount - l < 60000 ) loop
+            tick;
+         end loop;
+         sendSOF(rx);
+      end if;
+      l := clkCount;
+   end procedure completeFrame;
 
 begin
 
@@ -56,7 +137,7 @@ begin
       if ( not run ) then
          wait;
       else
-         wait for 10 ns;
+         wait for 16.666 ns / 2.0;
          usb2Clk <= not usb2Clk;
       end if;
    end process;
@@ -66,17 +147,33 @@ begin
       if ( not run ) then
          wait;
       else
-         wait for 99 ns;
+         wait for 1 ms / 48.0 / 48.0 / 2.0;
          bclk <= not bclk;
       end if;
    end process;
 
-   P_TEST : process is
+   process ( usb2Clk ) is
    begin
-      sendFrame( epOb );
-      sendFrame( epOb );
-      sendFrame( epOb );
-      sendFrame( epOb );
+      if ( rising_edge( usb2Clk ) ) then
+         clkCount <= clkCount + 1;
+      end if;
+   end process;
+
+   P_TEST : process is
+      variable lst : natural;
+   begin
+      usb2DevStatus.hiSpeed <= true;
+      tick;
+      while ( resetting = '1' ) loop
+         tick;
+      end loop;
+      tick;
+      sendSOF(usb2Rx);
+      lst := clkCount;
+      sendFrame( epOb ); completeFrame( usb2Rx, lst );
+      sendFrame( epOb ); completeFrame( usb2Rx, lst );
+      sendFrame( epOb ); getRate(epOb); completeFrame( usb2Rx, lst );
+      sendFrame( epOb ); getRate(epOb); completeFrame( usb2Rx, lst );
       wait;
    end process P_TEST;
 
@@ -136,14 +233,16 @@ begin
 
    U_DUT : entity work.I2SPlayback
       port map (
-         usb2Clk  => usb2Clk,
-         usb2Rst  => '0',
-         usb2Rx   => USB2_RX_INIT_C,
-         usb2EpIb => epOb,
-         usb2EpOb => open,
+         usb2Clk         => usb2Clk,
+         usb2Rst         => '0',
+         usb2RstBsy      => resetting,
+         usb2Rx          => usb2Rx,
+         usb2DevStatus   => usb2DevStatus,
+         usb2EpIb        => epOb,
+         usb2EpOb        => epIb,
  
-         i2sBCLK  => bclk,
-         i2sPBLRC => pblrc,
-         i2sPBDAT => pbdat
+         i2sBCLK         => bclk,
+         i2sPBLRC        => pblrc,
+         i2sPBDAT        => pbdat
       );
 end architecture sim;
