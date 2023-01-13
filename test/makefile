@@ -36,21 +36,36 @@ SRCS+= UlpiIOBuf.vhd
 SRCS+= UlpiIOBufTb.vhd
 SRCS+= BADDSpkrCtl.vhd
 SRCS+= BADDSpkrCtlTb.vhd
+ifneq ($(VIVADO),)
+# this one needs unisim
+SRCS += I2SPlayback.vhd
+SRCS += I2SPlaybackTb.vhd
+endif
 
 
 PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb UlpiIOBufTb Usb2IsoTb BADDSpkrCtlTb
+ifneq ($(VIVADO),)
+PROG+=I2SPlaybackTb
+endif
 
-all: $(PROG)
-	for i in $(PROG); do if ! ./$$i; then echo "$$i FAILED"; exit 1; fi  done
+all: $(addsuffix @run,$(PROG))
 	echo "All Tests PASSED"
+
+
+.PHONY: $(addsuffix $@run, $(PROG))
+
+$(addsuffix @run,$(PROG)):%@run:%
+	./$(@:%@run=%) $($(@:%@run=%)_RUNFLAGS)
+
+#	for i in $(PROG); do if ! ./$$i $; then echo "$$i FAILED"; exit 1; fi  done
 
 build: $(PROG)
 
 %.o: %.vhd
-	$(GHDL) -a $(GHDLFLAGS) $<
+	$(GHDL) -a $(GHDLFLAGS) $($(@:%.o=%)_GHDLFLAGS) $<
 
 $(PROG): %Tb : %Tb.o
-	$(GHDL) -e $(GHDLFLAGS) -o $@ -Wl,-no-pie $@
+	$(GHDL) -e $(GHDLFLAGS) $($(@:%.o=%)_GHDLFLAGS) -o $@ -Wl,-no-pie $@
 
 $(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o Usb2DescPkg.o
 
@@ -79,6 +94,9 @@ Usb2PktTxTb.o: Usb2PktTx.o UlpiIO.o
 UsbCrcTblTb.o: UsbCrcTbl.o
 
 BADDSpkrCtlTb.o: Usb2Core.o BADDSpkrCtl.o
+I2SPlaybackTb_GHDLFLAGS=-fsynopsys
+I2SPlaybackTb_RUNFLAGS=--stop-time=1ms
+I2SPlaybackTb.o: Usb2Core.o I2SPlayback.o
 
 .PHONY: all build clean
 
