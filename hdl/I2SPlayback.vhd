@@ -11,13 +11,13 @@ use     ieee.std_logic_1164.all;
 
 entity I2S_CC_Sync is
    generic (
-      STAGES_G : natural := 2;
-      IS_TGL_G : boolean := true
+      STAGES_G : natural := 2
    );
    port (
       clk      : in  std_logic;
       d        : in  std_logic;
-      q        : out std_logic
+      tgl      : out std_logic;
+      o        : out std_logic
    );
 end entity I2S_CC_Sync;
 
@@ -25,31 +25,27 @@ architecture Impl of I2S_CC_Sync is
 
    attribute ASYNC_REG  : string;
 
-   function ite(constant c: boolean; constant a,b: integer) return integer is
-   begin
-      if ( c ) then return a; else return b; end if;
-   end function;
+   signal ccSync        : std_logic_vector(STAGES_G - 1 downto 0) := (others => '0');
 
-   constant L_C         : natural := STAGES_G + ite(IS_TGL_G, 1, 0);
-
-   signal ccSync        : std_logic_vector(L_C - 1 downto 0) := (others => '0');
    attribute ASYNC_REG  of ccSync : signal is "TRUE";
 
 begin
-
    P_SYNC : process ( clk ) is
    begin
-      ccSync <= ccSync(ccSync'left - 1 downto 0) & d;
+      if ( rising_edge( clk ) ) then
+         ccSync <= ccSync(ccSync'left - 1 downto 0) & d;
+      end if;
    end process P_SYNC;
 
-   G_TGL : if ( IS_TGL_G ) generate
-      q <= ccSync(ccSync'left) xor ccSync(ccSync'left - 1);
+   G_TGL : if ( STAGES_G > 2 ) generate
+      tgl <= ccSync(ccSync'left) xor ccSync(ccSync'left - 1);
    end generate G_TGL;
 
-   G_NORM : if ( not IS_TGL_G ) generate
-      q <= ccSync(ccSync'left);
+   G_ERR : if ( STAGES_G <= 2 ) generate
+      tgl <= '0';
    end generate;
 
+   o <= ccSync(ccSync'left);
 end architecture Impl;
 
 library ieee;
@@ -286,27 +282,27 @@ architecture Impl of I2SPlayback is
    signal rusb2           : Usb2RegType := USB2_REG_INIT_C;
    signal rinusb2         : Usb2RegType;
 
-   signal u2sRstSync      : std_logic_vector(2 downto 0) := (others => '0');
-   signal s2uRstSync      : std_logic_vector(1 downto 0) := (others => '0');
+   signal u2sRstTgl       : std_logic := '1';
+   signal u2sRstTglOut    : std_logic;
+   signal u2sRstOut       : std_logic;
 
-   signal u2sSpdSync      : std_logic_vector(1 downto 0) := (others => '0');
+   signal u2sSpdInp       : std_logic;
+   signal u2sSpdOut       : std_logic;
+
+   signal u2sSOFTgl       : std_logic := '0';
+   signal u2sSOFTglOut    : std_logic;
    signal u2sSOFSync      : std_logic_vector(2 downto 0) := (others => '0');
 
-   signal s2uUpdtSync     : std_logic_vector(2 downto 0) := (others => '0');
-
-   attribute ASYNC_REG    of u2sRstSync    : signal is "TRUE";
-   attribute ASYNC_REG    of s2uRstSync    : signal is "TRUE";
-   attribute ASYNC_REG    of u2sSOFSync    : signal is "TRUE";
-   attribute ASYNC_REG    of u2sSpdSync    : signal is "TRUE";
-   attribute ASYNC_REG    of s2uUpdtSync   : signal is "TRUE";
-
-   signal u2sRstTgl       : std_logic := '1';
    signal s2uRstTgl       : std_logic := '0';
+   signal s2uRstOut       : std_logic;
+
+   signal s2uUpdTgl       : std_logic := '0';
+   signal s2uUpdTglOut    : std_logic;
+
    signal usb2RstLst      : std_logic := '1'; -- initial reset
    signal rxVldLst        : std_logic := '0';
 
    signal hiSpeed         : std_logic;
-   signal sofTgl          : std_logic := '0';
    signal sofFlag         : std_logic;
 
    signal rstCntBclk      : unsigned(3 downto 0) := "1100";
@@ -325,9 +321,6 @@ architecture Impl of I2SPlayback is
    signal usb2Resetting   : std_logic;
    signal waitForFrame    : std_logic := '1';
    
-   signal rstSync         : std_logic_vector(2 downto 0) := (others => '0');
-   attribute ASYNC_REG    of rstSync : signal is "TRUE";
-
    -- this is updated synchronously with SOF from the BCLK domain; it is safe
    -- to be read by usb2Clk when handling an INP 
    signal rateMeasBclk    : std_logic_vector(31 downto 0) := RATE_INIT_C;
@@ -342,6 +335,57 @@ begin
 
    B_I2S_SYNCHRONIZERS : block is
    begin
+      U_U2S_RST_SYNC : entity work.I2S_CC_Sync
+         generic map ( STAGES_G => 3 )
+         port map (
+            clk => i2sBCLK,
+            d   => u2sRstTgl,
+            tgl => u2sRstTglOut,
+            o   => u2sRstOut
+         );
+      U_U2S_SPD_SYNC : entity work.I2S_CC_Sync
+         port map (
+            clk => i2sBCLK,
+            d   => u2sRstTgl,
+            tgl => open,
+            o   => u2sSpdOut
+         );
+      U_U2S_SOF_SYNC : entity work.I2S_CC_Sync
+         generic map ( STAGES_G => 3 )
+         port map (
+            clk => i2sBCLK,
+            d   => u2sSOFTgl,
+            tgl => u2sSOFTglOut,
+            o   => open
+         );
+
+      U_S2U_RST_SYNC : entity work.I2S_CC_Sync
+         generic map ( STAGES_G => 3 )
+         port map (
+            clk => usb2Clk,
+            d   => s2uRstTgl,
+            tgl => open,
+            o   => s2uRstOut
+         );
+      U_S2U_UPD_SYNC : entity work.I2S_CC_Sync
+         generic map ( STAGES_G => 3 )
+         port map (
+            clk => usb2Clk,
+            d   => rateUpdateTgl,
+            tgl => s2uUpdTglOut,
+            o   => open
+         );
+
+      P_MEAS_USB : process ( usb2Clk ) is
+      begin
+         if ( rising_edge( usb2Clk ) ) then
+            if ( usb2Resetting = '1' ) then
+               rateMeasUsb2 <= RATE_INIT_C;
+            elsif ( s2uUpdTglOut = '1' ) then
+               rateMeasUsb2 <= rateMeasBclk;
+            end if;
+         end if;
+      end process P_MEAS_USB;
    end block B_I2S_SYNCHRONIZERS;
 
    i2sPBDAT    <= r.sreg(0);
@@ -442,18 +486,14 @@ begin
    end process P_I2S_SEQ;
 
    P_RST_I2S : process ( i2sBCLK ) is
-      variable b : std_logic;
    begin
       if ( rising_edge( i2sBCLK ) ) then
-         u2sRstSync <= u2sRstTgl & u2sRstSync(u2sRstSync'left downto 1);
          if ( usb2DevStatus.hiSpeed ) then
-            b := '1';
+            u2sSpdInp <= '1';
          else
-            b := '0';
+            u2sSpdInp <= '0';
          end if;
-         u2sSpdSync <= b      & u2sSpdSync(u2sSpdSync'left downto 1);
-         u2sSOFSync <= sofTgl & u2sSOFSync(u2sSOFSync'left downto 1);
-         if ( u2sRstSync(1) /= u2sRstSync(0) ) then
+         if ( u2sRstTglOut = '1' ) then
             -- new reset event; load counter
             rstCntBclk <= (others => '1');
          elsif ( rstCntBclk( rstCntBclk'left ) = '1' ) then
@@ -461,7 +501,7 @@ begin
             rstCntBclk <= rstCntBclk - 1;
          else
             -- delay expired; propagate reset event back to USB
-            s2uRstTgl  <= u2sRstSync(0);
+            s2uRstTgl  <= u2sRstOut;
          end if;
          if    ( fifoRst = '1' ) then
             rateMeasBclk  <= RATE_INIT_C;
@@ -472,10 +512,10 @@ begin
       end if;
    end process P_RST_I2S;
 
-   hiSpeed               <= u2sSpdSync(0);
-   sofFlag               <= u2sSOFSync(1) xor u2sSOFSync(0);
+   hiSpeed               <= u2sSpdOut;
+   sofFlag               <= u2sSOFTglOut;
 
-   usb2Resetting         <= usb2Rst or ( u2sRstTgl xor s2uRstSync(0) );
+   usb2Resetting         <= usb2Rst or ( u2sRstTgl xor s2uRstOut );
 
    fifoWen               <= not waitForFrame and usb2EpIb.mstOut.vld;
    fifoDin( 7 downto 0)  <= usb2EpIb.mstOut.dat;
@@ -488,8 +528,6 @@ begin
          if ( (usb2Rst & usb2RstLst) = unsigned'("10") ) then
             u2sRstTgl <= not u2sRstTgl;
          end if;
-         s2uRstSync  <= s2uRstTgl & s2uRstSync(s2uRstSync'left downto 1);
-         s2uUpdtSync <= rateUpdateTgl & s2uUpdtSync(s2uUpdtSync'left downto 1);
 
          if ( usb2Resetting = '1' ) then
             waitForFrame <= '1';
@@ -504,11 +542,11 @@ begin
             rateMeasUsb2 <= RATE_INIT_C;
          else
             rxVldLst <= usb2Rx.pktHdr.vld;
-            if ( s2uUpdtSync(1) /= s2uUpdtSync(0) ) then
+            if ( s2uUpdTglOut = '1' ) then
                rateMeasUsb2 <= rateMeasBclk;
             end if;
             if ( (not rxVldLst and usb2Rx.pktHdr.vld) = '1' and usb2Rx.pktHdr.sof ) then
-               sofTgl <= not sofTgl;
+               u2sSOFTgl <= not u2sSOFTgl;
             end if;
          end if;
       end if;
