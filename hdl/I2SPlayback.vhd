@@ -6,6 +6,51 @@
 -- Example of an isochronous endpoint: SSI audio playback;
 -- uses a XILINX FIFO for crossing from the USB into the
 -- audio domain.
+library ieee;
+use     ieee.std_logic_1164.all;
+
+entity I2S_CC_Sync is
+   generic (
+      STAGES_G : natural := 2;
+      IS_TGL_G : boolean := true
+   );
+   port (
+      clk      : in  std_logic;
+      d        : in  std_logic;
+      q        : out std_logic
+   );
+end entity I2S_CC_Sync;
+
+architecture Impl of I2S_CC_Sync is
+
+   attribute ASYNC_REG  : string;
+
+   function ite(constant c: boolean; constant a,b: integer) return integer is
+   begin
+      if ( c ) then return a; else return b; end if;
+   end function;
+
+   constant L_C         : natural := STAGES_G + ite(IS_TGL_G, 1, 0);
+
+   signal ccSync        : std_logic_vector(L_C - 1 downto 0) := (others => '0');
+   attribute ASYNC_REG  of ccSync : signal is "TRUE";
+
+begin
+
+   P_SYNC : process ( clk ) is
+   begin
+      ccSync <= ccSync(ccSync'left - 1 downto 0) & d;
+   end process P_SYNC;
+
+   G_TGL : if ( IS_TGL_G ) generate
+      q <= ccSync(ccSync'left) xor ccSync(ccSync'left - 1);
+   end generate G_TGL;
+
+   G_NORM : if ( not IS_TGL_G ) generate
+      q <= ccSync(ccSync'left);
+   end generate;
+
+end architecture Impl;
 
 library ieee;
 use     ieee.std_logic_1164.all;
@@ -292,11 +337,14 @@ architecture Impl of I2SPlayback is
 
 begin
 
-   i2sPBDAT <= r.sreg(0);
-
    assert SAMPLE_SIZE_G * NUM_CHANNELS_G <= 8 report "must increase counter width" severity failure;
    assert FB_FREQ_G <= SI_FREQ_G report "feedback interval should be >= service interval" severity failure;
 
+   B_I2S_SYNCHRONIZERS : block is
+   begin
+   end block B_I2S_SYNCHRONIZERS;
+
+   i2sPBDAT    <= r.sreg(0);
    fifoMinFill <= not fifoAlmostEmpty;
 
    P_I2S_COMB : process (r, i2sPBLRC, fifoDou, fifoEmpty, fifoMinFill, sofFlag, hiSpeed) is
