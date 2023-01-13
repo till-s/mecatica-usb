@@ -29,6 +29,7 @@ entity I2SPlayback is
       usb2Rst             : in  std_logic;
       usb2Rx              : in  Usb2RxType;
       usb2EpIb            : in  Usb2EndpPairObType;
+      usb2EpOb            : out Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
 
       i2sBCLK             : in  std_logic;
       i2sPBLRC            : in  std_logic;

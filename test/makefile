@@ -95,7 +95,6 @@ UsbCrcTblTb.o: UsbCrcTbl.o
 
 BADDSpkrCtlTb.o: Usb2Core.o BADDSpkrCtl.o
 I2SPlaybackTb_GHDLFLAGS=-fsynopsys
-I2SPlaybackTb_RUNFLAGS=--stop-time=1ms
 I2SPlaybackTb.o: Usb2Core.o I2SPlayback.o
 
 .PHONY: all build clean

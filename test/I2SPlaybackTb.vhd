@@ -80,17 +80,6 @@ begin
       wait;
    end process P_TEST;
 
-   P_SND : process (usb2Clk) is
-      variable got : natural := 0;
-   begin
-      if ( rising_edge( usb2Clk ) ) then
-         if ( epOb.mstOut.vld = '1' ) then
-            got := got + 1;
-            report integer'image(got) & " bytes sent";
-         end if;
-      end if;
-   end process P_SND;
-
    P_RCV : process ( bclk ) is
       variable sreg  : std_logic_vector(47 downto 0) := (others => '0');
       variable cmp   : unsigned(47 downto 0)         := x"050403020100";
@@ -151,6 +140,7 @@ begin
          usb2Rst  => '0',
          usb2Rx   => USB2_RX_INIT_C,
          usb2EpIb => epOb,
+         usb2EpOb => open,
  
          i2sBCLK  => bclk,
          i2sPBLRC => pblrc,
