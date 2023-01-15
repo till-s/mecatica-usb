@@ -54,6 +54,7 @@ use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
+use     work.Usb2UtilPkg.all;
 
 library unisim;
 use     unisim.vcomponents.all;
@@ -64,7 +65,8 @@ entity I2SPlayback is
       NUM_CHANNELS_G      : natural := 2;    -- stereo/mono
       SAMPLING_FREQ_G     : natural := 48000;
       SI_FREQ_G           : natural := 1000; -- service intervals/s
-      FB_FREQ_G           : natural := 1000
+      FB_FREQ_G           : natural := 1000;
+      MARK_DEBUG_G        : boolean := false
    );
    port (
       usb2Clk             : in  std_logic;
@@ -84,6 +86,9 @@ end entity I2SPlayback;
 architecture Impl of I2SPlayback is
 
    attribute ASYNC_REG    : string;
+   attribute MARK_DEBUG   : string;
+
+   constant MARK_DEBUG_C  : string  := toStr(MARK_DEBUG_G);
 
    constant BYTESpSMP_C   : natural := SAMPLE_SIZE_G * NUM_CHANNELS_G;
 
@@ -138,6 +143,12 @@ architecture Impl of I2SPlayback is
 
    constant FODD_C        : natural := extract2(BYTESpSMP_C);
    constant LD_FODD_C     : natural := nbits( FODD_C );
+   -- by setting this to 'nbits' which is actually incorrect if the oversampling
+   -- rate is an exact power (e.g., nbits(64) = 7) of two we correct for another
+   -- special case (see below) which causes the counter to over-count the rate
+   -- by a factor of two in the special case of over-sampling by a power of two.
+   -- Together these cancel in LD_SCL_xx_C so that the algorithm still works
+   -- for all oversampling rates.
    constant LD_OVRSMP_C   : natural := nbits( BYTESpSMP_C * 8 );
 
    -- accommodate 12 bits for HS and all oversampling 
@@ -325,8 +336,15 @@ architecture Impl of I2SPlayback is
    -- to be read by usb2Clk when handling an INP 
    signal rateMeasBclk    : std_logic_vector(31 downto 0) := RATE_INIT_C;
    signal rateUpdateTgl   : std_logic := '0';
+   signal rateMeasUsb2_i  : std_logic_vector(31 downto 0);
 
-   signal rateMeasUsb2    : std_logic_vector(31 downto 0) := RATE_INIT_C;
+   attribute MARK_DEBUG of r            : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoRen      : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoEmpty    : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoRst      : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of sofFlag      : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of rateUpdate   : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of rateMeasBclk : signal is MARK_DEBUG_C;
 
 begin
 
@@ -334,6 +352,7 @@ begin
    assert FB_FREQ_G <= SI_FREQ_G report "feedback interval should be >= service interval" severity failure;
 
    B_I2S_SYNCHRONIZERS : block is
+      signal rateMeasUsb2 : std_logic_vector(31 downto 0) := RATE_INIT_C;
    begin
       U_U2S_RST_SYNC : entity work.I2S_CC_Sync
          generic map ( STAGES_G => 3 )
@@ -346,7 +365,7 @@ begin
       U_U2S_SPD_SYNC : entity work.I2S_CC_Sync
          port map (
             clk => i2sBCLK,
-            d   => u2sRstTgl,
+            d   => u2sSpdInp,
             tgl => open,
             o   => u2sSpdOut
          );
@@ -376,6 +395,9 @@ begin
             o   => open
          );
 
+      -- keep rateMeasUsb2 register in this block to help
+      -- writing constraints
+
       P_MEAS_USB : process ( usb2Clk ) is
       begin
          if ( rising_edge( usb2Clk ) ) then
@@ -386,6 +408,9 @@ begin
             end if;
          end if;
       end process P_MEAS_USB;
+
+      rateMeasUsb2_i <= rateMeasUsb2;
+
    end block B_I2S_SYNCHRONIZERS;
 
    i2sPBDAT    <= r.sreg(0);
@@ -413,7 +438,14 @@ begin
             else
                v.sofcnt := to_signed(SOF_CNT_FS_C - 2, r.sofcnt'length);
             end if;
-            v.rate   := (others => '0');
+            -- pre-load with the first count; in the special case (FODD_C = FODD_CMPL_C,
+            -- i.e., the oversampling rate is a precise power of two) we must be careful
+            -- (see also the commend about LD_OVRSMPL_C)
+            if ( FODD_C = FODD_CMPL_C ) then
+               v.rate := to_unsigned(2**LD_FODD_C + 2*FODD_CMPL_C, r.rate'length);
+            else
+               v.rate := to_unsigned(2**LD_FODD_C + 1*FODD_CMPL_C, r.rate'length);
+            end if;
          else
             v.sofcnt := r.sofcnt - 1;
          end if;
@@ -539,12 +571,8 @@ begin
          end if;
          if ( usb2Resetting = '1' ) then
             rxVldLst     <= '1';
-            rateMeasUsb2 <= RATE_INIT_C;
          else
             rxVldLst <= usb2Rx.pktHdr.vld;
-            if ( s2uUpdTglOut = '1' ) then
-               rateMeasUsb2 <= rateMeasBclk;
-            end if;
             if ( (not rxVldLst and usb2Rx.pktHdr.vld) = '1' and usb2Rx.pktHdr.sof ) then
                u2sSOFTgl <= not u2sSOFTgl;
             end if;
@@ -554,7 +582,7 @@ begin
 
    fifoRst               <= rstCntBclk( rstCntBclk'left );
 
-   P_USB_COMB : process ( rusb2, usb2DevStatus, usb2EpIb, rateMeasUsb2 ) is
+   P_USB_COMB : process ( rusb2, usb2DevStatus, usb2EpIb, rateMeasUsb2_i ) is
       variable v : Usb2RegType;
    begin
       v                   := rusb2;
@@ -570,9 +598,9 @@ begin
             usb2EpOb.mstInp.vld <= '0';
 
          when X0   =>
-            usb2EpOb.mstInp.dat <= rateMeasUsb2(7 downto 0);
+            usb2EpOb.mstInp.dat <= rateMeasUsb2_i(7 downto 0);
             -- latch the rest to ensure we send consistent data
-            v.rate := rateMeasUsb2(31 downto 8);
+            v.rate := rateMeasUsb2_i(31 downto 8);
             if ( usb2EpIb.subInp.rdy = '1' ) then
                v.state := X1;
             end if;
@@ -615,7 +643,7 @@ begin
       end if;
    end process P_USB_SEQ;
 
-   U_FIFO : FIFO18E1
+   U_I2S_PLAYBACK_FIFO : FIFO18E1
    generic map (
       ALMOST_EMPTY_OFFSET     => MINFILL_C,   -- Sets the almost empty threshold
       ALMOST_FULL_OFFSET      => X"0080",     -- Sets almost full threshold
