@@ -534,11 +534,6 @@ begin
    P_RST_I2S : process ( i2sBCLK ) is
    begin
       if ( rising_edge( i2sBCLK ) ) then
-         if ( usb2DevStatus.hiSpeed ) then
-            u2sSpdInp <= '1';
-         else
-            u2sSpdInp <= '0';
-         end if;
          if ( u2sRstTglOut = '1' ) then
             -- new reset event; load counter
             rstCntBclk <= (others => '1');
@@ -583,6 +578,7 @@ begin
                waitForFrame <= '0';
             end if;
          end if;
+
          if ( usb2Resetting = '1' ) then
             rxVldLst     <= '1';
          else
@@ -590,6 +586,12 @@ begin
             if ( (not rxVldLst and usb2Rx.pktHdr.vld) = '1' and usb2Rx.pktHdr.sof ) then
                u2sSOFTgl <= not u2sSOFTgl;
             end if;
+         end if;
+
+         if ( usb2DevStatus.hiSpeed ) then
+            u2sSpdInp <= '1';
+         else
+            u2sSpdInp <= '0';
          end if;
       end if;
    end process P_RST_USB;
