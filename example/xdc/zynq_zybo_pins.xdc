@@ -60,6 +60,13 @@ set_property PACKAGE_PIN N18 [get_ports i2c0SCL]
 
 set_property IOSTANDARD LVCMOS33 [get_ports -regex {i2c[0-1]S..}]
 
+# I2S
+set_property PACKAGE_PIN K18 [get_ports i2sBCLK]
+set_property PACKAGE_PIN M18 [get_ports i2sPBLRC]
+set_property PACKAGE_PIN M17 [get_ports i2sPBDAT]
+set_property IOSTANDARD LVCMOS33 [get_ports -regex {i2s.*}]
+set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets {i2sBCLK_IBUF}]
+
 set_property PACKAGE_PIN M14 [get_ports {LED[0]}]
 set_property PACKAGE_PIN M15 [get_ports {LED[1]}]
 set_property PACKAGE_PIN G14 [get_ports {LED[2]}]
