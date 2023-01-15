@@ -860,7 +860,7 @@ begin
          rin <= v;
       end if;
 
-      epObDbg <= epObLoc( to_integer( rd.epIdx ) );
+      epObDbg <= epObLoc( to_integer( r.epIdx ) );
 
    end process P_COMB;
 
