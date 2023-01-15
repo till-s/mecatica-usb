@@ -652,7 +652,7 @@ def addBADDSpeaker(ctxt, epAddr, hiSpeed = True, has24Bits = True):
   # endpoint 1, ISO OUT
   d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
-  d.bmAttributes( d.ENDPOINT_TT_ISOCHRONOUS | d.ENDPOINT_SYNC_SYNCHRONOUS )
+  d.bmAttributes( d.ENDPOINT_TT_ISOCHRONOUS | d.ENDPOINT_SYNC_ASYNC )
   if ( has24Bits ):
     smpSize = 3
   else:
@@ -662,6 +662,16 @@ def addBADDSpeaker(ctxt, epAddr, hiSpeed = True, has24Bits = True):
   if ( hiSpeed ):
     d.bInterval(0x04)
   else:
+    d.bInterval(0x01)
+  # endpoint 1, ISO INP -- feedback
+  d = ctxt.Usb2EndpointDesc()
+  d.bEndpointAddress( d.ENDPOINT_IN  | epAddr )
+  d.bmAttributes( d.ENDPOINT_TT_ISOCHRONOUS | d.ENDPOINT_SYNC_NONE | d.ENDPOINT_USAGE_FEEDBACK )
+  if ( hiSpeed ):
+    d.wMaxPacketSize( 4 )
+    d.bInterval(0x04)
+  else:
+    d.wMaxPacketSize( 3 )
     d.bInterval(0x01)
   return 2
  
