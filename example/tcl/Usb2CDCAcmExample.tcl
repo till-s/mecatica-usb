@@ -36,6 +36,7 @@
 #    "hdl/Usb2DescPkg.vhd"
 #    "hdl/CDCACMSendBreak.vhd"
 #    "hdl/BADDSpkrCtl.vhd"
+#    "hdl/I2SPlayback.vhd"
 #    "hdl/UlpiIOBuf.vhd"
 #    "hdl/UlpiIO.vhd"
 #    "hdl/UlpiLineState.vhd"
@@ -58,6 +59,7 @@
 #    "example/xdc/zynq_zybo_pins.xdc"
 #    "example/xdc/clk_inp.xdc"
 #    "example/xdc/clk_out.xdc"
+#    "example/xdc/i2s.xdc"
 #
 #*****************************************************************************************
 
@@ -82,6 +84,7 @@ proc checkRequiredFiles { origin_dir} {
  "[file normalize "$origin_dir/../hdl/AppCfgPkgBody.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/CDCACMSendBreak.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/BADDSpkrCtl.vhd"]"\
+ "[file normalize "$origin_dir/../../hdl/I2SPlayback.vhd"]"\
  "[file normalize "$origin_dir/../hdl/Ps7Pkg.vhd"]"\
  "[file normalize "$origin_dir/../hdl/StdLogPkg.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/UlpiIOBuf.vhd"]"\
@@ -101,6 +104,7 @@ proc checkRequiredFiles { origin_dir} {
  "[file normalize "$origin_dir/../xdc/zynq_zybo_pins.xdc"]"\
  "[file normalize "$origin_dir/../xdc/clk_inp.xdc"]"\
  "[file normalize "$origin_dir/../xdc/clk_out.xdc"]"\
+ "[file normalize "$origin_dir/../xdc/i2s.xdc"]"\
  "[file normalize "$origin_dir/../../xdc/usb3340_clkinp_io_timing.xdc"]"\
  "[file normalize "$origin_dir/../../xdc/usb3340_clkout_io_timing.xdc"]"\
   ]
@@ -256,6 +260,7 @@ set files [list \
  [file normalize "${origin_dir}/../hdl/AppCfgPkgBody.vhd"] \
  [file normalize "${origin_dir}/../../hdl/CDCACMSendBreak.vhd"] \
  [file normalize "${origin_dir}/../../hdl/BADDSpkrCtl.vhd"] \
+ [file normalize "${origin_dir}/../../hdl/I2SPlayback.vhd"] \
  [file normalize "${origin_dir}/../hdl/Ps7Pkg.vhd"] \
  [file normalize "${origin_dir}/../hdl/StdLogPkg.vhd"] \
  [file normalize "${origin_dir}/../../hdl/UlpiIOBuf.vhd"] \
@@ -312,6 +317,11 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "VHDL" -objects $file_obj
 
 set file "$origin_dir/../../hdl/BADDSpkrCtl.vhd"
+set file [file normalize $file]
+set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
+set_property -name "file_type" -value "VHDL" -objects $file_obj
+
+set file "$origin_dir/../../hdl/I2SPlayback.vhd"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "VHDL" -objects $file_obj
@@ -477,6 +487,15 @@ set_property -name "is_enabled" -value "${clk_mode_inp}" -objects $file_obj
 set file "[file normalize "$origin_dir/../xdc/clk_out.xdc"]"
 set file_added [add_files -norecurse -fileset $obj [list $file]]
 set file "$origin_dir/../xdc/clk_out.xdc"
+set file [file normalize $file]
+set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
+set_property -name "file_type" -value "XDC" -objects $file_obj
+set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
+
+# Add/Import constrs file and set constrs file properties
+set file "[file normalize "$origin_dir/../xdc/i2s.xdc"]"
+set file_added [add_files -norecurse -fileset $obj [list $file]]
+set file "$origin_dir/../xdc/i2s.xdc"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
