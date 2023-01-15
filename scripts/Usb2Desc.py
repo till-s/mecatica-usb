@@ -618,7 +618,7 @@ def addBasicACM(ctxt, epAddr, epPktSize=8, sendBreak=False, hiSpeed=True):
   # return number of endpoints used
   return 2
 
-def addBADDSpeaker(ctxt, epAddr, hiSpeed = True, has24Bits = True):
+def addBADDSpeaker(ctxt, epAddr, hiSpeed = True, has24Bits = True, isAsync = True):
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bInterfaceCount(2)
   d.bFunctionClass( d.DSC_IFC_CLASS_AUDIO )
@@ -652,27 +652,37 @@ def addBADDSpeaker(ctxt, epAddr, hiSpeed = True, has24Bits = True):
   # endpoint 1, ISO OUT
   d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
-  d.bmAttributes( d.ENDPOINT_TT_ISOCHRONOUS | d.ENDPOINT_SYNC_ASYNC )
+  atts = d.ENDPOINT_TT_ISOCHRONOUS
+  if ( isAsync ):
+    atts |= d.ENDPOINT_SYNC_ASYNC
+  else:
+    atts |= d.ENDPOINT_SYNC_SYNCHRONOUS
+  d.bmAttributes( atts )
   if ( has24Bits ):
     smpSize = 3
   else:
     smpSize = 2
   # stereo, 48KHz sample size
-  d.wMaxPacketSize( 48*2*smpSize )
+  pktSize = 48*2*smpSize
+  if ( isAsync ):
+    pktSize += 2*smpSize
+  d.wMaxPacketSize( pktSize )
   if ( hiSpeed ):
     d.bInterval(0x04)
   else:
     d.bInterval(0x01)
-  # endpoint 1, ISO INP -- feedback
-  d = ctxt.Usb2EndpointDesc()
-  d.bEndpointAddress( d.ENDPOINT_IN  | epAddr )
-  d.bmAttributes( d.ENDPOINT_TT_ISOCHRONOUS | d.ENDPOINT_SYNC_NONE | d.ENDPOINT_USAGE_FEEDBACK )
-  if ( hiSpeed ):
-    d.wMaxPacketSize( 4 )
-    d.bInterval(0x04)
-  else:
-    d.wMaxPacketSize( 3 )
-    d.bInterval(0x01)
+  if ( isAsync ):
+    # endpoint 1, ISO INP -- feedback
+    d = ctxt.Usb2EndpointDesc()
+    d.bEndpointAddress( d.ENDPOINT_IN  | epAddr )
+    atts =d.ENDPOINT_TT_ISOCHRONOUS | d.ENDPOINT_SYNC_NONE | d.ENDPOINT_USAGE_FEEDBACK
+    d.bmAttributes( atts )
+    if ( hiSpeed ):
+      d.wMaxPacketSize( 4 )
+      d.bInterval(0x04)
+    else:
+      d.wMaxPacketSize( 3 )
+      d.bInterval(0x01)
   return 2
  
 def basicACM(epAddr, epPktSize=8, sendBreak=False, iProduct=None, doWrap=True):
@@ -685,7 +695,7 @@ def basicACM(epAddr, epPktSize=8, sendBreak=False, iProduct=None, doWrap=True):
 
   epAddr += addBasicACM(c, epAddr, epPktSize, sendBreak)
 
-  epAddr += addBADDSpeaker( c, epAddr )
+  epAddr += addBADDSpeaker( c, epAddr, has24Bits = False, isAsync = True  )
 
   if ( doWrap ):
     c.wrapup()

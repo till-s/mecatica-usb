@@ -167,8 +167,8 @@ package body Usb2AppCfgPkg is
       129 => x"05",
       130 => x"03",
       131 => x"05",
-      132 => x"20",
-      133 => x"01",
+      132 => x"c4",
+      133 => x"00",
       134 => x"04",
       -- Usb2EndpointDesc
       135 => x"07",
