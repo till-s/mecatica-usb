@@ -62,6 +62,7 @@ entity ZynqTop is
       i2sBCLK           : in    std_logic;
       i2sPBLRC          : in    std_logic;
       i2sPBDAT          : out   std_logic;
+      i2sMUTEb          : out   std_logic := '1';
 
       SW                : in    std_logic_vector(3 downto 0);
 

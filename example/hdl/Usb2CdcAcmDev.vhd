@@ -60,7 +60,7 @@ entity Usb2CdcAcmDev is
 
       NUM_I_REGS_G         : natural  := 2;
       NUM_O_REGS_G         : natural  := 2;
-      MARK_DEBUG_G         : boolean  := true
+      MARK_DEBUG_G         : boolean  := false
    );
    port (
       refClkNb     : in    std_logic;
@@ -151,18 +151,14 @@ architecture Impl of Usb2CdcAcmDev is
    type   MuxSelType                           is ( NONE, CDC, BADD );
 
    signal usb2Ep0ReqParam                      : Usb2CtlReqParamType;
-   attribute MARK_DEBUG                        of usb2Ep0ReqParam   : signal is toStr(MARK_DEBUG_G);
    signal usb2Ep0CDCCtlExt                     : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
    signal usb2Ep0BADDCtlExt                    : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
    signal usb2Ep0CtlExt                        : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
-   attribute MARK_DEBUG                        of usb2Ep0CtlExt     : signal is toStr(MARK_DEBUG_G);
    signal usb2Ep0BADDCtlEpExt                  : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
    signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
-   attribute MARK_DEBUG                        of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_G);
    signal usb2DevStatus                        : Usb2DevStatusType;
 
    signal muxSel                               : MuxSelType         := NONE;
-   attribute MARK_DEBUG                        of muxSel            : signal is toStr(MARK_DEBUG_G);
    signal muxSelIn                             : MuxSelType         := NONE;
 
    signal gnd                                  : std_logic := '0';
@@ -177,6 +173,11 @@ architecture Impl of Usb2CdcAcmDev is
 
    signal fInp                                 : unsigned(LD_FIFO_DEPTH_INP_C downto 0) := (others => '0');
    signal fOut                                 : unsigned(LD_FIFO_DEPTH_OUT_C downto 0) := (others => '0');
+
+   attribute MARK_DEBUG                        of usb2Ep0ReqParam   : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG                        of usb2Ep0CtlExt     : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG                        of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG                        of muxSel            : signal is toStr(MARK_DEBUG_G);
 
 begin
 
@@ -359,6 +360,7 @@ begin
 
       U_BADD_PB : entity work.I2SPlayback
          generic map (
+            SAMPLE_SIZE_G             => 2,
             MARK_DEBUG_G              => true
          )
          port map (
@@ -545,7 +547,7 @@ begin
       generic map (
          MARK_DEBUG_ULPI_IO_G         => true,
          MARK_DEBUG_ULPI_LINE_STATE_G => true,
-         MARK_DEBUG_PKT_RX_G          => false,
+         MARK_DEBUG_PKT_RX_G          => true,
          MARK_DEBUG_PKT_TX_G          => false,
          MARK_DEBUG_PKT_PROC_G        => true,
          MARK_DEBUG_EP0_G             => false,
