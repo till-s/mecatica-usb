@@ -14,7 +14,12 @@ end entity I2SPlaybackTb;
 
 architecture sim of I2SPlaybackTb is
 
+   constant SAMPLE_SIZE_C : natural   := 4;
+   constant HI_SPEED_C    : boolean   := true;
+   constant SLOTSZ_C      : natural   := 2*SAMPLE_SIZE_C;
    constant SPF_C         : natural   := 48; -- samples per frame
+   constant SAMPLE_RATE_C : real      := real(SPF_C*1000);
+   constant BITCLK_RATE_C : real      := SAMPLE_RATE_C * real(SLOTSZ_C*8);
    -- first frame sent is used to synchronize receiver and
    -- will not appear on i2s
    constant NFRMS_EXP_C   : natural   := 3;
@@ -37,6 +42,14 @@ architecture sim of I2SPlaybackTb is
 
    signal run  : boolean := true;
 
+   function fillVec(constant l: in natural) return unsigned is
+      variable v : unsigned(l - 1 downto 0);
+   begin
+      for i in 0 to l/8 - 1 loop
+         v(8*i+7 downto 8*i) := to_unsigned(i,8);
+      end loop;
+      return v;
+   end function fillVec;
 
    procedure tick is
    begin
@@ -64,7 +77,7 @@ architecture sim of I2SPlaybackTb is
       tick;
       dat := (others => '0');
       ob.mstOut.vld <= '1';
-      for i in 1 to 6*48 loop
+      for i in 1 to SLOTSZ_C*48 loop
         ob.mstOut.dat <= std_logic_vector( dat );
         dat           := dat + 1;
         tick;
@@ -147,7 +160,7 @@ begin
       if ( not run ) then
          wait;
       else
-         wait for 1 ms / 48.0 / 48.0 / 2.0;
+         wait for 1000.0 ms / BITCLK_RATE_C / 2.0;
          bclk <= not bclk;
       end if;
    end process;
@@ -162,7 +175,7 @@ begin
    P_TEST : process is
       variable lst : natural;
    begin
-      usb2DevStatus.hiSpeed <= true;
+      usb2DevStatus.hiSpeed <= HI_SPEED_C;
       tick;
       while ( resetting = '1' ) loop
          tick;
@@ -178,8 +191,9 @@ begin
    end process P_TEST;
 
    P_RCV : process ( bclk ) is
-      variable sreg  : std_logic_vector(47 downto 0) := (others => '0');
-      variable cmp   : unsigned(47 downto 0)         := x"050403020100";
+      variable sreg  : std_logic_vector(8*SLOTSZ_C - 1 downto 0) := (others => '0');
+      constant zro   : std_logic_vector(sreg'range)              := (others => '0');
+      variable cmp   : unsigned(8*SLOTSZ_C - 1 downto 0)         := fillVec(8*SLOTSZ_C);
       variable smpls : natural := 0;
       variable frms  : natural := 0;
    begin
@@ -187,9 +201,9 @@ begin
          pblrclst <= pblrc;
          sreg := pbdat & sreg(sreg'left downto 1);
          if ( ( not pblrc and pblrclst ) = '1' ) then
-            if ( sreg /= x"000000000000" ) then
+            if ( sreg /= zro ) then
                if ( unsigned(sreg) /= cmp ) then
-                  for i in 5 downto 0 loop
+                  for i in SLOTSZ_C - 1 downto 0 loop
                      report "sreg[" & integer'image(i) & "] " & integer'image(to_integer(unsigned(sreg(8*i+7 downto 8*i))));
                      report "cmp [" & integer'image(i) & "] " & integer'image(to_integer(unsigned(cmp(8*i+7 downto 8*i))));
                   end loop;
@@ -198,11 +212,11 @@ begin
                end if;
                assert unsigned(sreg) = cmp report "unexpected data received" severity failure;
                smpls := smpls + 1;
-               for i in 0 to 5 loop
-                  cmp(8*i + 7 downto 8*i) := cmp(8*i + 7 downto 8*i) + x"06";
+               for i in 0 to SLOTSZ_C - 1 loop
+                  cmp(8*i + 7 downto 8*i) := cmp(8*i + 7 downto 8*i) + to_unsigned(SLOTSZ_C, 8);
                end loop;
                if ( smpls = SPF_C ) then
-                  cmp   := x"050403020100";
+                  cmp   := fillVec(cmp'length);
                   smpls := 0;
                   frms  := frms + 1;
                end if;
@@ -224,7 +238,7 @@ begin
       if ( rising_edge( bclk ) ) then
          if ( cnt = 0 ) then
             pblrc <= not pblrc;
-            cnt   := 23;
+            cnt   := SAMPLE_SIZE_C*8 - 1;
          else
             cnt   := cnt - 1;
          end if;
@@ -232,6 +246,9 @@ begin
    end process;
 
    U_DUT : entity work.I2SPlayback
+      generic map (
+         SAMPLE_SIZE_G   => SAMPLE_SIZE_C
+      )
       port map (
          usb2Clk         => usb2Clk,
          usb2Rst         => '0',
