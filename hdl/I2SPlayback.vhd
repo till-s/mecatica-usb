@@ -61,12 +61,19 @@ use     unisim.vcomponents.all;
 
 entity I2SPlayback is
    generic (
-      SAMPLE_SIZE_G       : natural := 3;    -- audio samples in bytes
-      NUM_CHANNELS_G      : natural := 2;    -- stereo/mono
-      SAMPLING_FREQ_G     : natural := 48000;
-      SI_FREQ_G           : natural := 1000; -- service intervals/s
-      FB_FREQ_G           : natural := 1000;
-      MARK_DEBUG_G        : boolean := false
+      -- audio sample size in byte (per channel)
+      SAMPLE_SIZE_G       : natural range 1 to 4 := 3;
+      -- stereo/mono
+      NUM_CHANNELS_G      : natural range 1 to 2 := 2;
+      -- bitclock multiplier, i.e., how many bit clocks
+      -- per audio slot (must be >= SAMPLE_SIZE_G * NUM_CHANNELS_G * 8)
+      BITCLK_MULT_G       : natural              := 64;
+      SAMPLING_FREQ_G     : natural              := 48000;
+      -- service interval (ms) for freq. measurement (1000ms per usb spec)
+      SI_FREQ_G           : natural              := 1000;
+      -- polling interval (ms) for freq. feedback (
+      FB_FREQ_G           : natural              := 1000;
+      MARK_DEBUG_G        : boolean              := false
    );
    port (
       usb2Clk             : in  std_logic;
@@ -141,7 +148,7 @@ architecture Impl of I2SPlayback is
 
    constant LD_SOF_CNT_MAX_C      : natural := max( LD_SOF_CNT_FS_C, LD_SOF_CNT_HS_C );
 
-   constant FODD_C        : natural := extract2(BYTESpSMP_C);
+   constant FODD_C        : natural := extract2( BITCLK_MULT_G );
    constant LD_FODD_C     : natural := nbits( FODD_C );
    -- by setting this to 'nbits' which is actually incorrect if the oversampling
    -- rate is an exact power (e.g., nbits(64) = 7) of two we correct for another
@@ -149,7 +156,7 @@ architecture Impl of I2SPlayback is
    -- by a factor of two in the special case of over-sampling by a power of two.
    -- Together these cancel in LD_SCL_xx_C so that the algorithm still works
    -- for all oversampling rates.
-   constant LD_OVRSMP_C   : natural := nbits( BYTESpSMP_C * 8 );
+   constant LD_OVRSMP_C   : natural := nbits( BITCLK_MULT_G );
 
    -- accommodate 12 bits for HS and all oversampling 
    constant LD_RATE_C     : natural := 12 + LD_SOF_CNT_MAX_C + LD_OVRSMP_C + LD_FODD_C;
@@ -241,7 +248,7 @@ architecture Impl of I2SPlayback is
    subtype  CountType     is unsigned(1 + COUNT_W_C + 8 - 1 downto 0);
 
    -- we count down to -1 and then reload with (N-2)
-   constant COUNT_RELD_C  : CountType := to_unsigned(8*SAMPLE_SIZE_G * NUM_CHANNELS_G - 2, CountType'length);
+   constant COUNT_RELD_C  : CountType := to_unsigned(8*SAMPLE_SIZE_G - 2, CountType'length);
 
    constant COUNT_INIT_C  : CountType := to_unsigned(4, CountType'length);
 
@@ -478,15 +485,22 @@ begin
          when RUN =>
             -- compute next counter
             if ( r.cnt( r.cnt'left ) = '1' ) then
-               -- done with one slot, reload
-               v.cnt  := COUNT_RELD_C;
-               v.lst3 := v.cnt(3);
+               -- done with one slot, wait for next channel and reload
+               if ( i2sPBLRC /= r.pblrlst ) then
+                  v.cnt  := COUNT_RELD_C;
+                  v.lst3 := v.cnt(3);
+               else
+                  -- this ensures that in the case we have sent all bytes
+                  -- and are waiting for the next pblrc edge the (v.lst3 /= r.lst3)
+                  -- test fails so that we don't read from the fifo
+                  v.lst3 := r.lst3;
+               end if;
             else
                -- count down and remember state of bit3
                v.cnt  := r.cnt - 1;
                v.lst3 := r.cnt(3);
             end if;
-            if ( r.cnt(3) /= r.lst3 ) then
+            if ( v.lst3 /= r.lst3 or i2sPBLRC /= r.pblrlst ) then
                -- reached a byte-boundary when counter bit3 toggles
                if ( fifoEmpty = '1' ) then
                   -- resync

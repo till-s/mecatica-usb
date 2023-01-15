@@ -14,12 +14,13 @@ end entity I2SPlaybackTb;
 
 architecture sim of I2SPlaybackTb is
 
-   constant SAMPLE_SIZE_C : natural   := 4;
+   constant SAMPLE_SIZE_C : natural   := 3;
    constant HI_SPEED_C    : boolean   := true;
    constant SLOTSZ_C      : natural   := 2*SAMPLE_SIZE_C;
-   constant SPF_C         : natural   := 48; -- samples per frame
+   constant SPF_C         : natural   := 48; -- slots per frame
    constant SAMPLE_RATE_C : real      := real(SPF_C*1000);
-   constant BITCLK_RATE_C : real      := SAMPLE_RATE_C * real(SLOTSZ_C*8);
+   constant BITCLK_MULT_C : natural   := 64;
+   constant BITCLK_RATE_C : real      := SAMPLE_RATE_C * real(BITCLK_MULT_C);
    -- first frame sent is used to synchronize receiver and
    -- will not appear on i2s
    constant NFRMS_EXP_C   : natural   := 3;
@@ -191,19 +192,24 @@ begin
    end process P_TEST;
 
    P_RCV : process ( bclk ) is
-      variable sreg  : std_logic_vector(8*SLOTSZ_C - 1 downto 0) := (others => '0');
-      constant zro   : std_logic_vector(sreg'range)              := (others => '0');
-      variable cmp   : unsigned(8*SLOTSZ_C - 1 downto 0)         := fillVec(8*SLOTSZ_C);
+      variable sreg  : std_logic_vector(8*SAMPLE_SIZE_C - 1 downto 0) := (others => '0');
+      constant zro   : std_logic_vector(sreg'range)                   := (others => '0');
+      variable cmp   : unsigned(8*SAMPLE_SIZE_C - 1 downto 0)         := fillVec(8*SAMPLE_SIZE_C);
       variable smpls : natural := 0;
       variable frms  : natural := 0;
+      variable bcnt  : natural := 0;
    begin
       if ( rising_edge( bclk ) ) then
          pblrclst <= pblrc;
-         sreg := pbdat & sreg(sreg'left downto 1);
-         if ( ( not pblrc and pblrclst ) = '1' ) then
+         if ( bcnt > 0 ) then
+            sreg := pbdat & sreg(sreg'left downto 1);
+            bcnt := bcnt - 1;
+         end if;
+         if ( pblrc /= pblrclst ) then
+            bcnt := 8*SAMPLE_SIZE_C;
             if ( sreg /= zro ) then
                if ( unsigned(sreg) /= cmp ) then
-                  for i in SLOTSZ_C - 1 downto 0 loop
+                  for i in sreg'length/8 - 1 downto 0 loop
                      report "sreg[" & integer'image(i) & "] " & integer'image(to_integer(unsigned(sreg(8*i+7 downto 8*i))));
                      report "cmp [" & integer'image(i) & "] " & integer'image(to_integer(unsigned(cmp(8*i+7 downto 8*i))));
                   end loop;
@@ -212,10 +218,10 @@ begin
                end if;
                assert unsigned(sreg) = cmp report "unexpected data received" severity failure;
                smpls := smpls + 1;
-               for i in 0 to SLOTSZ_C - 1 loop
-                  cmp(8*i + 7 downto 8*i) := cmp(8*i + 7 downto 8*i) + to_unsigned(SLOTSZ_C, 8);
+               for i in 0 to cmp'length/8 - 1 loop
+                  cmp(8*i + 7 downto 8*i) := cmp(8*i + 7 downto 8*i) + to_unsigned(SAMPLE_SIZE_C, 8);
                end loop;
-               if ( smpls = SPF_C ) then
+               if ( smpls = 2*SPF_C ) then
                   cmp   := fillVec(cmp'length);
                   smpls := 0;
                   frms  := frms + 1;
@@ -230,7 +236,6 @@ begin
          end if;
       end if;
    end process P_RCV;
-   
 
    process (bclk) is
       variable cnt : natural :=0;
@@ -247,7 +252,8 @@ begin
 
    U_DUT : entity work.I2SPlayback
       generic map (
-         SAMPLE_SIZE_G   => SAMPLE_SIZE_C
+         SAMPLE_SIZE_G   => SAMPLE_SIZE_C,
+         BITCLK_MULT_G   => BITCLK_MULT_C
       )
       port map (
          usb2Clk         => usb2Clk,
