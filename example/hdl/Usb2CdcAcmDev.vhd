@@ -63,22 +63,22 @@ entity Usb2CdcAcmDev is
       MARK_DEBUG_G         : boolean  := true
    );
    port (
-      sysClk       :  in    std_logic;
+      refClkNb     : in    std_logic;
 
       -- connect to the device pin
-      ulpiClk      :  inout std_logic;
+      ulpiClk      : inout std_logic;
       -- reset the ulpi low-level interface; should not be necessary
-      ulpiRst      :  in    std_logic := '0';
-      ulpiStp      :  out   std_logic;
-      ulpiDir      :  in    std_logic;
-      ulpiNxt      :  in    std_logic;
-      ulpiDat      :  inout std_logic_vector(7 downto 0);
+      ulpiRst      : in    std_logic := '0';
+      ulpiStp      : out   std_logic;
+      ulpiDir      : in    std_logic;
+      ulpiNxt      : in    std_logic;
+      ulpiDat      : inout std_logic_vector(7 downto 0);
 
-      ulpiClkOut   :  out   std_logic;
+      ulpiClkOut   : out   std_logic;
 
-      usb2Rst      :  out   std_logic;
+      usb2Rst      : out   std_logic;
 
-      refLocked    :  out   std_logic;
+      refLocked    : out   std_logic;
 
       -- control vector
       -- iRegs(0)(10 downto 0) : min. fill level of the IN fifo until data are sent to USB
@@ -92,28 +92,32 @@ entity Usb2CdcAcmDev is
 
       -- iRegs(1)              : IN fifo fill timer (in ulpi CLK cycles)
       --                         fill-level and fill-timer work like termios VMIN/VTIME
-      iRegs        :  in    Slv32Array(0 to NUM_I_REGS_G - 1) := (others => (others => '0'));
+      iRegs        : in    Slv32Array(0 to NUM_I_REGS_G - 1) := (others => (others => '0'));
       -- status vector
       -- oRegs(0)              : IN  fifo fill level
       -- oRegs(1)              : OUT fifo fill level
-      oRegs        :  out   Slv32Array(0 to NUM_O_REGS_G - 1);
+      oRegs        : out   Slv32Array(0 to NUM_O_REGS_G - 1);
 
-      lineBreak    :  out   std_logic := '0';
+      lineBreak    : out   std_logic := '0';
 
-      regReq       :  in    UlpiRegReqType;
-      regRep       :  out   UlpiRegRepType;
+      regReq       : in    UlpiRegReqType;
+      regRep       : out   UlpiRegRepType;
 
-      fifoOutDat   :  out   Usb2ByteType;
-      fifoOutEmpty :  out   std_logic;
-      fifoOutFill  :  out   unsigned(15 downto 0);
-      fifoOutRen   :  in    std_logic := '1';
+      fifoOutDat   : out   Usb2ByteType;
+      fifoOutEmpty : out   std_logic;
+      fifoOutFill  : out   unsigned(15 downto 0);
+      fifoOutRen   : in    std_logic := '1';
 
-      fifoInpDat   :  in    Usb2ByteType := (others => '0');
-      fifoInpFull  :  out   std_logic;
-      fifoInpFill  :  out   unsigned(15 downto 0);
-      fifoInpWen   :  in    std_logic := '1';
+      fifoInpDat   : in    Usb2ByteType := (others => '0');
+      fifoInpFull  : out   std_logic;
+      fifoInpFill  : out   unsigned(15 downto 0);
+      fifoInpWen   : in    std_logic := '1';
 
-      clk2Nb       :  out   std_logic := '0'
+      clk2Nb       : out   std_logic := '0';
+
+      i2sBCLK      : in    std_logic;
+      i2sPBLRC     : in    std_logic;
+      i2sPBDAT     : out   std_logic
    );
 end entity Usb2CdcAcmDev;
 
@@ -155,7 +159,7 @@ architecture Impl of Usb2CdcAcmDev is
    signal usb2Ep0BADDCtlEpExt                  : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
    signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
    attribute MARK_DEBUG                        of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_G);
-   signal devStatus                            : Usb2DevStatusType;
+   signal usb2DevStatus                        : Usb2DevStatusType;
 
    signal muxSel                               : MuxSelType         := NONE;
    attribute MARK_DEBUG                        of muxSel            : signal is toStr(MARK_DEBUG_G);
@@ -198,7 +202,7 @@ begin
          -- blank the 'ack' flag during this cycle
          usb2Ep0CtlExt   <= USB2_CTL_EXT_INIT_C;
       end if;
-      
+
       -- must switch the mux on the same cycle we see 'vld' because that's
       -- when '
       if    ( muxSel = CDC  ) then
@@ -276,10 +280,10 @@ begin
             filledOut                   => fOut,
             emptyOut                    => oEmpty,
 
-            selHaltInp                  => devStatus.selHaltInp(1),
-            selHaltOut                  => devStatus.selHaltOut(1),
-            setHalt                     => devStatus.setHalt,
-            clrHalt                     => devStatus.clrHalt
+            selHaltInp                  => usb2DevStatus.selHaltInp(1),
+            selHaltOut                  => usb2DevStatus.selHaltOut(1),
+            setHalt                     => usb2DevStatus.setHalt,
+            clrHalt                     => usb2DevStatus.clrHalt
          );
 
       P_CNT : process ( ulpiClkLoc ) is
@@ -352,12 +356,30 @@ begin
             muteMaster                => open,
             powerState                => open
          );
+
+      U_BADD_PB : entity work.I2SPlayback
+         generic map (
+            MARK_DEBUG_G              => true
+         )
+         port map (
+            usb2Clk                   => ulpiClkLoc,
+            usb2Rst                   => usb2RstLoc,
+            usb2Rx                    => usb2Rx,
+            usb2DevStatus             => usb2DevStatus,
+            usb2EpIb                  => usb2EpOb(BADD_ISO_EP_IDX_C),
+            usb2EpOb                  => usb2EpIb(BADD_ISO_EP_IDX_C),
+
+            i2sBCLK                   => i2sBCLK,
+            i2sPBLRC                  => i2sPBLRC,
+            i2sPBDAT                  => i2sPBDAT
+         );
+
    end block B_ISO;
 
    G_MMCM : if ( ULPI_CLK_MODE_INP_G or USE_MMCM_C ) generate
 
       signal clkFbI, clkFbO    : std_logic;
-      signal refClk            : std_logic;
+      signal refClkLoc         : std_logic;
 
       function ite(constant x : boolean; constant a,b : real) return real is
       begin if x then return a; else return b; end if; end function ite;
@@ -382,12 +404,12 @@ begin
          U_BUF : IBUF
             port map (
                I => ulpiClk,
-               O => refClk
+               O => refClkLoc
             );
       end generate G_REFCLK_ULPI;
 
       G_REF_SYS : if ( ULPI_CLK_MODE_INP_G ) generate
-         refClk <= sysClk;
+         refClkLoc <= refClkNb;
       end generate G_REF_SYS;
 
       U_MMCM : MMCME2_BASE
@@ -444,7 +466,7 @@ begin
             -- Status Ports: 1-bit (each) output: MMCM status ports
             LOCKED => refLocked, -- 1-bit output: LOCK
             -- Clock Inputs: 1-bit (each) input: Clock input
-            CLKIN1 => refClk,       -- 1-bit input: Clock
+            CLKIN1 => refClkLoc,       -- 1-bit input: Clock
             -- Control Ports: 1-bit (each) input: MMCM control ports
             PWRDWN => '0',       -- 1-bit input: Power-down
             RST => '0',             -- 1-bit input: Reset
@@ -488,7 +510,7 @@ begin
 
    U_REFBUF :  BUFG port map ( I => ulpiClkLocNb,    O => ulpiClkLoc );
 
-   usb2RstLoc <= devStatus.usb2Rst or ulpiRst;
+   usb2RstLoc <= usb2DevStatus.usb2Rst or ulpiRst;
 
    B_BUF : block is
       signal   ulpiDirNDly : std_logic;
@@ -524,9 +546,9 @@ begin
          MARK_DEBUG_ULPI_IO_G         => true,
          MARK_DEBUG_ULPI_LINE_STATE_G => true,
          MARK_DEBUG_PKT_RX_G          => false,
-         MARK_DEBUG_PKT_TX_G          => true,
+         MARK_DEBUG_PKT_TX_G          => false,
          MARK_DEBUG_PKT_PROC_G        => true,
-         MARK_DEBUG_EP0_G             => true,
+         MARK_DEBUG_EP0_G             => false,
          ULPI_NXT_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIR_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIN_IOB_G               => not ULPI_CLK_MODE_INP_G,
@@ -547,7 +569,7 @@ begin
 
          ulpiForceStp                 => iRegs(0)(29),
 
-         usb2DevStatus                => devStatus,
+         usb2DevStatus                => usb2DevStatus,
 
          usb2Rx                       => usb2Rx,
 

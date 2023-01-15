@@ -59,6 +59,10 @@ entity ZynqTop is
       i2c0SDA           : inout std_logic;
       i2c0SCL           : inout std_logic;
 
+      i2sBCLK           : in    std_logic;
+      i2sPBLRC          : in    std_logic;
+      i2sPBDAT          : out   std_logic;
+
       SW                : in    std_logic_vector(3 downto 0);
 
       LED               : out   std_logic_vector(3 downto 0) := (others => '0')
@@ -83,6 +87,7 @@ architecture top_level of ZynqTop is
    constant  GEN_ULPI_C                  : boolean := true;
 
    constant  USE_ETH_CLK_C               : boolean := false;
+
    constant  ULPI_CLK_MODE_INP_C         : boolean := (ULPI_CLK_MODE_INP_G /= 0);
 
    -- must cover all registers
@@ -118,7 +123,6 @@ architecture top_level of ZynqTop is
    signal lineBreak                      : std_logic;
 
    signal plClk                          : std_logic;
-   signal sysClk                         : std_logic;
    signal sysRst, sysRstN                : std_logic;
    signal ulpiClkLoc                     : std_logic;
    signal ulpiRst                        : std_logic := '1';
@@ -148,11 +152,35 @@ architecture top_level of ZynqTop is
    signal i2c0Scl_o                      : std_logic;
    signal i2c0Scl_t                      : std_logic;
 
+   signal refClkNb                       : std_logic;
+
+   signal i2sBCLKLoc                     : std_logic;
+   signal i2sBlinkCnt                    : unsigned(24 downto 0) := (others => '0');
+   signal i2sBlink                       : std_logic := '1';
+
 begin
+
+   B_BUF_BCLK : BUFG port map ( I => i2sBCLK, O => i2sBCLKLoc );
+
+   P_BLNK : process ( i2sBCLKLoc ) is
+   begin
+      if ( rising_edge( i2sBCLKLoc ) ) then
+         if ( i2sBlinkCnt(i2sBlinkCnt'left) = '1' ) then
+            i2sBlink    <= not i2sBlink;
+            i2sBlinkCnt <= to_unsigned( 48000*48 / 2, i2sBlinkCnt'length ) - 1;
+         else
+            i2sBlinkCnt <= i2sBlinkCnt - 1;
+         end if;
+      end if;
+   end process P_BLNK;
 
    G_ETH_CLK: if ( USE_ETH_CLK_C ) generate
       signal initCnt : unsigned (10 downto 0) := (others => '1');
+      signal sysClk  : std_logic;
    begin
+
+      refClkNb <= ethClk;
+
       U_ETH_BUFG : component BUFG
          port map (
             I => ethClk,
@@ -172,8 +200,8 @@ begin
    end generate G_ETH_CLK;
 
    G_FPGA_CLK: if ( not USE_ETH_CLK_C ) generate
-      sysRst  <= not sysRstN;
-      sysClk  <= plClk;
+      sysRst   <= not sysRstN;
+      refClkNb <= plClk;
    end generate G_FPGA_CLK;
 
    U_Sys : component processing_system7_0
@@ -372,7 +400,7 @@ begin
             NUM_O_REGS_G         => roRegs'length
          )
          port map (
-            sysClk        => sysClk,
+            refClkNb      => refClkNb,
 
             ulpiClkOut    => ulpiClkLoc,
 
@@ -401,7 +429,13 @@ begin
             fifoInpDat    => fifoInpDat,
             fifoInpFull   => fifoInpFull,
             fifoInpFill   => open,
-            fifoInpWen    => fifoInpWen
+            fifoInpWen    => fifoInpWen,
+
+            clk2Nb        => open,
+
+            i2sBCLK       => i2sBCLKLoc,
+            i2sPBLRC      => i2sPBLRC,
+            i2sPBDAT      => i2sPBDAT
          );
 
       fifoInpDat <= axilWriteMst.wdata(7 downto 0);
@@ -561,9 +595,10 @@ begin
 
    ulpiRst <= ulpiRstCnt(ulpiRstCnt'left);
 
-   P_LED : process ( refLocked, lineBreak ) is
+   P_LED : process ( refLocked, lineBreak, i2sBlink ) is
    begin
       ledLoc    <= (others => '0');
+      ledLoc(2) <= i2sBlink;
       ledLoc(1) <= lineBreak;
       ledLoc(0) <= refLocked;
    end process P_LED;
