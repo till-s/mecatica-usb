@@ -242,15 +242,27 @@ architecture Impl of I2SPlayback is
       return std_logic_vector( v );
    end function scale;
 
-   -- for now we assume sample_size * num channels < 8
+   -- for now we assume sample_size < 8
    constant COUNT_W_C     : natural := 3;
 
-   subtype  CountType     is unsigned(1 + COUNT_W_C + 8 - 1 downto 0);
+   subtype  BitCountType  is signed(1 + COUNT_W_C + 3 - 1 downto 0);
+   subtype  BytCountType  is signed(1 + COUNT_W_C     - 1 downto 0);
 
-   -- we count down to -1 and then reload with (N-2)
-   constant COUNT_RELD_C  : CountType := to_unsigned(8*SAMPLE_SIZE_G - 2, CountType'length);
+   -- we count down to -1 with all states active and thus subtract 2
+   function BITCNT_F return BitCountType is
+   begin
+      return to_signed( 8*SAMPLE_SIZE_G - 2, BitCountType'length);
+   end function BITCNT_F;
 
-   constant COUNT_INIT_C  : CountType := to_unsigned(4, CountType'length);
+   function BYTCNT_F return BytCountType is
+   begin
+      return to_signed( SAMPLE_SIZE_G - 1, BytCountType'length);
+   end function BYTCNT_F;
+
+   function expired(constant x : signed) return boolean is
+   begin
+      return x(x'left) = '1';
+   end function expired;
 
    -- since we don't know when exactly (within a service-interval) the next
    -- packet will arrive we must buffer at least 2 packets for the worst case
@@ -262,19 +274,23 @@ architecture Impl of I2SPlayback is
 
    type RegType is record
       state   : StateType;
-      cnt     : CountType;
-      lst3    : std_logic;
+      bitCnt  : BitCountType;
+      bytCnt  : BytCountType;
       pblrlst : std_logic;
-      sreg    : std_logic_vector(7 downto 0);
+      swpr    : std_logic_vector(8*SAMPLE_SIZE_G - 1 downto 0);
+      sreg    : std_logic_vector(8*SAMPLE_SIZE_G - 1 downto 0);
       sofcnt  : signed(LD_SOF_CNT_MAX_C downto 0);
       rate    : unsigned(LD_RATE_C - 1 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       state   => INIT,
-      cnt     => COUNT_INIT_C,
-      lst3    => '0',
+      -- must ensure RDEN is low for two cycles after reset is deasserted
+      -- use the bit-counter for this
+      bitCnt  => to_signed( 3, BitCountType'length ),
+      bytCnt  => BYTCNT_F,
       pblrlst => '0',
+      swpr    => (others => '0'),
       sreg    => (others => '0'),
       sofcnt  => (others => '1'),
       rate    => (others => '0')
@@ -331,6 +347,7 @@ architecture Impl of I2SPlayback is
    signal fifoWen         : std_logic;
    signal fifoEmpty       : std_logic;
    signal fifoMinFill     : std_logic;
+   signal fifoFull        : std_logic;
    signal fifoAlmostEmpty : std_logic;
    signal fifoRst         : std_logic := '0';
 
@@ -345,13 +362,15 @@ architecture Impl of I2SPlayback is
    signal rateUpdateTgl   : std_logic := '0';
    signal rateMeasUsb2_i  : std_logic_vector(31 downto 0);
 
-   attribute MARK_DEBUG of r            : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of fifoRen      : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of fifoEmpty    : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of fifoRst      : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of sofFlag      : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of rateUpdate   : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of rateMeasBclk : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of r                           : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoRen                     : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoEmpty                   : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoAlmostEmpty             : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoFull                    : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoRst                     : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of sofFlag                     : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of rateUpdate                  : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of rateMeasBclk                : signal is MARK_DEBUG_C;
 
 begin
 
@@ -420,7 +439,7 @@ begin
 
    end block B_I2S_SYNCHRONIZERS;
 
-   i2sPBDAT    <= r.sreg(0);
+   i2sPBDAT    <= r.sreg(r.sreg'left);
    fifoMinFill <= not fifoAlmostEmpty;
 
    P_I2S_COMB : process (r, i2sPBLRC, fifoDou, fifoEmpty, fifoMinFill, sofFlag, hiSpeed) is
@@ -430,6 +449,9 @@ begin
       fifoRen       <= '0';
       v.pblrlst     := i2sPBLRC;
       rateUpdate    <= '0';
+
+      -- shift
+      v.sreg := r.sreg(r.sreg'left - 1 downto 0) & '0';
 
       -- rate counter
       if ( r.rate(LD_FODD_C - 1 downto 0) >= FODD_C - FODD_CMPL_C ) then
@@ -464,56 +486,42 @@ begin
       case ( r.state ) is
          when INIT =>
             -- must ensure RDEN is low for two cycles after reset is deasserted
-            if ( r.cnt(r.cnt'left) = '1' ) then
+            if ( expired( r.bitCnt ) ) then
                if ( sofFlag = '1' ) then
                   v.state := FILL;
                end if;
             else
-               v.cnt   := r.cnt - 1;
+               v.bitCnt := r.bitCnt - 1;
             end if;
 
          when FILL =>
-            if ( (fifoMinFill = '1') and (i2sPBLRC = '0') and ( r.pblrlst = '1' ) ) then
-               v.state := RUN;
-               -- take first word
-               fifoRen <= '1';
-               v.sreg  := fifoDou(7 downto 0);
-               v.cnt   := COUNT_RELD_C;
-               v.lst3  := v.cnt(3);
+            v.bitCnt := BITCNT_F;
+            v.bytCnt := BYTCNT_F;
+            if ( ( fifoMinFill = '1' ) and ( i2sPBLRC = '1' ) and ( r.pblrlst = '0' ) ) then
+               v.state  := RUN;
             end if;
 
          when RUN =>
-            -- compute next counter
-            if ( r.cnt( r.cnt'left ) = '1' ) then
-               -- done with one slot, wait for next channel and reload
-               if ( i2sPBLRC /= r.pblrlst ) then
-                  v.cnt  := COUNT_RELD_C;
-                  v.lst3 := v.cnt(3);
-               else
-                  -- this ensures that in the case we have sent all bytes
-                  -- and are waiting for the next pblrc edge the (v.lst3 /= r.lst3)
-                  -- test fails so that we don't read from the fifo
-                  v.lst3 := r.lst3;
-               end if;
-            else
-               -- count down and remember state of bit3
-               v.cnt  := r.cnt - 1;
-               v.lst3 := r.cnt(3);
-            end if;
-            if ( v.lst3 /= r.lst3 or i2sPBLRC /= r.pblrlst ) then
-               -- reached a byte-boundary when counter bit3 toggles
+            -- fetch the next sample and swap
+            if ( not expired( r.bytCnt ) ) then
                if ( fifoEmpty = '1' ) then
-                  -- resync
-                  v.sreg(0) := '0'; -- audio off
-                  v.cnt     := COUNT_INIT_C;
-                  v.state   := FILL;
+                  v.state  := FILL;
                else
-                  fifoRen   <= '1';
-                  v.sreg    := fifoDou(7 downto 0);
+                  fifoRen  <= '1';
+                  v.swpr   := fifoDou(7 downto 0) & r.swpr(r.swpr'left downto 8);
+                  v.bytCnt := r.bytCnt - 1;
+               end if;
+            end if;
+
+            if ( expired( r.bitCnt ) ) then
+               -- wait for the next LRCLK 
+               if ( i2sPBLRC /= r.pblrlst ) then
+                  v.sreg   := r.swpr;
+                  v.bitCnt := BITCNT_F;
+                  v.bytCnt := BYTCNT_F;
                end if;
             else
-               -- shift
-               v.sreg    := '0' & r.sreg(r.sreg'left downto 1);
+               v.bitCnt := r.bitCnt - 1;
             end if;
       end case;
 
@@ -677,7 +685,7 @@ begin
       DOP                    => open,
 
       ALMOSTEMPTY            => fifoAlmostEmpty,
-      ALMOSTFULL             => open,
+      ALMOSTFULL             => fifoFull,
       EMPTY                  => fifoEmpty,
       FULL                   => open,
       RDCOUNT                => open,

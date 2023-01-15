@@ -148,6 +148,8 @@ architecture Impl of Usb2PktProc is
       bufInpPart      : std_logic;
       donFlg          : std_logic;
       retries         : unsigned(1 downto 0);
+      lastSOF         : unsigned(31 downto 0);
+      lastLineChg     : unsigned(31 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -175,7 +177,9 @@ architecture Impl of Usb2PktProc is
       bufInpVld       => '0',
       bufInpPart      => '0',
       donFlg          => '0',
-      retries         => (others => '0')
+      retries         => (others => '0'),
+      lastSOF         => (others => '0'),
+      lastLineChg     => (others => '0')
    );
 
    type BufReaderType is record
@@ -365,9 +369,16 @@ begin
          end if;
       end loop;
 
+      v.lastSOF     := r.lastSOF     + 1;
+      v.lastLineChg := r.lastLineChg + 1;
+      if ( ( usb2Rx.pktHdr.vld = '1' ) and usb2Rx.pktHdr.sof ) then
+         v.lastSOF := (others => '0');
+      end if;
+
       -- record line state
       if ( usb2Rx.isRxCmd ) then
-         v.lineState := usb2Rx.rxCmd(1 downto 0);
+         v.lineState   := usb2Rx.rxCmd(1 downto 0);
+         v.lastLineChg := (others => '0');
       end if;
 
       v.rxActive := usb2Rx.rxActive;

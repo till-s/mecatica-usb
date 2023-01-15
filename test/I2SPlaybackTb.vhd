@@ -202,7 +202,7 @@ begin
       if ( rising_edge( bclk ) ) then
          pblrclst <= pblrc;
          if ( bcnt > 0 ) then
-            sreg := pbdat & sreg(sreg'left downto 1);
+            sreg := sreg(sreg'left - 1 downto 0) & pbdat;
             bcnt := bcnt - 1;
          end if;
          if ( pblrc /= pblrclst ) then
@@ -221,6 +221,7 @@ begin
                for i in 0 to cmp'length/8 - 1 loop
                   cmp(8*i + 7 downto 8*i) := cmp(8*i + 7 downto 8*i) + to_unsigned(SAMPLE_SIZE_C, 8);
                end loop;
+
                if ( smpls = 2*SPF_C ) then
                   cmp   := fillVec(cmp'length);
                   smpls := 0;
