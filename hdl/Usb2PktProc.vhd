@@ -438,11 +438,14 @@ begin
                         if ( r.isoXactInp( to_integer( r.epIdx ) ) = "00" ) then
                            -- if the last transaction (r.ixoXactInp = "00") has already been sent then wait for the next
                            -- microframe!
+                           v.state                               := r.state;
+                           v.timer                               := USB2_TIMER_EXPIRED_C;
                         else
-                           v.nxtState := ISO_INP;
-                           v.pid      := USB2_PID_DAT_DATA0_C;
+                           v.nxtState                            := ISO_INP;
+                           v.pid                                 := USB2_PID_DAT_DATA0_C;
                            -- must send a null packet if there is no data (usb 5.6.5)
-                           v.donFlg   := not ei.mstInp.vld;
+                           v.donFlg                              := not ei.mstInp.vld;
+                           v.isoXactInp( to_integer( r.epIdx ) ) := "00";
                            if ( ei.mstInp.vld = '1' ) then
                               if ( r.isoXactInp( to_integer( r.epIdx ) ) = "11" ) then
                                  v.isoXactInp( to_integer( r.epIdx ) ) := unsigned( ei.mstInp.usr(1 downto 0) );
