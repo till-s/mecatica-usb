@@ -174,7 +174,8 @@ begin
    end process;
 
    P_TEST : process is
-      variable lst : natural;
+      variable lst     : natural;
+      variable minfill : integer;
    begin
       usb2DevStatus.hiSpeed <= HI_SPEED_C;
       tick;
@@ -183,8 +184,12 @@ begin
       end loop;
       tick;
       sendSOF(usb2Rx);
-      lst := clkCount;
-      sendFrame( epOb ); completeFrame( usb2Rx, lst );
+      lst     := clkCount;
+      minfill := 16*1024/8/2;
+      while ( minfill > 0 ) loop
+         sendFrame( epOb ); completeFrame( usb2Rx, lst );
+         minfill := minfill - SPF_C*SLOTSZ_C;
+      end loop;
       sendFrame( epOb ); completeFrame( usb2Rx, lst );
       sendFrame( epOb ); getRate(epOb); completeFrame( usb2Rx, lst );
       sendFrame( epOb ); getRate(epOb); completeFrame( usb2Rx, lst );
