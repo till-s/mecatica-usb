@@ -218,7 +218,7 @@ architecture Impl of I2SPlayback is
    -- but the HS format is 16.16 (vs full-speed 10.13), i.e., the 3-bit left shift due
    -- to formatting cancels the division by 8 due to the higher ref. frequency.
    constant RATE_INIT_C           : std_logic_vector(31 downto 0) := 
-      std_logic_vector( to_unsigned( SAMPLING_FREQ_G * 2**13 / 1000, 32 ) );
+      std_logic_vector( to_unsigned( SAMPLING_FREQ_G * 2**13 / SI_FREQ_G, 32 ) );
 
    function scale(
       constant x  : in unsigned;
@@ -266,9 +266,34 @@ architecture Impl of I2SPlayback is
 
    -- since we don't know when exactly (within a service-interval) the next
    -- packet will arrive we must buffer at least 2 packets for the worst case
-   -- of 1 packet arriving very early and the next very late
+   -- of 1 packet arriving very early and the next very late. Use the feed-back
+   -- endpoint to keep the fifo level between MINFILL_C and MAX_FILL_C.
 
-   constant MINFILL_C     : bit_vector(15 downto 0) := to_bitvector( std_logic_vector( to_unsigned( 2*FRMSZ_C, 16) ) );
+   constant MINFILL_C     : bit_vector(15 downto 0) :=
+      to_bitvector( std_logic_vector( to_unsigned( 1024 - FRMSZ_C, 16) ) );
+
+   constant MAXFILL_C     : bit_vector(15 downto 0) :=
+      to_bitvector( std_logic_vector( to_unsigned( 1024 + FRMSZ_C, 16) ) );
+
+   function freq(constant f : in real) return std_logic_vector is
+      variable v : std_logic_vector(31 downto 0);
+      variable i : integer;
+   begin
+      i := integer( round( f * 2.0**13 ) ); 
+      v := std_logic_vector( to_unsigned( i, v'length ) );
+      return v;
+   end function freq;
+
+   function freq(constant f : in natural) return std_logic_vector is
+      variable v : unsigned(31 downto 0);
+   begin
+      v := shift_left( to_unsigned( f, v'length ), 13 );
+      return std_logic_vector( v );
+   end function freq;
+
+   constant MAXFREQ_C     : std_logic_vector(31 downto 0) := freq( real(SAMPLING_FREQ_G/SI_FREQ_G)*1.001 );
+   constant NOMFREQ_C     : std_logic_vector(31 downto 0) := freq( SAMPLING_FREQ_G/SI_FREQ_G );
+   constant MINFREQ_C     : std_logic_vector(31 downto 0) := freq( real(SAMPLING_FREQ_G/SI_FREQ_G)*0.999 );
 
    type StateType         is ( INIT, FILL, RUN );
 
@@ -302,15 +327,23 @@ architecture Impl of I2SPlayback is
    type   Usb2StateType   is ( IDLE, X0, X1, X2, X3, DON );
 
    type Usb2RegType is record
-      state : Usb2StateType;
+      state               : Usb2StateType;
       -- keep a copy so that we are guaranteed to have a consistent
       -- value while transmitting.
-      rate  : std_logic_vector(31 downto 8);
+      rate                : std_logic_vector(31 downto 8);
+      loWater             : std_logic;
+      hiWater             : std_logic;
+      sofcnt              : signed(LD_SOF_CNT_MAX_C downto 0);
+      fifoFill            : unsigned(11 downto 0);
    end record Usb2RegType;
 
    constant USB2_REG_INIT_C : Usb2RegType := (
-      state => IDLE,
-      rate  => RATE_INIT_C(31 downto 8)
+      state               => IDLE,
+      rate                => RATE_INIT_C(31 downto 8),
+      loWater             => '0',
+      hiWater             => '0',
+      sofcnt              => (others => '1'),
+      fifoFill            => (others => '0')
    );
 
    signal rusb2           : Usb2RegType := USB2_REG_INIT_C;
@@ -333,6 +366,9 @@ architecture Impl of I2SPlayback is
    signal s2uUpdTgl       : std_logic := '0';
    signal s2uUpdTglOut    : std_logic;
 
+   signal s2uRenTgl       : std_logic := '0';
+   signal s2uRenTglOut    : std_logic;
+
    signal usb2RstLst      : std_logic := '1'; -- initial reset
    signal rxVldLst        : std_logic := '0';
 
@@ -347,8 +383,10 @@ architecture Impl of I2SPlayback is
    signal fifoWen         : std_logic;
    signal fifoEmpty       : std_logic;
    signal fifoMinFill     : std_logic;
+   signal fifoMinFillUsb2 : std_logic;
    signal fifoFull        : std_logic;
    signal fifoAlmostEmpty : std_logic;
+   signal fifoAlmostFull  : std_logic;
    signal fifoRst         : std_logic := '0';
 
    signal rateUpdate      : std_logic := '0';
@@ -363,9 +401,12 @@ architecture Impl of I2SPlayback is
    signal rateMeasUsb2_i  : std_logic_vector(31 downto 0);
 
    attribute MARK_DEBUG of r                           : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of rusb2                       : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of fifoRen                     : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of fifoEmpty                   : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of fifoAlmostEmpty             : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoAlmostFull              : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of fifoMinFillUsb2             : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of fifoFull                    : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of fifoRst                     : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of sofFlag                     : signal is MARK_DEBUG_C;
@@ -418,6 +459,22 @@ begin
             clk => usb2Clk,
             d   => rateUpdateTgl,
             tgl => s2uUpdTglOut,
+            o   => open
+         );
+      U_S2U_FIL_SYNC : entity work.I2S_CC_Sync
+         port map (
+            clk => usb2Clk,
+            d   => fifoMinFill,
+            tgl => open,
+            o   => fifoMinFillUsb2
+         );
+
+      U_S2U_REN_SYNC : entity work.I2S_CC_Sync
+         generic map ( STAGES_G => 3 )
+         port map (
+            clk => usb2Clk,
+            d   => s2uRenTgl,
+            tgl => s2uRenTglOut,
             o   => open
          );
 
@@ -536,6 +593,9 @@ begin
          else
             r <= rin;
          end if;
+         if ( fifoRen = '1' ) then
+            s2uRenTgl <= not s2uRenTgl;
+         end if;
       end if;
    end process P_I2S_SEQ;
 
@@ -606,8 +666,9 @@ begin
 
    fifoRst               <= rstCntBclk( rstCntBclk'left );
 
-   P_USB_COMB : process ( rusb2, usb2DevStatus, usb2EpIb, rateMeasUsb2_i ) is
+   P_USB_COMB : process ( rusb2, usb2Rx, usb2DevStatus, usb2EpIb, rateMeasUsb2_i, fifoMinFillUsb2, fifoAlmostFull, s2uRenTglOut, fifoWen ) is
       variable v : Usb2RegType;
+      variable f : std_logic_vector(31 downto 0);
    begin
       v                   := rusb2;
       usb2EpOb            <= USB2_ENDP_PAIR_IB_INIT_C;
@@ -616,15 +677,45 @@ begin
       usb2EpOb.mstInp.usr <= "0000"; -- only one microframe
       usb2EpOb.bFramedInp <= '1';    -- dont' use DON for framing
 
+      case ( std_logic_vector'(fifoWen & s2uRenTglOut) ) is
+         when "10" => v.fifoFill := rusb2.fifoFill + 1;
+         when "01" => v.fifoFill := rusb2.fifoFill - 1;
+         when others =>
+      end case;
+
+      if ( ( usb2Rx.pktHdr.vld = '1' ) and usb2Rx.pktHdr.sof ) then
+         -- register fifo levels at SOF time
+         if ( rusb2.sofCnt( rusb2.sofCnt'left ) = '1' ) then
+            v.loWater := fifoMinFillUsb2;
+            v.hiWater := fifoAlmostFull;
+            if ( usb2DevStatus.hiSpeed ) then
+               v.sofCnt := to_signed( SOF_CNT_HS_C - 2, rusb2.sofCnt'length );
+            else
+               v.sofCnt := to_signed( SOF_CNT_FS_C - 2, rusb2.sofCnt'length );
+            end if;
+          else
+            v.sofcnt := rusb2.sofcnt - 1;
+          end if;
+      end if;
+
+      f := NOMFREQ_C;
+
       case ( rusb2.state ) is
          when IDLE =>
             v.state             := X0;
             usb2EpOb.mstInp.vld <= '0';
 
          when X0   =>
-            usb2EpOb.mstInp.dat <= rateMeasUsb2_i(7 downto 0);
+            if    ( rusb2.loWater = '0' ) then
+               f := MAXFREQ_C;
+            elsif ( rusb2.hiWater = '1' ) then
+               f := MINFREQ_C;
+            end if;
+               
+            usb2EpOb.mstInp.dat <= f(7 downto 0);
+
             -- latch the rest to ensure we send consistent data
-            v.rate := rateMeasUsb2_i(31 downto 8);
+            v.rate := f(31 downto 8);
             if ( usb2EpIb.subInp.rdy = '1' ) then
                v.state := X1;
             end if;
@@ -669,12 +760,12 @@ begin
 
    U_I2S_PLAYBACK_FIFO : FIFO18E1
    generic map (
-      ALMOST_EMPTY_OFFSET     => MINFILL_C,   -- Sets the almost empty threshold
-      ALMOST_FULL_OFFSET      => X"0080",     -- Sets almost full threshold
-      DATA_WIDTH              => 9,           -- Sets data width to 4-36
-      DO_REG                  => 1,           -- Enable output register (1-0) Must be 1 if EN_SYN = FALSE
-      EN_SYN                  => FALSE,       -- Specifies FIFO as dual-clock (FALSE) or Synchronous (TRUE)
-      FIFO_MODE               => "FIFO18",    -- Sets mode to FIFO18 or FIFO18_36
+      ALMOST_EMPTY_OFFSET     => MINFILL_C,    -- Sets the almost empty threshold
+      ALMOST_FULL_OFFSET      => MAXFILL_C,    -- Sets almost full threshold
+      DATA_WIDTH              => 9,            -- Sets data width to 4-36
+      DO_REG                  => 1,            -- Enable output register (1-0) Must be 1 if EN_SYN = FALSE
+      EN_SYN                  => FALSE,        -- Specifies FIFO as dual-clock (FALSE) or Synchronous (TRUE)
+      FIFO_MODE               => "FIFO18",     -- Sets mode to FIFO18 or FIFO18_36
       FIRST_WORD_FALL_THROUGH => TRUE,         -- Sets the FIFO FWFT to FALSE, TRUE
       INIT                    => X"000000000", -- Initial values on output port
       SIM_DEVICE              => "7SERIES",    -- Must be set to "7SERIES" for simulation behavior
@@ -685,9 +776,9 @@ begin
       DOP                    => open,
 
       ALMOSTEMPTY            => fifoAlmostEmpty,
-      ALMOSTFULL             => fifoFull,
+      ALMOSTFULL             => fifoAlmostFull,
       EMPTY                  => fifoEmpty,
-      FULL                   => open,
+      FULL                   => fifoFull,
       RDCOUNT                => open,
       RDERR                  => open,
       WRCOUNT                => open,
