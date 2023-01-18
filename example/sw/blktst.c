@@ -20,20 +20,30 @@
 
 #define INTF_NUMBER 1
 
-#define BUFSZ (16*65536)
 
 #define _STR_(x) # x
 #define _STR(x) _STR_(x)
+
+#define BUFSZ_HS (16*65536)
+#define BUFSZ_FS ( 2*65536)
+
+#define TOTSZ_HS (100*1024*1024)
+#define TOTSZ_FS (2*1024*1024)
 
 static void usage(const char *nm, int lvl)
 {
 	printf("usage: %s [-l <bufsz>] [-w] [-h] %s\n", nm, (lvl > 0 ? "[-f <val>] [-1 <off>] [-H <len>]" : "") );
     printf("Testing USB DCDAcm Example Using libusb\n");
     printf("  -h           : this message (repeated -h increases verbosity of help)\n");
-    printf("  -l <bufsz>   : set buffer size (max = default = %s = %d);\n", _STR(BUFSZ), BUFSZ);
+    printf("  -l <bufsz>   : set buffer size (default = max)\n");
+    printf("                    high-speed: %s = %u\n", _STR(BUFSZ_HS), BUFSZ_HS);
+    printf("                    full-speed: %s = %u\n", _STR(BUFSZ_FS), BUFSZ_FS);
     printf("                 a larger buffer results in more parallel asynchronous\n");
     printf("                 operations which is more efficient.\n");
-    printf("  -w           : write to the USB device (default is reading)\n");
+    printf("  -w           : write to the USB device. \n");
+    printf("                    high-speed default: %s = %u\n", _STR(TOTSZ_HS), TOTSZ_HS);
+    printf("                    full-speed default: %s = %u\n", _STR(TOTSZ_FS), TOTSZ_FS);
+    printf("  -t <len>     : total length to transfer (100MB for hi-Speed)\n");
     if ( lvl > 0 ) {
     printf("  -f <val>     : fill the buffer with <val> (default is a repeating\n");
     printf("                 pattern 0x00, 0x01, 0x02, .., 0xff). Due to bit-stuffing\n");
@@ -59,27 +69,33 @@ const struct libusb_endpoint_descriptor         *e     = 0;
 int                                              rendp = -1;
 int                                              wendp = -1;
 int                                              xendp;
-int                                              i, got, tot;
-unsigned char                                    buf[BUFSZ];
+int                                              i, got;
+unsigned char                                    buf[BUFSZ_HS];
 int                                              opt;
-int                                              len = sizeof(buf);
+int                                              len  =  0;
 int                                             *i_p;
 int                                              fill = -1;
 int                                              oneo = -1;
 int                                              head = -1;
 int                                              wr   =  0;
 struct timespec                                  then, now;
-double                                           diff, rate;
+double                                           diff;
 int                                              help = -1;
+int                                              timeout_sec = 1000;
+unsigned long                                    tot, totl   = 0;
+unsigned long                                   *l_p;
+enum libusb_speed                                spd;
 
-	while ( (opt = getopt(argc, argv, "l:f:1:H:wh")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "l:f:1:H:t:wh")) > 0 ) {
 		i_p = 0;
+		l_p = 0;
 		switch (opt)  {
             case 'h':  help++;        break;
 			case 'H':  i_p = &head;   break;
 			case '1':  i_p = &oneo;   break;
 			case 'f':  i_p = &fill;   break;
 			case 'l':  i_p = &len;    break;
+            case 't':  l_p = &totl;   break;
             case 'w':  wr  = 1;       break;
 			default:
 				fprintf(stderr, "Error: Unknown option -%c\n", opt);
@@ -87,6 +103,10 @@ int                                              help = -1;
 				goto bail;
 		}
 		if ( i_p && 1 != sscanf(optarg, "%i", i_p) ) {
+			fprintf(stderr, "Unable to scan option -%c arg\n", opt);
+			goto bail;
+		}
+		if ( l_p && 1 != sscanf(optarg, "%li", l_p) ) {
 			fprintf(stderr, "Unable to scan option -%c arg\n", opt);
 			goto bail;
 		}
@@ -144,6 +164,25 @@ int                                              help = -1;
 		goto bail;
 	}
 
+	spd = libusb_get_device_speed( libusb_get_device( devh ) );
+	switch ( spd ) {
+    	case LIBUSB_SPEED_FULL:
+			printf("Full-");
+			if ( 0 == len  ) len  = BUFSZ_FS;
+			if ( 0 == totl ) totl = TOTSZ_FS;
+		break;
+    	case LIBUSB_SPEED_HIGH:
+			printf("High-");
+			if ( 0 == len  ) len  = BUFSZ_HS;
+			if ( 0 == totl ) totl = TOTSZ_HS;
+		break;
+        default:
+			fprintf(stderr, "Error: UNKOWN/unsupported (%i) Speed device\n", spd);
+			goto bail;
+	}
+	printf("speed device.\n");
+
+
 	if ( libusb_set_auto_detach_kernel_driver( devh, 1 ) ) {
 		fprintf(stderr, "libusb_set_auto_detach_kernel_driver: failed\n");
 		goto bail;
@@ -198,11 +237,11 @@ int                                              help = -1;
 		goto bail;
 	}
 
-	while ( tot < 100*1024*1024 ) {
+	while ( tot < totl ) {
 		got = len;
-		st = libusb_bulk_transfer( devh, xendp, buf, got, &got, 1000 );
+		st = libusb_bulk_transfer( devh, xendp, buf, got, &got, timeout_sec );
 		if ( st || 0 == got ) {
-			fprintf(stderr, "Bulk transfer status %i, %s %i, tot %i\n", st, (wr ? "put" : "got"), got, tot);
+			fprintf(stderr, "Bulk transfer status %i, %s %i, tot %lu\n", st, (wr ? "put" : "got"), got, tot);
             fprintf(stderr, "Did you forget to enable 'blast' mode on the target?\n");
 			goto bail;
 		}
@@ -218,7 +257,7 @@ int                                              help = -1;
     diff = (double)then.tv_sec + ((double)then.tv_nsec)*1.0E-9;
     diff = (double)now.tv_sec + ((double)now.tv_nsec)*1.0E-9 - diff;
 
-	printf("Successfully transferred (%sing) %i bytes in %6.3f s (%6.3f MB/s)\n", (wr ? "writ" : "read"), tot, diff, ((double)tot)/diff/1.0E6);
+	printf("Successfully transferred (%sing) %lu bytes in %6.3f s (%6.3f MB/s)\n", (wr ? "writ" : "read"), tot, diff, ((double)tot)/diff/1.0E6);
 
 	rv = 0;
 
