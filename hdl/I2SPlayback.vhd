@@ -6,6 +6,9 @@
 -- Example of an isochronous endpoint: SSI audio playback;
 -- uses a XILINX FIFO for crossing from the USB into the
 -- audio domain.
+-- The feedback endpoint monitors the FIFO fill level and
+-- reports the effective output sampling frequency based
+-- on the fill level. A simple bang/bang scheme is used.
 library ieee;
 use     ieee.std_logic_1164.all;
 
@@ -71,8 +74,6 @@ entity I2SPlayback is
       SAMPLING_FREQ_G     : natural              := 48000;
       -- service interval (ms) for freq. measurement (1000ms per usb spec)
       SI_FREQ_G           : natural              := 1000;
-      -- polling interval (ms) for freq. feedback (
-      FB_FREQ_G           : natural              := 1000;
       MARK_DEBUG_G        : boolean              := false;
       MARK_DEBUG_BCLK_G   : boolean              := false
    );
@@ -103,18 +104,7 @@ architecture Impl of I2SPlayback is
 
    constant FRMSZ_C                : natural := BYTESpSMP_C * SAMPLING_FREQ_G / SI_FREQ_G;
 
-   -- Feedback: we must report our sample rate / service interval.
-   -- We count bit-clocks and device by the oversampling rate
-   -- Decompose the oversampling into A*2**P where A is odd.
-   function extract2(constant x : in natural) return natural is
-      variable v : natural;
-   begin
-      v := x;
-      while ( v mod 2 = 0 ) loop
-         v := v/2;
-      end loop;
-      return v;
-   end function extract2;
+   constant LD_FIFO_DEPTH_C        : natural := 10;
 
    function max(constant a, b: integer) return integer is
    begin
@@ -150,99 +140,11 @@ architecture Impl of I2SPlayback is
 
    constant LD_SOF_CNT_MAX_C      : natural := max( LD_SOF_CNT_FS_C, LD_SOF_CNT_HS_C );
 
-   constant FODD_C        : natural := extract2( BITCLK_MULT_G );
-   constant LD_FODD_C     : natural := nbits( FODD_C );
-   -- by setting this to 'nbits' which is actually incorrect if the oversampling
-   -- rate is an exact power (e.g., nbits(64) = 7) of two we correct for another
-   -- special case (see below) which causes the counter to over-count the rate
-   -- by a factor of two in the special case of over-sampling by a power of two.
-   -- Together these cancel in LD_SCL_xx_C so that the algorithm still works
-   -- for all oversampling rates.
-   constant LD_OVRSMP_C   : natural := nbits( BITCLK_MULT_G );
-
-   -- accommodate 12 bits for HS and all oversampling 
-   constant LD_RATE_C     : natural := 12 + LD_SOF_CNT_MAX_C + LD_OVRSMP_C + LD_FODD_C;
-
-   -- When measuring the sampling rate we count the bit-clock between SOF events.
-   -- At the end we have to divide by the bits/sample. For powers of two this is easy
-   -- but the odd factor needs attention (if we want to avoid a divider).
-   -- The count can be decomposed into  N = p * F_ODD_C + q   (q = N mod F_ODD_C)
-   -- and thus N/F_ODD_C becomes  p + q/F_ODD_C
-   -- 'p' can be counted by skipping F_ODD_C - 1 out of F_ODD_C pulses; the modulus 'q'
-   -- is also easy to count.
-   -- This is not the end of the story, however, since the result is shifted by a scale
-   -- factor into 10.12 / 16.16 format (full and hi-speed, respectively).
-   -- We need to also compute:
-   --   R = (2**SCALE * q) / F_ODD_C
-   -- If we widen to the next power of two that holds F_ODD_C then
-   --
-   --   N = 2**(SCALE + EXTRA) * p + 2**SCALE (2**EXTRA * q / F_ODD_C)
-   --   N = 2**(SCALE) * ( 2**EXTRA * p +  A * q + B * q / F_ODD_C )
-   --
-   -- with A = F_ODD_C = 1   B = (2**EXTRA - F_ODD_C)
-   -- After FODD increments we obtain
-   --
-   --    A*FODD + B * FODD / FODD = FODD + 2**EXTRA - FODD = 2**EXTRA,
-   --
-   -- i.e., p is automatically incremented:
-   --
-   --   N := N + 1
-   --   b := b + B
-   --   if b >= F_ODD then
-   --      N := N + 1
-   --      b := b - F_ODD
-   --   end if;
-   --
-   -- we can combine this into a single accumulator adding 'EXTRA' bits:
-   -- with E = 2**EXTRA
-   --
-   --   if ( b >= F_ODD - B ):
-   --      N := N + 2*E
-   --      b := b + B - F_ODD
-   --   else
-   --      N := N + E
-   --      b := b + B
-   -- in the first branch: since B >= F_ODD we can at once increment N and subtract - F_ODD
-   --
-   -- if ( b >= F_ODD - B ) then
-   --   N : b += E + E + B - F_ODD = E + 2*B
-   -- else
-   --   N : b += E + B
-
-   constant FODD_CMPL_C : natural := 2**LD_FODD_C - FODD_C;
-
-   -- must divide by the oversampling rate and the extra 2**LD_FODD_C introduced by extending
-   -- the counter
-   constant LD_SCL_FS_C           : integer := 13 - LD_SOF_CNT_FS_C - LD_OVRSMP_C - LD_FODD_C;
-   constant LD_SCL_HS_C           : integer := 16 - LD_SOF_CNT_HS_C - LD_OVRSMP_C - LD_FODD_C;
-
    -- this is correct for hi and full speed; samples / frame (fs) vs samples/uframe (hs)
    -- but the HS format is 16.16 (vs full-speed 10.13), i.e., the 3-bit left shift due
    -- to formatting cancels the division by 8 due to the higher ref. frequency.
    constant RATE_INIT_C           : std_logic_vector(31 downto 0) := 
       std_logic_vector( to_unsigned( SAMPLING_FREQ_G * 2**13 / SI_FREQ_G, 32 ) );
-
-   function scale(
-      constant x  : in unsigned;
-      constant hs : in std_logic
-   ) return std_logic_vector is
-      variable v : unsigned(31 downto 0);
-   begin
-      if ( hs = '1' ) then
-         if ( LD_SCL_HS_C >= 0 ) then
-            v := shift_left( resize( x, v'length ), LD_SCL_HS_C );
-         else
-            v := resize( shift_right( x, -LD_SCL_HS_C ), v'length );
-         end if;
-      else
-         if ( LD_SCL_FS_C >= 0 ) then
-            v := shift_left( resize( x, v'length ), LD_SCL_FS_C );
-         else
-            v := resize( shift_right( x, -LD_SCL_FS_C ), v'length );
-         end if;
-      end if;
-      return std_logic_vector( v );
-   end function scale;
 
    -- for now we assume sample_size < 8
    constant COUNT_W_C     : natural := 3;
@@ -272,10 +174,10 @@ architecture Impl of I2SPlayback is
    -- endpoint to keep the fifo level between MINFILL_C and MAX_FILL_C.
 
    constant MINFILL_C     : bit_vector(15 downto 0) :=
-      to_bitvector( std_logic_vector( to_unsigned( 1024 - FRMSZ_C, 16) ) );
+      to_bitvector( std_logic_vector( to_unsigned( 2**LD_FIFO_DEPTH_C - FRMSZ_C, 16) ) );
 
    constant MAXFILL_C     : bit_vector(15 downto 0) :=
-      to_bitvector( std_logic_vector( to_unsigned( 1024 + FRMSZ_C, 16) ) );
+      to_bitvector( std_logic_vector( to_unsigned( 2**LD_FIFO_DEPTH_C + FRMSZ_C, 16) ) );
 
    function freq(constant f : in real) return std_logic_vector is
       variable v : std_logic_vector(31 downto 0);
@@ -306,8 +208,6 @@ architecture Impl of I2SPlayback is
       pblrlst : std_logic;
       swpr    : std_logic_vector(8*SAMPLE_SIZE_G - 1 downto 0);
       sreg    : std_logic_vector(8*SAMPLE_SIZE_G - 1 downto 0);
-      sofcnt  : signed(LD_SOF_CNT_MAX_C downto 0);
-      rate    : unsigned(LD_RATE_C - 1 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -318,9 +218,7 @@ architecture Impl of I2SPlayback is
       bytCnt  => BYTCNT_F,
       pblrlst => '0',
       swpr    => (others => '0'),
-      sreg    => (others => '0'),
-      sofcnt  => (others => '1'),
-      rate    => (others => '0')
+      sreg    => (others => '0')
    );
 
    signal r               : RegType := REG_INIT_C;
@@ -332,18 +230,18 @@ architecture Impl of I2SPlayback is
       state               : Usb2StateType;
       -- keep a copy so that we are guaranteed to have a consistent
       -- value while transmitting.
-      rate                : std_logic_vector(31 downto 8);
       loWater             : std_logic;
       hiWater             : std_logic;
+      rate                : std_logic_vector(31 downto 8);
       sofcnt              : signed(LD_SOF_CNT_MAX_C downto 0);
-      fifoFill            : unsigned(11 downto 0);
+      fifoFill            : unsigned(LD_FIFO_DEPTH_C downto 0);
    end record Usb2RegType;
 
    constant USB2_REG_INIT_C : Usb2RegType := (
       state               => IDLE,
-      rate                => RATE_INIT_C(31 downto 8),
       loWater             => '0',
       hiWater             => '0',
+      rate                => RATE_INIT_C(31 downto 8),
       sofcnt              => (others => '1'),
       fifoFill            => (others => '0')
    );
@@ -355,18 +253,8 @@ architecture Impl of I2SPlayback is
    signal u2sRstTglOut    : std_logic;
    signal u2sRstOut       : std_logic;
 
-   signal u2sSpdInp       : std_logic;
-   signal u2sSpdOut       : std_logic;
-
-   signal u2sSOFTgl       : std_logic := '0';
-   signal u2sSOFTglOut    : std_logic;
-   signal u2sSOFSync      : std_logic_vector(2 downto 0) := (others => '0');
-
    signal s2uRstTgl       : std_logic := '0';
    signal s2uRstOut       : std_logic;
-
-   signal s2uUpdTgl       : std_logic := '0';
-   signal s2uUpdTglOut    : std_logic;
 
    signal u2sUpdTgl       : std_logic := '0';
    signal u2sUpdTglOut    : std_logic;
@@ -375,10 +263,6 @@ architecture Impl of I2SPlayback is
    signal s2uRenTglOut    : std_logic;
 
    signal usb2RstLst      : std_logic := '1'; -- initial reset
-   signal rxVldLst        : std_logic := '0';
-
-   signal hiSpeed         : std_logic;
-   signal sofFlag         : std_logic;
 
    signal rstCntBclk      : unsigned(3 downto 0) := "1100";
 
@@ -394,25 +278,14 @@ architecture Impl of I2SPlayback is
    signal fifoAlmostFull  : std_logic;
    signal fifoRst         : std_logic := '0';
 
-   signal rateUpdate      : std_logic := '0';
-
    signal usb2Resetting   : std_logic;
    signal waitForFrame    : std_logic := '1';
    
-   -- this is updated synchronously with SOF from the BCLK domain; it is safe
-   -- to be read by usb2Clk when handling an INP 
-   signal rateMeasBclk    : std_logic_vector(31 downto 0) := RATE_INIT_C;
-   signal rateUpdateTgl   : std_logic := '0';
-   signal rateMeasUsb2_i  : std_logic_vector(31 downto 0);
-
    attribute MARK_DEBUG of r                           : signal is MARK_DEBUG_BCLK_C;
    attribute MARK_DEBUG of fifoRen                     : signal is MARK_DEBUG_BCLK_C;
    attribute MARK_DEBUG of fifoEmpty                   : signal is MARK_DEBUG_BCLK_C;
    attribute MARK_DEBUG of fifoAlmostEmpty             : signal is MARK_DEBUG_BCLK_C;
-   attribute MARK_DEBUG of sofFlag                     : signal is MARK_DEBUG_BCLK_C;
    attribute MARK_DEBUG of fifoRst                     : signal is MARK_DEBUG_BCLK_C;
-   attribute MARK_DEBUG of rateUpdate                  : signal is MARK_DEBUG_BCLK_C;
-   attribute MARK_DEBUG of rateMeasBclk                : signal is MARK_DEBUG_BCLK_C;
 
    attribute MARK_DEBUG of rusb2                       : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of fifoAlmostFull              : signal is MARK_DEBUG_C;
@@ -421,11 +294,7 @@ architecture Impl of I2SPlayback is
 
 begin
 
-   assert SAMPLE_SIZE_G * NUM_CHANNELS_G <= 8 report "must increase counter width" severity failure;
-   assert FB_FREQ_G <= SI_FREQ_G report "feedback interval should be >= service interval" severity failure;
-
    B_I2S_SYNCHRONIZERS : block is
-      signal rateMeasUsb2 : std_logic_vector(31 downto 0) := RATE_INIT_C;
    begin
       U_U2S_RST_SYNC : entity work.I2S_CC_Sync
          generic map ( STAGES_G => 3 )
@@ -435,22 +304,6 @@ begin
             tgl => u2sRstTglOut,
             o   => u2sRstOut
          );
-      U_U2S_SPD_SYNC : entity work.I2S_CC_Sync
-         port map (
-            clk => i2sBCLK,
-            d   => u2sSpdInp,
-            tgl => open,
-            o   => u2sSpdOut
-         );
-      U_U2S_SOF_SYNC : entity work.I2S_CC_Sync
-         generic map ( STAGES_G => 3 )
-         port map (
-            clk => i2sBCLK,
-            d   => u2sSOFTgl,
-            tgl => u2sSOFTglOut,
-            o   => open
-         );
-
       U_S2U_RST_SYNC : entity work.I2S_CC_Sync
          generic map ( STAGES_G => 3 )
          port map (
@@ -459,14 +312,7 @@ begin
             tgl => open,
             o   => s2uRstOut
          );
-      U_S2U_UPD_SYNC : entity work.I2S_CC_Sync
-         generic map ( STAGES_G => 3 )
-         port map (
-            clk => usb2Clk,
-            d   => rateUpdateTgl,
-            tgl => s2uUpdTglOut,
-            o   => open
-         );
+
       U_S2U_FIL_SYNC : entity work.I2S_CC_Sync
          port map (
             clk => usb2Clk,
@@ -483,76 +329,26 @@ begin
             tgl => s2uRenTglOut,
             o   => open
          );
-
-      -- keep rateMeasUsb2 register in this block to help
-      -- writing constraints
-
-      P_MEAS_USB : process ( usb2Clk ) is
-      begin
-         if ( rising_edge( usb2Clk ) ) then
-            if ( usb2Resetting = '1' ) then
-               rateMeasUsb2 <= RATE_INIT_C;
-            elsif ( s2uUpdTglOut = '1' ) then
-               rateMeasUsb2 <= rateMeasBclk;
-            end if;
-         end if;
-      end process P_MEAS_USB;
-
-      rateMeasUsb2_i <= rateMeasUsb2;
-
    end block B_I2S_SYNCHRONIZERS;
 
    i2sPBDAT    <= r.sreg(r.sreg'left);
    fifoMinFill <= not fifoAlmostEmpty;
 
-   P_I2S_COMB : process (r, i2sPBLRC, fifoDou, fifoEmpty, fifoMinFill, sofFlag, hiSpeed) is
+   P_I2S_COMB : process (r, i2sPBLRC, fifoDou, fifoEmpty, fifoMinFill) is
       variable v : RegType;
    begin
       v             := r;
       fifoRen       <= '0';
       v.pblrlst     := i2sPBLRC;
-      rateUpdate    <= '0';
 
       -- shift
       v.sreg := r.sreg(r.sreg'left - 1 downto 0) & '0';
-
-      -- rate counter
-      if ( r.rate(LD_FODD_C - 1 downto 0) >= FODD_C - FODD_CMPL_C ) then
-         v.rate    := r.rate + to_unsigned(2**LD_FODD_C + 2*FODD_CMPL_C, r.rate'length);
-      else
-         v.rate    := r.rate + to_unsigned(2**LD_FODD_C + 1*FODD_CMPL_C, r.rate'length);
-      end if;
-
-      if ( sofFlag = '1' ) then
-         if ( r.sofcnt(r.sofcnt'left) = '1' or r.state = INIT ) then
-            if ( hiSpeed = '1' ) then
-               v.sofcnt := to_signed(SOF_CNT_HS_C - 2, r.sofcnt'length);
-            else
-               v.sofcnt := to_signed(SOF_CNT_FS_C - 2, r.sofcnt'length);
-            end if;
-            -- pre-load with the first count; in the special case (FODD_C = FODD_CMPL_C,
-            -- i.e., the oversampling rate is a precise power of two) we must be careful
-            -- (see also the commend about LD_OVRSMPL_C)
-            if ( FODD_C = FODD_CMPL_C ) then
-               v.rate := to_unsigned(2**LD_FODD_C + 2*FODD_CMPL_C, r.rate'length);
-            else
-               v.rate := to_unsigned(2**LD_FODD_C + 1*FODD_CMPL_C, r.rate'length);
-            end if;
-         else
-            v.sofcnt := r.sofcnt - 1;
-         end if;
-         if ( r.state /= INIT and r.sofcnt(r.sofcnt'left) = '1' ) then
-            rateUpdate <= '1';
-         end if;
-      end if;
 
       case ( r.state ) is
          when INIT =>
             -- must ensure RDEN is low for two cycles after reset is deasserted
             if ( expired( r.bitCnt ) ) then
-               if ( sofFlag = '1' ) then
-                  v.state := FILL;
-               end if;
+               v.state  := FILL;
             else
                v.bitCnt := r.bitCnt - 1;
             end if;
@@ -618,17 +414,8 @@ begin
             -- delay expired; propagate reset event back to USB
             s2uRstTgl  <= u2sRstOut;
          end if;
-         if    ( fifoRst = '1' ) then
-            rateMeasBclk  <= RATE_INIT_C;
-         elsif ( rateUpdate = '1' ) then
-            rateUpdateTgl <= not rateUpdateTgl;
-            rateMeasBclk  <= scale( r.rate, hiSpeed );
-         end if;
       end if;
    end process P_RST_I2S;
-
-   hiSpeed               <= u2sSpdOut;
-   sofFlag               <= u2sSOFTglOut;
 
    usb2Resetting         <= usb2Rst or ( u2sRstTgl xor s2uRstOut );
 
@@ -652,27 +439,12 @@ begin
                waitForFrame <= '0';
             end if;
          end if;
-
-         if ( usb2Resetting = '1' ) then
-            rxVldLst     <= '1';
-         else
-            rxVldLst <= usb2Rx.pktHdr.vld;
-            if ( (not rxVldLst and usb2Rx.pktHdr.vld) = '1' and usb2Rx.pktHdr.sof ) then
-               u2sSOFTgl <= not u2sSOFTgl;
-            end if;
-         end if;
-
-         if ( usb2DevStatus.hiSpeed ) then
-            u2sSpdInp <= '1';
-         else
-            u2sSpdInp <= '0';
-         end if;
       end if;
    end process P_RST_USB;
 
    fifoRst               <= rstCntBclk( rstCntBclk'left );
 
-   P_USB_COMB : process ( rusb2, usb2Rx, usb2DevStatus, usb2EpIb, rateMeasUsb2_i, fifoMinFillUsb2, fifoAlmostFull, s2uRenTglOut, fifoWen ) is
+   P_USB_COMB : process ( rusb2, usb2Rx, usb2DevStatus, usb2EpIb, fifoMinFillUsb2, fifoAlmostFull, s2uRenTglOut, fifoWen ) is
       variable v   : Usb2RegType;
       variable f   : std_logic_vector(31 downto 0);
       variable tst : std_logic_vector( 1 downto 0);
@@ -697,9 +469,9 @@ begin
             v.loWater := fifoMinFillUsb2;
             v.hiWater := fifoAlmostFull;
             if ( usb2DevStatus.hiSpeed ) then
-               v.sofCnt := to_signed( SOF_CNT_HS_C - 2, rusb2.sofCnt'length );
+               v.sofcnt := to_signed( SOF_CNT_HS_C - 2, rusb2.sofCnt'length );
             else
-               v.sofCnt := to_signed( SOF_CNT_FS_C - 2, rusb2.sofCnt'length );
+               v.sofcnt := to_signed( SOF_CNT_FS_C - 2, rusb2.sofCnt'length );
             end if;
           else
             v.sofcnt := rusb2.sofcnt - 1;
