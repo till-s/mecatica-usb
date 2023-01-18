@@ -49,7 +49,7 @@ entity ZynqTop is
       FIXED_IO_ps_porb  : inout STD_LOGIC;
       FIXED_IO_ps_srstb : inout STD_LOGIC;
 
-      ulpiStp           : out   std_logic;
+      ulpiStp           : inout std_logic;
       ulpiRstb          : out   std_logic;
       ulpiDir           : in    std_logic;
       ulpiClk           : inout std_logic;

@@ -130,12 +130,15 @@ package UlpiPkg is
    type UlpiIbType is record
       dir   : std_logic;
       nxt   : std_logic;
+      -- feedback of stp (optional) for debugging
+      stp   : std_logic;
       dat   : std_logic_vector(7 downto 0);
    end record UlpiIbType;
 
    constant ULPI_IB_INIT_C : UlpiIbType := (
       dir  => '0',
       nxt  => '0',
+      stp  => '0',
       dat  => (others => '0')
    );
 

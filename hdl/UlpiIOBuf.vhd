@@ -77,12 +77,14 @@ architecture Impl of UlpiIOBuf is
    signal stp_r            : std_logic                    := '0';
    signal din_r            : std_logic_vector(7 downto 0) := (others => '0');
    signal dir_r            : std_logic                    := '1';
+   signal stp_i            : std_logic                    := '0';
    signal nxt_r            : std_logic                    := '0';
    attribute IOB of dou_r  : signal is "TRUE";
    attribute IOB of stp_r  : signal is "TRUE";
    attribute IOB of din_r  : signal is toStr( ULPI_DIN_IOB_G );
    attribute IOB of dir_r  : signal is toStr( ULPI_DIR_IOB_G );
    attribute IOB of nxt_r  : signal is toStr( ULPI_NXT_IOB_G );
+   attribute IOB of stp_i  : signal is toStr( ULPI_NXT_IOB_G );
 
    -- fabric registers and combinatorial signals
    signal douVld           : std_logic                    := '0';
@@ -121,6 +123,10 @@ architecture Impl of UlpiIOBuf is
    attribute MARK_DEBUG    of nxt_r    : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG    of trn_r    : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG    of don_r    : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG    of stp_i    : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG    of dou_i    : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG    of douCE    : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG    of douRst   : signal is toStr( MARK_DEBUG_G );
 
 begin
 
@@ -186,6 +192,7 @@ begin
          dir_r             <= ulpiIb.dir;
          din_r             <= ulpiIb.dat;
          nxt_r             <= ulpiIb.nxt;
+         stp_i             <= ulpiIb.stp;
          -- is the registered cycle a turn-around cycle?
          trn_r             <= ( ulpiIb.dir xor dir_r );
       end if;

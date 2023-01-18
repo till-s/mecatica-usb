@@ -69,7 +69,7 @@ entity Usb2CdcAcmDev is
       ulpiClk      : inout std_logic;
       -- reset the ulpi low-level interface; should not be necessary
       ulpiRst      : in    std_logic := '0';
-      ulpiStp      : out   std_logic;
+      ulpiStp      : inout std_logic;
       ulpiDir      : in    std_logic;
       ulpiNxt      : in    std_logic;
       ulpiDat      : inout std_logic_vector(7 downto 0);
@@ -522,9 +522,16 @@ begin
       ulpiIb.dir <= ulpiDirNDly;
       ulpiIb.nxt <= ulpiNxtNDly;
 
-      U_STP_BUF : OBUF port map ( I => ulpiOb.stp, O => ulpiStp     );
-      U_DIR_BUF : IBUF port map ( I => ulpiDir   , O => ulpiDirNDly );
-      U_NXT_BUF : IBUF port map ( I => ulpiNxt   , O => ulpiNxtNDly );
+      U_DIR_IBUF : IBUF port map ( I => ulpiDir   , O => ulpiDirNDly );
+      U_NXT_IBUF : IBUF port map ( I => ulpiNxt   , O => ulpiNxtNDly );
+
+      U_STP_BUF  : IOBUF
+         port map (
+            IO => ulpiStp,
+            I  => ulpiOb.stp,
+            O  => ulpiIb.stp,
+            T  => '0'
+         );
 
       G_DAT_BUF : for i in ulpiIb.dat'range generate
          signal ulpiDatNDly : std_logic;
