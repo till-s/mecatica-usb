@@ -73,7 +73,8 @@ entity I2SPlayback is
       SI_FREQ_G           : natural              := 1000;
       -- polling interval (ms) for freq. feedback (
       FB_FREQ_G           : natural              := 1000;
-      MARK_DEBUG_G        : boolean              := false
+      MARK_DEBUG_G        : boolean              := false;
+      MARK_DEBUG_BCLK_G   : boolean              := false
    );
    port (
       usb2Clk             : in  std_logic;
@@ -92,14 +93,15 @@ end entity I2SPlayback;
 
 architecture Impl of I2SPlayback is
 
-   attribute ASYNC_REG    : string;
-   attribute MARK_DEBUG   : string;
+   attribute ASYNC_REG             : string;
+   attribute MARK_DEBUG            : string;
 
-   constant MARK_DEBUG_C  : string  := toStr(MARK_DEBUG_G);
+   constant MARK_DEBUG_C           : string  := toStr(MARK_DEBUG_G);
+   constant MARK_DEBUG_BCLK_C      : string  := toStr(MARK_DEBUG_BCLK_G);
 
-   constant BYTESpSMP_C   : natural := SAMPLE_SIZE_G * NUM_CHANNELS_G;
+   constant BYTESpSMP_C            : natural := SAMPLE_SIZE_G * NUM_CHANNELS_G;
 
-   constant FRMSZ_C       : natural := BYTESpSMP_C * SAMPLING_FREQ_G / SI_FREQ_G;
+   constant FRMSZ_C                : natural := BYTESpSMP_C * SAMPLING_FREQ_G / SI_FREQ_G;
 
    -- Feedback: we must report our sample rate / service interval.
    -- We count bit-clocks and device by the oversampling rate
@@ -400,18 +402,19 @@ architecture Impl of I2SPlayback is
    signal rateUpdateTgl   : std_logic := '0';
    signal rateMeasUsb2_i  : std_logic_vector(31 downto 0);
 
-   attribute MARK_DEBUG of r                           : signal is MARK_DEBUG_C;
+   attribute MARK_DEBUG of r                           : signal is MARK_DEBUG_BCLK_C;
+   attribute MARK_DEBUG of fifoRen                     : signal is MARK_DEBUG_BCLK_C;
+   attribute MARK_DEBUG of fifoEmpty                   : signal is MARK_DEBUG_BCLK_C;
+   attribute MARK_DEBUG of fifoAlmostEmpty             : signal is MARK_DEBUG_BCLK_C;
+   attribute MARK_DEBUG of sofFlag                     : signal is MARK_DEBUG_BCLK_C;
+   attribute MARK_DEBUG of fifoRst                     : signal is MARK_DEBUG_BCLK_C;
+   attribute MARK_DEBUG of rateUpdate                  : signal is MARK_DEBUG_BCLK_C;
+   attribute MARK_DEBUG of rateMeasBclk                : signal is MARK_DEBUG_BCLK_C;
+
    attribute MARK_DEBUG of rusb2                       : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of fifoRen                     : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of fifoEmpty                   : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of fifoAlmostEmpty             : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of fifoAlmostFull              : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of fifoMinFillUsb2             : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of fifoFull                    : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of fifoRst                     : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of sofFlag                     : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of rateUpdate                  : signal is MARK_DEBUG_C;
-   attribute MARK_DEBUG of rateMeasBclk                : signal is MARK_DEBUG_C;
 
 begin
 

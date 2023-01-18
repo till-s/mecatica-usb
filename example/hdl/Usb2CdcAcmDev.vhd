@@ -361,7 +361,8 @@ begin
       U_BADD_PB : entity work.I2SPlayback
          generic map (
             SAMPLE_SIZE_G             => 2,
-            MARK_DEBUG_G              => true
+            MARK_DEBUG_G              => true,
+            MARK_DEBUG_BCLK_G         => false
          )
          port map (
             usb2Clk                   => ulpiClkLoc,
