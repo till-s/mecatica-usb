@@ -368,6 +368,9 @@ architecture Impl of I2SPlayback is
    signal s2uUpdTgl       : std_logic := '0';
    signal s2uUpdTglOut    : std_logic;
 
+   signal u2sUpdTgl       : std_logic := '0';
+   signal u2sUpdTglOut    : std_logic;
+
    signal s2uRenTgl       : std_logic := '0';
    signal s2uRenTglOut    : std_logic;
 
@@ -670,8 +673,9 @@ begin
    fifoRst               <= rstCntBclk( rstCntBclk'left );
 
    P_USB_COMB : process ( rusb2, usb2Rx, usb2DevStatus, usb2EpIb, rateMeasUsb2_i, fifoMinFillUsb2, fifoAlmostFull, s2uRenTglOut, fifoWen ) is
-      variable v : Usb2RegType;
-      variable f : std_logic_vector(31 downto 0);
+      variable v   : Usb2RegType;
+      variable f   : std_logic_vector(31 downto 0);
+      variable tst : std_logic_vector( 1 downto 0);
    begin
       v                   := rusb2;
       usb2EpOb            <= USB2_ENDP_PAIR_IB_INIT_C;
@@ -680,7 +684,8 @@ begin
       usb2EpOb.mstInp.usr <= "0000"; -- only one microframe
       usb2EpOb.bFramedInp <= '1';    -- dont' use DON for framing
 
-      case ( std_logic_vector'(fifoWen & s2uRenTglOut) ) is
+      tst                 := fifoWen & s2uRenTglOut;
+      case ( tst ) is
          when "10" => v.fifoFill := rusb2.fifoFill + 1;
          when "01" => v.fifoFill := rusb2.fifoFill - 1;
          when others =>
