@@ -340,6 +340,29 @@ class Usb2DescContext(list):
       self.bDeviceProtocol( 0x01 )
 
   @factory
+  class Usb2Device_QualifierDesc(Usb2Desc.clazz):
+    def __init__(self):
+      super.__init__(10, self.DSC_TYPE_DEVICE_QUALIFIER)
+      self.bcdUSB(0x0200)
+      self.bReserved(0)
+
+    @acc(2,2)
+    def bcdUSB(self, v): return v
+
+    @acc(4)
+    def bDeviceClass(self, v): return v
+    @acc(5)
+    def bDeviceSubClass(self, v): return v
+    @acc(6)
+    def bDeviceProtocol(self, v): return v
+    @acc(7)
+    def bMaxPacketSize0(self, v): return v
+    @acc(8)
+    def bNumConfigurations(self, v): return v
+    @acc(9)
+    def bReserved(self, v): return v
+
+  @factory
   class Usb2ConfigurationDesc(Usb2Desc.clazz):
 
     CONF_ATT_SELF_POWERED  = 0x40
@@ -360,6 +383,12 @@ class Usb2DescContext(list):
     def bmAttributes(self, v): return v | 0x80
     @acc(8)
     def bMaxPower(self, v): return v
+
+  @factory
+  class Usb2Other_Speed_ConfigurationDesc(Usb2ConfigurationDesc.clazz):
+    def __init__(self):
+      super().__init__()
+      self.bDescriptorType(self.DSC_TYPE_OTHER_SPEED_CONFIGURATION)
 
   @factory
   class Usb2InterfaceDesc(Usb2Desc.clazz):
@@ -551,7 +580,12 @@ class SingleCfgDevice(Usb2DescContext):
     return self.configurationDesc_
 
 
-def addBasicACM(ctxt, epAddr, epPktSize=8, sendBreak=False, hiSpeed=True):
+# epPktSize None selects the max. allowed for the selected speed
+def addBasicACM(ctxt, epAddr, epPktSize=None, sendBreak=False, hiSpeed=True):
+  if ( hiSpeed ):
+    epPktSize = 512
+  else:
+    epPktSize = 64
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bInterfaceCount(2)
   d.bFunctionClass( d.DSC_IFC_CLASS_CDC )
@@ -685,7 +719,7 @@ def addBADDSpeaker(ctxt, epAddr, hiSpeed = True, has24Bits = True, isAsync = Tru
       d.bInterval(0x01)
   return 2
  
-def basicACM(epAddr, epPktSize=8, sendBreak=False, iProduct=None, doWrap=True):
+def basicACM(epAddr, epPktSize=None, sendBreak=False, iProduct=None, doWrap=True, hiSpeed=True):
   remWake = True
   c  = SingleCfgDevice(0x0123, 0xabcd, remWake)
   d  = c.deviceDesc
@@ -693,9 +727,9 @@ def basicACM(epAddr, epPktSize=8, sendBreak=False, iProduct=None, doWrap=True):
     d.iProduct( iProduct )
   d.setIADMultiFunction()
 
-  epAddr += addBasicACM(c, epAddr, epPktSize, sendBreak)
+  epAddr += addBasicACM(c, epAddr, epPktSize, sendBreak, hiSpeed)
 
-  epAddr += addBADDSpeaker( c, epAddr, has24Bits = False, isAsync = True  )
+  epAddr += addBADDSpeaker( c, epAddr, hiSpeed = hiSpeed, has24Bits = False, isAsync = True  )
 
   if ( doWrap ):
     c.wrapup()
