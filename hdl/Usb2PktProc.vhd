@@ -63,8 +63,12 @@ architecture Impl of Usb2PktProc is
 
 
    -- NOTE: there is a 1 clock delay in the receive path due to IO buffering
-   --       also     a 1 clock delay in the transmit path due to IO buffering
-   --       and        1 clock delay (for PID) in Usb2PktTx
+   --                  1 clock delay after EOP to pktHdr.vld
+   --                  TIME_DATA_TX_C clocks to get out of WAIT_TX state
+   --                  1 clock delay from txDataMst.vld to TXCMD being sent to UlpiIO
+   --                  1 clock delay in UlpiIO to get into TX state
+   --                  1 clock delay in the transmit path due to IO buffering
+   --
    --       and        1 clock delay in HSK state
 
    -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks
@@ -147,9 +151,8 @@ architecture Impl of Usb2PktProc is
       bufInpVld       : std_logic;
       bufInpPart      : std_logic;
       donFlg          : std_logic;
+      nakDon          : std_logic;
       retries         : unsigned(1 downto 0);
-      lastSOF         : unsigned(31 downto 0);
-      lastLineChg     : unsigned(31 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -177,9 +180,8 @@ architecture Impl of Usb2PktProc is
       bufInpVld       => '0',
       bufInpPart      => '0',
       donFlg          => '0',
-      retries         => (others => '0'),
-      lastSOF         => (others => '0'),
-      lastLineChg     => (others => '0')
+      nakDon          => '0',
+      retries         => (others => '0')
    );
 
    type BufReaderType is record
@@ -369,16 +371,9 @@ begin
          end if;
       end loop;
 
-      v.lastSOF     := r.lastSOF     + 1;
-      v.lastLineChg := r.lastLineChg + 1;
-      if ( ( usb2Rx.pktHdr.vld = '1' ) and usb2Rx.pktHdr.sof ) then
-         v.lastSOF := (others => '0');
-      end if;
-
       -- record line state
       if ( usb2Rx.isRxCmd ) then
          v.lineState   := usb2Rx.rxCmd(1 downto 0);
-         v.lastLineChg := (others => '0');
       end if;
 
       v.rxActive := usb2Rx.rxActive;
@@ -421,15 +416,18 @@ begin
                   v.epIdx          := usb2TokenPktEndp( usb2Rx.pktHdr );
                   v.timer          := USB2_TIMER_EXPIRED_C;
                   ei               := epIb( to_integer( v.epIdx ) );
+                  -- don't propagate RX RDY back to IN endpoint of they advertise
+                  -- an unframed stream
+                  v.nakDon         := ei.bFramedInp;
                   if ( USB2_PID_SPC_PING_C = usb2Rx.pktHdr.pid ) then
                      if ( epIb( to_integer( v.epIdx ) ).subOut.rdy = '1' ) then
-                        v.pid := USB2_PID_HSK_ACK_C;
+                        v.pid      := USB2_PID_HSK_ACK_C;
                      else
-                        v.pid := USB2_PID_HSK_NAK_C;
+                        v.pid      := USB2_PID_HSK_NAK_C;
                      end if;
-                     v.timer    := TIME_HSK_TX_C;
-                     v.nxtState := HSK;
-                     v.state    := WAIT_TX;
+                     v.timer       := TIME_HSK_TX_C;
+                     v.nxtState    := HSK;
+                     v.state       := WAIT_TX;
                   elsif ( isTokInp( usb2Rx.pktHdr.pid ) ) then
                      v.dataCounter := epConfig( to_integer( v.epIdx ) ).maxPktSizeInp - 1;
                      v.timer       := TIME_DATA_TX_C;
@@ -443,8 +441,14 @@ begin
                         else
                            v.nxtState                            := ISO_INP;
                            v.pid                                 := USB2_PID_DAT_DATA0_C;
-                           -- must send a null packet if there is no data (usb 5.6.5)
-                           v.donFlg                              := not ei.mstInp.vld;
+                           if ( ei.bFramedInp = '0' ) then
+                              -- must send a null packet if there is no data (usb 5.6.5)
+                              if ( (not ei.mstInp.vld and not ei.mstInp.don) = '1' ) then
+                                 v.donFlg := '1';
+                                 -- in this case, we also must prevent the TX DON from being seen by the endpoint
+                                 v.nakDon := '1';
+                              end if;
+                           end if;
                            v.isoXactInp( to_integer( r.epIdx ) ) := "00";
                            if ( ei.mstInp.vld = '1' ) then
                               if ( r.isoXactInp( to_integer( r.epIdx ) ) = "11" ) then
@@ -586,7 +590,7 @@ begin
          when ISO_INP =>
             if ( r.donFlg = '1' ) then
                txDataMst.don                               <= r.donFlg;
-               epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.don;
+               epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.don and not r.nakDon;
                if ( txDataSub.don = '1' ) then
                   v.state       := IDLE;
                end if;
@@ -660,9 +664,9 @@ begin
             end if;
 
          when DATA_INP =>
-            bufWriteInp <= '0' & ei.mstInp.dat;
-            txDataMst.vld                               <= ei.mstInp.vld;
-            txDataMst.don                               <= ei.mstInp.don;
+            bufWriteInp    <= '0' & ei.mstInp.dat;
+            txDataMst.vld  <= ei.mstInp.vld;
+            txDataMst.don  <= ei.mstInp.don;
 
             if ( ei.bFramedInp = '1' ) then
                -- if they don't want us to frame the input data
@@ -680,6 +684,9 @@ begin
 
             -- txDataSub.don = '1' and txDataSub.err = '1' is an abort condition of the PHY
             -- don't consume the data in this case.
+            -- Note that if bFramedInp is asserted (unframed stream) then 'txDataSub.don' cannot
+            -- be asserted here since we just assert txDataMst.don during this cycle and immediately
+            -- proceed to WAIT_DON.
             epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= txDataSub.rdy or (txDataSub.don and not txDataSub.err);
 
             if ( ( ei.mstInp.vld and txDataSub.rdy and not (txDataSub.don and txDataSub.err) ) = '1' ) then
