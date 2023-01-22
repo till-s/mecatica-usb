@@ -397,6 +397,7 @@ begin
             CLK_MULT_F_G         => CLK_MULT_F_C,
             CLK0_DIV_G           => CLK0_DIV_C,
             CLK2_DIV_G           => CLK2_DIV_C,
+            CLK1_INP_PHASE_G     => -58.5,
             NUM_I_REGS_G         => r.rwRegs'length,
             NUM_O_REGS_G         => roRegs'length
          )

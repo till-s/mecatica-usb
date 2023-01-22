@@ -4,8 +4,8 @@
 # This notice must not be removed.
 
 # Define ULPI clock for ULPI OUTPUT CLOCK mode
-create_clock -name ulpiClk -period 16.665 [all_fanin -flat -startpoints_only [get_pins -hier {*G_REFCLK_ULPI.U_BUF/I}]]
-set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets -of_objects [get_pins -hier {*G_REFCLK_ULPI.U_BUF/O}]]
+create_clock -name ulpiClk -period 16.665 [get_ports ulpiClk]
+set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets -hier -regex {.*/G_MMCM.U_ULPI_CLK_IOBUF/O}]
 
 # we use the MMCM to create a negative phase shift to compensate
 # for the routing delay from the non-CCIO pin. This works fine

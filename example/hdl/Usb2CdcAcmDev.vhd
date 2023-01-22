@@ -397,22 +397,32 @@ begin
       constant REF_CLK_DIV_C   : natural := ite( ULPI_CLK_MODE_INP_G, REF_CLK_DIV_G,        1     );
       -- phase must be a multiple of 45/CLK0_DIV_G
       constant CLKOUT0_PHASE_C : real    := ite( ULPI_CLK_MODE_INP_G, 0.00,                CLK0_OUT_PHASE_G);
+      constant CLKOUT1_PHASE_C : real    := ite( ULPI_CLK_MODE_INP_G, CLK1_INP_PHASE_G,    0.0    );
 
       signal ulpiClkRegLoc     : std_logic := '0';
       signal ulpiClkRegNb      : std_logic;
+      signal ulpiClk_i         : std_logic;
+      signal ulpiClk_o         : std_logic := '0';
+      signal ulpiClk_t         : std_logic := '1';
 
    begin
 
+      U_ULPI_CLK_IOBUF : IOBUF
+         port map (
+            IO   => ulpiClk,
+            O    => ulpiClk_i,
+            I    => ulpiClk_o,
+            T    => ulpiClk_t
+         );
+
       G_REFCLK_ULPI : if ( not ULPI_CLK_MODE_INP_G ) generate
-         U_BUF : IBUF
-            port map (
-               I => ulpiClk,
-               O => refClkLoc
-            );
+         refClkLoc <= ulpiClk_i;
+         ulpiClk_t <= '1';
       end generate G_REFCLK_ULPI;
 
       G_REF_SYS : if ( ULPI_CLK_MODE_INP_G ) generate
          refClkLoc <= refClkNb;
+         ulpiClk_t <= '0';
       end generate G_REF_SYS;
 
       U_MMCM : MMCME2_BASE
@@ -439,7 +449,7 @@ begin
             CLKOUT6_DUTY_CYCLE => 0.5,
             -- CLKOUT0_PHASE - CLKOUT6_PHASE: Phase offset for each CLKOUT (-360.000-360.000).
             CLKOUT0_PHASE => CLKOUT0_PHASE_C,
-            CLKOUT1_PHASE => CLK1_INP_PHASE_G,
+            CLKOUT1_PHASE => CLKOUT1_PHASE_C,
             CLKOUT2_PHASE => 0.0,
             CLKOUT3_PHASE => 0.0,
             CLKOUT4_PHASE => 0.0,
@@ -497,7 +507,7 @@ begin
                D2   => '0',
                R    => '0',
                S    => '0',
-               Q    => ulpiClk
+               Q    => ulpiClk_o
             );
       end generate G_CLKDDR;
 
