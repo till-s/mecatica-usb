@@ -387,7 +387,14 @@ begin
       signal rin     : RegType;
    begin
 
+   G_EXT_RST : if ( ULPI_CLK_MODE_INP_G /= 0 ) generate
       ulpiRstb <= not ulpiRst; -- RSTb
+   end generate G_EXT_RST;
+
+   G_NO_EXT_RST : if ( ULPI_CLK_MODE_INP_G = 0 ) generate
+      -- asserting reset will stop the clock
+      ulpiRstb <= '1';
+   end generate G_NO_EXT_RST;
 
       U_ULPI_TOP : entity work.Usb2CdcAcmDev
          generic map (
