@@ -86,8 +86,6 @@ entity I2SPlayback is
       usb2EpOb            : out Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
       usb2DevStatus       : in  Usb2DevStatusType;
 
-      msk4ByteFB          : in  std_logic := '0';
-
       i2sBCLK             : in  std_logic;
       i2sPBLRC            : in  std_logic;
       i2sPBDAT            : out std_logic
@@ -489,8 +487,7 @@ begin
       fifoMinFillUsb2,
       fifoAlmostFull,
       s2uRenTglOut,
-      fifoWen,
-      msk4ByteFB
+      fifoWen
    ) is
       variable v   : Usb2RegType;
       variable f   : std_logic_vector(31 downto 0);
@@ -561,7 +558,7 @@ begin
          when X2 =>
             usb2EpOb.mstInp.dat <= rusb2.rate(23 downto 16);
             if ( usb2EpIb.subInp.rdy = '1' ) then
-               if ( usb2DevStatus.hiSpeed and (msk4ByteFB = '0') ) then
+               if ( usb2DevStatus.hiSpeed ) then
                   v.state := X3;
                else
                   v.state := DON;
