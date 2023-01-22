@@ -86,6 +86,8 @@ entity I2SPlayback is
       usb2EpOb            : out Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
       usb2DevStatus       : in  Usb2DevStatusType;
 
+      msk4ByteFB          : in  std_logic := '0';
+
       i2sBCLK             : in  std_logic;
       i2sPBLRC            : in  std_logic;
       i2sPBDAT            : out std_logic
@@ -143,7 +145,7 @@ architecture Impl of I2SPlayback is
    -- this is correct for hi and full speed; samples / frame (fs) vs samples/uframe (hs)
    -- but the HS format is 16.16 (vs full-speed 10.13), i.e., the 3-bit left shift due
    -- to formatting cancels the division by 8 due to the higher ref. frequency.
-   constant RATE_INIT_C           : std_logic_vector(31 downto 0) := 
+   constant RATE_INIT_C           : std_logic_vector(31 downto 0) :=
       std_logic_vector( to_unsigned( SAMPLING_FREQ_G * 2**13 / SI_FREQ_G, 32 ) );
 
    -- for now we assume sample_size < 8
@@ -183,7 +185,7 @@ architecture Impl of I2SPlayback is
       variable v : std_logic_vector(31 downto 0);
       variable i : integer;
    begin
-      i := integer( round( f * 2.0**13 ) ); 
+      i := integer( round( f * 2.0**13 ) );
       v := std_logic_vector( to_unsigned( i, v'length ) );
       return v;
    end function freq;
@@ -202,23 +204,25 @@ architecture Impl of I2SPlayback is
    type StateType         is ( INIT, FILL, RUN );
 
    type RegType is record
-      state   : StateType;
-      bitCnt  : BitCountType;
-      bytCnt  : BytCountType;
-      pblrlst : std_logic;
-      swpr    : std_logic_vector(8*SAMPLE_SIZE_G - 1 downto 0);
-      sreg    : std_logic_vector(8*SAMPLE_SIZE_G - 1 downto 0);
+      state               : StateType;
+      bitCnt              : BitCountType;
+      bytCnt              : BytCountType;
+      pblrlst             : std_logic;
+      newFrame            : std_logic;
+      swpr                : std_logic_vector(8*SAMPLE_SIZE_G - 1 downto 0);
+      sreg                : std_logic_vector(8*SAMPLE_SIZE_G - 1 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
-      state   => INIT,
+      state               => INIT,
       -- must ensure RDEN is low for two cycles after reset is deasserted
       -- use the bit-counter for this
-      bitCnt  => to_signed( 3, BitCountType'length ),
-      bytCnt  => BYTCNT_F,
-      pblrlst => '0',
-      swpr    => (others => '0'),
-      sreg    => (others => '0')
+      bitCnt              => to_signed( 3, BitCountType'length ),
+      bytCnt              => BYTCNT_F,
+      pblrlst             => '0',
+      newFrame            => '0',
+      swpr                => (others => '0'),
+      sreg                => (others => '0')
    );
 
    signal r               : RegType := REG_INIT_C;
@@ -233,8 +237,9 @@ architecture Impl of I2SPlayback is
       loWater             : std_logic;
       hiWater             : std_logic;
       rate                : std_logic_vector(31 downto 8);
-      sofcnt              : signed(LD_SOF_CNT_MAX_C downto 0);
+      sofCnt              : signed(LD_SOF_CNT_MAX_C downto 0);
       fifoFill            : unsigned(LD_FIFO_DEPTH_C downto 0);
+      newFrame            : std_logic;
    end record Usb2RegType;
 
    constant USB2_REG_INIT_C : Usb2RegType := (
@@ -242,8 +247,9 @@ architecture Impl of I2SPlayback is
       loWater             => '0',
       hiWater             => '0',
       rate                => RATE_INIT_C(31 downto 8),
-      sofcnt              => (others => '1'),
-      fifoFill            => (others => '0')
+      sofCnt              => (others => '1'),
+      fifoFill            => (others => '0'),
+      newFrame            => '0'
    );
 
    signal rusb2           : Usb2RegType := USB2_REG_INIT_C;
@@ -267,7 +273,9 @@ architecture Impl of I2SPlayback is
    signal rstCntBclk      : unsigned(3 downto 0) := "1100";
 
    signal fifoDin         : std_logic_vector(31 downto 0);
+   signal fifoDip         : std_logic_vector( 3 downto 0);
    signal fifoDou         : std_logic_vector(31 downto 0);
+   signal fifoDop         : std_logic_vector( 3 downto 0);
    signal fifoRen         : std_logic;
    signal fifoWen         : std_logic;
    signal fifoEmpty       : std_logic;
@@ -280,7 +288,7 @@ architecture Impl of I2SPlayback is
 
    signal usb2Resetting   : std_logic;
    signal waitForFrame    : std_logic := '1';
-   
+
    attribute MARK_DEBUG of r                           : signal is MARK_DEBUG_BCLK_C;
    attribute MARK_DEBUG of fifoRen                     : signal is MARK_DEBUG_BCLK_C;
    attribute MARK_DEBUG of fifoEmpty                   : signal is MARK_DEBUG_BCLK_C;
@@ -334,7 +342,7 @@ begin
    i2sPBDAT    <= r.sreg(r.sreg'left);
    fifoMinFill <= not fifoAlmostEmpty;
 
-   P_I2S_COMB : process (r, i2sPBLRC, fifoDou, fifoEmpty, fifoMinFill) is
+   P_I2S_COMB : process (r, i2sPBLRC, fifoDou, fifoEmpty, fifoMinFill, fifoDop) is
       variable v : RegType;
    begin
       v             := r;
@@ -356,8 +364,25 @@ begin
          when FILL =>
             v.bitCnt := BITCNT_F;
             v.bytCnt := BYTCNT_F;
-            if ( ( fifoMinFill = '1' ) and ( i2sPBLRC = '1' ) and ( r.pblrlst = '0' ) ) then
-               v.state  := RUN;
+            if ( fifoMinFill = '1' ) then
+               if ( r.newFrame = '0' ) then
+                  -- first-word fall through mode enables us to see the first
+                  -- word without popping it; we'll leave it to be picked up in
+                  -- RUN state.
+                  v.newFrame := fifoDop(0);
+               end if;
+               if ( v.newFrame = '1' ) then
+                  -- we are synced to the first left-channel sample; now wait for pblrc
+                  -- to go high (that's right: we'll read the first LCH sample from the fifo
+                  -- while an all-zero one is being shifted).
+                  if ( ( i2sPBLRC = '1' ) and ( r.pblrlst = '0' ) ) then
+                     v.state    := RUN;
+                     v.newFrame := '0';
+                  end if;
+               else
+                  -- pop data until we are synchronized to a frame
+                  fifoRen <= '1';
+               end if;
             end if;
 
          when RUN =>
@@ -369,11 +394,19 @@ begin
                   fifoRen  <= '1';
                   v.swpr   := fifoDou(7 downto 0) & r.swpr(r.swpr'left downto 8);
                   v.bytCnt := r.bytCnt - 1;
+                  -- if we see the start of a new check if we are still synchronized
+                  if ( fifoDop(0) = '1' ) then
+                     -- remember: we read LHC while shifting RHC
+                     if ( i2sPBLRC = '0' or r.bytCnt /= BYTCNT_F ) then
+                        -- resync!
+                        v.state := FILL;
+                     end if;
+                  end if;
                end if;
             end if;
 
             if ( expired( r.bitCnt ) ) then
-               -- wait for the next LRCLK 
+               -- wait for the next LRCLK
                if ( i2sPBLRC /= r.pblrlst ) then
                   v.sreg   := r.swpr;
                   v.bitCnt := BITCNT_F;
@@ -421,6 +454,10 @@ begin
 
    fifoWen               <= not waitForFrame and usb2EpIb.mstOut.vld;
    fifoDin( 7 downto 0)  <= usb2EpIb.mstOut.dat;
+   -- allow reader to synchronize with a frame so that the byte-
+   -- alignment remains correct even if we occasionally run full or empty
+   fifoDip( 0 )          <= rusb2.newFrame;
+   fifoDip( 3 downto 1)  <= (others => '0');
    fifoDin(31 downto 8)  <= (others => '0');
 
    P_RST_USB : process ( usb2Clk ) is
@@ -444,7 +481,17 @@ begin
 
    fifoRst               <= rstCntBclk( rstCntBclk'left );
 
-   P_USB_COMB : process ( rusb2, usb2Rx, usb2DevStatus, usb2EpIb, fifoMinFillUsb2, fifoAlmostFull, s2uRenTglOut, fifoWen ) is
+   P_USB_COMB : process (
+      rusb2,
+      usb2Rx,
+      usb2DevStatus,
+      usb2EpIb,
+      fifoMinFillUsb2,
+      fifoAlmostFull,
+      s2uRenTglOut,
+      fifoWen,
+      msk4ByteFB
+   ) is
       variable v   : Usb2RegType;
       variable f   : std_logic_vector(31 downto 0);
       variable tst : std_logic_vector( 1 downto 0);
@@ -463,22 +510,35 @@ begin
          when others =>
       end case;
 
+      if ( fifoWen = '1' ) then
+         v.newFrame := '0';
+      end if;
+
+      if ( usb2EpIb.mstOut.don = '1' ) then
+         v.newFrame := '1';
+      end if;
+
       if ( ( usb2Rx.pktHdr.vld = '1' ) and usb2Rx.pktHdr.sof ) then
          -- register fifo levels at SOF time
          if ( rusb2.sofCnt( rusb2.sofCnt'left ) = '1' ) then
             v.loWater := fifoMinFillUsb2;
             v.hiWater := fifoAlmostFull;
             if ( usb2DevStatus.hiSpeed ) then
-               v.sofcnt := to_signed( SOF_CNT_HS_C - 2, rusb2.sofCnt'length );
+               v.sofCnt := to_signed( SOF_CNT_HS_C - 2, rusb2.sofCnt'length );
             else
-               v.sofcnt := to_signed( SOF_CNT_FS_C - 2, rusb2.sofCnt'length );
+               v.sofCnt := to_signed( SOF_CNT_FS_C - 2, rusb2.sofCnt'length );
             end if;
           else
-            v.sofcnt := rusb2.sofcnt - 1;
+            v.sofCnt := rusb2.sofCnt - 1;
           end if;
       end if;
 
       f := NOMFREQ_C;
+      if    ( rusb2.loWater = '0' ) then
+         f := MAXFREQ_C;
+      elsif ( rusb2.hiWater = '1' ) then
+         f := MINFREQ_C;
+      end if;
 
       case ( rusb2.state ) is
          when IDLE =>
@@ -486,12 +546,6 @@ begin
             usb2EpOb.mstInp.vld <= '0';
 
          when X0   =>
-            if    ( rusb2.loWater = '0' ) then
-               f := MAXFREQ_C;
-            elsif ( rusb2.hiWater = '1' ) then
-               f := MINFREQ_C;
-            end if;
-               
             usb2EpOb.mstInp.dat <= f(7 downto 0);
 
             -- latch the rest to ensure we send consistent data
@@ -507,7 +561,7 @@ begin
          when X2 =>
             usb2EpOb.mstInp.dat <= rusb2.rate(23 downto 16);
             if ( usb2EpIb.subInp.rdy = '1' ) then
-               if ( usb2DevStatus.hiSpeed ) then
+               if ( usb2DevStatus.hiSpeed and (msk4ByteFB = '0') ) then
                   v.state := X3;
                else
                   v.state := DON;
@@ -553,7 +607,7 @@ begin
    )
    port map (
       DO                     => fifoDou,
-      DOP                    => open,
+      DOP                    => fifoDop,
 
       ALMOSTEMPTY            => fifoAlmostEmpty,
       ALMOSTFULL             => fifoAlmostFull,
@@ -574,7 +628,7 @@ begin
       WRCLK                  => usb2Clk,
       WREN                   => fifoWen,
       DI                     => fifoDin,
-      DIP                    => x"0"
+      DIP                    => fifoDip
    );
 
    usb2RstBsy <= usb2Resetting;
