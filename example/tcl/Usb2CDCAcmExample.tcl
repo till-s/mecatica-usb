@@ -1,3 +1,8 @@
+#
+# Run this script:
+#
+#    vivado -mode tcl -source <this script> -tclargs <args_to_this_script>
+#
 #*****************************************************************************************
 # Vivado (TM) v2021.2 (64-bit)
 #
@@ -146,6 +151,7 @@ proc print_help {} {
   puts "generated. The script contains commands for creating a project, filesets,"
   puts "runs, adding/importing sources and setting properties on various objects.\n"
   puts "Syntax:"
+  puts "vivado -mode tcl -source $script_file -tclargs <args_to_this_script>"
   puts "$script_file"
   puts "$script_file -tclargs \[--origin_dir <path>\]"
   puts "$script_file -tclargs \[--project_name <name>\]"
@@ -164,13 +170,13 @@ proc print_help {} {
   puts "\[--ulpi_clk_mode_inp <1/0>\] Select ULPI clock mode."
   puts "                       1: Link generates clock (must be supported by PHY)"
   puts "                       0: PHY  generates clock."
-  puts "                       The default is '1', i.e., ULPI 'input' clock mode.\n"
+  puts "                       The default is '0', i.e., ULPI 'output' clock mode.\n"
   puts "\[--help\]               Print help information for this script"
   puts "-------------------------------------------------------------------------\n"
   exit 0
 }
 
-set clk_mode_inp 1
+set clk_mode_inp 0
 
 # Use clk_mode_inp variable, if specified in the tcl shell
 if { [info exists ::user_clk_mode_inp] } {
@@ -198,7 +204,7 @@ if { $::argc > 0 } {
 set clk_mode_out [expr ! ${clk_mode_inp}]
 
 # Set the directory path for the original project from where this script was exported
-set orig_proj_dir "[file normalize "$origin_dir/../Usb2CDCAcmExample"]"
+set orig_proj_dir "[file normalize "$origin_dir/../${_xil_proj_name_}"]"
 
 # Check for paths and files needed for project creation
 set validate_required 0
@@ -420,7 +426,7 @@ set_property -name "vhdl_generic" -value "ULPI_CLK_MODE_INP_G=${clk_mode_inp}" -
 set obj [get_filesets sources_1]
 # Add local files from the original project (-no_copy_sources specified)
 set files [list \
- [file normalize "${origin_dir}/../Usb2CDCAcmExample/Usb2CDCAcmExample.srcs/sources_1/ip/processing_system7_0/processing_system7_0.xci" ]\
+ [file normalize "${origin_dir}/../${_xil_proj_name_}/${_xil_proj_name_}.srcs/sources_1/ip/processing_system7_0/processing_system7_0.xci" ]\
 ]
 set added_files [add_files -fileset sources_1 $files]
 
@@ -441,7 +447,7 @@ if { ![get_property "is_locked" $file_obj] } {
 set obj [get_filesets sources_1]
 # Add local files from the original project (-no_copy_sources specified)
 set files [list \
- [file normalize "${origin_dir}/../Usb2CDCAcmExample/Usb2CDCAcmExample.srcs/sources_1/ip/axi2axil_converter_0/axi2axil_converter_0.xci" ]\
+ [file normalize "${origin_dir}/../${_xil_proj_name_}/${_xil_proj_name_}.srcs/sources_1/ip/axi2axil_converter_0/axi2axil_converter_0.xci" ]\
 ]
 set added_files [add_files -fileset sources_1 $files]
 
@@ -482,6 +488,8 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
 set_property -name "is_enabled" -value "${clk_mode_inp}" -objects $file_obj
+set_property -name "used_in" -value "implementation" -objects $file_obj
+set_property -name "used_in_synthesis" -value "0" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
 set file "[file normalize "$origin_dir/../xdc/clk_out.xdc"]"
@@ -491,6 +499,8 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
 set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
+set_property -name "used_in" -value "implementation" -objects $file_obj
+set_property -name "used_in_synthesis" -value "0" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
 set file "[file normalize "$origin_dir/../xdc/i2s.xdc"]"
@@ -500,6 +510,8 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
 set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
+set_property -name "used_in" -value "implementation" -objects $file_obj
+set_property -name "used_in_synthesis" -value "0" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
 set file "[file normalize "$origin_dir/../../xdc/usb3340_clkinp_io_timing.xdc"]"
@@ -509,6 +521,8 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
 set_property -name "is_enabled" -value "${clk_mode_inp}" -objects $file_obj
+set_property -name "used_in" -value "implementation" -objects $file_obj
+set_property -name "used_in_synthesis" -value "0" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
 set file "[file normalize "$origin_dir/../../xdc/usb3340_clkout_io_timing.xdc"]"
@@ -518,6 +532,8 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
 set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
+set_property -name "used_in" -value "implementation" -objects $file_obj
+set_property -name "used_in_synthesis" -value "0" -objects $file_obj
 
 # Set 'constrs_1' fileset properties
 set obj [get_filesets constrs_1]
@@ -540,19 +556,11 @@ set_property -name "top_lib" -value "xil_defaultlib" -objects $obj
 # Set 'utils_1' fileset object
 set obj [get_filesets utils_1]
 # Add local files from the original project (-no_copy_sources specified)
-set files [list \
- [file normalize "${origin_dir}/../Usb2CDCAcmExample/Usb2CDCAcmExample.srcs/utils_1/imports/synth_1/ZyboTop.dcp" ]\
-]
-set added_files [add_files -fileset utils_1 $files]
 
 # Set 'utils_1' fileset file properties for remote files
 # None
 
 # Set 'utils_1' fileset file properties for local files
-set file "synth_1/ZyboTop.dcp"
-set file_obj [get_files -of_objects [get_filesets utils_1] [list "*$file"]]
-set_property -name "netlist_only" -value "0" -objects $file_obj
-
 
 # Set 'utils_1' fileset properties
 set obj [get_filesets utils_1]
@@ -584,7 +592,6 @@ if { $obj != "" } {
 }
 set obj [get_runs synth_1]
 set_property -name "part" -value "xc7z010clg400-1" -objects $obj
-set_property -name "incremental_checkpoint" -value "$proj_dir/Usb2CDCAcmExample.srcs/utils_1/imports/synth_1/ZyboTop.dcp" -objects $obj
 set_property -name "auto_incremental_checkpoint" -value "1" -objects $obj
 set_property -name "strategy" -value "Vivado Synthesis Defaults" -objects $obj
 
@@ -809,6 +816,7 @@ set_property -name "options.warn_on_violation" -value "1" -objects $obj
 set obj [get_runs impl_1]
 set_property -name "part" -value "xc7z010clg400-1" -objects $obj
 set_property -name "strategy" -value "Vivado Implementation Defaults" -objects $obj
+set_property -name "steps.write_bitstream.args.bin_file" -value "1" -objects $obj
 set_property -name "steps.write_bitstream.args.readback_file" -value "0" -objects $obj
 set_property -name "steps.write_bitstream.args.verbose" -value "0" -objects $obj
 
