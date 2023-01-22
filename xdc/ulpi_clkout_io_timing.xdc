@@ -44,6 +44,6 @@ set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoin
 #delay from DIR until outputs are high-z (or back on)
 #note that the input delay into DIR and output delay out of the data outputs is 'included' in the max_delay
 #if we're paranoid we'd set this to 1 clock cycle to avoid possible
-#metastability when the turn-around cycle is latched. However, on slower
-#devices at least, this does not seem possible. 2-cycles is a must!
+#metastability when the turn-around cycle is latched. However, at least on slower
+#devices this does not seem possible. 2-cycles is a must!
 set_max_delay -datapath_only -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]] 33.333
