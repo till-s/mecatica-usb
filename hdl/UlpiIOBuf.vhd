@@ -5,6 +5,7 @@
 
 library ieee;
 use     ieee.std_logic_1164.all;
+use     ieee.numeric_std.all;
 
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
@@ -17,8 +18,8 @@ entity UlpiIOBuf is
    generic (
       MARK_DEBUG_G    : boolean := true;
       -- whether to request the NXT register to be placed in a IOB;
-      -- this is good in ulpi input-clock mode but may be disadvantageous
-      -- in ulpi output-clock mode; if a phase-shifted clock is used
+      -- this is good in ulpi output-clock mode but may be disadvantageous
+      -- in ulpi input-clock mode; if a phase-shifted clock is used
       -- (for timing reasons) then putting the register into the fabric
       -- gives the tool freedom to tweak hold-timing.
       ULPI_NXT_IOB_G  : boolean := true;
@@ -29,9 +30,14 @@ entity UlpiIOBuf is
       -- (see additional comments above)
       ULPI_DIN_IOB_G  : boolean := true;
       -- whether STP must not be asserted while NXT is low
-      -- during trasmit (USB3340) - bad because it requires
+      -- during transmit (USB3340) - bad because it requires
       -- combinatorials after the STP register which means
       -- this register cannot be placed into IOB :-(
+      -- The 3340 datasheet claims that STP must not be
+      -- asserted while NXT is low -- however, experiments
+      -- indicated that this actually caused malfunction but
+      -- asserting STP (after the last data are consumed)
+      -- regardless of NXT being hi or lo worked as it should.
       ULPI_STP_MODE_G : UlpiStpModeType := NORMAL
    );
    port (
