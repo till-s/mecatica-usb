@@ -441,9 +441,9 @@ begin
                         else
                            v.nxtState                            := ISO_INP;
                            v.pid                                 := USB2_PID_DAT_DATA0_C;
-                           if ( ei.bFramedInp = '0' ) then
+                           if ( ei.mstInp.vld = '0' ) then
                               -- must send a null packet if there is no data (usb 5.6.5)
-                              if ( (not ei.mstInp.vld and not ei.mstInp.don) = '1' ) then
+                              if ( (not ei.mstInp.don or ei.bFramedInp ) = '1' ) then
                                  v.donFlg := '1';
                                  -- in this case, we also must prevent the TX DON from being seen by the endpoint
                                  v.nakDon := '1';
