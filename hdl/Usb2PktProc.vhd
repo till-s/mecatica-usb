@@ -943,8 +943,7 @@ begin
          EN_REGB_G    => false
       )
       port map (
-         clk          => clk,
-         rst          => rst,
+         clka         => clk,
          ena          => '1',
 
          -- through this port we write OUT data and readback INP data (for retries)
@@ -954,6 +953,7 @@ begin
          wdata        => bufWriteInp,
 
          -- readout of OUT data (after checksum is validated)
+         clkb         => clk,
          enb          => '1',
          web          => '0',
          addrb        => rdin.bufRdIdx,

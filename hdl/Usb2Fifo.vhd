@@ -186,15 +186,14 @@ begin
          EN_REGB_G    => (OUT_REG_G > 0)
       )
       port map (
-         clk          => clk,
-         rst          => rst,
-
+         clka         => clk,
          ena          => open,
          wea          => fifoWen,
          addra        => r.wrPtr(r.wrPtr'left - 1 downto 0),
          rdata        => open,
          wdata        => din,
 
+         clkb         => clk,
          enb          => advanceMem,
          ceb          => advanceReg,
          web          => open,
