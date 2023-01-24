@@ -27,6 +27,7 @@ SRCS+= Usb2PktTxTb.vhd
 SRCS+= Usb2HskTb.vhd
 SRCS+= Usb2Fifo.vhd
 SRCS+= Usb2FifoTb.vhd
+SRCS+= Usb2FifoAsyncTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
 SRCS+= CDCACMSendBreak.vhd
@@ -36,6 +37,8 @@ SRCS+= UlpiIOBuf.vhd
 SRCS+= UlpiIOBufTb.vhd
 SRCS+= BADDSpkrCtl.vhd
 SRCS+= BADDSpkrCtlTb.vhd
+SRCS+= Usb2CCSync.vhd
+SRCS+= Usb2MboxSync.vhd
 ifneq ($(VIVADO),)
 # this one needs unisim
 SRCS += I2SPlayback.vhd
@@ -44,6 +47,7 @@ endif
 
 
 PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb UlpiIOBufTb Usb2IsoTb BADDSpkrCtlTb
+PROG+=Usb2FifoAsyncTb
 ifneq ($(VIVADO),)
 PROG+=I2SPlaybackTb
 endif
@@ -77,8 +81,9 @@ $(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
 
 UlpiIO.o: UlpiIOBuf.o
 Usb2Core.o: UlpiIO.o UlpiLineState.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o
-Usb2FifoEp.o: Usb2Fifo.o
-Usb2Fifo.o: Usb2Bram.o
+Usb2FifoEp.o: Usb2Fifo.o Usb2CCSync.o
+Usb2MboxSync.o: Usb2CCSync.o
+Usb2Fifo.o: Usb2Bram.o Usb2MboxSync.o
 Usb2PktProc.o: Usb2Bram.o
 Usb2PktRx.o: UsbCrcTbl.o
 Usb2PktTx.o: UsbCrcTbl.o
@@ -87,6 +92,7 @@ UlpiIOBufTb.o: UlpiIOBuf.o
 UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o
 Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o CDCACMSendBreak.o
 Usb2FifoTb.o: Usb2Fifo.o
+Usb2FifoAsyncTb.o: Usb2Fifo.o
 Usb2HskTb.o: Usb2PktTx.o UlpiIO.o
 Usb2IsoTb.o: Usb2Core.o
 Usb2PktProcTb.o: Usb2Core.o
@@ -94,6 +100,7 @@ Usb2PktTxTb.o: Usb2PktTx.o UlpiIO.o
 UsbCrcTblTb.o: UsbCrcTbl.o
 
 BADDSpkrCtlTb.o: Usb2Core.o BADDSpkrCtl.o
+I2SPlayback.o: Usb2CCSync.o
 I2SPlaybackTb_GHDLFLAGS=-fsynopsys
 I2SPlaybackTb.o: Usb2Core.o I2SPlayback.o
 

@@ -261,11 +261,16 @@ begin
             MAX_PKT_SIZE_OUT_G          => MAX_PKT_SIZE_OUT_C,
             LD_FIFO_DEPTH_INP_G         => LD_FIFO_DEPTH_INP_C,
             LD_FIFO_DEPTH_OUT_G         => LD_FIFO_DEPTH_OUT_C,
-            TIMER_WIDTH_G               => fifoTimer'length
+            TIMER_WIDTH_G               => fifoTimer'length,
+            ASYNC_G                     => true
          )
          port map (
-            clk                         => ulpiClkLoc,
-            rst                         => usb2RstLoc,
+            usb2Clk                     => ulpiClkLoc,
+            usb2Rst                     => usb2RstLoc,
+            
+            epClk                       => ulpiClkLoc,
+            epRst                       => usb2RstLoc,
+            
             usb2EpIb                    => usb2EpIb(CDC_BULK_EP_IDX_C),
             usb2EpOb                    => usb2EpOb(CDC_BULK_EP_IDX_C),
 

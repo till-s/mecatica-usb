@@ -19,8 +19,6 @@ set_output_delay -clock i2sBCLK -min -add_delay -10.0 [get_ports {i2sPBDAT}]
 # trace delay + external setup time
 set_output_delay -clock i2sBCLK -max -add_delay  31.0 [get_ports {i2sPBDAT}]
 
-set_false_path -through [get_pins -hier -regexp {.*B_I2S_SYNCHRONIZERS[.][^/]*/ccSync_reg[[]0[]]/D}]
-
 # huge timing violations on the FIFO/RST - no surprise since there are asynchronous
 # clocks. According to some forum talk this can be set as a false path because
 # the FIFO internals handle it correctly (provided we reset for >=5 cycles of the

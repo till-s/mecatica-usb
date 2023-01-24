@@ -44,18 +44,21 @@ begin
          EXACT_THR_G  => true
       )
       port map (
-         clk          => clk,
-         rst          => open,
+         wrClk        => clk,
+         wrRst        => open,
 
          din          => std_logic_vector(din),
          wen          => wen,
          full         => full,
+         wrFilled     => open,
          
+         rdClk        => clk,
+         rdRst        => open,
+
          dou          => dou,
          ren          => ren,
          empty        => empty,
-
-         filled       => open,
+         rdFilled     => open,
 
          minFill      => minFill,
          timer        => timer
@@ -74,6 +77,7 @@ begin
 
    P_DRV : process is
    begin
+      tick;
       tick;
       ren   <= '1';
       timer <= (others => '1');
@@ -135,6 +139,7 @@ begin
       
 
       run <= false;
+      report "Test PASSED";
       wait;
    end process P_DRV;
    

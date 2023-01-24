@@ -367,27 +367,32 @@ begin
          OUT_REG_OUT_G             => true
       )
       port map (
-         clk                       => ulpiTstClk,
-         rst                       => open,
+         usb2Clk                   => ulpiTstClk,
+         usb2Rst                   => open,
+
+         minFillInp                => open,
+         timeFillInp               => open,
+
+         setHalt                   => devStatus.setHalt,
+         clrHalt                   => devStatus.clrHalt,
+         selHaltInp                => devStatus.selHaltInp(TST_EP_IDX_C),
+         selHaltOut                => devStatus.selHaltOut(TST_EP_IDX_C),
+
          usb2EpIb                  => epIb(TST_EP_IDX_C),
          usb2EpOb                  => epOb(TST_EP_IDX_C),
+
+         epClk                     => ulpiTstClk,
+         epRst                     => open,
 
          datInp                    => fifoDatInp,
          wenInp                    => fifoWenInp,
          filledInp                 => open,
          fullInp                   => fifoFullInp,
-         minFillInp                => open,
-         timeFillInp               => open,
 
          datOut                    => fifoDatOut,
          renOut                    => fifoRenOut,
          filledOut                 => open,
-         emptyOut                  => fifoEmptyOut,
-
-         setHalt                   => devStatus.setHalt,
-         clrHalt                   => devStatus.clrHalt,
-         selHaltInp                => devStatus.selHaltInp(TST_EP_IDX_C),
-         selHaltOut                => devStatus.selHaltOut(TST_EP_IDX_C)
+         emptyOut                  => fifoEmptyOut
       );
 
    U_BRK : entity work.CDCACMSendBreak

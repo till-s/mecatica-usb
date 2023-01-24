@@ -28,21 +28,19 @@ entity Usb2FifoEp is
       -- add an output register to the INP bound FIFO (to improve timing)
       OUT_REG_INP_G                : boolean  := false;
       -- add an output register to the OUT bound FIFO (to improve timing)
-      OUT_REG_OUT_G                : boolean  := false
+      OUT_REG_OUT_G                : boolean  := false;
+      -- whether usb2Clk and epClk are asynchronous
+      ASYNC_G                      : boolean  := false
    );
    port (
-      clk                          : in  std_logic;
-      rst                          : in  std_logic := '0';
+      usb2Clk                      : in  std_logic;
+      usb2Rst                      : in  std_logic := '0';
 
       -- Endpoint Interface
       usb2EpIb                     : out Usb2EndpPairIbType;
       usb2EpOb                     : in  Usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
 
-      -- FIFO Interface IN (to USB)
-      datInp                       : in  Usb2ByteType := (others => '0');
-      wenInp                       : in  std_logic    := '0';
-      filledInp                    : out unsigned(LD_FIFO_DEPTH_INP_G downto 0) := (others => '0');
-      fullInp                      : out std_logic    := '1';
+      -- Controls (usb2Clk domain)
       -- accumulate 'minFillInp' items before passing to the endpoint
       minFillInp                   : in  unsigned(LD_FIFO_DEPTH_INP_G - 1 downto 0) := (others => '0');
       -- if more then 'timeFillInp' clock cycles expire since the last
@@ -53,17 +51,27 @@ entity Usb2FifoEp is
       --  - Time may be reduced while a wait is in progress.
       timeFillInp                  : in  unsigned(TIMER_WIDTH_G - 1 downto 0) := (others => '0');
 
-      -- FIFO Interface OUT (from USB)
-      datOut                       : out Usb2ByteType := (others => '0');
-      renOut                       : in  std_logic    := '0';
-      filledOut                    : out unsigned(LD_FIFO_DEPTH_OUT_G downto 0) := (others => '0');
-      emptyOut                     : out std_logic    := '1';
-
-      -- EP Halt
+      -- EP Halt (usb2Clk domain)
       selHaltInp                   : in  std_logic    := '0';
       selHaltOut                   : in  std_logic    := '0';
       setHalt                      : in  std_logic    := '0';
-      clrHalt                      : in  std_logic    := '0'
+      clrHalt                      : in  std_logic    := '0';
+
+      epClk                        : in  std_logic    := '0';
+      epRst                        : in  std_logic    := '0';
+
+      -- FIFO Interface IN (to USB); epClk domain
+
+      datInp                       : in  Usb2ByteType := (others => '0');
+      wenInp                       : in  std_logic    := '0';
+      filledInp                    : out unsigned(LD_FIFO_DEPTH_INP_G downto 0) := (others => '0');
+      fullInp                      : out std_logic    := '1';
+
+      -- FIFO Interface OUT (from USB); epClk domain
+      datOut                       : out Usb2ByteType := (others => '0');
+      renOut                       : in  std_logic    := '0';
+      filledOut                    : out unsigned(LD_FIFO_DEPTH_OUT_G downto 0) := (others => '0');
+      emptyOut                     : out std_logic    := '1'
    );
 end entity Usb2FifoEp;
 
@@ -76,11 +84,16 @@ architecture Impl of Usb2FifoEp is
 
    signal haltedInp             : std_logic := '1';
    signal haltedOut             : std_logic := '1';
+   signal haltedInpEpClk        : std_logic := '1';
+   signal haltedOutEpClk        : std_logic := '1';
    signal mstInpVld             : std_logic := '0';
    signal mstInpDon             : std_logic := '0';
    signal fifoDatInp            : std_logic_vector(7 downto 0) := (others => '0');
    signal bFramedInp            : std_logic := '0';
    signal subOutRdy             : std_logic := '0';
+
+   signal epClkLoc              : std_logic;
+   signal epRstLoc              : std_logic;
 
 begin
 
@@ -92,18 +105,49 @@ begin
       report "Inconsistent OUT fifo depth"
       severity failure;
 
+   G_SYNC : if ( not ASYNC_G ) generate
+   begin
+      epClkLoc       <= usb2Clk;
+      epRstLoc       <= usb2Rst;
+      haltedInpEpClk <= haltedInp;
+      haltedOutEpClk <= haltedOut;
+   end generate G_SYNC;
+
+   G_Usb2FifoAsyncCC : if ( ASYNC_G ) generate
+   begin
+
+      epClkLoc <= epClk;
+      epRstLoc <= epRst;
+
+      U_SYNC_HALT_INP : entity work.Usb2CCSync
+         port map (
+            clk => epClkLoc,
+            d   => haltedInp,
+            q   => haltedInpEpClk
+         );
+
+      U_SYNC_HALT_OUT : entity work.Usb2CCSync
+         port map (
+            clk => epClkLoc,
+            d   => haltedOut,
+            q   => haltedOutEpClk
+         );
+      
+   end generate G_Usb2FifoAsyncCC;
+
    G_INP_FIFO : if ( MAX_PKT_SIZE_INP_G > 0 ) generate
       signal halted       : std_logic := '0';
+      signal haltedEpClk  : std_logic;
       signal fifoWen      : std_logic;
       signal fifoFull     : std_logic;
       signal fifoRen      : std_logic;
       signal fifoEmpty    : std_logic;
    begin
 
-      P_HALT : process ( clk ) is
+      P_HALT : process ( usb2Clk ) is
       begin
-         if ( rising_edge( clk ) ) then
-            if ( rst = '1' ) then
+         if ( rising_edge( usb2Clk ) ) then
+            if ( usb2Rst = '1' ) then
                halted  <= '0';
             else
                if ( (setHalt and selHaltInp) = '1' ) then
@@ -117,8 +161,8 @@ begin
       end process P_HALT;
 
       haltedInp           <= halted;
-      fifoWen             <= wenInp and not haltedInp;
-      fullInp             <= fifoFull or haltedInp;
+      fifoWen             <= wenInp and not haltedInpEpClk;
+      fullInp             <= fifoFull or haltedInpEpClk;
       mstInpVld           <= not fifoEmpty;
       bFramedInp          <= '1'; -- no framing
       mstInpDon           <= '0'; -- no framing
@@ -132,21 +176,26 @@ begin
             DATA_WIDTH_G => Usb2ByteType'length,
             LD_DEPTH_G   => LD_FIFO_DEPTH_INP_G,
             LD_TIMER_G   => TIMER_WIDTH_G,
-            OUT_REG_G    => ite( OUT_REG_INP_G, 1, 0 )
+            OUT_REG_G    => ite( OUT_REG_INP_G, 1, 0 ),
+            ASYNC_G      => ASYNC_G
          )
          port map (
-            clk          => clk,
-            rst          => rst,
+            wrClk        => epClkLoc,
+            wrRst        => epRstLoc,
 
             din          => datInp,
             wen          => fifoWen,
             full         => fifoFull,
+            wrFilled     => filledInp,
+
+            rdClk        => usb2Clk,
+            rdRst        => usb2Rst,
 
             dou          => fifoDatInp,
             ren          => fifoRen,
             empty        => fifoEmpty,
+            rdFilled     => open,
 
-            filled       => filledInp,
             minFill      => minFillInp,
             timer        => timeFillInp
          );
@@ -163,10 +212,10 @@ begin
       signal lastWen      : std_logic := '0';
    begin
 
-      P_SEQ : process ( clk ) is
+      P_SEQ : process ( usb2Clk ) is
       begin
-         if ( rising_edge( clk ) ) then
-            if ( rst = '1' ) then
+         if ( rising_edge( usb2Clk ) ) then
+            if ( usb2Rst = '1' ) then
                halted    <= '0';
                fifoRdy   <= '0';
                lastWen   <= '0';
@@ -204,28 +253,30 @@ begin
       emptyOut            <= fifoEmpty or haltedOut;
       fifoRen             <= renOut and not haltedOut;
 
-      filledOut           <= fifoFilled;
-
       U_FIFO : entity work.Usb2Fifo
          generic map (
             DATA_WIDTH_G => Usb2ByteType'length,
             LD_DEPTH_G   => LD_FIFO_DEPTH_OUT_G,
             LD_TIMER_G   => 1,
-            OUT_REG_G    => ite( OUT_REG_OUT_G, 1, 0 )
+            OUT_REG_G    => ite( OUT_REG_OUT_G, 1, 0 ),
+            ASYNC_G      => ASYNC_G
          )
          port map (
-            clk          => clk,
-            rst          => rst,
+            wrClk        => usb2Clk,
+            wrRst        => usb2Rst,
 
             din          => usb2EpOb.mstOut.dat,
             wen          => fifoWen,
             full         => open,
+            wrFilled     => fifoFilled,
 
+            rdClk        => epClkLoc,
+            rdRst        => epRstLoc,
             dou          => datOut,
             ren          => fifoRen,
             empty        => fifoEmpty,
+            rdFilled     => filledOut,
 
-            filled       => fifoFilled,
             minFill      => open,
             timer        => open
          );

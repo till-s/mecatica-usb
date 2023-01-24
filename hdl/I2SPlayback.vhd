@@ -11,48 +11,6 @@
 -- on the fill level. A simple bang/bang scheme is used.
 library ieee;
 use     ieee.std_logic_1164.all;
-
-entity I2S_CC_Sync is
-   generic (
-      STAGES_G : natural := 2
-   );
-   port (
-      clk      : in  std_logic;
-      d        : in  std_logic;
-      tgl      : out std_logic;
-      o        : out std_logic
-   );
-end entity I2S_CC_Sync;
-
-architecture Impl of I2S_CC_Sync is
-
-   attribute ASYNC_REG  : string;
-
-   signal ccSync        : std_logic_vector(STAGES_G - 1 downto 0) := (others => '0');
-
-   attribute ASYNC_REG  of ccSync : signal is "TRUE";
-
-begin
-   P_SYNC : process ( clk ) is
-   begin
-      if ( rising_edge( clk ) ) then
-         ccSync <= ccSync(ccSync'left - 1 downto 0) & d;
-      end if;
-   end process P_SYNC;
-
-   G_TGL : if ( STAGES_G > 2 ) generate
-      tgl <= ccSync(ccSync'left) xor ccSync(ccSync'left - 1);
-   end generate G_TGL;
-
-   G_ERR : if ( STAGES_G <= 2 ) generate
-      tgl <= '0';
-   end generate;
-
-   o <= ccSync(ccSync'left);
-end architecture Impl;
-
-library ieee;
-use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
@@ -94,7 +52,6 @@ end entity I2SPlayback;
 
 architecture Impl of I2SPlayback is
 
-   attribute ASYNC_REG             : string;
    attribute MARK_DEBUG            : string;
 
    constant MARK_DEBUG_C           : string  := toStr(MARK_DEBUG_G);
@@ -302,38 +259,38 @@ begin
 
    B_I2S_SYNCHRONIZERS : block is
    begin
-      U_U2S_RST_SYNC : entity work.I2S_CC_Sync
+      U_U2S_RST_SYNC : entity work.Usb2CCSync
          generic map ( STAGES_G => 3 )
          port map (
             clk => i2sBCLK,
             d   => u2sRstTgl,
             tgl => u2sRstTglOut,
-            o   => u2sRstOut
+            q   => u2sRstOut
          );
-      U_S2U_RST_SYNC : entity work.I2S_CC_Sync
+      U_S2U_RST_SYNC : entity work.Usb2CCSync
          generic map ( STAGES_G => 3 )
          port map (
             clk => usb2Clk,
             d   => s2uRstTgl,
             tgl => open,
-            o   => s2uRstOut
+            q   => s2uRstOut
          );
 
-      U_S2U_FIL_SYNC : entity work.I2S_CC_Sync
+      U_S2U_FIL_SYNC : entity work.Usb2CCSync
          port map (
             clk => usb2Clk,
             d   => fifoMinFill,
             tgl => open,
-            o   => fifoMinFillUsb2
+            q   => fifoMinFillUsb2
          );
 
-      U_S2U_REN_SYNC : entity work.I2S_CC_Sync
+      U_S2U_REN_SYNC : entity work.Usb2CCSync
          generic map ( STAGES_G => 3 )
          port map (
             clk => usb2Clk,
             d   => s2uRenTgl,
             tgl => s2uRenTglOut,
-            o   => open
+            q   => open
          );
    end block B_I2S_SYNCHRONIZERS;
 

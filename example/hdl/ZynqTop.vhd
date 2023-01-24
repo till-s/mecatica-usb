@@ -604,13 +604,39 @@ begin
 
    ulpiRst <= ulpiRstCnt(ulpiRstCnt'left);
 
-   P_LED : process ( refLocked, lineBreak, i2sBlink ) is
+  -- P_LED : process ( refLocked, lineBreak, i2sBlink ) is
+  -- begin
+  --    ledLoc    <= (others => '0');
+  --    ledLoc(2) <= i2sBlink;
+  --    ledLoc(1) <= lineBreak;
+  --    ledLoc(0) <= refLocked;
+  -- end process P_LED;
+   
+   B_XX : block is
+    signal xxxClk : std_logic;
    begin
-      ledLoc    <= (others => '0');
-      ledLoc(2) <= i2sBlink;
-      ledLoc(1) <= lineBreak;
-      ledLoc(0) <= refLocked;
-   end process P_LED;
+   
+   U_SYSCB : BUFG port map (I => plClk, O => xxxClk);
+   
+   
+   U_SYNC : entity work.Usb2MboxSync
+   generic map (
+      DWIDTH_A2B_G => 1,
+      DWIDTH_B2A_G => 1,
+      OUTREG_A2B_G => true,
+      OUTREG_B2A_G => true
+   )
+   port map (
+      clka         => xxxClk,
+      dinA         => SW(1 downto 1),
+      douA         => ledLoc(1 downto 1),
+      
+      clkb         => ulpiClkLoc,
+      dinB         => SW(0 downto 0),
+      douB         => ledLoc(0 downto 0)
+   );
+   
+   end block;
 
    LED <= ledLoc;
 
