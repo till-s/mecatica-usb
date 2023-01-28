@@ -401,10 +401,4 @@ begin
          lineBreak                 => lineBreak
       );
 
-   P_EP_1  : process ( ulpiTstClk ) is
-   begin
-      if ( rising_edge( ulpiTstClk ) ) then
-      end if;
-   end process P_EP_1;
-
 end architecture sim;
