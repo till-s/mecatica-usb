@@ -382,7 +382,7 @@ begin
          usb2EpOb                  => epOb(TST_EP_IDX_C),
 
          epClk                     => ulpiTstClk,
-         epRst                     => open,
+         epRstOut                  => open,
 
          datInp                    => fifoDatInp,
          wenInp                    => fifoWenInp,

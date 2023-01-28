@@ -58,7 +58,8 @@ entity Usb2FifoEp is
       clrHalt                      : in  std_logic    := '0';
 
       epClk                        : in  std_logic    := '0';
-      epRst                        : in  std_logic    := '0';
+      -- reset received from USB
+      epRstOut                     : out std_logic;
 
       -- FIFO Interface IN (to USB); epClk domain
 
@@ -93,7 +94,8 @@ architecture Impl of Usb2FifoEp is
    signal subOutRdy             : std_logic := '0';
 
    signal epClkLoc              : std_logic;
-   signal epRstLoc              : std_logic;
+   signal obFifoRst             : std_logic := '0';
+   signal ibFifoRst             : std_logic := '0';
 
 begin
 
@@ -108,7 +110,7 @@ begin
    G_SYNC : if ( not ASYNC_G ) generate
    begin
       epClkLoc       <= usb2Clk;
-      epRstLoc       <= usb2Rst;
+      epRstOut       <= usb2Rst;
       haltedInpEpClk <= haltedInp;
       haltedOutEpClk <= haltedOut;
    end generate G_SYNC;
@@ -117,7 +119,7 @@ begin
    begin
 
       epClkLoc <= epClk;
-      epRstLoc <= epRst;
+      epRstOut <= obFifoRst or ibFifoRst;
 
       U_SYNC_HALT_INP : entity work.Usb2CCSync
          port map (
@@ -181,7 +183,8 @@ begin
          )
          port map (
             wrClk        => epClkLoc,
-            wrRst        => epRstLoc,
+            wrRst        => open, -- only allow to be reset from USB
+            wrRstOut     => ibFifoRst,
 
             din          => datInp,
             wen          => fifoWen,
@@ -271,7 +274,8 @@ begin
             wrFilled     => fifoFilled,
 
             rdClk        => epClkLoc,
-            rdRst        => epRstLoc,
+            rdRst        => open, -- only allow to be reset from USB
+            rdRstOut     => obFifoRst,
             dou          => datOut,
             ren          => fifoRen,
             empty        => fifoEmpty,
