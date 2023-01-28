@@ -17,12 +17,18 @@ entity Usb2Fifo is
       LD_TIMER_G   : positive := 24;   -- at least one bit is required for internal reasons
       OUT_REG_G    : natural range 0 to 1 := 0;
       EXACT_THR_G  : boolean  := false;
-      ASYNC_G      : boolean  := false
+      ASYNC_G      : boolean  := false;
+      -- extra (user) bits synchronized from the write -> read side
+      XTRA_W2R_G   : natural  := 0;
+      -- extra (user) bits synchronized from the read  -> write side
+      XTRA_R2W_G   : natural  := 0
    );
    port (
       wrClk        : in  std_logic;
       wrRst        : in  std_logic := '0';
       wrRstOut     : out std_logic;
+      wrXtraInp    : in  std_logic_vector(XTRA_W2R_G - 1 downto 0) := (others => '0');
+      wrXtraOut    : out std_logic_vector(XTRA_R2W_G - 1 downto 0);
 
       din          : in  std_logic_vector(DATA_WIDTH_G - 1 downto 0);
       wen          : in  std_logic;
@@ -32,6 +38,8 @@ entity Usb2Fifo is
 
       rdClk        : in  std_logic;
       rdRst        : in  std_logic := '0';
+      rdXtraInp    : in  std_logic_vector(XTRA_R2W_G - 1 downto 0) := (others => '0');
+      rdXtraOut    : out std_logic_vector(XTRA_W2R_G - 1 downto 0);
       rdRstOut     : out std_logic;
       dou          : out std_logic_vector(DATA_WIDTH_G - 1 downto 0);
       ren          : in  std_logic;
@@ -140,11 +148,13 @@ begin
       timerStrobe <= fifoWen;
       wrRstLoc    <= wrRst or rdRst;
       rdRstLoc    <= wrRst or rdRst;
+      wrXtraOut   <= rdXtraInp;
+      rdXtraOut   <= wrXtraInp;
    end generate G_SYNC;
 
    G_ASYNC : if ( ASYNC_G ) generate
-      constant A_W_C          : natural := IdxType'length + 2;
-      constant B_W_C          : natural := IdxType'length + 2;
+      constant A_W_C          : natural := IdxType'length + 2 + XTRA_W2R_G;
+      constant B_W_C          : natural := IdxType'length + 2 + XTRA_R2W_G;
       signal cenA             : std_logic;
       signal cenB             : std_logic;
       signal dinA             : std_logic_vector(A_W_C - 1 downto 0);
@@ -163,16 +173,18 @@ begin
       signal rstBSeenAtA      : std_logic;        -- resettingB output on A side
    begin
 
-      dinA         <= rstBSeenAtA & resettingA & std_logic_vector( rWr.wrPtr );
-      dinB         <= rstASeenAtB & resettingB & std_logic_vector( rRd.rdPtr );
+      dinA         <= wrXtraInp & rstBSeenAtA & resettingA & std_logic_vector( rWr.wrPtr );
+      dinB         <= rdXtraInp & rstASeenAtB & resettingB & std_logic_vector( rRd.rdPtr );
 
       rdPtrOut     <= IdxType( douA( rdPtrOut'range ) );
       rstBSeenAtA  <= douA( Idxtype'length + 0 );
       rstAFeedback <= douA( IdxType'length + 1 );
+      wrXtraOut    <= douA( IdxType'length + 2 + wrXtraOut'length - 1 downto IdxType'length + 2 );
 
       wrPtrOut     <= IdxType( douB( wrPtrOut'range ) );
       rstASeenAtB  <= douB( Idxtype'length + 0 );
       rstBFeedback <= douB( IdxType'length + 1 );
+      rdXtraOut    <= douB( IdxType'length + 2 + rdXtraOut'length - 1 downto IdxType'length + 2 );
 
       rdRstLoc     <= rdRst or resettingB or rstASeenAtB;
       wrRstLoc     <= wrRst or resettingA or rstBSeenAtA;
