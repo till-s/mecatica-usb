@@ -104,6 +104,7 @@ architecture Impl of Usb2Core is
    signal rstReq            : std_logic;
    signal suspend           : std_logic;
    signal isHiSpeed         : std_logic;
+   signal isHiSpeedNego     : std_logic;
 
    signal txDataMst         : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal txDataSub         : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
@@ -240,7 +241,7 @@ begin
 
          usb2Rst      => rstReq,
          usb2Suspend  => suspend,
-         usb2HiSpeed  => isHiSpeed,
+         usb2HiSpeed  => isHiSpeedNego,
 
          usb2RemWake  => remWake
       );
@@ -255,6 +256,16 @@ begin
       ulpiRx          => ulpiRx,
       usb2Rx          => usb2RxLoc
    );
+
+   -- in simulation mode we bypass the speed negotiation
+   P_HS_SIM : process ( isHiSpeedNego, usb2HiSpeedEn ) is
+   begin
+      if ( SIMULATION_G ) then
+         isHiSpeed <= usb2HiSpeedEn;
+      else
+         isHiSpeed <= isHiSpeedNego;
+      end if;
+   end process P_HS_SIM;
 
    U_TX : entity work.Usb2PktTx
    generic map (
