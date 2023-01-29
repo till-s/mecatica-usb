@@ -181,6 +181,18 @@ architecture sim of Usb2FifoEpFrmdTb is
 
    constant ALT_C                  : std_logic_vector(15 downto 0) := x"0001";
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
+
+   type SpeedCfgType is record
+      pol : Usb2TstRetryPolicyType;
+      hse : std_logic;
+   end record SpeedCfgType;
+
+   type SpeedCfgArray is array(natural range 0 to 1) of SpeedCfgType;
+
+   signal speedCfg : SpeedCfgArray := (
+      0 => ( hse => '0', pol => NAK  ),
+      1 => ( hse => '1', pol => PING )
+   );
    
    signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
@@ -195,7 +207,8 @@ architecture sim of Usb2FifoEpFrmdTb is
    signal epClk                    : std_logic    := '0';
    signal epRun                    : boolean      := true;
    signal usb2Don                  : boolean      := false;
-   signal epDon                    : boolean      := false;
+   signal epTgl                    : boolean      := false;
+   signal tstTgl                   : boolean      := false;
 
    signal fifoDatInp               : Usb2ByteType := (others => 'U');
    signal fifoDonInp               : std_logic    := '0';
@@ -246,17 +259,21 @@ architecture sim of Usb2FifoEpFrmdTb is
       return to_integer( unsigned( x(TST_DONE_IDX_C - 1 downto 0) ) );
    end function getLen;
 
-
    procedure sendD2(
       signal   ep     : inout UlpiIbType;
       signal   fo     : inout natural;
       constant len    : in    natural;
       constant nxtNul : in    boolean := false;
-      constant tstDon : in    boolean := false
+      constant tstDon : in    boolean := false;
+      constant rtrPol : in    Usb2TstRetryPolicyType := NAK
    ) is
       variable d0     : Usb2ByteType;
       variable stl    : boolean;
    begin
+         -- not supported ATM
+         assert not (tstDon and len = 0) report "cannot send NUL packet as last" severity failure;
+         assert not (nxtNul and len = 0) report "cannot send two consecutive NUL packets" severity failure;
+         fo <= fo + 1;
          if ( len > 0 ) then
             d0 := Usb2ByteType( to_unsigned( len + 1, Usb2ByteType'length ) );
             if ( nxtNul ) then
@@ -265,19 +282,31 @@ architecture sim of Usb2FifoEpFrmdTb is
             if ( tstDon ) then
                d0(TST_DONE_IDX_C) := '1';
             end if;
-            ulpiTstSendDat(ep, d0 & d2(0 to len - 1), EP1, DEV_ADDR_C, fram => true, rtrNak => true);
+            ulpiTstSendDat(ep, d0 & d2(0 to len - 1), EP1, DEV_ADDR_C, fram => true, rtrPol => rtrPol);
          else
-            ulpiTstSendDat(ep, d2(0 to - 1), EP1, DEV_ADDR_C, fram => true, rtrNak => true);
+            ulpiTstSendDat(ep, d2(0 to - 1), EP1, DEV_ADDR_C, fram => true, rtrPol => rtrPol);
          end if;
          assert not stl report "Unexpected STALL" severity failure;
-      fo <= fo + 1;
-      ulpiClkTick;
    end procedure sendD2;
 
    signal nextNul                     : std_logic := '0';
    signal fifoRdIdx                   : natural   := 0;
    signal frmsOutRcvd                 : natural   := 0;
    signal frmsOutSent                 : natural   := 0;
+
+   signal hiSpeedEn                   : std_logic := '0';
+
+   type PeriodArray is array (natural range <>) of time;
+
+   constant EP_PERIODS_C : PeriodArray := (
+      0 => 15.99 ns / 2.0E-3,
+      1 => 15.99 ns / 2.0,
+      2 => 16.77 ns / 2.0,
+      3 => 15.99 ns * 1.0,
+      4 => 15.99 ns * 1.0E-3
+   );
+
+   signal epPeriodSel : natural := 0;
 
 begin
 
@@ -286,11 +315,13 @@ begin
    process is
    begin
       if ( not epRun ) then wait; end if;
-      wait for 15.99 ns / 2.0E-3;
+      wait for EP_PERIODS_C(epPeriodSel);
       epClk <= not epClk;
    end process;
 
    P_TST_DRV : process is
+      variable pol : Usb2TstRetryPolicyType;
+      variable tgl : boolean;
    begin
       ulpiClkTick; ulpiClkTick;
 
@@ -304,9 +335,37 @@ begin
 
       ulpiClkTick;
 
-      sendD2( ulpiTstOb, frmsOutSent, 3, nxtNul => true , tstDon => false);
-      sendD2( ulpiTstOb, frmsOutSent, 0, nxtNul => false, tstDon => false);
-      sendD2( ulpiTstOb, frmsOutSent, 7, nxtNul => false ,tstDon => true );
+      L_PERIODS : while ( true ) loop
+         report "Testing with clock period " & time'image( EP_PERIODS_C(epPeriodSel) ) & " (stay tuned...)";
+
+         for l in speedCfg'range loop
+            hiSpeedEn <= speedCfg(l).hse;
+            pol       := speedCfg(l).pol;
+            ulpiClkTick;
+
+            sendD2( ulpiTstOb, frmsOutSent, 3,  nxtNul => true,  rtrPol => pol );
+            sendD2( ulpiTstOb, frmsOutSent, 0,  nxtNul => false, rtrPol => pol );
+            sendD2( ulpiTstOb, frmsOutSent, 7,  nxtNul => false, rtrPol => pol );
+            sendD2( ulpiTstOb, frmsOutSent, 15, nxtNul => true,  rtrPol => pol );
+            sendD2( ulpiTstOb, frmsOutSent, 0,  nxtNul => false, rtrPol => pol );
+            sendD2( ulpiTstOb, frmsOutSent, 6,  nxtNul => false, rtrPol => pol, tstDon => true );
+
+            while tstTgl = epTgl loop
+               ulpiClkTick;
+            end loop;
+            tstTgl <= not tstTgl;
+         end loop;
+
+         if ( epPeriodSel = EP_PERIODS_C'high ) then
+           exit L_PERIODS;
+         else
+           epPeriodSel <= epPeriodSel + 1;
+           epTick;
+           epTick;
+           epTick;
+           epTick;
+         end if;
+      end loop;
 
       for i in 0 to 20 loop
          ulpiClkTick;
@@ -317,7 +376,7 @@ begin
 
    P_END : process is
    begin
-      wait until ( usb2Don and epDon );
+      wait until ( usb2Don );
       report "TEST PASSED";
       ulpiTstRun <= false;
       epRun      <= false;
@@ -368,7 +427,7 @@ begin
                   assert (nextNul = '0') report "Unexpected a NULL packet" severity failure;
                end if;
                if ( testDone( d0 ) ) then
-                  epDon <= true;
+                  epTgl <= not epTgl;
                   assert frmsOutRcvd + 1 = frmsOutSent report "Mismatch in number of frames!" severity failure;
                end if;
                frmsOutRcvd <= frmsOutRcvd + 1;
@@ -409,6 +468,8 @@ begin
       usb2Ep0ReqParam              => ep0ReqParam,
       usb2Ep0CtlExt                => ep0CtlExt,
       usb2Ep0CtlEpExt              => open,
+
+      usb2HiSpeedEn                => hiSpeedEn,
 
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb,
