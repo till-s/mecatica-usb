@@ -30,6 +30,7 @@ SRCS+= Usb2FifoTb.vhd
 SRCS+= Usb2FifoAsyncTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
+SRCS+= Usb2FifoEpFrmdTb.vhd
 SRCS+= CDCACMSendBreak.vhd
 SRCS+= UlpiLineState.vhd
 SRCS+= Usb2IsoTb.vhd
@@ -46,7 +47,17 @@ SRCS += I2SPlaybackTb.vhd
 endif
 
 
-PROG=UlpiIOTb UsbCrcTblTb Usb2PktProcTb Usb2PktTxTb Usb2FifoTb Usb2FifoEpTb Usb2HskTb UlpiIOBufTb Usb2IsoTb BADDSpkrCtlTb
+PROG+=UlpiIOTb
+PROG+=UsbCrcTblTb
+PROG+=Usb2PktProcTb
+PROG+=Usb2PktTxTb
+PROG+=Usb2FifoTb
+PROG+=Usb2FifoEpTb
+PROG+=Usb2FifoEpFrmdTb
+PROG+=Usb2HskTb
+PROG+=UlpiIOBufTb
+PROG+=Usb2IsoTb
+PROG+=BADDSpkrCtlTb
 PROG+=Usb2FifoAsyncTb
 ifneq ($(VIVADO),)
 PROG+=I2SPlaybackTb
@@ -91,6 +102,7 @@ Usb2PktTx.o: UsbCrcTbl.o
 UlpiIOBufTb.o: UlpiIOBuf.o
 UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o
 Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o CDCACMSendBreak.o
+Usb2FifoEpFrmdTb.o: Usb2Core.o Usb2FifoEp.o
 Usb2FifoTb.o: Usb2Fifo.o
 Usb2FifoAsyncTb.o: Usb2Fifo.o
 Usb2HskTb.o: Usb2PktTx.o UlpiIO.o
