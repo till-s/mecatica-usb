@@ -158,6 +158,7 @@ architecture top_level of ZynqTop is
    signal i2sBCLKLoc                     : std_logic;
    signal i2sBlinkCnt                    : unsigned(24 downto 0) := (others => '0');
    signal i2sBlink                       : std_logic := '1';
+   signal acmIrq                         : std_logic;
 
 begin
 
@@ -373,6 +374,7 @@ begin
          rwRegs      :  Slv32Array(0 to N_RW_REGS_C - 1);
          fifoWen     :  std_logic;
          fifoRen     :  std_logic;
+         lineBreak   :  std_logic;
       end record RegType;
       constant REG_INIT_C : RegType := (
          state       => IDLE,
@@ -381,7 +383,8 @@ begin
          req         => ULPI_REG_REQ_INIT_C,
          rwRegs      => (others => (others => '0')),
          fifoWen     => '0',
-         fifoRen     => '0'
+         fifoRen     => '0',
+         lineBreak   => '0'
       );
       signal r       : RegType := REG_INIT_C;
       signal rin     : RegType;
@@ -449,7 +452,11 @@ begin
 
       fifoInpDat <= axilWriteMst.wdata(7 downto 0);
 
-      P_COMB : process ( r, axilReadMst, axilWriteMst, regRep, roRegs, fifoOutEmpty, fifoInpFull, fifoOutDat ) is
+      acmIrq     <= not fifoOutEmpty or lineBreak;
+
+      cpuIrqs    <= ( 1 => acmIrq, others => '0' );
+
+      P_COMB : process ( r, axilReadMst, axilWriteMst, regRep, roRegs, fifoOutEmpty, fifoInpFull, fifoOutDat, lineBreak ) is
          variable v : RegType;
       begin
          v := r;
@@ -460,12 +467,15 @@ begin
          v.wsub.wready  := '0';
          v.fifoRen      := '0';
          v.fifoWen      := '0';
+         if ( lineBreak = '1' ) then
+            v.lineBreak := '1';
+         end if;
 
          case ( r.state ) is
             when IDLE =>
                v.rsub.rresp := (others => '0');
                v.wsub.bresp := (others => '0');
-               if    ( axilReadMst.arvalid = '1' ) then
+               if    ( ( axilReadMst.arvalid = '1' ) and ( axilReadMst.araddr(23 downto 12) = x"C01" ) ) then
                   v.req.rdnwr     := '1';
                   v.rsub.rresp    := "11"; -- decerr
                   v.state         := DON;
@@ -490,12 +500,15 @@ begin
                         v.rsub.rresp := "00";
                      end if;
                   when others =>
-                     v.rsub.rdata(31 downto 8) := ( others => fifoOutEmpty );
-                     v.rsub.rdata( 7 downto 0) := fifoOutDat;
-                     v.fifoRen                 := not fifoOutEmpty;
-                     v.rsub.rresp              := "00";
+                     v.rsub.rdata(31 downto 10) := ( others => '0');
+                     v.rsub.rdata(           9) := v.lineBreak;
+                     v.lineBreak                := '0';
+                     v.rsub.rdata(           8) := fifoOutEmpty;
+                     v.rsub.rdata( 7 downto  0) := fifoOutDat;
+                     v.fifoRen                  := not fifoOutEmpty;
+                     v.rsub.rresp               := "00";
                   end case;
-               elsif ( ( axilWriteMst.awvalid and axilWriteMst.wvalid ) = '1' ) then
+               elsif ( ( ( axilWriteMst.awvalid and axilWriteMst.wvalid ) = '1' ) and ( axilWriteMst.awaddr(23 downto 12) = x"C01" ) ) then
                   v.req.rdnwr    := '0';
                   v.wsub.bresp   := "11"; -- decerr
                   v.wsub.awready := '1';
@@ -611,14 +624,14 @@ begin
   --    ledLoc(1) <= lineBreak;
   --    ledLoc(0) <= refLocked;
   -- end process P_LED;
-   
+
    B_XX : block is
     signal xxxClk : std_logic;
    begin
-   
+
    U_SYSCB : BUFG port map (I => plClk, O => xxxClk);
-   
-   
+
+
    U_SYNC : entity work.Usb2MboxSync
    generic map (
       DWIDTH_A2B_G => 1,
@@ -630,12 +643,12 @@ begin
       clka         => xxxClk,
       dinA         => SW(1 downto 1),
       douA         => ledLoc(1 downto 1),
-      
+
       clkb         => ulpiClkLoc,
       dinB         => SW(0 downto 0),
       douB         => ledLoc(0 downto 0)
    );
-   
+
    end block;
 
    LED <= ledLoc;
