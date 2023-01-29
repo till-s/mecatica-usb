@@ -331,6 +331,7 @@ architecture sim of Usb2FifoEpFrmdTb is
       -- not supported ATM
       assert not (tstDon and len = 0) report "cannot send NUL packet as last" severity failure;
       assert not (nxtNul and len = 0) report "cannot send two consecutive NUL packets" severity failure;
+      fc <= fc + 1;
       if ( len > 0 ) then
          d0 := Usb2ByteType( to_unsigned( len + 1, Usb2ByteType'length ) );
          if ( nxtNul ) then
@@ -370,7 +371,8 @@ architecture sim of Usb2FifoEpFrmdTb is
       4 => 15.99 ns * 1.0E-3
    );
 
-   signal epPeriodSel : natural := 0;
+   signal epPeriodSelInp : natural := 0;
+   signal epPeriodSelOut : natural := 0;
 
 begin
 
@@ -379,7 +381,7 @@ begin
    process is
    begin
       if ( not epRun ) then wait; end if;
-      wait for EP_PERIODS_C(epPeriodSel);
+      wait for EP_PERIODS_C(epPeriodSelInp + epPeriodSelOut);
       epClk <= not epClk;
    end process;
 
@@ -401,7 +403,7 @@ begin
       ulpiClkTick;
 
       L_PERIODS_OUT : while ( false ) loop
-         report "Testing OUT with clock period " & time'image( EP_PERIODS_C(epPeriodSel) ) & " (stay tuned...)";
+         report "Testing OUT with clock period " & time'image( EP_PERIODS_C(epPeriodSelOut) ) & " (stay tuned...)";
 
          for l in speedCfg'range loop
             hiSpeedEn <= speedCfg(l).hse;
@@ -421,10 +423,10 @@ begin
             tstTglOut <= not tstTglOut;
          end loop;
 
-         if ( epPeriodSel = EP_PERIODS_C'high ) then
+         if ( epPeriodSelOut = EP_PERIODS_C'high ) then
            exit L_PERIODS_OUT;
          else
-           epPeriodSel <= epPeriodSel + 1;
+           epPeriodSelOut <= epPeriodSelOut + 1;
            epTick;
            epTick;
            epTick;
@@ -432,13 +434,13 @@ begin
          end if;
       end loop;
 
-      epPeriodSel <= 2;
+      epPeriodSelOut <= 0;
       epTick;
       startTstInp <= true;
       ulpiClkTick;
 
       L_PERIODS_INP : while ( true ) loop
-         report "Testing INP with clock period " & time'image( EP_PERIODS_C(epPeriodSel) ) & " (stay tuned...)";
+         report "Testing INP with clock period " & time'image( EP_PERIODS_C(epPeriodSelInp) ) & " (stay tuned...)";
 
          -- for the INP direction there is no PING to be tested...
          ulpiTstRecvDat( ulpiTstOb, eda, edal, EP1, DEV_ADDR_C, rak => -1 );
@@ -451,12 +453,21 @@ begin
             nextNulInp  <= eda(0)(NXT_NULL_IDX_C);
             if ( eda(0)(TST_DONE_IDX_C) = '1' ) then
                epTglInp <= not epTglInp;
+               if ( epPeriodSelInp = EP_PERIODS_C'high ) then
+                  exit L_PERIODS_INP;
+               end if;
             end if;
          else
+            assert nextNulInp = '1' report "Had expected a NUL packet" severity failure;
             nextNulInp <= '0';
          end if;
-         exit L_PERIODS_INP;
+         frmsRcvdInp <= frmsRcvdInp + 1;
       end loop;
+
+      ulpiClkTick;
+      assert frmsRcvdInp + 1 = frmsSentInp
+         report "Mismatching number of frames (RX " & integer'image( frmsRcvdInp ) & ", TX " & integer'image( frmsSentInp ) & ")"
+         severity failure;
 
 
       for i in 0 to 20 loop
@@ -519,10 +530,23 @@ begin
          epTick;
       end loop;
       fifoSendD2( fifoInp, frmsSentInp, 3 );
+      fifoSendD2( fifoInp, frmsSentInp, 3,  nxtNul => true );
+      fifoSendD2( fifoInp, frmsSentInp, 0 );
+      fifoSendD2( fifoInp, frmsSentInp, 7 );
+      fifoSendD2( fifoInp, frmsSentInp, 15, nxtNul => true );
+      fifoSendD2( fifoInp, frmsSentInp, 0 );
+      fifoSendD2( fifoInp, frmsSentInp, 6, tstDon => true );
+
       while ( epTglInp = tstTglInp ) loop
          epTick;
       end loop;
-      wait;
+      tstTglInp <= not tstTglInp;
+      if ( epPeriodSelInp = EP_PERIODS_C'high ) then
+         wait;
+      else
+         epPeriodSelInp <= epPeriodSelInp + 1;
+         epTick;
+      end if;
    end process P_EP_1_WR;
 
 
