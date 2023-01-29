@@ -158,10 +158,10 @@ begin
       signal cenA             : std_logic;
       signal cenB             : std_logic;
       signal dinA             : std_logic_vector(A_W_C - 1 downto 0);
-      signal douA             : std_logic_vector(B_W_C - 1 downto 0);
+      signal douA             : std_logic_vector(B_W_C - 1 downto 0) := (others => '0');
  
       signal dinB             : std_logic_vector(B_W_C - 1 downto 0);
-      signal douB             : std_logic_vector(A_W_C - 1 downto 0);
+      signal douB             : std_logic_vector(A_W_C - 1 downto 0) := (others => '0');
 
       signal resettingA       : std_logic := '0'; -- hold reset state triggered by reset on A side
       signal resettingB       : std_logic := '0'; -- hold reset state triggered by reset on B side
