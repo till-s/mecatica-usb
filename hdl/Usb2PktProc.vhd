@@ -705,13 +705,26 @@ begin
                end if;
             end if;
 
+            if ( (ei.mstInp.don and txDataSub.rdy) = '1' ) then
+               -- if this is a 'don' cycle then we must turn subInp.rdy
+               -- until txDataSub.don is asserted
+               v.donFlg     := not txDataSub.don;
+               v.bufInpVld  := '1';
+               v.bufInpPart := '0';
+               v.state      := WAIT_DON;
+            end if;
+
             if ( txDataSub.don = '1' ) then
+               -- we can end up here
+               --   1) if the master signals an error
+               --   2) if the PHY signals an error
+               --   3) if a NULL packet is sent (rdy never asserted)
                v.donFlg      := '0';
                v.state       := IDLE;
                if ( ei.mstInp.err = '1' ) then
                   -- mstInp.err                               => PHY should abort TX packet
                   -- tx should send a bad packet; we'll not see an ack
-                  -- it doesn't matter if we write 
+                  -- also: it doesn't matter if we write to the buffer
                   -- bufWrEna   <= '0';
                   invalidateBuffer( v );
                elsif ( txDataSub.err = '1' ) then
@@ -721,7 +734,7 @@ begin
                   v.bufRWIdx   := r.bufVldIdx;
                else
                   -- txDataSub.don = '1' w/o error implies that the master had
-                  -- already asserted 'don'; -> buffer complete
+                  -- already asserted 'don'; -> buffer complete.
                   v.bufInpVld  := '1';
                   v.bufInpPart := '0';
                   v.state      := WAIT_DON;
