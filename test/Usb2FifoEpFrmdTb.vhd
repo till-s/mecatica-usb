@@ -417,8 +417,6 @@ begin
 
    U_DUT : entity work.Usb2FifoEp
       generic map (
-         MAX_PKT_SIZE_INP_G        => EP1_SZ_C,
-         MAX_PKT_SIZE_OUT_G        => EP1_SZ_C,
          LD_FIFO_DEPTH_INP_G       => (1 + ulpiTstNumBits( EP1_SZ_C - 1 )),
          -- for high-bandwidth throughput the fifo depth must be >= 2*MAX_PKT_SIZE_OUT_G
          -- because at the time a packet is released into the fifo there must already
@@ -446,6 +444,7 @@ begin
 
          usb2EpIb                  => epIb(TST_EP_IDX_C),
          usb2EpOb                  => epOb(TST_EP_IDX_C),
+         usb2EpConfig              => epCfg(TST_EP_IDX_C),
 
          epClk                     => epClk,
          epRstOut                  => open,

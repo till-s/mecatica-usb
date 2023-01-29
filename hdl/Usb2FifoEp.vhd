@@ -17,8 +17,6 @@ use     work.Usb2DescPkg.all;
 
 entity Usb2FifoEp is
    generic (
-      MAX_PKT_SIZE_INP_G           : natural  := 0; -- disabled when 0
-      MAX_PKT_SIZE_OUT_G           : natural  := 0; -- disabled when 0
       -- LD_FIFO_DEPTH = width of the address; i.e., ceil( log2( depth ) )
       -- if framing is enabled (LD_MAX_NUM_FRAMES_G > 0)
       LD_FIFO_DEPTH_INP_G          : natural  := 0; -- disabled when 0
@@ -53,6 +51,7 @@ entity Usb2FifoEp is
       -- Endpoint Interface
       usb2EpIb                     : out Usb2EndpPairIbType;
       usb2EpOb                     : in  Usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
+      usb2EpConfig                 : in  Usb2EndpPairConfigType;
 
       -- Controls (usb2Clk domain)
       -- accumulate 'minFillInp' items before passing to the endpoint
@@ -131,14 +130,6 @@ architecture Impl of Usb2FifoEp is
    end function FIFO_WIDTH_F;
 
 begin
-
-   assert MAX_PKT_SIZE_INP_G = 0 or MAX_PKT_SIZE_INP_G <= 2**LD_FIFO_DEPTH_INP_G
-      report "Inconsistent INP fifo depth"
-      severity failure;
-
-   assert MAX_PKT_SIZE_OUT_G = 0 or MAX_PKT_SIZE_OUT_G <= 2**LD_FIFO_DEPTH_OUT_G
-      report "Inconsistent OUT fifo depth"
-      severity failure;
 
    epRstOut <= epRstOutLoc;
 
@@ -307,7 +298,11 @@ begin
       signal lastWen      : std_logic := '0';
       signal fifoDin      : std_logic_vector(FIFO_WIDTH_F - 1 downto 0);
       signal fifoDou      : std_logic_vector(FIFO_WIDTH_F - 1 downto 0);
+      signal maxPktSz     : Usb2PktSizeType;
    begin
+
+      -- reduce typing
+      maxPktSz   <= usb2EpConfig.maxPktSizeOut;
 
       datOut     <= fifoDou( datOut'range );
 
@@ -338,14 +333,15 @@ begin
                end if;
                lastWen <= fifoWen;
                if ( ( fifoRdy or fifoWen ) = '0' ) then
-                  if ( fifoFilled <= 2**LD_FIFO_DEPTH_OUT_G - MAX_PKT_SIZE_OUT_G ) then
+                  if ( fifoFilled <= 2**LD_FIFO_DEPTH_OUT_G - maxPktSz ) then
                      fifoRdy <= '1';
                   end if;
                else
                   if ( fifoWen = '1' and lastWen = '0' ) then
                      -- first packet can be accepted and starts being transferred
-                     if (     ( 2**LD_FIFO_DEPTH_OUT_G < 2*MAX_PKT_SIZE_OUT_G              )
-                          or  ( 2**LD_FIFO_DEPTH_OUT_G - 2*MAX_PKT_SIZE_OUT_G < fifoFilled ) ) then
+                     -- check if we could accept a second packet
+                     if (     ( 2**LD_FIFO_DEPTH_OUT_G < shift_left( maxPktSz, 1 ) )
+                          or  ( 2**LD_FIFO_DEPTH_OUT_G - shift_left( maxPktSz, 1 ) < fifoFilled ) ) then
                         -- we cannot accept a second packet; turn fifoRdy off
                         fifoRdy <= '0';
                      end if;
