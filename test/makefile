@@ -70,7 +70,7 @@ all: $(addsuffix @run,$(PROG))
 .PHONY: $(addsuffix $@run, $(PROG))
 
 $(addsuffix @run,$(PROG)):%@run:%
-	./$(@:%@run=%) $($(@:%@run=%)_RUNFLAGS)
+	./$(@:%@run=%) $($(@:%@run=%)_RUNFLAGS) --ieee-asserts=disable-at-0
 
 #	for i in $(PROG); do if ! ./$$i $; then echo "$$i FAILED"; exit 1; fi  done
 
