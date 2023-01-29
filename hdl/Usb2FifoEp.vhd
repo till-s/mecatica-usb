@@ -198,7 +198,7 @@ begin
       haltedInp           <= halted;
       fifoWen             <= wenInp and not haltedInpEpClk;
       fullInp             <= fifoFull or haltedInpEpClk;
-      mstInpVld           <= not fifoEmpty;
+      mstInpVld           <= not fifoEmpty and haveAFrame and not mstInpDon;
 
       -- only freeze user-access in halted state; EP interaction with the packet
       -- engine proceeds
@@ -237,7 +237,7 @@ begin
                if ( usb2Rst = '1' ) then
                   numFramesOut <= (others => '0');
                else
-                  if ( haveAFrame = '1' ) then
+                  if ( ( fifoRen and mstInpDon ) = '1' ) then
                      numFramesOut <= numFramesOut + 1;
                   end if;
                end if;
