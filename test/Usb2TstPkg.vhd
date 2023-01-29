@@ -101,6 +101,8 @@ package Usb2TstPkg is
       constant st  : in    std_logic_vector(7 downto 0) := x"00" -- expected status (00/ff)
    );
 
+   type Usb2TstRetryPolicyType is ( NO_RETRY, NAK, PING );
+
    -- send a data packet (compute + append checksum)
    procedure ulpiTstSendDatPkt(
       signal   ob  : inout UlpiIbType;
@@ -123,7 +125,7 @@ package Usb2TstPkg is
       constant timo    : in    natural := 30;                -- timeout to wait for handshake
       constant epid    : in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake
       constant fram    : in    boolean                      := true; -- frame with small tail packet
-      constant rtrNak  : in    boolean                      := false -- keep retrying if NAKed
+      constant rtrPol  : in    Usb2TstRetryPolicyType       := NO_RETRY
    );
 
    -- send data breaking longer sequences in fragments that fit the maxPktSize
@@ -139,7 +141,7 @@ package Usb2TstPkg is
       constant timo    : in    natural := 30;                -- timeout to wait for handshake
       constant epid    : in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake
       constant fram    : in    boolean                      := true; -- frame with small tail packet
-      constant rtrNak  : in    boolean                      := false -- keep retrying if NAKed
+      constant rtrPol  : in    Usb2TstRetryPolicyType       := NO_RETRY
    );
 
    -- wait for a data packet; may return NAK in 'epi' if endpoint has no data
@@ -508,11 +510,11 @@ report "Timed out; ticks " & integer'image(tim);
       constant timo    : in    natural := 30;                -- timeout to wait for handshake
       constant epid    : in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake
       constant fram    : in    boolean                      := true; -- frame with small tail packet
-      constant rtrNak  : in    boolean                      := false -- keep retrying if NAKed
+      constant rtrPol  : in    Usb2TstRetryPolicyType       := NO_RETRY
    ) is
       variable stalled : boolean;
    begin
-      ulpiTstSendDat(ob, stalled, v, epo, dva, stup, rtr, w, timo, epid, fram, rtrNak);
+      ulpiTstSendDat(ob, stalled, v, epo, dva, stup, rtr, w, timo, epid, fram, rtrPol);
       assert stalled = false report "Unexpected stall" severity failure;
    end procedure ulpiTstSendDat;
 
@@ -530,7 +532,7 @@ report "Timed out; ticks " & integer'image(tim);
       constant timo    : in    natural := 30;                -- timeout to wait for handshake
       constant epid    : in    std_logic_vector(3 downto 0) := USB2_PID_HSK_ACK_C; -- expected handshake
       constant fram    : in    boolean                      := true; -- frame with small tail packet
-      constant rtrNak  : in    boolean                      := false -- keep retrying if NAKed
+      constant rtrPol  : in    Usb2TstRetryPolicyType       := NO_RETRY
    ) is
       variable idx : natural;
       constant epou: natural := to_integer( unsigned( epo ) );
@@ -538,11 +540,13 @@ report "Timed out; ticks " & integer'image(tim);
       variable cln : natural := MSZ;
       variable pid : std_logic_vector(3 downto 0);
       variable rr  : natural;
-      variable agn : boolean; 
+      variable agn : boolean;  -- try again
    begin
       if ( stup ) then
          assert v'length <= MSZ report "excessive setup data (test prog error)" severity failure;
       end if;
+
+      assert not stup or rtrPol /= PING report "Usb spec does not allow ping for setup transactions" severity failure;
       idx := v'low;
       stl := false;
       L_FRAG : while true loop
@@ -554,6 +558,17 @@ report "Timed out; ticks " & integer'image(tim);
          agn := true;
          while rr <= rtr and agn loop
             agn := false;
+
+            if ( rtrPol = PING ) then
+               pid := USB2_PID_HSK_NAK_C;
+               while (pid = USB2_PID_HSK_NAK_C) loop
+                  ulpiTstSendTok(ob, USB2_PID_SPC_PING_C, epo, dva);
+                  ulpiClkTick;
+                  ulpiTstWaitHsk(ob, pid, timo);
+               end loop;
+               assert pid = USB2_PID_HSK_ACK_C report "Unexpected handshake during PING" severity failure;
+            end if;
+
             if ( stup ) then
                ulpiTstSendTok(ob, USB2_PID_TOK_SETUP_C, epo, dva);
             else
@@ -573,7 +588,9 @@ report "Timed out; ticks " & integer'image(tim);
                stl := true;
                return;
             end if;
-            if ( (pid = USB2_PID_HSK_NAK_C) and rtrNak ) then
+            if (    ( (pid = USB2_PID_HSK_NAK_C)  and ( rtrPol = NAK  ) )
+                 or ( (pid = USB2_PID_HSK_NYET_C) and ( rtrPol = PING ) )
+               ) then
                agn := true;
             else
                assert pid = epid report "unexpected handshake response to data TX" &
