@@ -178,7 +178,7 @@ package Usb2TstPkg is
       constant epi : in    Usb2EndpIdxType;                   -- endpoint
       constant dva : in    Usb2DevAddrType;                   -- usb device address
       constant rtr : in    natural                      := 0; -- let target retry by not sending ACK for 'rtr' times
-      constant rak : in    natural                      := 0; -- accept NAK to IN token from target 'rak' times
+      constant rak : in    integer                      := 0; -- accept NAK to IN token from target 'rak' times (-1 => inf)
       constant w   : in    natural                      := 0; -- wait cycles
       constant timo: in    natural                      := 30; -- timeout waiting for data (from IN token)
       constant abrt: in    integer                      := -1; -- force PHY abort after 'abrt' bytes
@@ -194,7 +194,7 @@ package Usb2TstPkg is
       constant epi : in    Usb2EndpIdxType;                   -- endpoint
       constant dva : in    Usb2DevAddrType;                   -- usb device address
       constant rtr : in    natural                      := 0; -- let target retry by not sending ACK for 'rtr' times
-      constant rak : in    natural                      := 0; -- accept NAK to IN token from target 'rak' times
+      constant rak : in    integer                      := 0; -- accept NAK to IN token from target 'rak' times (-1 => inf )
       constant w   : in    natural                      := 0; -- wait cycles
       constant timo: in    natural                      := 30; -- timeout waiting for data (from IN token)
       constant abrt: in    integer                      := -1; -- force PHY abort after 'abrt' bytes
@@ -661,7 +661,7 @@ report "Timed out; ticks " & integer'image(tim);
 report "got " & integer'image(to_integer(unsigned(pid))) & " expected " & integer'image(to_integer(unsigned(epi)));
       assert pid        = epi report "unexpected PID" severity failure;
       crc := USB2_CRC16_INIT_C;
-      for i in eda'low to eda'high + 2 loop
+      L_RD : for i in eda'low to eda'high + 2 loop
          for j in 0 to w - 1 loop
             ob.nxt <= '0';
             ulpiClkTick;
@@ -674,6 +674,9 @@ report "ABORT";
             ulpiClkTick; -- consume turn-around cycle
             return;
          end if;
+         if ( not chk and ulpiTstIb.stp = '1' ) then
+            exit L_RD;
+         end if;
          assert (ulpiTstIb.stp = '0'   )  report "unexpected STP" severity failure;
          if ( i <= eda'high ) then
             if ( chk ) then
@@ -684,13 +687,14 @@ end if;
             else
                eda(i) := ulpiTstIb.dat;
             end if;
-            edal := edal + 1;
          end if;
+         edal := edal + 1;
          ulpiTstCrc( crc, USB2_CRC16_POLY_C, ulpiTstIb.dat );
       end loop;
       ulpiClkTick;
       assert crc = USB2_CRC16_CHCK_C report "data crc mismatch" severity failure;
-      assert (ulpiTstIb.stp = '1'   )  report "unexpected STP" severity failure;
+      assert (not chk or ulpiTstIb.stp = '1'   )  report "missing STP" severity failure;
+      edal := edal - 2; -- don't include checksum
       ob.nxt <= '0';
       ulpiClkTick;
       ulpiTstSendRxCmd( ob, "000000" & ULPI_RXCMD_LINE_STATE_SE0_C );
@@ -705,7 +709,7 @@ end if;
       constant epi : in    Usb2EndpIdxType;                   -- endpoint
       constant dva : in    Usb2DevAddrType;                   -- usb device address
       constant rtr : in    natural                      := 0; -- let target retry by not sending ACK for 'rtr' times
-      constant rak : in    natural                      := 0; -- accept NAK to IN token from target 'rak' times
+      constant rak : in    integer                      := 0; -- accept NAK to IN token from target 'rak' times (-1 => inf)
       constant w   : in    natural                      := 0; -- wait cycles
       constant timo: in    natural                      := 30; -- timeout waiting for data (from IN token)
       constant abrt: in    integer                      := -1; -- force PHY abort after 'abrt' bytes
@@ -720,6 +724,7 @@ end if;
       variable pid : std_logic_vector(3 downto 0) := USB2_PID_HSK_NAK_C;
       variable epid: std_logic_vector(3 downto 0);
       variable slen: natural;
+      variable ra  : integer;
    begin
       edal:= 0;
       idx := eda'low;
@@ -729,7 +734,8 @@ end if;
             cln := MSZ;
          end if;
          for rr in 0 to rtr loop
-            L_NAK : for ra in 0 to rak loop
+            ra := 0;
+            L_NAK : while ( rak < 0 or ra <=rak ) loop
                ulpiTstSendTok(ob, USB2_PID_TOK_IN_C, epi, dva);
                ulpiClkTick;
                if ( dtglInp( epin ) = '0' ) then
@@ -745,7 +751,14 @@ end if;
                end if;
                ulpiClkTick;
                if ( pid /= USB2_PID_HSK_NAK_C ) then
+                  if ( not chk ) then
+                     -- read (not check) mode; chunk size is the actual # of bytes read
+                     cln := slen;
+                  end if;
                   exit L_NAK;
+               end if;
+               if ( rak >= 0 ) then
+                  ra := ra + 1;
                end if;
             end loop L_NAK;
             if ( estl ) then
@@ -775,7 +788,7 @@ end if;
       constant epi : in    Usb2EndpIdxType;                   -- endpoint
       constant dva : in    Usb2DevAddrType;                   -- usb device address
       constant rtr : in    natural                      := 0; -- let target retry by not sending ACK for 'rtr' times
-      constant rak : in    natural                      := 0; -- accept NAK to IN token from target 'rak' times
+      constant rak : in    integer                      := 0; -- accept NAK to IN token from target 'rak' times (-1 => inf)
       constant w   : in    natural                      := 0; -- wait cycles
       constant timo: in    natural                      := 30; -- timeout waiting for data (from IN token)
       constant abrt: in    integer                      := -1; -- force PHY abort after 'abrt' bytes
