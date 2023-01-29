@@ -189,6 +189,20 @@ architecture sim of Usb2FifoEpFrmdTb is
 
    type SpeedCfgArray is array(natural range 0 to 1) of SpeedCfgType;
 
+   type FifoInpType is record
+      dat : Usb2ByteType;
+      don : std_logic;
+      wen : std_logic;
+   end record FifoInpType;
+
+   constant FIFO_INP_INIT_C : FifoInpType := (
+      dat => (others => '0'),
+      don => '0',
+      wen => '0'
+   );
+
+   signal fifoInp : FifoInpType := FIFO_INP_INIT_C;
+
    signal speedCfg : SpeedCfgArray := (
       0 => ( hse => '0', pol => NAK  ),
       1 => ( hse => '1', pol => PING )
@@ -207,14 +221,14 @@ architecture sim of Usb2FifoEpFrmdTb is
    signal epClk                    : std_logic    := '0';
    signal epRun                    : boolean      := true;
    signal usb2Don                  : boolean      := false;
-   signal epTgl                    : boolean      := false;
-   signal tstTgl                   : boolean      := false;
+   signal epTglOut                 : boolean      := false;
+   signal tstTglOut                : boolean      := false;
+   signal epTglInp                 : boolean      := false;
+   signal tstTglInp                : boolean      := false;
+   signal startTstInp              : boolean      := false;
 
-   signal fifoDatInp               : Usb2ByteType := (others => 'U');
-   signal fifoDonInp               : std_logic    := '0';
    signal fifoDatOut               : Usb2ByteType;
    signal fifoDonOut               : std_logic;
-   signal fifoWenInp               : std_logic    := '0';
    signal fifoFullInp              : std_logic;
    signal fifoRenOut               : std_logic    := '0';
    signal fifoEmptyOut             : std_logic;
@@ -261,7 +275,7 @@ architecture sim of Usb2FifoEpFrmdTb is
 
    procedure sendD2(
       signal   ep     : inout UlpiIbType;
-      signal   fo     : inout natural;
+      signal   fc     : inout natural;
       constant len    : in    natural;
       constant nxtNul : in    boolean := false;
       constant tstDon : in    boolean := false;
@@ -270,29 +284,79 @@ architecture sim of Usb2FifoEpFrmdTb is
       variable d0     : Usb2ByteType;
       variable stl    : boolean;
    begin
-         -- not supported ATM
-         assert not (tstDon and len = 0) report "cannot send NUL packet as last" severity failure;
-         assert not (nxtNul and len = 0) report "cannot send two consecutive NUL packets" severity failure;
-         fo <= fo + 1;
-         if ( len > 0 ) then
-            d0 := Usb2ByteType( to_unsigned( len + 1, Usb2ByteType'length ) );
-            if ( nxtNul ) then
-               d0(NXT_NULL_IDX_C) := '1';
-            end if;
-            if ( tstDon ) then
-               d0(TST_DONE_IDX_C) := '1';
-            end if;
-            ulpiTstSendDat(ep, d0 & d2(0 to len - 1), EP1, DEV_ADDR_C, fram => true, rtrPol => rtrPol);
-         else
-            ulpiTstSendDat(ep, d2(0 to - 1), EP1, DEV_ADDR_C, fram => true, rtrPol => rtrPol);
+      -- not supported ATM
+      assert not (tstDon and len = 0) report "cannot send NUL packet as last" severity failure;
+      assert not (nxtNul and len = 0) report "cannot send two consecutive NUL packets" severity failure;
+      fc <= fc + 1;
+      if ( len > 0 ) then
+         d0 := Usb2ByteType( to_unsigned( len + 1, Usb2ByteType'length ) );
+         if ( nxtNul ) then
+            d0(NXT_NULL_IDX_C) := '1';
          end if;
-         assert not stl report "Unexpected STALL" severity failure;
+         if ( tstDon ) then
+            d0(TST_DONE_IDX_C) := '1';
+         end if;
+         ulpiTstSendDat(ep, d0 & d2(0 to len - 1), EP1, DEV_ADDR_C, fram => true, rtrPol => rtrPol);
+      else
+         ulpiTstSendDat(ep, d2(0 to - 1), EP1, DEV_ADDR_C, fram => true, rtrPol => rtrPol);
+      end if;
+      assert not stl report "Unexpected STALL" severity failure;
    end procedure sendD2;
 
-   signal nextNul                     : std_logic := '0';
+   procedure fifoSend(
+      signal   fio    : inout fifoInpType;
+      constant dat    : in    Usb2ByteType;
+      constant don    : in    std_logic := '0'
+   ) is
+   begin
+      fio.don <= don;
+      fio.dat <= dat;
+      fio.wen <= '1';
+      epTick;
+      while ( fifoFullInp = '1' ) loop
+         epTick;
+      end loop;
+      fio.wen <= '0';
+   end procedure fifoSend;
+
+   procedure fifoSendD2(
+      signal   fio    : inout fifoInpType;
+      signal   fc     : inout natural;
+      constant len    : in    natural;
+      constant nxtNul : in    boolean := false;
+      constant tstDon : in    boolean := false
+   ) is
+      variable d0  : Usb2ByteType;
+   begin
+      -- not supported ATM
+      assert not (tstDon and len = 0) report "cannot send NUL packet as last" severity failure;
+      assert not (nxtNul and len = 0) report "cannot send two consecutive NUL packets" severity failure;
+      if ( len > 0 ) then
+         d0 := Usb2ByteType( to_unsigned( len + 1, Usb2ByteType'length ) );
+         if ( nxtNul ) then
+            d0(NXT_NULL_IDX_C) := '1';
+         end if;
+         if ( tstDon ) then
+            d0(TST_DONE_IDX_C) := '1';
+         end if;
+         fifoSend(fio, d0);
+         for i in 0 to len - 1 loop
+            fifoSend(fio, d2(i));
+         end loop;
+      end if;
+      fifoSend(fio, x"00", don => '1');
+      epTick;
+   end procedure fifoSendD2;
+
+
+   signal nextNulOut                  : std_logic := '0';
+   signal nextNulInp                  : std_logic := '0';
    signal fifoRdIdx                   : natural   := 0;
-   signal frmsOutRcvd                 : natural   := 0;
-   signal frmsOutSent                 : natural   := 0;
+   signal fifoWrIdx                   : natural   := 0;
+   signal frmsRcvdOut                 : natural   := 0;
+   signal frmsSentOut                 : natural   := 0;
+   signal frmsRcvdInp                 : natural   := 0;
+   signal frmsSentInp                 : natural   := 0;
 
    signal hiSpeedEn                   : std_logic := '0';
 
@@ -320,8 +384,9 @@ begin
    end process;
 
    P_TST_DRV : process is
-      variable pol : Usb2TstRetryPolicyType;
-      variable tgl : boolean;
+      variable pol  : Usb2TstRetryPolicyType;
+      variable eda  : Usb2ByteArray( 0 to d2'length );
+      variable edal : natural;
    begin
       ulpiClkTick; ulpiClkTick;
 
@@ -335,29 +400,29 @@ begin
 
       ulpiClkTick;
 
-      L_PERIODS : while ( true ) loop
-         report "Testing with clock period " & time'image( EP_PERIODS_C(epPeriodSel) ) & " (stay tuned...)";
+      L_PERIODS_OUT : while ( false ) loop
+         report "Testing OUT with clock period " & time'image( EP_PERIODS_C(epPeriodSel) ) & " (stay tuned...)";
 
          for l in speedCfg'range loop
             hiSpeedEn <= speedCfg(l).hse;
             pol       := speedCfg(l).pol;
             ulpiClkTick;
 
-            sendD2( ulpiTstOb, frmsOutSent, 3,  nxtNul => true,  rtrPol => pol );
-            sendD2( ulpiTstOb, frmsOutSent, 0,  nxtNul => false, rtrPol => pol );
-            sendD2( ulpiTstOb, frmsOutSent, 7,  nxtNul => false, rtrPol => pol );
-            sendD2( ulpiTstOb, frmsOutSent, 15, nxtNul => true,  rtrPol => pol );
-            sendD2( ulpiTstOb, frmsOutSent, 0,  nxtNul => false, rtrPol => pol );
-            sendD2( ulpiTstOb, frmsOutSent, 6,  nxtNul => false, rtrPol => pol, tstDon => true );
+            sendD2( ulpiTstOb, frmsSentOut, 3,  nxtNul => true,  rtrPol => pol );
+            sendD2( ulpiTstOb, frmsSentOut, 0,  nxtNul => false, rtrPol => pol );
+            sendD2( ulpiTstOb, frmsSentOut, 7,  nxtNul => false, rtrPol => pol );
+            sendD2( ulpiTstOb, frmsSentOut, 15, nxtNul => true,  rtrPol => pol );
+            sendD2( ulpiTstOb, frmsSentOut, 0,  nxtNul => false, rtrPol => pol );
+            sendD2( ulpiTstOb, frmsSentOut, 6,  nxtNul => false, rtrPol => pol, tstDon => true );
 
-            while tstTgl = epTgl loop
+            while tstTglOut = epTglOut loop
                ulpiClkTick;
             end loop;
-            tstTgl <= not tstTgl;
+            tstTglOut <= not tstTglOut;
          end loop;
 
          if ( epPeriodSel = EP_PERIODS_C'high ) then
-           exit L_PERIODS;
+           exit L_PERIODS_OUT;
          else
            epPeriodSel <= epPeriodSel + 1;
            epTick;
@@ -366,6 +431,33 @@ begin
            epTick;
          end if;
       end loop;
+
+      epPeriodSel <= 2;
+      epTick;
+      startTstInp <= true;
+      ulpiClkTick;
+
+      L_PERIODS_INP : while ( true ) loop
+         report "Testing INP with clock period " & time'image( EP_PERIODS_C(epPeriodSel) ) & " (stay tuned...)";
+
+         -- for the INP direction there is no PING to be tested...
+         ulpiTstRecvDat( ulpiTstOb, eda, edal, EP1, DEV_ADDR_C, rak => -1 );
+         assert (nextNulInp = '1') = (edal = 0) report "Unexpected NUL or expected NUL but received data" severity failure;
+         if ( edal > 0 ) then
+            assert getLen(eda(0)) = edal report "Unexpected length received " & integer'image(edal) severity failure;
+            for i in 1 to edal - 1 loop
+               assert eda(i) = d2(i-1) report "Unexpected data" severity failure;
+            end loop;
+            nextNulInp  <= eda(0)(NXT_NULL_IDX_C);
+            if ( eda(0)(TST_DONE_IDX_C) = '1' ) then
+               epTglInp <= not epTglInp;
+            end if;
+         else
+            nextNulInp <= '0';
+         end if;
+         exit L_PERIODS_INP;
+      end loop;
+
 
       for i in 0 to 20 loop
          ulpiClkTick;
@@ -383,32 +475,6 @@ begin
       wait;
    end process P_END;
 
---      variable idx            : natural;
---      idx := 0;
---      while ( fifoFullInp = '0' ) loop
---         fifoRenOut <= '1';
---         fifoDatInp <= fifoDatOut;
---         fifoWenInp <= '1';
---         fifoRenOut <= '0';
---         idx := idx + 1;
---         fifoWenInp <= '0';
---      end loop;
---
---      fifoRenOut <= '1';
---      while ( fifoEmptyOut = '0' ) loop
---         assert d2(idx) = fifoDatOut report "OUT fifo mismatch" severity failure;
---         idx := idx + 1; 
---      end loop;
---      fifoRenOut <= '0';
---      L_CPY : while ( (fifoEmptyOut or fifoFullInp) = '0' ) loop
---         fifoRenOut <= '1';
---         fifoDatInp <= fifoDatOut;
---         fifoWenInp <= '1';
---         fifoRenOut <= '0';
---         idx := idx + 1;
---         fifoWenInp <= '0';
---      end loop;
-
    P_EP_1_RD  : process ( epCLk ) is
       variable d0     : Usb2ByteType := (others => '0');
       variable expLen : natural := 0;
@@ -420,19 +486,19 @@ begin
                assert fifoRdIdx = expLen report "Packet length mismatch" severity failure;
                fifoRdIdx <= 0;
                if ( fifoRdIdx = 0 ) then
-                  assert (nextNul = '1') report "Expected a NULL packet" severity failure;
+                  assert (nextNulOut = '1') report "Expected a NULL packet" severity failure;
                   -- assume we never send two back-to-back NULLs
                   d0       := (others => '0');
                else
-                  assert (nextNul = '0') report "Unexpected a NULL packet" severity failure;
+                  assert (nextNulOut = '0') report "Unexpected a NULL packet" severity failure;
                end if;
                if ( testDone( d0 ) ) then
-                  epTgl <= not epTgl;
-                  assert frmsOutRcvd + 1 = frmsOutSent report "Mismatch in number of frames!" severity failure;
+                  epTglOut <= not epTglOut;
+                  assert frmsRcvdOut + 1 = frmsSentOut report "Mismatch in number of frames!" severity failure;
                end if;
-               frmsOutRcvd <= frmsOutRcvd + 1;
+               frmsRcvdOut <= frmsRcvdOut + 1;
                expLen      := 0;
-               nextNul     <= d0(NXT_NULL_IDX_C);
+               nextNulOut  <= d0(NXT_NULL_IDX_C);
             else
                if ( fifoRdIdx = 0 ) then
                   d0      := fifoDatOut;
@@ -445,6 +511,19 @@ begin
          end if;
       end if;
    end process P_EP_1_RD;
+
+   P_EP_1_WR  : process is
+   begin
+      epTick;
+      while not startTstInp loop
+         epTick;
+      end loop;
+      fifoSendD2( fifoInp, frmsSentInp, 3 );
+      while ( epTglInp = tstTglInp ) loop
+         epTick;
+      end loop;
+      wait;
+   end process P_EP_1_WR;
 
 
 
@@ -510,9 +589,9 @@ begin
          epClk                     => epClk,
          epRstOut                  => open,
 
-         datInp                    => fifoDatInp,
-         donInp                    => fifoDonInp,
-         wenInp                    => fifoWenInp,
+         datInp                    => fifoInp.dat,
+         donInp                    => fifoInp.don,
+         wenInp                    => fifoInp.wen,
          filledInp                 => open,
          fullInp                   => fifoFullInp,
 
