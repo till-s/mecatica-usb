@@ -444,7 +444,7 @@ package body Usb2TstPkg is
          ulpiClkTick;
          if ( cnt = 0 ) then
             pid := USB2_PID_HSK_NAK_C;
-report "Timed out; ticks " & integer'image(tim);
+            -- report "Timed out; ticks " & integer'image(tim);
             return;
          else
             cnt := cnt - 1;
