@@ -184,8 +184,9 @@ architecture sim of Usb2IsoTb is
    constant ALT_C                  : std_logic_vector(15 downto 0) := x"0000";
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
    
-   signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
-   signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
+   signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
+   signal epCfg                    : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_CONFIG_INIT_C);
 
    signal usb2Rx                   : Usb2RxType := USB2_RX_INIT_C;
 
@@ -329,21 +330,13 @@ begin
       constant devdsc         : Usb2ByteArray(0 to 17) := USB2_APP_DESCRIPTORS_C(0  to 17);
       constant cfgdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(18 to stridx - 1);
       constant strdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(stridx + 4 to stridx + 9);
-      variable epCfg          : Usb2TstEpCfgArray      := (others => USB2_TST_EP_CFG_INIT_C);
 
       constant EP0_SZ_C       : Usb2ByteType           := USB2_APP_DESCRIPTORS_F(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
       constant EP1_SZ_C       : Usb2ByteType           := std_logic_vector( to_unsigned( ISO_EP_PKTSZ_C, 8 ) );
 
 
    begin
-      epCfg( to_integer( USB2_ENDP_ZERO_C ) ).maxPktSizeInp := to_integer(unsigned(EP0_SZ_C));
-      epCfg( to_integer( USB2_ENDP_ZERO_C ) ).maxPktSizeOut := to_integer(unsigned(EP0_SZ_C));
-      epCfg( TST_EP_IDX_C                   ).maxPktSizeInp := to_integer(unsigned(EP1_SZ_C));
-      epCfg( TST_EP_IDX_C                   ).maxPktSizeOut := to_integer(unsigned(EP1_SZ_C));
-
       ulpiTstHandlePhyInit( ulpiTstOb );
-
-      usb2TstPkgConfig( epCfg );
 
       ulpiClkTick; ulpiClkTick;
 
@@ -353,6 +346,7 @@ report "SET_CONFIG";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_VALUE_C ) );
 report "SET_INTERFACE";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
+      usb2TstPkgConfig( epCfg );
 
       for i in 0 to 20 loop
          ulpiClkTick;
@@ -555,6 +549,7 @@ report "SET_INTERFACE";
       usb2Ep0CtlExt                => open,
       usb2Ep0CtlEpExt              => open,
 
+      usb2EpConfig                 => epCfg,
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb
    );

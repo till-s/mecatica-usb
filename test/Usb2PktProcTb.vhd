@@ -102,14 +102,14 @@ package body Usb2AppCfgPkg is
       49 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
       50 => x"01",                                    -- address (OUT EP1)
       51 => "000000" & USB2_TT_BULK_C,                -- attributes
-      52 => x"08", 53 => x"00",                       -- maxPktSize *must match epCfg value below*
+      52 => x"08", 53 => x"00",                       -- maxPktSize
       54 => x"00",                                    -- interval
 
       55 => x"07", -- endpoint                           length
       56 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
       57 => x"81",                                    -- address (IN EP1)
       58 => "000000" & USB2_TT_BULK_C,                -- attributes
-      59 => x"08", 60 => x"00",                       -- maxPktSize *must match epCfg value below*
+      59 => x"08", 60 => x"00",                       -- maxPktSize
       61 => x"00"                                     -- interval
    );
 
@@ -172,8 +172,9 @@ architecture sim of Usb2PktProcTb is
    constant ALT_C                  : std_logic_vector(15 downto 0) := x"0001";
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
    
-   signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
-   signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
+   signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
+   signal epCfg                    : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_CONFIG_INIT_C);
 
    signal framedInp                : std_logic := '1';
 
@@ -210,20 +211,13 @@ begin
       constant devdsc         : Usb2ByteArray(0 to 17) := USB2_APP_DESCRIPTORS_C(0  to 17);
       constant cfgdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(18 to stridx - 1);
       constant strdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(stridx + 4 to stridx + 9);
-      variable epCfg          : Usb2TstEpCfgArray      := (others => USB2_TST_EP_CFG_INIT_C);
 
       constant EP0_SZ_C       : Usb2ByteType           := USB2_APP_DESCRIPTORS_F(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
       constant EP1_SZ_C       : Usb2ByteType           := x"08"; -- must match value in descriptor
 
    begin
-      epCfg( to_integer( USB2_ENDP_ZERO_C ) ).maxPktSizeInp := to_integer(unsigned(EP0_SZ_C));
-      epCfg( to_integer( USB2_ENDP_ZERO_C ) ).maxPktSizeOut := to_integer(unsigned(EP0_SZ_C));
-      epCfg( TST_EP_IDX_C                   ).maxPktSizeInp := to_integer(unsigned(EP1_SZ_C));
-      epCfg( TST_EP_IDX_C                   ).maxPktSizeOut := to_integer(unsigned(EP1_SZ_C));
 
       ulpiTstHandlePhyInit( ulpiTstOb );
-
-      usb2TstPkgConfig( epCfg );
 
       ulpiClkTick; ulpiClkTick;
 
@@ -241,6 +235,8 @@ report "SET_CONFIG";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_VALUE_C ) );
 report "SET_INTERFACE";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
+      usb2TstPkgConfig( epCfg );
+
 
 report "GET_INTERFACE";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_INTERFACE_C, DEV_ADDR_C, idx => IFC_C, eda => (0 => x"01"));
@@ -345,6 +341,7 @@ report "GET_DESCRIPTOR(STR)";
       usb2Ep0CtlExt                => open,
       usb2Ep0CtlEpExt              => open,
 
+      usb2EpConfig                 => epCfg,
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb
    );
