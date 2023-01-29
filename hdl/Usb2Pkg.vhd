@@ -189,6 +189,9 @@ package Usb2Pkg is
    --     then the 'don' flag is not used (and must never be asserted).
    --     Packets are directly framed by 'vld' but no NULL packets can
    --     be sent; packets are always at least 1 byte.
+   --   - the master (IN direction) may request to abort the ongoing
+   --     transfer by asserting 'err' and 'don' and waiting for 'rdy'.
+   --     It must not assert 'vld' nor 'don' together with 'err'.
    --
    -- In the OUT direction a slightly different protocol must be
    -- observed. Since the EP must be able to absorb an entire max. packet
