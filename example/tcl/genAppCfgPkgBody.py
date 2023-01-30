@@ -20,7 +20,8 @@ import Usb2Desc
 
 # Hi-speed bulk endpoint supports pktSize=512
 iProduct="Till's Zynq ULPI Test Board"
-ctxt = Usb2Desc.basicACM(epAddr=1, hiSpeed=True, sendBreak=True, iProduct=iProduct)
+iMACAddr="02DEADBEEF34"
+ctxt = Usb2Desc.basicACM(ifcNumber=0, epAddr=1, iMACAddr=iMACAddr, hiSpeed=True, sendBreak=True, iProduct=iProduct)
 
 with io.open( here + '/../hdl/AppCfgPkgBody.vhd', 'x' ) as f:
   print("-- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.", file=f)
