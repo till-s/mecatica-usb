@@ -255,6 +255,12 @@ report "GET_DESCRIPTOR(STR)";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => strdsc);
       ulpiClkTick;
 
+report "GET_DESCRIPTOR(STR), nonexistent!";
+      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_STRING_C) & x"03"; -- config index in lo byte
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => strdsc, epid => USB2_PID_HSK_STALL_C);
+
+      ulpiClkTick;
+
       ulpiTstSendDat(ulpiTstOb, d2, TST_EP_C, DEV_ADDR_C);
 
       ulpiTstSendDat(ulpiTstOb, d2, TST_EP_C, DEV_ADDR_C, rtr=>2 );
