@@ -68,6 +68,8 @@ entity Usb2Core is
 
       usb2HiSpeedEn                : in    std_logic          := '0';
       usb2RemoteWake               : in    std_logic          := '0';
+      -- indicate whether the device is currently self-powered (for USB GET_STATUS req.)
+      usb2SelfPowered              : in    std_logic          := '0';
 
       -- current endpoint configuration
       usb2EpConfig                 : out   Usb2EndpPairConfigArray(0 to USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G) - 1);
@@ -321,6 +323,7 @@ begin
 
       suspend         => suspend,
       hiSpeed         => isHiSpeed,
+      selfPowered     => usb2SelfPowered,
 
       devStatus       => devStatus,
       epConfig        => epConfig
