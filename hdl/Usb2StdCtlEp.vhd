@@ -56,6 +56,7 @@ entity Usb2StdCtlEp is
 
       suspend         : in  std_logic          := '0';
       hiSpeed         : in  std_logic          := '0';
+      selfPowered     : in  std_logic          := '0';
 
       devStatus       : out Usb2DevStatusType;
       epConfig        : out Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1)
@@ -80,7 +81,6 @@ architecture Impl of Usb2StdCtlEp is
    constant MAX_ALTSETTINGS_C  : natural          := USB2_APP_MAX_ALTSETTINGS_F( DESCRIPTORS_G );
    constant MAX_INTERFACES_C   : natural          := USB2_APP_MAX_INTERFACES_F ( DESCRIPTORS_G );
    constant CFG_IDX_TABLE_C    : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F ( DESCRIPTORS_G );
-   constant NUM_STRINGS_C      : natural          := USB2_APP_NUM_STRINGS_F    ( DESCRIPTORS_G );
    constant STRINGS_IDX_C      : Usb2DescIdxType  := USB2_APP_STRINGS_IDX_F    ( DESCRIPTORS_G );
 
    type StateType is (
@@ -242,12 +242,6 @@ architecture Impl of Usb2StdCtlEp is
    signal r   : RegType := REG_INIT_C;
    signal rin : RegType;
 
-   function numInterfaces(constant x : in RegType)
-   return natural is
-   begin 
-      return to_integer( unsigned( DSC_C( x.cfgIdx + USB2_CFG_DESC_IDX_NUM_INTERFACES_C ) ) );
-   end function numInterfaces;
-
    function hasHaltInp   (constant x : in RegType; constant o : std_logic_vector)
    return boolean is
    begin
@@ -277,7 +271,7 @@ begin
 
    allEpIb(1 to NUM_ENDPOINTS_G - 1) <= usrEpIb;
 
-   P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt, pktHdr, suspend, hiSpeed ) is
+   P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt, pktHdr, suspend, hiSpeed, selfPowered ) is
       variable v          : RegType;
       variable descVal    : Usb2ByteType;
       variable tokOutSeen : boolean;
@@ -500,17 +494,13 @@ begin
                               v.protoStall := '1';
                            end if;
 
--- not implemented      hen USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  =>
+-- not implemented      when USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  =>
 
                         when USB2_STD_DESC_TYPE_STRING_C            =>
                            v.count := to_integer(unsigned(r.reqParam.value(7 downto 0)));
-                           if ( NUM_STRINGS_C > v.count ) then
-                              -- ignore language ID
-                              v.tblIdx     := STRINGS_IDX_C;
-                              v.descType   := USB2_STD_DESC_TYPE_STRING_C;
-                           else
-                              v.protoStall := '1';
-                           end if;
+                           -- ignore language ID
+                           v.tblIdx     := STRINGS_IDX_C;
+                           v.descType   := USB2_STD_DESC_TYPE_STRING_C;
                         when others                                 =>
                            v.protoStall := '1';
                      end case;
@@ -530,19 +520,12 @@ begin
                      v.retSz2 := true;
                      if    ( r.reqParam.recipient = USB2_REQ_TYP_RECIPIENT_DEV_C )
                      then
-                        if ( r.tblRdDone ) then
-                           -- self powered
-                           v.retVal    := x"00";
-                           v.retVal(0) := DSC_C( r.cfgIdx + USB2_CFG_DESC_IDX_ATTRIBUTES_C )(6);
-                           -- remote wakeup
-                           v.retVal(1) := DSC_C( r.cfgIdx + USB2_CFG_DESC_IDX_ATTRIBUTES_C )(5);
-                           v.state     := RETURN_VALUE;
-                        else
-                           v.tblIdx    := r.cfgIdx;
-                           v.tblOff    := USB2_CFG_DESC_IDX_ATTRIBUTES_C;
-                           v.retState  := r.state;
-                           v.state     := READ_TBL;
-                        end if;
+                        -- self powered
+                        v.retVal    := x"00";
+                        v.retVal(0) := selfPowered;
+                        -- remote wakeup
+                        v.retVal(1) := toSl( r.devStatus.remWakeup );
+                        v.state     := RETURN_VALUE;
                      elsif (    ( r.devStatus.state = CONFIGURED )
                              or ( r.reqParam.index(6 downto 0) = "0000000" ) )
                      then
@@ -633,8 +616,8 @@ begin
                v.tblOff := USB2_DESC_IDX_LENGTH_C;
                if ( usb2DescIsSentinel( descVal ) ) then
                   -- USB2_STD_DESC_TYPE_SENTINEL_C detected; -> end of table
-                  v.err      := '1';
-                  v.state    := r.retState;
+                  v.protoStall := '1';
+                  v.state      := GET_PARAMS;
                elsif ( Usb2StdDescriptorTypeType(descVal(3 downto 0)) = r.descType ) then
                   -- found; pre-read aux entry
                   v.tblOff := r.auxOff;
@@ -738,7 +721,7 @@ begin
                   v.size2B := false;
                else
                   if ( r.reqParam.length > w2u( r.retVal & descVal ) ) then
-                     v.auxOff := to_integer( w2u( r.retVal & descVal ) ) - 1 ;
+                     v.auxOff    := to_integer( w2u( r.retVal & descVal ) ) - 1 ;
                   else
                      v.auxOff    := to_integer(r.reqParam.length) - 1;
                      -- is the requested length an exact multiple of the packet size?
