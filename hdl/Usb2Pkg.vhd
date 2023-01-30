@@ -164,6 +164,40 @@ package Usb2Pkg is
       usb2Rst    => '0'
    );
 
+   subtype Usb2TransferType is std_logic_vector(1 downto 0);
+
+   subtype Usb2PktSizeType  is unsigned(10 downto 0);
+
+   constant USB2_TT_CONTROL_C     : Usb2TransferType := "00";
+   constant USB2_TT_ISOCHRONOUS_C : Usb2TransferType := "01";
+   constant USB2_TT_BULK_C        : Usb2TransferType := "10";
+   constant USB2_TT_INTERRUPT_C   : Usb2TransferType := "11";
+
+   -- this information is passed via generic to the packet
+   -- processor but also passed into the endpoint descriptor
+   -- Note that the endpoint address/number is implicitly
+   -- encoded (place of the endpoint in an array).
+   -- If one direction of a pair is unsupported/not implemented
+   -- then 'maxPktSize' must be set to 0.
+   type Usb2EndpPairConfigType is record
+      transferTypeInp  : Usb2TransferType;
+      maxPktSizeInp    : Usb2PktSizeType;
+      hasHaltInp       : boolean;
+      transferTypeOut  : Usb2TransferType;
+      maxPktSizeOut    : Usb2PktSizeType;
+      hasHaltOut       : boolean;
+   end record Usb2EndpPairConfigType;
+
+   constant USB2_ENDP_PAIR_CONFIG_INIT_C : Usb2EndpPairConfigType := (
+      transferTypeInp  => USB2_TT_CONTROL_C,
+      maxPktSizeInp    => (others => '0'),
+      hasHaltInp       => true,
+      transferTypeOut  => USB2_TT_CONTROL_C,
+      maxPktSizeOut    => (others => '0'),
+      hasHaltOut       => true
+   );
+
+
    -- HANDSHAKE
    -- Between endpoints and the packet engine the following
    -- handshake protocol is used in IN direction (mstInp/subInp)
@@ -255,45 +289,24 @@ package Usb2Pkg is
       subInp     : Usb2StrmSubType;
       -- control endpoints receive setup data here;
       mstCtl     : Usb2StrmMstType;
+      -- standard 'halt' feature; asserted for 1 cycle
+      setHaltInp : std_logic;
+      clrHaltInp : std_logic;
+      setHaltOut : std_logic;
+      clrHaltOut : std_logic;
+      -- current configuration values
+      config     : Usb2EndpPairConfigType;
    end record Usb2EndpPairObType;
 
    constant USB2_ENDP_PAIR_OB_INIT_C : Usb2EndpPairObType := (
       mstOut     => USB2_STRM_MST_INIT_C,
       subInp     => USB2_STRM_SUB_INIT_C,
-      mstCtl     => USB2_STRM_MST_INIT_C
-   );
-
-   subtype Usb2TransferType is std_logic_vector(1 downto 0);
-
-   subtype Usb2PktSizeType  is unsigned(10 downto 0);
-
-   constant USB2_TT_CONTROL_C     : Usb2TransferType := "00";
-   constant USB2_TT_ISOCHRONOUS_C : Usb2TransferType := "01";
-   constant USB2_TT_BULK_C        : Usb2TransferType := "10";
-   constant USB2_TT_INTERRUPT_C   : Usb2TransferType := "11";
-
-   -- this information is passed via generic to the packet
-   -- processor but also passed into the endpoint descriptor
-   -- Note that the endpoint address/number is implicitly
-   -- encoded (place of the endpoint in an array).
-   -- If one direction of a pair is unsupported/not implemented
-   -- then 'maxPktSize' must be set to 0.
-   type Usb2EndpPairConfigType is record
-      transferTypeInp  : Usb2TransferType;
-      maxPktSizeInp    : Usb2PktSizeType;
-      hasHaltInp       : boolean;
-      transferTypeOut  : Usb2TransferType;
-      maxPktSizeOut    : Usb2PktSizeType;
-      hasHaltOut       : boolean;
-   end record Usb2EndpPairConfigType;
-
-   constant USB2_ENDP_PAIR_CONFIG_INIT_C : Usb2EndpPairConfigType := (
-      transferTypeInp  => USB2_TT_CONTROL_C,
-      maxPktSizeInp    => (others => '0'),
-      hasHaltInp       => true,
-      transferTypeOut  => USB2_TT_CONTROL_C,
-      maxPktSizeOut    => (others => '0'),
-      hasHaltOut       => true
+      mstCtl     => USB2_STRM_MST_INIT_C,
+      setHaltInp => '0',
+      clrHaltInp => '0',
+      setHaltOut => '0',
+      clrHaltOut => '0',
+      config     => USB2_ENDP_PAIR_CONFIG_INIT_C
    );
 
    type Usb2EndpPairConfigArray is array (natural range <>) of Usb2EndpPairConfigType;

@@ -210,7 +210,6 @@ architecture sim of Usb2FifoEpFrmdTb is
    
    signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
-   signal epCfg                    : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_CONFIG_INIT_C);
 
    signal devStatus                : Usb2DevStatusType;
    signal usb2Rx                   : Usb2RxType;
@@ -398,7 +397,8 @@ begin
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C,     val => (x"00" & CONFIG_VALUE_C ) );
 
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
-      usb2TstPkgConfig( epCfg );
+      -- pass current configuration to test pkg
+      usb2TstPkgConfig( epOb );
 
       ulpiClkTick;
 
@@ -575,8 +575,7 @@ begin
       usb2HiSpeedEn                => hiSpeedEn,
 
       usb2EpIb                     => epIb,
-      usb2EpOb                     => epOb,
-      usb2EpConfig                 => epCfg
+      usb2EpOb                     => epOb
    );
 
    U_DUT : entity work.Usb2FifoEp
@@ -601,14 +600,8 @@ begin
          minFillInp                => open,
          timeFillInp               => open,
 
-         setHalt                   => devStatus.setHalt,
-         clrHalt                   => devStatus.clrHalt,
-         selHaltInp                => devStatus.selHaltInp(TST_EP_IDX_C),
-         selHaltOut                => devStatus.selHaltOut(TST_EP_IDX_C),
-
          usb2EpIb                  => epIb(TST_EP_IDX_C),
          usb2EpOb                  => epOb(TST_EP_IDX_C),
-         usb2EpConfig              => epCfg(TST_EP_IDX_C),
 
          epClk                     => epClk,
          epRstOut                  => open,

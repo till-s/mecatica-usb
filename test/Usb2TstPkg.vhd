@@ -41,7 +41,7 @@ package Usb2TstPkg is
    );
 
    procedure usb2TstPkgConfig(
-      constant cfg : in Usb2EndpPairConfigArray
+       constant epOb : in Usb2EndpPairObArray
    );
 
    -- send a byte vector on ULPI
@@ -903,12 +903,12 @@ end if;
     end procedure usb2TstPkgConfig;
 
     procedure usb2TstPkgConfig(
-       constant cfg : in Usb2EndpPairConfigArray
+       constant epOb : in Usb2EndpPairObArray
     ) is
     begin
-       for i in cfg'range loop
-          epCfg(i).maxPktSizeInp := to_integer( cfg(i).maxPktSizeInp );
-          epCfg(i).maxPktSizeOut := to_integer( cfg(i).maxPktSizeOut );
+       for i in epOb'range loop
+          epCfg(i).maxPktSizeInp := to_integer( epOb(i).config.maxPktSizeInp );
+          epCfg(i).maxPktSizeOut := to_integer( epOb(i).config.maxPktSizeOut );
        end loop;
     end procedure usb2TstPkgConfig;
 

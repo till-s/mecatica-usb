@@ -71,9 +71,6 @@ entity Usb2Core is
       -- indicate whether the device is currently self-powered (for USB GET_STATUS req.)
       usb2SelfPowered              : in    std_logic          := '0';
 
-      -- current endpoint configuration
-      usb2EpConfig                 : out   Usb2EndpPairConfigArray(0 to USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G) - 1);
-
       -- Endpoints are attached here (1 and up)
       usb2EpIb                     : in    Usb2EndpPairIbArray(1 to USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_IB_INIT_C );
@@ -131,7 +128,6 @@ begin
    usb2Rx               <= usb2RxLoc;
    usb2EpOb             <= epOb;
    epIb(1 to epIb'high) <= usb2EpIb;
-   usb2EpConfig         <= epConfig;
 
    P_COMB : process (
       devStatus,

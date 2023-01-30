@@ -30,7 +30,7 @@ entity I2SPlayback is
       -- per audio slot (must be >= SAMPLE_SIZE_G * NUM_CHANNELS_G * 8)
       BITCLK_MULT_G       : natural              := 64;
       SAMPLING_FREQ_G     : natural              := 48000;
-      -- service interval (ms) for freq. measurement (1000ms per usb spec)
+      -- service interval (ms), for freq. measurement (1000ms per usb spec)
       SI_FREQ_G           : natural              := 1000;
       MARK_DEBUG_G        : boolean              := false;
       MARK_DEBUG_BCLK_G   : boolean              := false

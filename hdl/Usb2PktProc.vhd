@@ -340,7 +340,12 @@ begin
       end if;
 
       for i in epObLoc'range loop
-         epObLoc(i).subInp <= USB2_STRM_SUB_INIT_C;
+         epObLoc(i).subInp        <= USB2_STRM_SUB_INIT_C;
+         epObLoc(i).setHaltInp    <= devStatus.selHaltInp(i) and devStatus.setHalt;
+         epObLoc(i).clrHaltInp    <= devStatus.selHaltInp(i) and devStatus.clrHalt;
+         epObLoc(i).setHaltOut    <= devStatus.selHaltOut(i) and devStatus.setHalt;
+         epObLoc(i).clrHaltOut    <= devStatus.selHaltOut(i) and devStatus.clrHalt;
+         epObLoc(i).config        <= epConfig(i);
 
          if ( epConfig( i ).transferTypeOut = USB2_TT_CONTROL_C ) then
             epObLoc(i).mstCtl     <= rd.mstOut;

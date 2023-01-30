@@ -136,12 +136,12 @@ architecture top_level of ZynqTop is
 
    signal roRegs                         : Slv32Array(0 to N_RO_REGS_C - 1) := ( others => (others => '0') );
 
-   signal fifoOutDat                     : Usb2ByteType;
-   signal fifoInpDat                     : Usb2ByteType;
-   signal fifoOutEmpty                   : std_logic;
-   signal fifoInpFull                    : std_logic;
-   signal fifoOutRen                     : std_logic;
-   signal fifoInpWen                     : std_logic;
+   signal acmFifoOutDat                  : Usb2ByteType;
+   signal acmFifoInpDat                  : Usb2ByteType;
+   signal acmFifoOutEmpty                : std_logic;
+   signal acmFifoInpFull                 : std_logic;
+   signal acmFifoOutRen                  : std_logic;
+   signal acmFifoInpWen                  : std_logic;
 
    -- USB3340 requires reset to be asserted for min. 1us; UlpiLineState subsequently waits until DIR is deasserted
    signal ulpiRstCnt                     : unsigned(7 downto 0) := (others => '1');
@@ -412,51 +412,51 @@ begin
             NUM_O_REGS_G         => roRegs'length
          )
          port map (
-            refClkNb      => refClkNb,
+            refClkNb             => refClkNb,
 
-            ulpiClkOut    => ulpiClkLoc,
+            ulpiClkOut           => ulpiClkLoc,
 
-            ulpiClk       => ulpiClk,
-            ulpiRst       => ulpiRst,
-            ulpiStp       => ulpiStp,
-            ulpiDir       => ulpiDir,
-            ulpiNxt       => ulpiNxt,
-            ulpiDat       => ulpiDat,
+            ulpiClk              => ulpiClk,
+            ulpiRst              => ulpiRst,
+            ulpiStp              => ulpiStp,
+            ulpiDir              => ulpiDir,
+            ulpiNxt              => ulpiNxt,
+            ulpiDat              => ulpiDat,
 
-            usb2Rst       => open,
-            refLocked     => refLocked,
-            lineBreak     => lineBreak,
+            usb2Rst              => open,
+            refLocked            => refLocked,
+            lineBreak            => lineBreak,
 
-            iRegs         => r.rwRegs,
-            oRegs         => roRegs,
+            iRegs                => r.rwRegs,
+            oRegs                => roRegs,
 
-            regReq        => regReq,
-            regRep        => regRep,
+            regReq               => regReq,
+            regRep               => regRep,
 
-            fifoOutDat    => fifoOutDat,
-            fifoOutEmpty  => fifoOutEmpty,
-            fifoOutFill   => open,
-            fifoOutRen    => fifoOutRen,
+            acmFifoOutDat        => acmFifoOutDat,
+            acmFifoOutEmpty      => acmFifoOutEmpty,
+            acmFifoOutFill       => open,
+            acmFifoOutRen        => acmFifoOutRen,
 
-            fifoInpDat    => fifoInpDat,
-            fifoInpFull   => fifoInpFull,
-            fifoInpFill   => open,
-            fifoInpWen    => fifoInpWen,
+            acmFifoInpDat        => acmFifoInpDat,
+            acmFifoInpFull       => acmFifoInpFull,
+            acmFifoInpFill       => open,
+            acmFifoInpWen        => acmFifoInpWen,
 
-            clk2Nb        => open,
+            clk2Nb               => open,
 
-            i2sBCLK       => i2sBCLKLoc,
-            i2sPBLRC      => i2sPBLRC,
-            i2sPBDAT      => i2sPBDAT
+            i2sBCLK              => i2sBCLKLoc,
+            i2sPBLRC             => i2sPBLRC,
+            i2sPBDAT             => i2sPBDAT
          );
 
-      fifoInpDat <= axilWriteMst.wdata(7 downto 0);
+      acmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
 
-      acmIrq     <= not fifoOutEmpty or lineBreak;
+      acmIrq        <= not acmFifoOutEmpty or lineBreak;
 
-      cpuIrqs    <= ( 1 => acmIrq, others => '0' );
+      cpuIrqs       <= ( 1 => acmIrq, others => '0' );
 
-      P_COMB : process ( r, axilReadMst, axilWriteMst, regRep, roRegs, fifoOutEmpty, fifoInpFull, fifoOutDat, lineBreak ) is
+      P_COMB : process ( r, axilReadMst, axilWriteMst, regRep, roRegs, acmFifoOutEmpty, acmFifoInpFull, acmFifoOutDat, lineBreak ) is
          variable v : RegType;
       begin
          v := r;
@@ -503,9 +503,9 @@ begin
                      v.rsub.rdata(31 downto 10) := ( others => '0');
                      v.rsub.rdata(           9) := v.lineBreak;
                      v.lineBreak                := '0';
-                     v.rsub.rdata(           8) := fifoOutEmpty;
-                     v.rsub.rdata( 7 downto  0) := fifoOutDat;
-                     v.fifoRen                  := not fifoOutEmpty;
+                     v.rsub.rdata(           8) := acmFifoOutEmpty;
+                     v.rsub.rdata( 7 downto  0) := acmFifoOutDat;
+                     v.fifoRen                  := not acmFifoOutEmpty;
                      v.rsub.rresp               := "00";
                   end case;
                elsif ( ( ( axilWriteMst.awvalid and axilWriteMst.wvalid ) = '1' ) and ( axilWriteMst.awaddr(23 downto 12) = x"C01" ) ) then
@@ -552,8 +552,8 @@ begin
                      end if;
                   when others =>
                      if ( axilWriteMst.wstrb(0) = '1' ) then
-                        v.fifoWen    := not fifoInpFull;
-                        v.wsub.bresp := fifoInpFull & '0';
+                        v.fifoWen    := not acmFifoInpFull;
+                        v.wsub.bresp := acmFifoInpFull & '0';
                      end if;
                   end case;
                end if;
@@ -597,8 +597,8 @@ begin
          end if;
       end process P_SEQ;
 
-      fifoInpWen     <= r.fifoWen;
-      fifoOutRen     <= r.fifoRen;
+      acmFifoInpWen  <= r.fifoWen;
+      acmFifoOutRen  <= r.fifoRen;
 
       axilReadSub    <= r.rsub;
       axilWriteSub   <= r.wsub;

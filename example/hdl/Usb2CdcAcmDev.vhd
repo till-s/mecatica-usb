@@ -63,61 +63,61 @@ entity Usb2CdcAcmDev is
       MARK_DEBUG_G         : boolean  := false
    );
    port (
-      refClkNb     : in    std_logic;
+      refClkNb             : in    std_logic;
 
       -- connect to the device pin
-      ulpiClk      : inout std_logic;
+      ulpiClk              : inout std_logic;
       -- reset the ulpi low-level interface; should not be necessary
-      ulpiRst      : in    std_logic := '0';
-      ulpiStp      : inout std_logic;
-      ulpiDir      : in    std_logic;
-      ulpiNxt      : in    std_logic;
-      ulpiDat      : inout std_logic_vector(7 downto 0);
+      ulpiRst              : in    std_logic := '0';
+      ulpiStp              : inout std_logic;
+      ulpiDir              : in    std_logic;
+      ulpiNxt              : in    std_logic;
+      ulpiDat              : inout std_logic_vector(7 downto 0);
 
-      ulpiClkOut   : out   std_logic;
+      ulpiClkOut           : out   std_logic;
 
-      usb2Rst      : out   std_logic;
+      usb2Rst              : out   std_logic;
 
-      refLocked    : out   std_logic;
+      refLocked            : out   std_logic;
 
       -- control vector
-      -- iRegs(0)(10 downto 0) : min. fill level of the IN fifo until data are sent to USB
-      -- iRegs(0)(27)          : enable 'blast' mode; OUT fifo is constantly drained; IN fifo
+      -- iRegs(0)(10 downto 0)  : min. fill level of the IN fifo until data are sent to USB
+      -- iRegs(0)(27)           : enable 'blast' mode; OUT fifo is constantly drained; IN fifo
       --                         is blast with an incrementing 8-bit counter.
-      -- iRegs(0)(28)          : disable 'loopback' mode; OUT fifo is fed into IN fifo; loopback
-      --                         is *enabled* by default. Note: 'blast' overrides 'loopback'.
-      -- iRegs(0)(29)          : assert forced ULPI STP (useful to bring the PHY to reason if it holds DIR)
-      -- iRegs(0)(30)          : mask/disable IN/OUT fifo's write/read enable when set.
-      -- iRegs(0)(31)          : USB remote wakeup
+      -- iRegs(0)(28)           : disable 'loopback' mode; OUT fifo is fed into IN fifo; loopback
+      --                         is *enabled* by default. Note        : 'blast' overrides 'loopback'.
+      -- iRegs(0)(29)           : assert forced ULPI STP (useful to bring the PHY to reason if it holds DIR)
+      -- iRegs(0)(30)           : mask/disable IN/OUT fifo's write/read enable when set.
+      -- iRegs(0)(31)           : USB remote wakeup
 
-      -- iRegs(1)              : IN fifo fill timer (in ulpi CLK cycles)
+      -- iRegs(1)               : IN fifo fill timer (in ulpi CLK cycles)
       --                         fill-level and fill-timer work like termios VMIN/VTIME
-      iRegs        : in    Slv32Array(0 to NUM_I_REGS_G - 1) := (others => (others => '0'));
+      iRegs                : in    Slv32Array(0 to NUM_I_REGS_G - 1) := (others => (others => '0'));
       -- status vector
-      -- oRegs(0)              : IN  fifo fill level
-      -- oRegs(1)              : OUT fifo fill level
-      oRegs        : out   Slv32Array(0 to NUM_O_REGS_G - 1);
+      -- oRegs(0)               : IN  fifo fill level
+      -- oRegs(1)               : OUT fifo fill level
+      oRegs                : out   Slv32Array(0 to NUM_O_REGS_G - 1);
 
-      lineBreak    : out   std_logic := '0';
+      lineBreak            : out   std_logic := '0';
 
-      regReq       : in    UlpiRegReqType;
-      regRep       : out   UlpiRegRepType;
+      regReq               : in    UlpiRegReqType;
+      regRep               : out   UlpiRegRepType;
 
-      fifoOutDat   : out   Usb2ByteType;
-      fifoOutEmpty : out   std_logic;
-      fifoOutFill  : out   unsigned(15 downto 0);
-      fifoOutRen   : in    std_logic := '1';
+      acmFifoOutDat        : out   Usb2ByteType;
+      acmFifoOutEmpty      : out   std_logic;
+      acmFifoOutFill       : out   unsigned(15 downto 0);
+      acmFifoOutRen        : in    std_logic := '1';
 
-      fifoInpDat   : in    Usb2ByteType := (others => '0');
-      fifoInpFull  : out   std_logic;
-      fifoInpFill  : out   unsigned(15 downto 0);
-      fifoInpWen   : in    std_logic := '1';
+      acmFifoInpDat        : in    Usb2ByteType := (others => '0');
+      acmFifoInpFull       : out   std_logic;
+      acmFifoInpFill       : out   unsigned(15 downto 0);
+      acmFifoInpWen        : in    std_logic := '1';
 
-      clk2Nb       : out   std_logic := '0';
+      clk2Nb               : out   std_logic := '0';
 
-      i2sBCLK      : in    std_logic;
-      i2sPBLRC     : in    std_logic;
-      i2sPBDAT     : out   std_logic
+      i2sBCLK              : in    std_logic;
+      i2sPBLRC             : in    std_logic;
+      i2sPBDAT             : out   std_logic
    );
 end entity Usb2CdcAcmDev;
 
@@ -128,27 +128,38 @@ architecture Impl of Usb2CdcAcmDev is
 
    constant N_EP_C                             : natural := USB2_APP_NUM_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
 
-   constant CDC_BULK_EP_IDX_C                  : natural := 1;
+   constant CDC_ACM_BULK_EP_IDX_C              : natural := 1;
    constant BADD_ISO_EP_IDX_C                  : natural := 3;
-   constant CDC_IF_NUM_C                       : natural := 0;
-   constant BADD_IF_NUM_C                      : natural := 2;
+   constant CDC_ACM_IFC_NUM_C                  : natural := 0;
+   constant BADD_IFC_NUM_C                     : natural := 2;
 
-   constant MAX_PKT_SIZE_INP_C                 : natural := 512;
-   constant MAX_PKT_SIZE_OUT_C                 : natural := 512;
-   constant LD_FIFO_DEPTH_INP_C                : natural := 10;
-   constant LD_FIFO_DEPTH_OUT_C                : natural := 10;
+   constant LD_ACM_FIFO_DEPTH_INP_C            : natural := 10;
+   constant LD_ACM_FIFO_DEPTH_OUT_C            : natural := 10;
 
-   signal fifoTimer                            : unsigned(31 downto 0) := (others => '0');
-   signal fifoMinFill                          : unsigned(LD_FIFO_DEPTH_INP_C - 1 downto 0) := (others => '0');
+   signal acmFifoTimer                         : unsigned(31 downto 0) := (others => '0');
+   signal acmFifoMinFill                       : unsigned(LD_ACM_FIFO_DEPTH_INP_C - 1 downto 0) := (others => '0');
+   signal acmFifoDatInp                        : Usb2ByteType := (others => '0');
+   signal acmFifoWenInp                        : std_logic    := '0';
+   signal acmFifoFullInp                       : std_logic    := '0';
+   signal acmFifoFilledInp                     : unsigned(LD_ACM_FIFO_DEPTH_INP_C downto 0) := (others => '0');
+   signal acmFifoDatOut                        : Usb2ByteType := (others => '0');
+   signal acmFifoRenOut                        : std_logic    := '0';
+   signal acmFifoEmptyOut                      : std_logic    := '0';
+   signal acmFifoFilledOut                     : unsigned(LD_ACM_FIFO_DEPTH_OUT_C downto 0) := (others => '0');
+   signal acmFifoDisable                       : std_logic    := '0';
+   signal acmFifoBlast                         : std_logic    := '0';
+   signal acmFifoLoopback                      : std_logic    := '0';
+
    signal ulpiClkLoc                           : std_logic;
    signal ulpiClkLocNb                         : std_logic;
+   signal ulpiForceStp                         : std_logic;
 
    signal usb2RstLoc                           : std_logic;
 
    signal ulpiIb                               : UlpiIbType;
    signal ulpiOb                               : UlpiObType;
 
-   type   MuxSelType                           is ( NONE, CDC, BADD );
+   type   MuxSelType                           is ( NONE, CDCACM, BADD );
 
    signal usb2Ep0ReqParam                      : Usb2CtlReqParamType;
    signal usb2Ep0CDCCtlExt                     : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
@@ -158,6 +169,8 @@ architecture Impl of Usb2CdcAcmDev is
    signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
    signal usb2DevStatus                        : Usb2DevStatusType;
 
+   signal usb2RemoteWake                       : std_logic;
+
    signal muxSel                               : MuxSelType         := NONE;
    signal muxSelIn                             : MuxSelType         := NONE;
 
@@ -165,15 +178,12 @@ architecture Impl of Usb2CdcAcmDev is
 
    signal usb2Rx                               : Usb2RxType;
 
-   signal usb2EpConfig                         : Usb2EndpPairConfigArray(0 to N_EP_C);
    signal usb2EpIb                             : Usb2EndpPairIbArray(1 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
 
    -- note EP0 output can be observed here; an external agent extending EP0 functionality
    -- needs to listen to this.
    signal usb2EpOb                             : Usb2EndpPairObArray(0 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_OB_INIT_C );
 
-   signal fInp                                 : unsigned(LD_FIFO_DEPTH_INP_C downto 0) := (others => '0');
-   signal fOut                                 : unsigned(LD_FIFO_DEPTH_OUT_C downto 0) := (others => '0');
 
    attribute MARK_DEBUG                        of usb2Ep0ReqParam   : signal is toStr(MARK_DEBUG_G);
    attribute MARK_DEBUG                        of usb2Ep0CtlExt     : signal is toStr(MARK_DEBUG_G);
@@ -182,189 +192,231 @@ architecture Impl of Usb2CdcAcmDev is
 
 begin
 
-   P_MUX : process ( muxSel, usb2Ep0ReqParam, usb2Ep0CDCCtlExt, usb2Ep0BADDCtlExt, usb2Ep0BADDCtlEpExt ) is
-      variable v : MuxSelType;
+   -- Output assignments
+
+   ulpiClkOut <= ulpiClkLoc;
+   usb2RstLoc <= usb2DevStatus.usb2Rst or ulpiRst;
+   usb2Rst    <= usb2RstLoc;
+
+   -- Register assignments
+   P_RG : process ( acmFifoFilledInp, acmFifoFilledOut ) is
+   begin
+      oRegs <= (others => (others => '0'));
+      oRegs(0)(acmFifoFilledInp'range) <= std_logic_vector(acmFifoFilledInp);
+      oRegs(1)(acmFifoFilledOut'range) <= std_logic_vector(acmFifoFilledOut);
+   end process P_RG;
+
+
+   acmFifoMinFill  <= unsigned(iRegs(0)(acmFifoMinFill'range));
+   acmFifoTimer    <= unsigned(iRegs(1)(acmFifoTimer'range));
+   ulpiForceStp    <= iRegs(0)(29);
+   usb2RemoteWake  <= iRegs(0)(31);
+   acmFifoDisable  <= iRegs(0)(30);
+   acmFifoBlast    <= iRegs(0)(27);
+   acmFifoLoopback <= not iRegs(0)(28);
+
+   -- USB2 Core
+
+   U_USB2_CORE : entity work.Usb2Core
+      generic map (
+         MARK_DEBUG_ULPI_IO_G         => true,
+         MARK_DEBUG_ULPI_LINE_STATE_G => true,
+         MARK_DEBUG_PKT_RX_G          => true,
+         MARK_DEBUG_PKT_TX_G          => false,
+         MARK_DEBUG_PKT_PROC_G        => true,
+         MARK_DEBUG_EP0_G             => false,
+         ULPI_NXT_IOB_G               => not ULPI_CLK_MODE_INP_G,
+         ULPI_DIR_IOB_G               => not ULPI_CLK_MODE_INP_G,
+         ULPI_DIN_IOB_G               => not ULPI_CLK_MODE_INP_G,
+         ULPI_STP_MODE_G              => NORMAL,
+         DESCRIPTORS_G                => USB2_APP_DESCRIPTORS_C
+      )
+      port map (
+         clk                          => ulpiClkLoc,
+
+         ulpiRst                      => ulpiRst,
+         usb2Rst                      => usb2RstLoc,
+
+         ulpiIb                       => ulpiIb,
+         ulpiOb                       => ulpiOb,
+
+         ulpiRegReq                   => regReq,
+         ulpiRegRep                   => regRep,
+
+         ulpiForceStp                 => ulpiForceStp,
+
+         usb2DevStatus                => usb2DevStatus,
+
+         usb2Rx                       => usb2Rx,
+
+         usb2Ep0ReqParam              => usb2Ep0ReqParam,
+         usb2Ep0CtlExt                => usb2Ep0CtlExt,
+         usb2Ep0CtlEpExt              => usb2Ep0CtlEpExt,
+
+         usb2HiSpeedEn                => '1',
+         usb2RemoteWake               => usb2RemoteWake,
+
+         usb2EpIb                     => usb2EpIb,
+         usb2EpOb                     => usb2EpOb
+      );
+
+   -- Control EP-0 mux
+
+   B_EP0_MUX : block is
    begin
 
-      v := muxSel;
+      P_MUX : process ( muxSel, usb2Ep0ReqParam, usb2Ep0CDCCtlExt, usb2Ep0BADDCtlExt, usb2Ep0BADDCtlEpExt ) is
+         variable v : MuxSelType;
+      begin
 
-      usb2Ep0CtlExt   <= USB2_CTL_EXT_NAK_C;
-      usb2Ep0CtlEpExt <= USB2_ENDP_PAIR_IB_INIT_C;
+         v := muxSel;
 
-      if ( usb2Ep0ReqParam.vld = '1' ) then
-         -- new mux setting
-         v := NONE;
-         if ( usb2Ep0ReqParam.reqType = USB2_REQ_TYP_TYPE_CLASS_C ) then
-            if    ( usb2CtlReqDstInterface( usb2Ep0ReqParam, toUsb2InterfaceNumType( CDC_IF_NUM_C ) ) ) then
-               v := CDC;
-            elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParam, toUsb2InterfaceNumType( BADD_IF_NUM_C ) ) ) then
-               v := BADD;
+         usb2Ep0CtlExt   <= USB2_CTL_EXT_NAK_C;
+         usb2Ep0CtlEpExt <= USB2_ENDP_PAIR_IB_INIT_C;
+
+         if ( usb2Ep0ReqParam.vld = '1' ) then
+            -- new mux setting
+            v := NONE;
+            if ( usb2Ep0ReqParam.reqType = USB2_REQ_TYP_TYPE_CLASS_C ) then
+               if    ( usb2CtlReqDstInterface( usb2Ep0ReqParam, toUsb2InterfaceNumType( CDC_ACM_IFC_NUM_C ) ) ) then
+                  v := CDCACM;
+               elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParam, toUsb2InterfaceNumType( BADD_IFC_NUM_C ) ) ) then
+                  v := BADD;
+               end if;
+            end if;
+            -- blank the 'ack' flag during this cycle
+            usb2Ep0CtlExt   <= USB2_CTL_EXT_INIT_C;
+         end if;
+
+         -- must switch the mux on the same cycle we see 'vld' because that's
+         -- when '
+         if    ( muxSel = CDCACM  ) then
+            usb2Ep0CtlExt   <= usb2Ep0CDCCtlExt;
+         elsif ( muxSel = BADD ) then
+            usb2Ep0CtlExt   <= usb2Ep0BADDCtlExt;
+            usb2Ep0CtlEpExt <= usb2Ep0BADDCtlEpExt;
+         end if;
+
+         muxSelIn <= v;
+      end process P_MUX;
+
+      P_SEL : process( ulpiClkLoc ) is
+      begin
+         if ( rising_edge( ulpiClkLoc ) ) then
+            if ( usb2RstLoc = '1' ) then
+               muxSel <= NONE;
+            else
+               muxSel <= muxSelIn;
             end if;
          end if;
-         -- blank the 'ack' flag during this cycle
-         usb2Ep0CtlExt   <= USB2_CTL_EXT_INIT_C;
-      end if;
+      end process P_SEL;
 
-      -- must switch the mux on the same cycle we see 'vld' because that's
-      -- when '
-      if    ( muxSel = CDC  ) then
-         usb2Ep0CtlExt   <= usb2Ep0CDCCtlExt;
-      elsif ( muxSel = BADD ) then
-         usb2Ep0CtlExt   <= usb2Ep0BADDCtlExt;
-         usb2Ep0CtlEpExt <= usb2Ep0BADDCtlEpExt;
-      end if;
+   end block B_EP0_MUX;
 
-      muxSelIn <= v;
-   end process P_MUX;
-
-   P_SEL : process( ulpiClkLoc ) is
-   begin
-      if ( rising_edge( ulpiClkLoc ) ) then
-         if ( usb2RstLoc = '1' ) then
-            muxSel <= NONE;
-         else
-            muxSel <= muxSelIn;
-         end if;
-      end if;
-   end process P_SEL;
-
-   B_FIFO : block is
-      signal fifoDat  : Usb2ByteType;
-      signal iWen     : std_logic := '0';
-      signal oRen     : std_logic := '0';
-      signal iFull    : std_logic := '0';
-      signal oEmpty   : std_logic := '0';
-      signal cnt      : unsigned(7 downto 0)         := (others => '0');
-      signal blast    : std_logic := '0';
-      signal loopback : std_logic := '0';
-      signal iDat     : std_logic_vector(7 downto 0) := (others => '0');
+   -- CDC ACM Endpoint
+   B_EP_CDCACM : block is
+      signal cnt : unsigned(7 downto 0) := (others => '0');
    begin
 
-      fifoMinFill <= unsigned(iRegs(0)(fifoMinFill'range));
-      fifoTimer   <= unsigned(iRegs(1)(fifoTimer'range));
-
-      U_BRK : entity work.CDCACMSendBreak
+      U_CDCACM : entity work.Usb2EpCDCACM
          generic map (
-            CDC_IFC_NUM_G               => toUsb2InterfaceNumType( CDC_IF_NUM_C )
+            CTL_IFC_NUM_G               => CDC_ACM_IFC_NUM_C,
+            LD_FIFO_DEPTH_INP_G         => LD_ACM_FIFO_DEPTH_INP_C,
+            LD_FIFO_DEPTH_OUT_G         => LD_ACM_FIFO_DEPTH_OUT_C,
+            FIFO_TIMER_WIDTH_G          => acmFifoTimer'length
          )
          port map (
-            clk                         => ulpiClkLoc,
-            rst                         => usb2RstLoc,
-            usb2SOF                     => usb2Rx.pktHdr.sof,
-            usb2Ep0ReqParam             => usb2Ep0ReqParam,
-            usb2Ep0CtlExt               => usb2Ep0CDCCtlExt,
-            lineBreak                   => lineBreak
-         );
+            usb2Clk                    => ulpiClkLoc,
+            usb2Rst                    => usb2RstLoc,
 
-      U_FIFO_EP : entity work.Usb2FifoEp
-         generic map (
-            LD_FIFO_DEPTH_INP_G         => LD_FIFO_DEPTH_INP_C,
-            LD_FIFO_DEPTH_OUT_G         => LD_FIFO_DEPTH_OUT_C,
-            TIMER_WIDTH_G               => fifoTimer'length,
-            ASYNC_G                     => true
-         )
-         port map (
-            usb2Clk                     => ulpiClkLoc,
-            usb2Rst                     => usb2RstLoc,
-            
-            epClk                       => ulpiClkLoc,
-            epRstOut                    => open,
-            
-            usb2EpIb                    => usb2EpIb(CDC_BULK_EP_IDX_C),
-            usb2EpOb                    => usb2EpOb(CDC_BULK_EP_IDX_C),
-            usb2EpConfig                => usb2EpConfig(CDC_BULK_EP_IDX_C),
+            usb2Rx                     => usb2Rx,
 
-            datInp                      => iDat,
-            wenInp                      => iWen,
-            filledInp                   => fInp,
-            fullInp                     => iFull,
-            minFillInp                  => fifoMinFill,
-            timeFillInp                 => fifoTimer,
+            usb2Ep0ReqParam            => usb2Ep0ReqParam,
+            usb2Ep0CtlExt              => usb2Ep0CDCCtlExt,
 
-            datOut                      => fifoDat,
-            renOut                      => oRen,
-            filledOut                   => fOut,
-            emptyOut                    => oEmpty,
+            usb2EpIb                   => usb2EpIb(CDC_ACM_BULK_EP_IDX_C),
+            usb2EpOb                   => usb2EpOb(CDC_ACM_BULK_EP_IDX_C),
 
-            selHaltInp                  => usb2DevStatus.selHaltInp(1),
-            selHaltOut                  => usb2DevStatus.selHaltOut(1),
-            setHalt                     => usb2DevStatus.setHalt,
-            clrHalt                     => usb2DevStatus.clrHalt
+            lineBreak                  => lineBreak,
+
+            fifoMinFillInp             => acmFifoMinFill,
+            fifoTimeFillInp            => acmFifoTimer,
+
+            epClk                      => ulpiClkLoc,
+            epRstOut                   => open,
+
+            -- FIFO Interface
+
+            fifoDataInp                => acmFifoDatInp,
+            fifoWenaInp                => acmFifoWenInp,
+            fifoFullInp                => acmFifoFullInp,
+            fifoFilledInp              => acmFifoFilledInp,
+            fifoDataOut                => acmFifoDatOut,
+            fifoRenaOut                => acmFifoRenOut,
+            fifoEmptyOut               => acmFifoEmptyOut,
+            fifoFilledOut              => acmFifoFilledOut
          );
 
       P_CNT : process ( ulpiClkLoc ) is
       begin
          if ( rising_edge( ulpiClkLoc ) ) then
 
-            if ( (blast and iWen) = '1' ) then
+            if ( (acmFifoBlast and acmFifoWenInp) = '1' ) then
                cnt <= cnt + 1;
             end if;
          end if;
       end process P_CNT;
 
 
-      P_COMB : process ( fifoInpDat, fifoDat, blast, loopback, cnt, iRegs(0), iFull, oEmpty, fifoInpWen, fifoOutRen ) is
+      P_COMB : process (
+         acmFifoInpDat,
+         acmFifoDatOut,
+         acmFifoBlast,
+         acmFifoLoopback,
+         cnt,
+         acmFifoDisable,
+         acmFifoFullInp,
+         acmFifoEmptyOut,
+         acmFifoInpWen,
+         acmFifoOutRen
+      ) is
          variable wen : std_logic;
          variable ren : std_logic;
       begin
-         fifoOutEmpty <= '1';
-         fifoInpFull  <= '1';
-         wen          := not iFull  and not iRegs(0)(30);
-         ren          := not oEmpty and not iRegs(0)(30);
-         if    ( blast = '1' ) then
-            iDat         <= std_logic_vector( cnt );
-            wen          := wen and '1';
-            ren          := ren and '1';
-         elsif ( loopback = '1' ) then
-            iDat         <= fifoDat;
-            wen          := wen and not oEmpty;
-            ren          := ren and not iFull;
+         acmFifoOutEmpty <= '1';
+         acmFifoInpFull  <= '1';
+         wen             := not acmFifoFullInp  and not acmFifoDisable;
+         ren             := not acmFifoEmptyOut and not acmFifoDisable;
+         if    ( acmFifoBlast = '1' ) then
+            acmFifoDatInp    <= std_logic_vector( cnt );
+            wen              := wen and '1';
+            ren              := ren and '1';
+         elsif ( acmFifoLoopback = '1' ) then
+            acmFifoDatInp    <= acmFifoDatOut;
+            wen              := wen and not acmFifoEmptyOut;
+            ren              := ren and not acmFifoFullInp;
          else
-            fifoOutEmpty <= oEmpty;
-            fifoInpFull  <= iFull;
-            iDat         <= fifoInpDat;
-            wen          := wen and fifoInpWen;
-            ren          := ren and fifoOutRen;
+            acmFifoDatInp    <= acmFifoInpDat;
+            acmFifoOutEmpty  <= acmFifoEmptyOut;
+            acmFifoInpFull   <= acmFifoFullInp;
+            wen              := wen and acmFifoInpWen;
+            ren              := ren and acmFifoOutRen;
          end if;
-         iWen <= wen;
-         oRen <= ren;
+         acmFifoWenInp <= wen;
+         acmFifoRenOut <= ren;
       end process P_COMB;
 
-      blast        <= iRegs(0)(27);
-      loopback     <= not iRegs(0)(28);
+      acmFifoOutDat   <= acmFifoDatOut;
+      acmFifoOutFill  <= resize( acmFifoFilledOut, acmFifoOutFill'length );
 
-      fifoOutDat   <= fifoDat;
-      fifoOutFill  <= resize( fOut, fifoOutFill'length );
+      acmFifoInpFill  <= resize( acmFifoFilledInp, acmFifoInpFill'length );
+   end block B_EP_CDCACM;
 
-      fifoInpFill  <= resize( fInp, fifoInpFill'length );
-   end block B_FIFO;
-
-   B_ISO : block is
+   B_EP_ISO_BADD : block is
    begin
-      U_BADD_CTL : entity work.BADDSpkrCtl
+      U_BADD : entity work.Usb2EpBADD
          generic map (
-            AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_IF_NUM_C)
-         )
-         port map (
-            clk                       => ulpiClkLoc,
-            rst                       => usb2RstLoc,
-
-            usb2Ep0ReqParam           => usb2Ep0ReqParam,
-            usb2Ep0CtlExt             => usb2Ep0BADDCtlExt,
-            usb2Ep0ObExt              => usb2Ep0BADDCtlEpExt,
-            usb2Ep0IbExt              => usb2EpOb(0),
-
-            volLeft                   => open,
-            volRight                  => open,
-            volMaster                 => open,
-            muteLeft                  => open,
-            muteRight                 => open,
-            muteMaster                => open,
-            powerState                => open
-         );
-
-      U_BADD_PB : entity work.I2SPlayback
-         generic map (
+            AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_IFC_NUM_C),
             SAMPLE_SIZE_G             => 2,
             MARK_DEBUG_G              => true,
             MARK_DEBUG_BCLK_G         => false
@@ -372,17 +424,33 @@ begin
          port map (
             usb2Clk                   => ulpiClkLoc,
             usb2Rst                   => usb2RstLoc,
+            usb2RstBsy                => open,
+
+            usb2Ep0ReqParam           => usb2Ep0ReqParam,
+            usb2Ep0CtlExt             => usb2Ep0BADDCtlExt,
+            usb2Ep0ObExt              => usb2Ep0BADDCtlEpExt,
+            usb2Ep0IbExt              => usb2EpOb(0),
+
             usb2Rx                    => usb2Rx,
-            usb2DevStatus             => usb2DevStatus,
             usb2EpIb                  => usb2EpOb(BADD_ISO_EP_IDX_C),
             usb2EpOb                  => usb2EpIb(BADD_ISO_EP_IDX_C),
+            usb2DevStatus             => usb2DevStatus,
+
+            volMaster                 => open,
+            muteMaster                => open,
+            volLeft                   => open,
+            volRight                  => open,
+            muteLeft                  => open,
+            muteRight                 => open,
+            powerState                => open,
 
             i2sBCLK                   => i2sBCLK,
             i2sPBLRC                  => i2sPBLRC,
             i2sPBDAT                  => i2sPBDAT
          );
+   end block B_EP_ISO_BADD;
 
-   end block B_ISO;
+   -- Clock generation
 
    G_MMCM : if ( ULPI_CLK_MODE_INP_G or USE_MMCM_C ) generate
 
@@ -528,7 +596,7 @@ begin
 
    U_REFBUF :  BUFG port map ( I => ulpiClkLocNb,    O => ulpiClkLoc );
 
-   usb2RstLoc <= usb2DevStatus.usb2Rst or ulpiRst;
+   -- IO Buffers
 
    B_BUF : block is
       signal   ulpiDirNDly : std_logic;
@@ -565,60 +633,5 @@ begin
       end generate G_DAT_BUF;
 
    end block B_BUF;
-
-   U_DUT : entity work.Usb2Core
-      generic map (
-         MARK_DEBUG_ULPI_IO_G         => true,
-         MARK_DEBUG_ULPI_LINE_STATE_G => true,
-         MARK_DEBUG_PKT_RX_G          => true,
-         MARK_DEBUG_PKT_TX_G          => false,
-         MARK_DEBUG_PKT_PROC_G        => true,
-         MARK_DEBUG_EP0_G             => false,
-         ULPI_NXT_IOB_G               => not ULPI_CLK_MODE_INP_G,
-         ULPI_DIR_IOB_G               => not ULPI_CLK_MODE_INP_G,
-         ULPI_DIN_IOB_G               => not ULPI_CLK_MODE_INP_G,
-         ULPI_STP_MODE_G              => NORMAL,
-         DESCRIPTORS_G                => USB2_APP_DESCRIPTORS_C
-      )
-      port map (
-         clk                          => ulpiClkLoc,
-
-         ulpiRst                      => ulpiRst,
-         usb2Rst                      => usb2RstLoc,
-
-         ulpiIb                       => ulpiIb,
-         ulpiOb                       => ulpiOb,
-
-         ulpiRegReq                   => regReq,
-         ulpiRegRep                   => regRep,
-
-         ulpiForceStp                 => iRegs(0)(29),
-
-         usb2DevStatus                => usb2DevStatus,
-
-         usb2Rx                       => usb2Rx,
-
-         usb2Ep0ReqParam              => usb2Ep0ReqParam,
-         usb2Ep0CtlExt                => usb2Ep0CtlExt,
-         usb2Ep0CtlEpExt              => usb2Ep0CtlEpExt,
-
-         usb2HiSpeedEn                => '1',
-         usb2RemoteWake               => iRegs(0)(31),
-
-         usb2EpConfig                 => usb2EpConfig,
-         usb2EpIb                     => usb2EpIb,
-         usb2EpOb                     => usb2EpOb
-      );
-
-   P_RG : process ( fInp, fOut ) is
-   begin
-      oRegs <= (others => (others => '0'));
-      oRegs(0)(fInp'range) <= std_logic_vector(fInp);
-      oRegs(1)(fOut'range) <= std_logic_vector(fOut);
-   end process P_RG;
-
-
-   ulpiClkOut <= ulpiClkLoc;
-   usb2Rst    <= usb2RstLoc;
 
 end architecture Impl;

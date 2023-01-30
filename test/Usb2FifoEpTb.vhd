@@ -184,7 +184,6 @@ architecture sim of Usb2FifoEpTb is
    
    signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
-   signal epCfg                    : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_CONFIG_INIT_C);
 
    signal devStatus                : Usb2DevStatusType;
    signal usb2Rx                   : Usb2RxType;
@@ -235,7 +234,8 @@ begin
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_ADDRESS_C, USB2_DEV_ADDR_DFLT_C, val => (x"00" & "0" & DEV_ADDR_C) );
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C,     val => (x"00" & CONFIG_VALUE_C ) );
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
-      usb2TstPkgConfig( epCfg );
+      -- pass current configuration to test package
+      usb2TstPkgConfig( epOb );
 
       ulpiTstSendDat(ulpiTstOb, d2, EP1, DEV_ADDR_C, fram => false);
       ulpiTstSendDat(ulpiTstOb, d2(0 to 0), EP1, DEV_ADDR_C, fram => false, epid => USB2_PID_HSK_NAK_C);
@@ -334,7 +334,6 @@ begin
       usb2Ep0CtlExt                => ep0CtlExt,
       usb2Ep0CtlEpExt              => open,
 
-      usb2EpConfig                 => epCfg,
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb
    );
@@ -359,14 +358,8 @@ begin
          minFillInp                => open,
          timeFillInp               => open,
 
-         setHalt                   => devStatus.setHalt,
-         clrHalt                   => devStatus.clrHalt,
-         selHaltInp                => devStatus.selHaltInp(TST_EP_IDX_C),
-         selHaltOut                => devStatus.selHaltOut(TST_EP_IDX_C),
-
          usb2EpIb                  => epIb(TST_EP_IDX_C),
          usb2EpOb                  => epOb(TST_EP_IDX_C),
-         usb2EpConfig              => epCfg(TST_EP_IDX_C),
 
          epClk                     => ulpiTstClk,
          epRstOut                  => open,

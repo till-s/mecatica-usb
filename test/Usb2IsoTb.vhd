@@ -186,7 +186,6 @@ architecture sim of Usb2IsoTb is
    
    signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
-   signal epCfg                    : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_CONFIG_INIT_C);
 
    signal usb2Rx                   : Usb2RxType := USB2_RX_INIT_C;
 
@@ -346,7 +345,8 @@ report "SET_CONFIG";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_VALUE_C ) );
 report "SET_INTERFACE";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
-      usb2TstPkgConfig( epCfg );
+      -- pass current configuration to test pkg
+      usb2TstPkgConfig( epOb );
 
       for i in 0 to 20 loop
          ulpiClkTick;
@@ -549,7 +549,6 @@ report "SET_INTERFACE";
       usb2Ep0CtlExt                => open,
       usb2Ep0CtlEpExt              => open,
 
-      usb2EpConfig                 => epCfg,
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb
    );

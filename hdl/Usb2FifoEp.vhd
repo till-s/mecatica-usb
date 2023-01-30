@@ -17,14 +17,13 @@ use     work.Usb2DescPkg.all;
 
 entity Usb2FifoEp is
    generic (
-      -- LD_FIFO_DEPTH = width of the address; i.e., ceil( log2( depth ) )
-      -- if framing is enabled (LD_MAX_NUM_FRAMES_G > 0)
+      -- LD_FIFO_DEPTH = width of the address; i.e., ceil( log2( depth - 1 ) )
       LD_FIFO_DEPTH_INP_G          : natural  := 0; -- disabled when 0
       -- for high-bandwidth throughput the output fifo depth must be >= 2*maxPktSize
       -- because at the time a packet is released into the fifo there must already
       -- a decision be made if a second packet would fit.
       -- maxPktSize is the current configuration's maxPktSize as conveyed by
-      -- the 'usb2EpConfig' input signal.
+      -- the 'usb2EpOb.config' input signal.
       LD_FIFO_DEPTH_OUT_G          : natural  := 0; -- disabled when 0
       TIMER_WIDTH_G                : positive := 1;
       -- add an output register to the INP bound FIFO (to improve timing)
@@ -51,7 +50,6 @@ entity Usb2FifoEp is
       -- Endpoint Interface
       usb2EpIb                     : out Usb2EndpPairIbType;
       usb2EpOb                     : in  Usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
-      usb2EpConfig                 : in  Usb2EndpPairConfigType;
 
       -- Controls (usb2Clk domain)
       -- accumulate 'minFillInp' items before passing to the endpoint
@@ -63,12 +61,6 @@ entity Usb2FifoEp is
       --  - All-ones waits indefinitely.
       --  - Time may be reduced while a wait is in progress.
       timeFillInp                  : in  unsigned(TIMER_WIDTH_G - 1 downto 0) := (others => '0');
-
-      -- EP Halt (usb2Clk domain)
-      selHaltInp                   : in  std_logic    := '0';
-      selHaltOut                   : in  std_logic    := '0';
-      setHalt                      : in  std_logic    := '0';
-      clrHalt                      : in  std_logic    := '0';
 
       epClk                        : in  std_logic    := '0';
       -- reset received from USB
@@ -185,10 +177,10 @@ begin
             if ( usb2Rst = '1' ) then
                halted  <= '0';
             else
-               if ( (setHalt and selHaltInp) = '1' ) then
+               if ( usb2EpOb.setHaltInp = '1' ) then
                   halted <= '1';
                end if;
-               if ( (clrHalt and selHaltInp) = '1' ) then
+               if ( usb2EpOb.clrHaltInp = '1' ) then
                   halted <= '0';
                end if;
             end if;
@@ -302,7 +294,7 @@ begin
    begin
 
       -- reduce typing
-      maxPktSz   <= usb2EpConfig.maxPktSizeOut;
+      maxPktSz   <= usb2EpOb.config.maxPktSizeOut;
 
       datOut     <= fifoDou( datOut'range );
 
@@ -325,10 +317,10 @@ begin
                fifoRdy   <= '0';
                lastWen   <= '0';
             else
-               if ( (setHalt and selHaltOut) = '1' ) then
+               if ( usb2EpOb.setHaltOut = '1' ) then
                   halted <= '1';
                end if;
-               if ( (clrHalt and selHaltOut) = '1' ) then
+               if ( usb2EpOb.clrHaltOut = '1' ) then
                   halted <= '0';
                end if;
                lastWen <= fifoWen;
