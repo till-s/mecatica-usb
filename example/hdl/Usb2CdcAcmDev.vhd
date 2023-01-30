@@ -165,6 +165,7 @@ architecture Impl of Usb2CdcAcmDev is
 
    signal usb2Rx                               : Usb2RxType;
 
+   signal usb2EpConfig                         : Usb2EndpPairConfigArray(0 to N_EP_C);
    signal usb2EpIb                             : Usb2EndpPairIbArray(1 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
 
    -- note EP0 output can be observed here; an external agent extending EP0 functionality
@@ -257,8 +258,6 @@ begin
 
       U_FIFO_EP : entity work.Usb2FifoEp
          generic map (
-            MAX_PKT_SIZE_INP_G          => MAX_PKT_SIZE_INP_C,
-            MAX_PKT_SIZE_OUT_G          => MAX_PKT_SIZE_OUT_C,
             LD_FIFO_DEPTH_INP_G         => LD_FIFO_DEPTH_INP_C,
             LD_FIFO_DEPTH_OUT_G         => LD_FIFO_DEPTH_OUT_C,
             TIMER_WIDTH_G               => fifoTimer'length,
@@ -269,10 +268,11 @@ begin
             usb2Rst                     => usb2RstLoc,
             
             epClk                       => ulpiClkLoc,
-            epRst                       => usb2RstLoc,
+            epRstOut                    => open,
             
             usb2EpIb                    => usb2EpIb(CDC_BULK_EP_IDX_C),
             usb2EpOb                    => usb2EpOb(CDC_BULK_EP_IDX_C),
+            usb2EpConfig                => usb2EpConfig(CDC_BULK_EP_IDX_C),
 
             datInp                      => iDat,
             wenInp                      => iWen,
@@ -605,6 +605,7 @@ begin
          usb2HiSpeedEn                => '1',
          usb2RemoteWake               => iRegs(0)(31),
 
+         usb2EpConfig                 => usb2EpConfig,
          usb2EpIb                     => usb2EpIb,
          usb2EpOb                     => usb2EpOb
       );
