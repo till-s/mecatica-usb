@@ -104,7 +104,7 @@ architecture Impl of Usb2FifoEp is
    signal haltedOutEpClk        : std_logic := '1';
    signal mstInpVld             : std_logic := '0';
    signal mstInpDon             : std_logic := '0';
-   signal fifoDatInp            : std_logic_vector(7 downto 0) := (others => '0');
+   signal mstInpDat             : std_logic_vector(7 downto 0) := (others => '0');
    signal bFramedInp            : std_logic := '0';
    signal subOutRdy             : std_logic := '0';
    signal epRstOutLoc           : std_logic := '0';
@@ -187,16 +187,18 @@ begin
          end if;
       end process P_HALT;
 
+      -- usb2 clock domain
       haltedInp           <= halted;
-      fifoWen             <= wenInp and not haltedInpEpClk;
-      fullInp             <= fifoFull or haltedInpEpClk;
       mstInpVld           <= not fifoEmpty and haveAFrame and not mstInpDon;
 
       -- only freeze user-access in halted state; EP interaction with the packet
       -- engine proceeds
-      fifoRen             <= usb2EpOb.subInp.rdy and haveAFrame;
+      fifoRen             <= usb2EpOb.subInp.rdy and haveAFrame and not fifoEmpty;
+      mstInpDat           <= fifoDou( mstInpDat'range );
 
-      fifoDatInp          <= fifoDou( fifoDatInp'range );
+      -- EP clock domain
+      fullInp             <= fifoFull or haltedInpEpClk;
+      fifoWen             <= wenInp and not haltedInpEpClk and not fifoFull;
 
       G_WITH_DON : if ( LD_MAX_NUM_FRAMES_G > 0 ) generate
          fifoDin    <= donInp & datInp;
@@ -284,6 +286,7 @@ begin
       signal halted       : std_logic := '0';
       signal fifoWen      : std_logic;
       signal fifoRen      : std_logic;
+      signal fifoFull     : std_logic;
       signal fifoEmpty    : std_logic;
       signal fifoFilled   : unsigned(LD_FIFO_DEPTH_OUT_G downto 0);
       signal fifoRdy      : std_logic := '0';
@@ -300,13 +303,13 @@ begin
 
       G_WITH_DON : if ( LD_MAX_NUM_FRAMES_G > 0 ) generate
          fifoDin <= usb2EpOb.mstOut.don & usb2EpOb.mstOut.dat;
-         fifoWen <= usb2EpOb.mstOut.vld or usb2EpOb.mstOut.don;
+         fifoWen <= (usb2EpOb.mstOut.vld or usb2EpOb.mstOut.don) and not fifoFull;
          donOut  <= fifoDou( datOut'length );
       end generate G_WITH_DON;
 
       G_NO_DON : if ( LD_MAX_NUM_FRAMES_G = 0 ) generate
          fifoDin <= usb2EpOb.mstOut.dat;
-         fifoWen <= usb2EpOb.mstOut.vld;
+         fifoWen <= usb2EpOb.mstOut.vld and not fifoFull;
       end generate G_NO_DON;
 
       P_SEQ : process ( usb2Clk ) is
@@ -345,10 +348,14 @@ begin
 
       -- only freeze user-access in halted state; EP interaction with the packet
       -- engine proceeds
+
+      -- usb2 clock domain
       haltedOut           <= halted;
       subOutRdy           <= fifoRdy;
-      emptyOut            <= fifoEmpty or haltedOut;
-      fifoRen             <= renOut and not haltedOut;
+
+      -- EP clock domain
+      emptyOut            <= fifoEmpty or haltedOutEpClk;
+      fifoRen             <= renOut and not haltedOutEpClk and not fifoEmpty;
 
       U_FIFO : entity work.Usb2Fifo
          generic map (
@@ -364,7 +371,7 @@ begin
 
             din          => fifoDin,
             wen          => fifoWen,
-            full         => open,
+            full         => fifoFull,
             wrFilled     => fifoFilled,
 
             rdClk        => epClkLoc,
@@ -381,7 +388,7 @@ begin
 
    end generate G_OUT_FIFO;
 
-   P_COMB : process ( mstInpVld, haltedInp, fifoDatInp, bFramedInp, mstInpDon, haltedOut, subOutRdy ) is
+   P_COMB : process ( mstInpVld, haltedInp, mstInpDat, bFramedInp, mstInpDon, haltedOut, subOutRdy ) is
    begin
       usb2EpIb            <= USB2_ENDP_PAIR_IB_INIT_C;
       usb2EpIb.mstInp.vld <= mstInpVld;
@@ -389,7 +396,7 @@ begin
       usb2EpIb.bFramedInp <= bFramedInp;
       usb2EpIb.mstInp.err <= '0';
       usb2EpIb.mstInp.don <= mstInpDon;
-      usb2EpIb.mstInp.dat <= fifoDatInp;
+      usb2EpIb.mstInp.dat <= mstInpDat;
       usb2EpIb.stalledOut <= haltedOut;
       usb2EpIb.subOut.rdy <= subOutRdy;
    end process P_COMB;
