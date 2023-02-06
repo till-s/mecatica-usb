@@ -85,6 +85,8 @@ architecture top_level of ZynqTop is
       if ( c ) then return a; else return b; end if;
    end function ite;
 
+   constant  ADDR_PREFIX_C               : std_logic_vector(7 downto 0) := x"C0";
+
    constant  GEN_ULPI_C                  : boolean := true;
 
    constant  USE_ETH_CLK_C               : boolean := false;
@@ -99,9 +101,6 @@ architecture top_level of ZynqTop is
    constant CLK0_DIV_C                   : positive := ite( USE_ETH_CLK_C, 20   , 20  );
    constant CLK2_DIV_C                   : positive := ite( USE_ETH_CLK_C,  6   ,  6  );
    constant REF_CLK_DIV_C                : positive := ite( USE_ETH_CLK_C,  5   ,  1  );
-
-   constant N_RO_REGS_C                  : natural := 2;
-   constant N_RW_REGS_C                  : natural := 4;
 
    signal axiReadMst                     : AxiReadMstType;
    signal axiReadSub                     : AxiReadSubType  := AXI_READ_SUB_FORCE_C;
@@ -134,14 +133,27 @@ architecture top_level of ZynqTop is
    signal axiClk                         : std_logic;
    signal axiRst                         : std_logic;
 
-   signal roRegs                         : Slv32Array(0 to N_RO_REGS_C - 1) := ( others => (others => '0') );
+   signal roRegs                         : RegArray(0 to 1, 0 to 1) := ((others => (others => '0')), (others => (others => '0')));
 
    signal acmFifoOutDat                  : Usb2ByteType;
-   signal acmFifoInpDat                  : Usb2ByteType;
    signal acmFifoOutEmpty                : std_logic;
-   signal acmFifoInpFull                 : std_logic;
    signal acmFifoOutRen                  : std_logic;
+   signal acmFifoInpDat                  : Usb2ByteType;
+   signal acmFifoInpFull                 : std_logic;
    signal acmFifoInpWen                  : std_logic;
+
+   signal ecmFifoOutDat                  : Usb2ByteType;
+   signal ecmFifoOutDon                  : std_logic;
+   signal ecmFifoOutEmpty                : std_logic;
+   signal ecmFifoOutRen                  : std_logic;
+   signal ecmFifoOutFill                 : unsigned(15 downto 0);
+
+   signal ecmFifoInpDat                  : Usb2ByteType;
+   signal ecmFifoInpDon                  : std_logic;
+   signal ecmFifoInpFull                 : std_logic;
+   signal ecmFifoInpWen                  : std_logic;
+   signal ecmFifoInpFill                 : unsigned(15 downto 0);
+
 
    -- USB3340 requires reset to be asserted for min. 1us; UlpiLineState subsequently waits until DIR is deasserted
    signal ulpiRstCnt                     : unsigned(7 downto 0) := (others => '1');
@@ -371,9 +383,11 @@ begin
          rsub        :  AxiReadSubType;
          wsub        :  AxiWriteSubType;
          req         :  UlpiRegReqType;
-         rwRegs      :  Slv32Array(0 to N_RW_REGS_C - 1);
-         fifoWen     :  std_logic;
-         fifoRen     :  std_logic;
+         rwRegs      :  RegArray(0 to 1, 0 to 1);
+         acmFifoWen  :  std_logic;
+         acmFifoRen  :  std_logic;
+         ecmFifoWen  :  std_logic;
+         ecmFifoRen  :  std_logic;
          lineBreak   :  std_logic;
       end record RegType;
       constant REG_INIT_C : RegType := (
@@ -381,9 +395,11 @@ begin
          rsub        => AXI_READ_SUB_INIT_C,
          wsub        => AXI_WRITE_SUB_INIT_C,
          req         => ULPI_REG_REQ_INIT_C,
-         rwRegs      => (others => (others => '0')),
-         fifoWen     => '0',
-         fifoRen     => '0',
+         rwRegs      => ((others => (others => '0')), (others => (others => '0'))),
+         acmFifoWen  => '0',
+         acmFifoRen  => '0',
+         ecmFifoWen  => '0',
+         ecmFifoRen  => '0',
          lineBreak   => '0'
       );
       signal r       : RegType := REG_INIT_C;
@@ -407,9 +423,7 @@ begin
             CLK_MULT_F_G         => CLK_MULT_F_C,
             CLK0_DIV_G           => CLK0_DIV_C,
             CLK2_DIV_G           => CLK2_DIV_C,
-            CLK1_INP_PHASE_G     => -58.5,
-            NUM_I_REGS_G         => r.rwRegs'length,
-            NUM_O_REGS_G         => roRegs'length
+            CLK1_INP_PHASE_G     => -58.5
          )
          port map (
             refClkNb             => refClkNb,
@@ -443,6 +457,19 @@ begin
             acmFifoInpFill       => open,
             acmFifoInpWen        => acmFifoInpWen,
 
+            ecmFifoOutDat        => ecmFifoOutDat,
+            ecmFifoOutDon        => ecmFifoOutDon,
+            ecmFifoOutEmpty      => ecmFifoOutEmpty,
+            ecmFifoOutFill       => ecmFifoOutFill,
+            ecmFifoOutRen        => ecmFifoOutRen,
+
+            ecmFifoInpDat        => ecmFifoInpDat,
+            ecmFifoInpDon        => ecmFifoInpDon,
+            ecmFifoInpFull       => ecmFifoInpFull,
+            ecmFifoInpFill       => ecmFifoInpFill,
+            ecmFifoInpWen        => ecmFifoInpWen,
+
+
             clk2Nb               => open,
 
             i2sBCLK              => i2sBCLKLoc,
@@ -451,12 +478,28 @@ begin
          );
 
       acmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
+      ecmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
+      ecmFifoInpDon <= axilWriteMst.wdata(8);
 
       acmIrq        <= not acmFifoOutEmpty or lineBreak;
 
       cpuIrqs       <= ( 1 => acmIrq, others => '0' );
 
-      P_COMB : process ( r, axilReadMst, axilWriteMst, regRep, roRegs, acmFifoOutEmpty, acmFifoInpFull, acmFifoOutDat, lineBreak ) is
+      P_COMB : process (
+         r,
+         axilReadMst,
+         axilWriteMst,
+         regRep,
+         roRegs,
+         acmFifoOutEmpty,
+         acmFifoInpFull,
+         acmFifoOutDat,
+         ecmFifoOutEmpty,
+         ecmFifoInpFull,
+         ecmFifoOutDat,
+         ecmFifoOutDon,
+         lineBreak
+      ) is
          variable v : RegType;
       begin
          v := r;
@@ -465,97 +508,146 @@ begin
          v.rsub.arready := '0';
          v.wsub.awready := '0';
          v.wsub.wready  := '0';
-         v.fifoRen      := '0';
-         v.fifoWen      := '0';
+         v.acmFifoRen   := '0';
+         v.acmFifoWen   := '0';
+         v.ecmFifoRen   := '0';
+         v.ecmFifoWen   := '0';
          if ( lineBreak = '1' ) then
             v.lineBreak := '1';
          end if;
 
          case ( r.state ) is
             when IDLE =>
-               v.rsub.rresp := (others => '0');
-               v.wsub.bresp := (others => '0');
-               if    ( ( axilReadMst.arvalid = '1' ) and ( axilReadMst.araddr(23 downto 12) = x"C01" ) ) then
+               v.rsub.rresp   := "11"; -- decerr
+               v.wsub.bresp   := "11"; -- decerr
+               if    ( axilReadMst.arvalid = '1' ) then
                   v.req.rdnwr     := '1';
-                  v.rsub.rresp    := "11"; -- decerr
                   v.state         := DON;
                   v.rsub.arready  := '1';
                   v.rsub.rvalid   := '1';
-                  case ( axilReadMst.araddr( 7 downto 6 ) ) is
-                  when "00" =>
-                     if ( axilReadMst.araddr(5 downto 0) /= "101111" ) then
-                        v.req.addr    := "00" & axilReadMst.araddr(5 downto 0);
-                        v.req.vld     := '1';
-                        v.state       := WAI;
-                        v.rsub.rvalid := '0';
-                     end if;
-                  when "01" =>
-                     if ( unsigned(axilReadMst.araddr(5 downto 2)) < N_RO_REGS_C ) then
-                        v.rsub.rdata := roRegs( to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
-                        v.rsub.rresp := "00";
-                     end if;
-                  when "10" =>
-                     if ( unsigned(axilReadMst.araddr(5 downto 2)) < N_RW_REGS_C ) then
-                        v.rsub.rdata := r.rwRegs( to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
-                        v.rsub.rresp := "00";
-                     end if;
-                  when others =>
-                     v.rsub.rdata(31 downto 10) := ( others => '0');
-                     v.rsub.rdata(           9) := v.lineBreak;
-                     v.lineBreak                := '0';
-                     v.rsub.rdata(           8) := acmFifoOutEmpty;
-                     v.rsub.rdata( 7 downto  0) := acmFifoOutDat;
-                     v.fifoRen                  := not acmFifoOutEmpty;
-                     v.rsub.rresp               := "00";
-                  end case;
-               elsif ( ( ( axilWriteMst.awvalid and axilWriteMst.wvalid ) = '1' ) and ( axilWriteMst.awaddr(23 downto 12) = x"C01" ) ) then
+                  if ( axilReadMst.araddr(23 downto 16) = ADDR_PREFIX_C ) then
+                     case axilReadMst.araddr(15 downto 12) is
+                        when x"1" =>
+                           case ( axilReadMst.araddr( 7 downto 6 ) ) is
+                           when "00" =>
+                              if ( axilReadMst.araddr(5 downto 0) /= "101111" ) then
+                                 v.req.addr    := "00" & axilReadMst.araddr(5 downto 0);
+                                 v.req.vld     := '1';
+                                 v.state       := WAI;
+                                 v.rsub.rvalid := '0';
+                              end if;
+                           when "01" =>
+                              if ( unsigned(axilReadMst.araddr(5 downto 2)) < roRegs'length(2) ) then
+                                 v.rsub.rdata := roRegs(0, to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
+                                 v.rsub.rresp := "00";
+                              end if;
+                           when "10" =>
+                              if ( unsigned(axilReadMst.araddr(5 downto 2)) < r.rwRegs'length(2) ) then
+                                 v.rsub.rdata := r.rwRegs(0, to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
+                                 v.rsub.rresp := "00";
+                              end if;
+                           when others =>
+                              v.rsub.rdata(31 downto 10) := ( others => '0');
+                              v.rsub.rdata(           9) := v.lineBreak;
+                              v.lineBreak                := '0';
+                              v.rsub.rdata(           8) := acmFifoOutEmpty;
+                              v.rsub.rdata( 7 downto  0) := acmFifoOutDat;
+                              v.acmFifoRen               := not acmFifoOutEmpty;
+                              v.rsub.rresp               := "00";
+                           end case;
+                        when x"2" =>
+                           case ( axilReadMst.araddr( 7 downto 6 ) ) is
+                           when "01" =>
+                              if ( unsigned(axilReadMst.araddr(5 downto 2)) < roRegs'length(2) ) then
+                                 v.rsub.rdata := roRegs(1, to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
+                                 v.rsub.rresp := "00";
+                              end if;
+                           when "10" =>
+                              if ( unsigned(axilReadMst.araddr(5 downto 2)) < r.rwRegs'length(2) ) then
+                                 v.rsub.rdata := r.rwRegs(1, to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
+                                 v.rsub.rresp := "00";
+                              end if;
+                           when others =>
+                              v.rsub.rdata(31 downto 10) := ( others => '0');
+                              v.rsub.rdata(           9) := ecmFifoOutDon;
+                              v.rsub.rdata(           8) := ecmFifoOutEmpty;
+                              v.rsub.rdata( 7 downto  0) := ecmFifoOutDat;
+                              v.ecmFifoRen               := not acmFifoOutEmpty;
+                              v.rsub.rresp               := "00";
+                           end case;
+                        when others =>
+                     end case;
+                  end if;
+               elsif ( ( axilWriteMst.awvalid and axilWriteMst.wvalid ) = '1' ) then
                   v.req.rdnwr    := '0';
-                  v.wsub.bresp   := "11"; -- decerr
                   v.wsub.awready := '1';
                   v.wsub.wready  := '1';
                   v.wsub.bvalid  := '1';
                   v.state        := DON;
-                  case ( axilWriteMst.awaddr( 7 downto 6 ) ) is
-                  when "00" =>
-                     if ( axilWriteMst.awaddr(5 downto 0) /= "101111" ) then
-                        v.req.vld     := '1';
-                        v.req.addr(7 downto 2) := "00" & axilWriteMst.awaddr(5 downto 2);
-                        v.state       := WAI;
-                        v.wsub.bvalid := '0';
-                        if    ( axilWriteMst.wstrb = "0001" ) then
-                           v.req.addr(1 downto 0) := "00";
-                           v.req.wdat             := axilWriteMst.wdata( 7 downto  0);
-                        elsif ( axilWriteMst.wstrb = "0010" ) then
-                           v.req.addr(1 downto 0) := "01";
-                           v.req.wdat             := axilWriteMst.wdata(15 downto  8);
-                        elsif ( axilWriteMst.wstrb = "0100" ) then
-                           v.req.addr(1 downto 0) := "10";
-                           v.req.wdat             := axilWriteMst.wdata(23 downto 16);
-                        elsif ( axilWriteMst.wstrb = "1000" ) then
-                           v.req.addr(1 downto 0) := "11";
-                           v.req.wdat             := axilWriteMst.wdata(31 downto 24);
-                        else
-                           v.wsub.bresp  := "10"; -- slverr
-                           v.wsub.bvalid := '1';
-                           v.req.vld     := '0';
-                           v.state       := DON;
-                        end if;
-                     end if;
-                  when "10" =>
-                     if ( unsigned(axilWriteMst.awaddr(5 downto 2)) < N_RW_REGS_C ) then
-                        for i in axilWriteMst.wstrb'range loop
-                           if ( axilWriteMst.wstrb(i) = '1' ) then
-                               v.rwRegs( to_integer(unsigned(axilWriteMst.awaddr(5 downto 2))) )(8*i+7 downto 8*i) := axilWriteMst.wdata(8*i + 7 downto 8*i);
-                           end if;
-                        end loop;
-                        v.wsub.bresp := "00";
-                     end if;
-                  when others =>
-                     if ( axilWriteMst.wstrb(0) = '1' ) then
-                        v.fifoWen    := not acmFifoInpFull;
-                        v.wsub.bresp := acmFifoInpFull & '0';
-                     end if;
-                  end case;
+                  if ( axilWriteMst.awaddr(23 downto 16) = ADDR_PREFIX_C ) then
+                     case ( axilWriteMst.awaddr(15 downto 12) ) is
+                        when x"1" =>
+                           case ( axilWriteMst.awaddr( 7 downto 6 ) ) is
+                           when "00" =>
+                              if ( axilWriteMst.awaddr(5 downto 0) /= "101111" ) then
+                                 v.req.vld     := '1';
+                                 v.req.addr(7 downto 2) := "00" & axilWriteMst.awaddr(5 downto 2);
+                                 v.state       := WAI;
+                                 v.wsub.bvalid := '0';
+                                 if    ( axilWriteMst.wstrb = "0001" ) then
+                                    v.req.addr(1 downto 0) := "00";
+                                    v.req.wdat             := axilWriteMst.wdata( 7 downto  0);
+                                 elsif ( axilWriteMst.wstrb = "0010" ) then
+                                    v.req.addr(1 downto 0) := "01";
+                                    v.req.wdat             := axilWriteMst.wdata(15 downto  8);
+                                 elsif ( axilWriteMst.wstrb = "0100" ) then
+                                    v.req.addr(1 downto 0) := "10";
+                                    v.req.wdat             := axilWriteMst.wdata(23 downto 16);
+                                 elsif ( axilWriteMst.wstrb = "1000" ) then
+                                    v.req.addr(1 downto 0) := "11";
+                                    v.req.wdat             := axilWriteMst.wdata(31 downto 24);
+                                 else
+                                    v.wsub.bresp  := "10"; -- slverr
+                                    v.wsub.bvalid := '1';
+                                    v.req.vld     := '0';
+                                    v.state       := DON;
+                                 end if;
+                              end if;
+                           when "10" =>
+                              if ( unsigned(axilWriteMst.awaddr(5 downto 2)) < r.rwRegs'length(2) ) then
+                                 for i in axilWriteMst.wstrb'range loop
+                                    if ( axilWriteMst.wstrb(i) = '1' ) then
+                                        v.rwRegs(0, to_integer(unsigned(axilWriteMst.awaddr(5 downto 2))) )(8*i+7 downto 8*i) := axilWriteMst.wdata(8*i + 7 downto 8*i);
+                                    end if;
+                                 end loop;
+                                 v.wsub.bresp := "00";
+                              end if;
+                           when others =>
+                              if ( axilWriteMst.wstrb(0) = '1' ) then
+                                 v.acmFifoWen := not acmFifoInpFull;
+                                 v.wsub.bresp := acmFifoInpFull & '0';
+                              end if;
+                           end case;
+                        when x"2" =>
+                           case ( axilWriteMst.awaddr( 7 downto 6 ) ) is
+                           when "10" =>
+                              if ( unsigned(axilWriteMst.awaddr(5 downto 2)) < r.rwRegs'length(2) ) then
+                                 for i in axilWriteMst.wstrb'range loop
+                                    if ( axilWriteMst.wstrb(i) = '1' ) then
+                                        v.rwRegs(1, to_integer(unsigned(axilWriteMst.awaddr(5 downto 2))) )(8*i+7 downto 8*i) := axilWriteMst.wdata(8*i + 7 downto 8*i);
+                                    end if;
+                                 end loop;
+                                 v.wsub.bresp := "00";
+                              end if;
+                           when others =>
+                              if ( axilWriteMst.wstrb(0) = '1' ) then
+                                 v.ecmFifoWen := not ecmFifoInpFull;
+                                 v.wsub.bresp := ecmFifoInpFull & '0';
+                              end if;
+                           end case;
+                        when others =>
+                     end case;
+                  end if;
                end if;
 
             when WAI =>
@@ -597,8 +689,11 @@ begin
          end if;
       end process P_SEQ;
 
-      acmFifoInpWen  <= r.fifoWen;
-      acmFifoOutRen  <= r.fifoRen;
+      acmFifoInpWen  <= r.acmFifoWen;
+      acmFifoOutRen  <= r.acmFifoRen;
+
+      ecmFifoInpWen  <= r.ecmFifoWen;
+      ecmFifoOutRen  <= r.ecmFifoRen;
 
       axilReadSub    <= r.rsub;
       axilWriteSub   <= r.wsub;

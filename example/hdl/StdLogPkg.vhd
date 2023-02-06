@@ -14,4 +14,6 @@ package StdLogPkg is
 
    type Slv32Array is array(natural range <>) of Slv32;
 
+   type RegArray is array(natural range <>, natural range <>) of Slv32;
+
 end package StdLogPkg;
