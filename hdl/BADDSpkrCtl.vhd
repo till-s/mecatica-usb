@@ -41,7 +41,7 @@ end entity BADDSpkrCtl;
 
 architecture Impl of BADDSpkrCtl is
 
-   type StateType is (IDLE, ACK, SEND_DAT, GET_PARAM, DONE);
+   type StateType is (IDLE, SEND_DAT, GET_PARAM, DONE);
 
    type BufType is record
       dat             : Usb2ByteArray(15 downto 0);
@@ -255,11 +255,13 @@ begin
             if ( usb2Ep0ReqParam.vld = '1' ) then
                v.ctlExt.ack := '1';
                v.ctlExt.err := '1';
+               v.ctlExt.don := '1';
                v.state      := DONE;
                if ( accept(usb2Ep0ReqParam, acCtlReq, channel) ) then
                   case ( entityId ) is
                      when ID_FEATURE_UNIT_C =>
                         v.ctlExt.err := '0';
+                        v.ctlExt.don := '0';
                         if ( usb2Ep0ReqParam.dev2Host ) then
                            v.state := SEND_DAT;
                            if ( acCtlReq = CUR ) then
@@ -294,6 +296,7 @@ begin
                               );
                            else
                               v.ctlExt.err := '1';
+                              v.ctlExt.don := '1';
                               v.state      := DONE;
                            end if;
                         else
@@ -305,6 +308,7 @@ begin
                               v.buf.idx := to_signed(1, v.buf.idx'length);
                            else
                               v.ctlExt.err := '1';
+                              v.ctlExt.don := '1';
                               v.state      := DONE;
                            end if;
                         end if;
@@ -314,6 +318,7 @@ begin
                         if ( usb2Ep0ReqParam.dev2Host and channel = CH_MASTER and code = CS_SAM_FREQ_CTL_C and acCtlReq /= INVALID ) then
 
                            v.ctlExt.err := '0';
+                           v.ctlExt.don := '0';
                            v.state      := SEND_DAT;
                            if    ( acCtlReq = CUR ) then
                               bufFill( v.buf, to_unsigned( 48000, 32 ) );
@@ -330,6 +335,7 @@ begin
                      when ID_POWER_DOMAIN_C =>
                         if ( acCtlReq = CUR and channel = CH_MASTER and code = AC_PWR_DOM_CTL_C ) then
                            v.ctlExt.err := '0';
+                           v.ctlExt.don := '0';
                            if ( usb2Ep0ReqParam.dev2Host ) then
                               bufFill( v.buf, resize( r.powerState, 8 ) );
                               v.state     := SEND_DAT;
@@ -391,11 +397,6 @@ begin
                   v.state      := DONE;
                end if;
             end if;
-
-         when ACK =>
-            v.ctlExt.ack := '1';
-            v.ctlExt.don := '1';
-            v.state      := DONE;
 
          when DONE => -- flags are asserted during this cycle
             v.state := IDLE;

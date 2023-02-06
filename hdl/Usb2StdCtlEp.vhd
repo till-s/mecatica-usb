@@ -288,7 +288,9 @@ begin
       v.devStatus.selHaltInp    := (others => '0');
       v.devStatus.selHaltOut    := (others => '0');
 
-      v.reqParam.vld            := '0';
+      if ( ctlExt.don = '1' ) then
+         v.reqParam.vld            := '0';
+      end if;
       v.devStatus.hiSpeed       := (hiSpeed = '1');
 
       if ( epIb.mstCtl.vld = '0' ) then
@@ -364,6 +366,10 @@ begin
                else
                   -- ctlExt.don may arrive the next cycle or any time after
                   v.state    := WAIT_EXT_DONE;
+                  if ( ctlExt.don = '1' ) then
+                     v.statusAck := '1';
+                     v.state     := STATUS;
+                  end if;
                end if;
             end if;
 
