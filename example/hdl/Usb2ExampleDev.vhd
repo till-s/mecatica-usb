@@ -20,7 +20,7 @@ use     work.Usb2DescPkg.all;
 use     work.Usb2AppCfgPkg.all;
 use     work.StdLogPkg.all;
 
-entity Usb2CdcAcmDev is
+entity Usb2ExampleDev is
    generic (
       SYS_CLK_PERIOD_NS_G  : real     := 20.0;
       ULPI_CLK_MODE_INP_G  : boolean  := true;
@@ -137,9 +137,9 @@ entity Usb2CdcAcmDev is
       i2sPBLRC             : in    std_logic;
       i2sPBDAT             : out   std_logic
    );
-end entity Usb2CdcAcmDev;
+end entity Usb2ExampleDev;
 
-architecture Impl of Usb2CdcAcmDev is
+architecture Impl of Usb2ExampleDev is
    attribute MARK_DEBUG                        : string;
 
    constant USE_MMCM_C                         : boolean := true;
