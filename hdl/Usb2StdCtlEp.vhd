@@ -314,6 +314,7 @@ begin
             v.protoStall          := '0';
             v.reqParam.extAbort   := false;
          end if;
+         v.reqParam.vld := '0';
       end if;
 
       tokOutSeen:= ( pktHdr.vld = '1' and pktHdr.pid = USB2_PID_TOK_OUT_C );
