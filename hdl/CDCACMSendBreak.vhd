@@ -29,7 +29,7 @@ end entity CDCACMSendBreak;
 
 architecture Impl of CDCACMSendBreak is
 
-   type StateType is (IDLE, ACK, DONE);
+   type StateType is (IDLE, DONE);
 
    type RegType is record
       state     : stateType;
@@ -78,10 +78,10 @@ begin
             if ( usb2Ep0ReqParam.vld = '1' ) then
                v.ctlExt.ack := '1';
                v.ctlExt.err := '1';
+               v.ctlExt.don := '1';
                v.state      := DONE;
                if ( accept(usb2Ep0ReqParam) ) then
                   v.ctlExt.err         := '0';
-                  v.state              := ACK;
                   v.timer(15 downto 0) := unsigned(usb2Ep0ReqParam.value);
                   v.timer(16)          := '1';
                   if    ( usb2Ep0ReqParam.value = x"0000" ) then
@@ -92,11 +92,6 @@ begin
                   end if;
                end if;
             end if;
-
-         when ACK =>
-            v.ctlExt.ack := '1';
-            v.ctlExt.don := '1';
-            v.state      := DONE;
 
          when DONE => -- flags are asserted during this cycle
             v.state := IDLE;
