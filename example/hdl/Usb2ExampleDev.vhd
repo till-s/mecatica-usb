@@ -257,7 +257,7 @@ begin
          MARK_DEBUG_PKT_RX_G          => true,
          MARK_DEBUG_PKT_TX_G          => false,
          MARK_DEBUG_PKT_PROC_G        => true,
-         MARK_DEBUG_EP0_G             => false,
+         MARK_DEBUG_EP0_G             => true,
          ULPI_NXT_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIR_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIN_IOB_G               => not ULPI_CLK_MODE_INP_G,
