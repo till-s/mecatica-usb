@@ -426,12 +426,32 @@ package Usb2Pkg is
       -- then, during the data phase the external agent also must
       -- monitor 'extAbort' and abort the data phase (w/o asserting don/ack/err).
       -- This may happen if the host does not read all of the available data.
+
+      -- to sum it up: 'ack' acknowledges reception of the request.
+      -- the controller then waits for 'don' which signals the end of
+      -- the data phase which must be managed by the external agent.
+      -- If the agent needs no data phase then 'don' and 'ack' may both be
+      -- asserted when accepting the request.
+      --  Handling request with data phase
+      --    vld  ack  don
+      --     1    0    0
+      --     1    1    0  -> request accepted
+      --     1  <handle data phase>
+      --     1    1    1  -> request done, ACK during status phase
+      --     0    0    0
+      --  Handling request without data phase
+      --    vld  ack  don
+      --     1    0    0
+      --     1    1    1  -> ack request and flag done in one operation
+      --                     NOTE: in this case the status phase always
+      --                           ACKs the request.
+      --     0    0    0
    end record Usb2CtlExtType;
 
    constant USB2_CTL_EXT_NAK_C : Usb2CtlExtType := (
       ack       => '1',
       err       => '1',
-      don       => '0'
+      don       => '1'
    );
 
    constant USB2_CTL_EXT_INIT_C : Usb2CtlExtType := (
@@ -449,6 +469,11 @@ package Usb2Pkg is
    function usb2CtlReqDstInterface(
       constant p : in Usb2CtlReqParamType;
       constant i : in Usb2InterfaceNumType
+   ) return boolean;
+
+   function usb2CtlReqDstInterface(
+      constant p : in Usb2CtlReqParamType;
+      constant i : in natural
    ) return boolean;
 
 end package Usb2Pkg;
@@ -537,6 +562,15 @@ package body Usb2Pkg is
       return      p.recipient = USB2_REQ_TYP_RECIPIENT_IFC_C
              and  Usb2InterfaceNumType( p.index(7 downto 0) ) = i;
    end function usb2CtlReqDstInterface;
+
+   function usb2CtlReqDstInterface(
+      constant p : in Usb2CtlReqParamType;
+      constant i : in natural
+   ) return boolean is
+   begin
+      return usb2CtlReqDstInterface( p, toUsb2InterfaceNumType( i ) );
+   end function usb2CtlReqDstInterface;
+
 
    function toUsb2InterfaceNumType(
       constant x : in natural
