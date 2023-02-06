@@ -17,11 +17,12 @@ here=os.path.abspath(os.path.dirname(__file__))
 sys.path.append( here + '/../../scripts' )
 
 import Usb2Desc
+import ExampleDevDesc
 
 # Hi-speed bulk endpoint supports pktSize=512
 iProduct="Till's Zynq ULPI Test Board"
 iMACAddr="02DEADBEEF34"
-ctxt = Usb2Desc.basicACM(ifcNumber=0, epAddr=1, iMACAddr=iMACAddr, hiSpeed=True, sendBreak=True, iProduct=iProduct)
+ctxt = ExampleDevDesc.mkExampleDevDescriptors(ifcNumber=0, epAddr=1, iMACAddr=iMACAddr, hiSpeed=True, sendBreak=True, iProduct=iProduct)
 
 with io.open( here + '/../hdl/AppCfgPkgBody.vhd', 'x' ) as f:
   print("-- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.", file=f)

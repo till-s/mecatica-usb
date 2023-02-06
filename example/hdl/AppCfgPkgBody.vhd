@@ -236,7 +236,7 @@ package body Usb2AppCfgPkg is
       -- Usb2EndpointDesc
       191 => x"07",
       192 => x"05",
-      193 => x"85",
+      193 => x"84",
       194 => x"02",
       195 => x"00",
       196 => x"02",
@@ -244,7 +244,7 @@ package body Usb2AppCfgPkg is
       -- Usb2EndpointDesc
       198 => x"07",
       199 => x"05",
-      200 => x"05",
+      200 => x"04",
       201 => x"02",
       202 => x"00",
       203 => x"02",

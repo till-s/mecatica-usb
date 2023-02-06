@@ -120,7 +120,7 @@ architecture top_level of ZynqTop is
    signal ledLoc                         : std_logic_vector(3 downto 0) := (others => '0');
    signal ctl                            : std_logic_vector(7 downto 0) := (others => '0');
 
-   signal lineBreak                      : std_logic;
+   signal acmLineBreak                   : std_logic;
 
    signal plClk                          : std_logic;
    signal sysRst, sysRstN                : std_logic;
@@ -133,7 +133,10 @@ architecture top_level of ZynqTop is
    signal axiClk                         : std_logic;
    signal axiRst                         : std_logic;
 
-   signal roRegs                         : RegArray(0 to 1, 0 to 1) := ((others => (others => '0')), (others => (others => '0')));
+   signal roRegs                         : RegArray(0 to 1, 0 to 7) := ((others => (others => '0')), (others => (others => '0')));
+
+   signal roRegsDev                      : RegArray(0 to 1, 0 to 1);
+   signal rwRegsDev                      : RegArray(0 to 1, 0 to 1);
 
    signal acmFifoOutDat                  : Usb2ByteType;
    signal acmFifoOutEmpty                : std_logic;
@@ -147,6 +150,7 @@ architecture top_level of ZynqTop is
    signal ecmFifoOutEmpty                : std_logic;
    signal ecmFifoOutRen                  : std_logic;
    signal ecmFifoOutFill                 : unsigned(15 downto 0);
+   signal ecmFifoOutFrms                 : unsigned(15 downto 0);
 
    signal ecmFifoInpDat                  : Usb2ByteType;
    signal ecmFifoInpDon                  : std_logic;
@@ -170,7 +174,11 @@ architecture top_level of ZynqTop is
    signal i2sBCLKLoc                     : std_logic;
    signal i2sBlinkCnt                    : unsigned(24 downto 0) := (others => '0');
    signal i2sBlink                       : std_logic := '1';
-   signal acmIrq                         : std_logic;
+   signal acmIrq                         : std_logic := '0';
+   signal ecmIrq                         : std_logic := '0';
+   signal ecmIrqEnbl                     : std_logic_vector(1 downto 0) := (others => '0');
+   signal ecmIrqStat                     : std_logic_vector(1 downto 0) := (others => '0');
+   signal ecmIrqPend                     : std_logic_vector(1 downto 0) := (others => '0');
 
 begin
 
@@ -383,7 +391,7 @@ begin
          rsub        :  AxiReadSubType;
          wsub        :  AxiWriteSubType;
          req         :  UlpiRegReqType;
-         rwRegs      :  RegArray(0 to 1, 0 to 1);
+         rwRegs      :  RegArray(0 to 1, 0 to 7);
          acmFifoWen  :  std_logic;
          acmFifoRen  :  std_logic;
          ecmFifoWen  :  std_logic;
@@ -439,10 +447,9 @@ begin
 
             usb2Rst              => open,
             refLocked            => refLocked,
-            lineBreak            => lineBreak,
 
-            iRegs                => r.rwRegs,
-            oRegs                => roRegs,
+            iRegs                => rwRegsDev,
+            oRegs                => roRegsDev,
 
             regReq               => regReq,
             regRep               => regRep,
@@ -457,10 +464,13 @@ begin
             acmFifoInpFill       => open,
             acmFifoInpWen        => acmFifoInpWen,
 
+            acmLineBreak         => acmLineBreak,
+
             ecmFifoOutDat        => ecmFifoOutDat,
             ecmFifoOutDon        => ecmFifoOutDon,
             ecmFifoOutEmpty      => ecmFifoOutEmpty,
             ecmFifoOutFill       => ecmFifoOutFill,
+            ecmFifoOutFrms       => ecmFifoOutFrms,
             ecmFifoOutRen        => ecmFifoOutRen,
 
             ecmFifoInpDat        => ecmFifoInpDat,
@@ -481,9 +491,32 @@ begin
       ecmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
       ecmFifoInpDon <= axilWriteMst.wdata(8);
 
-      acmIrq        <= not acmFifoOutEmpty or lineBreak;
+      acmIrq        <= not acmFifoOutEmpty or acmLineBreak;
 
-      cpuIrqs       <= ( 1 => acmIrq, others => '0' );
+      ecmIrqPend    <= ecmIrqEnbl and ecmIrqStat;
+
+      P_ECM_IRQ : process ( ecmIrqPend, ecmFifoInpFill, ecmFifoOutFrms ) is
+         variable v : std_logic;
+      begin
+         v := '0';
+         for i in ecmIrqPend'range loop
+            v := v or ecmIrqPend(i);
+         end loop;
+
+         ecmIrqStat <= (others => '0');
+
+         if ( ecmFifoInpFill < 100 ) then
+            ecmIrqStat(1) <= '1';
+         end if;
+
+         if ( ecmFifoOutFrms /= 0 ) then
+            ecmIrqStat(0) <= '1';
+         end if;
+
+         ecmIrq <= v;
+      end process P_ECM_IRQ;
+
+      cpuIrqs       <= ( 1 => acmIrq, 2 => ecmIrq, others => '0' );
 
       P_COMB : process (
          r,
@@ -498,7 +531,7 @@ begin
          ecmFifoInpFull,
          ecmFifoOutDat,
          ecmFifoOutDon,
-         lineBreak
+         acmLineBreak
       ) is
          variable v : RegType;
       begin
@@ -512,7 +545,7 @@ begin
          v.acmFifoWen   := '0';
          v.ecmFifoRen   := '0';
          v.ecmFifoWen   := '0';
-         if ( lineBreak = '1' ) then
+         if ( acmLineBreak = '1' ) then
             v.lineBreak := '1';
          end if;
 
@@ -557,6 +590,7 @@ begin
                            end case;
                         when x"2" =>
                            case ( axilReadMst.araddr( 7 downto 6 ) ) is
+                           when "00" =>
                            when "01" =>
                               if ( unsigned(axilReadMst.araddr(5 downto 2)) < roRegs'length(2) ) then
                                  v.rsub.rdata := roRegs(1, to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
@@ -572,7 +606,7 @@ begin
                               v.rsub.rdata(           9) := ecmFifoOutDon;
                               v.rsub.rdata(           8) := ecmFifoOutEmpty;
                               v.rsub.rdata( 7 downto  0) := ecmFifoOutDat;
-                              v.ecmFifoRen               := not acmFifoOutEmpty;
+                              v.ecmFifoRen               := not ecmFifoOutEmpty;
                               v.rsub.rresp               := "00";
                            end case;
                         when others =>
@@ -698,6 +732,26 @@ begin
       axilReadSub    <= r.rsub;
       axilWriteSub   <= r.wsub;
       regReq         <= r.req;
+
+      P_RO_REGS : process ( r, roRegsDev, ecmIrqStat ) is
+      begin
+         roRegs <= ( (others => (others => '0')), (others => (others => '0')) );
+         for i in roRegsDev'range(1) loop
+            for j in roRegsDev'range(2) loop
+               roRegs( i, j ) <= roRegsDev( i, j );
+            end loop;
+         end loop;
+         roRegs( 1, 4 )(ecmIrqStat'range) <= ecmIrqStat;
+
+         for i in rwRegsDev'range(1) loop
+            for j in rwRegsDev'range(2) loop
+               rwRegsDev( i, j ) <= r.rwRegs( i, j );
+            end loop;
+         end loop;
+      end process P_RO_REGS;
+
+      ecmIrqEnbl <= r.rwRegs( 1, 4 )(ecmIrqEnbl'range);
+
    end block B_ULPI_REG;
 
    P_RST : process ( ulpiClkLoc ) is
@@ -712,39 +766,13 @@ begin
 
    ulpiRst <= ulpiRstCnt(ulpiRstCnt'left);
 
-  -- P_LED : process ( refLocked, lineBreak, i2sBlink ) is
-  -- begin
-  --    ledLoc    <= (others => '0');
-  --    ledLoc(2) <= i2sBlink;
-  --    ledLoc(1) <= lineBreak;
-  --    ledLoc(0) <= refLocked;
-  -- end process P_LED;
-
-   B_XX : block is
-    signal xxxClk : std_logic;
+   P_LED : process ( refLocked, acmLineBreak, i2sBlink ) is
    begin
-
-   U_SYSCB : BUFG port map (I => plClk, O => xxxClk);
-
-
-   U_SYNC : entity work.Usb2MboxSync
-   generic map (
-      DWIDTH_A2B_G => 1,
-      DWIDTH_B2A_G => 1,
-      OUTREG_A2B_G => true,
-      OUTREG_B2A_G => true
-   )
-   port map (
-      clka         => xxxClk,
-      dinA         => SW(1 downto 1),
-      douA         => ledLoc(1 downto 1),
-
-      clkb         => ulpiClkLoc,
-      dinB         => SW(0 downto 0),
-      douB         => ledLoc(0 downto 0)
-   );
-
-   end block;
+      ledLoc    <= (others => '0');
+      ledLoc(2) <= i2sBlink;
+      ledLoc(1) <= acmLineBreak;
+      ledLoc(0) <= refLocked;
+   end process P_LED;
 
    LED <= ledLoc;
 

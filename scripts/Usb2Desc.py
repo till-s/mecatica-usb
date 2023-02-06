@@ -143,6 +143,7 @@ class Usb2DescContext(list):
     cnf  = None
     totl = 0
     nume = 0
+    tote = 0
     intf = None
     ns   = self.Usb2Desc.clazz
     ifn  = -1
@@ -171,12 +172,13 @@ class Usb2DescContext(list):
         # intf.bInterfaceNumber( ifn )
       elif ( d.bDescriptorType() == ns.DSC_TYPE_ENDPOINT ):
         nume += 1
+        tote += 1
       totl += d.bLength()
     if ( not intf is None ):
        intf.bNumEndpoints(nume)
     cnf.wTotalLength(totl)
     cnf.bNumInterfaces(ifn + 1)
-    print("Configuration total length {:d}, num interfaces {:d}".format(totl, ifn + 1))
+    print("Configuration total length {:d}, num interfaces {:d}, num endpoints {:d}".format(totl, ifn + 1, tote))
     # append string descriptors
     if ( len( self.strtbl_ ) > 0 ):
       # lang-id at string index 0
@@ -594,6 +596,8 @@ class SingleCfgDevice(Usb2DescContext):
     return self.configurationDesc_
 
 def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True):
+  numIfcs = 0
+  numEPPs = 0
   if epPktSize is None:
     if ( hiSpeed ):
       epPktSize = 512
@@ -626,6 +630,8 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
   d = ctxt.Usb2CDCFuncEthernetDesc()
   d.iMACAddress( iMACAddr )
 
+  numIfcs += 1
+
   # interface 1
   d = ctxt.Usb2InterfaceDesc()
   d.bInterfaceNumber( ifcNumber + 1 )
@@ -647,13 +653,18 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
   d.bmAttributes( d.ENDPOINT_TT_BULK )
   d.wMaxPacketSize(epPktSize)
   d.bInterval(0)
+
+  numEPPs += 1
+  numIfcs += 1
   # return number of interfaces and endpoint pairs used
-  return 2, 1
+  return numIfcs, numEPPs
 
 # epPktSize None selects the max. allowed for the selected speed
 # ifcNum defines the index of the first of two interfaces used by
 # this class
 def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, hiSpeed=True):
+  numIfcs = 0
+  numEPPs = 0
   if epPktSize is None:
     if ( hiSpeed ):
       epPktSize = 512
@@ -704,6 +715,9 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, hiSpee
   else:
     d.bInterval(255) #ms
 
+  numIfcs += 1
+  numEPPs += 1
+
   # interface 1
   d = ctxt.Usb2InterfaceDesc()
   d.bInterfaceNumber( ifcNumber + 1 )
@@ -725,10 +739,15 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, hiSpee
   d.bmAttributes( d.ENDPOINT_TT_BULK )
   d.wMaxPacketSize(epPktSize)
   d.bInterval(0)
+
+  numEPPs += 1
+  numIfcs += 1
   # return number of interfaces and endpoint pairs used
-  return 2, 2
+  return numIfcs, numEPPs
 
 def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True):
+  numIfcs = 0
+  numEPPs = 0
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bFirstInterface( ifcNumber )
   d.bInterfaceCount( 2 )
@@ -738,17 +757,19 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
 
   # AC (audio-control) interface
   d = ctxt.Usb2InterfaceDesc()
-  d.bInterfaceNumber( ifcNumber )
+  d.bInterfaceNumber( ifcNumber + numIfcs )
   d.bAlternateSetting(0)
   d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
   d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_CONTROL )
   d.bInterfaceProtocol( 0x30 )
   # no endpoints (optional interrupt endpoint omitted)
 
+  numIfcs += 1
+ 
   # AS (audio-streaming interface)
   d = ctxt.Usb2InterfaceDesc()
   # zero-bandwidth altsetting 0
-  d.bInterfaceNumber( ifcNumber + 1 )
+  d.bInterfaceNumber( ifcNumber + numIfcs )
   d.bAlternateSetting(0)
   d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
   d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_STREAMING )
@@ -756,7 +777,7 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
 
   # AS (audio-streaming interface)
   d = ctxt.Usb2InterfaceDesc()
-  d.bInterfaceNumber( ifcNumber + 1 )
+  d.bInterfaceNumber( ifcNumber + numIfcs )
   # 1kHz altsetting 1
   d.bAlternateSetting(1)
   d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
@@ -765,7 +786,7 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
 
   # endpoint 1, ISO OUT
   d = ctxt.Usb2EndpointDesc()
-  d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
+  d.bEndpointAddress( d.ENDPOINT_OUT | (epAddr + numEPPs) )
   atts = d.ENDPOINT_TT_ISOCHRONOUS
   if ( isAsync ):
     atts |= d.ENDPOINT_SYNC_ASYNC
@@ -788,7 +809,7 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
   if ( isAsync ):
     # endpoint 1, ISO INP -- feedback
     d = ctxt.Usb2EndpointDesc()
-    d.bEndpointAddress( d.ENDPOINT_IN  | epAddr )
+    d.bEndpointAddress( d.ENDPOINT_IN  | (epAddr + numEPPs) )
     atts =d.ENDPOINT_TT_ISOCHRONOUS | d.ENDPOINT_SYNC_NONE | d.ENDPOINT_USAGE_FEEDBACK
     d.bmAttributes( atts )
     if ( hiSpeed ):
@@ -797,30 +818,8 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
     else:
       d.wMaxPacketSize( 3 )
       d.bInterval(0x01)
-  return 2, 2
+  numEPPs += 1
 
-def basicACM(ifcNumber, epAddr, iMACAddr = None, epPktSize=None, sendBreak=False, iProduct=None, doWrap=True, hiSpeed=True):
-  remWake = True
-  c  = SingleCfgDevice(0x0123, 0xabcd, remWake)
-  d  = c.deviceDesc
-  if ( not iProduct is None ):
-    d.iProduct( iProduct )
-  d.setIADMultiFunction()
-
-  ifs, eps = addBasicACM(c, ifcNumber, epAddr, epPktSize, sendBreak, hiSpeed)
-  ifcNumber += ifs
-  epAddr    += eps
-
-  ifs, eps = addBADDSpeaker( c, ifcNumber, epAddr, hiSpeed = hiSpeed, has24Bits = False, isAsync = True  )
-  ifcNumber += ifs
-  epAddr    += eps
-
-  if not iMACAddr is None:
-    print(iMACAddr)
-    ifs, eps = addBasicECM( c, ifcNumber, epAddr, iMACAddr = iMACAddr, hiSpeed = hiSpeed)
-    ifcNumber += ifs
-    epAddr    += eps
-
-  if ( doWrap ):
-    c.wrapup()
-  return c
+  numIfcs += 1
+  # return number of interfaces and endpoint pairs used
+  return numIfcs, numEPPs

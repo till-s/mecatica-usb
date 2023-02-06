@@ -58,7 +58,7 @@ entity Usb2ExampleDev is
       -- ULPI transceiver)
       CLK0_OUT_PHASE_G     : real     := 15.0;
 
-      MARK_DEBUG_G         : boolean  := false
+      MARK_DEBUG_G         : boolean  := true
    );
    port (
       refClkNb             : in    std_logic;
@@ -104,8 +104,6 @@ entity Usb2ExampleDev is
       -- oRegs(1,1)               : OUT fifo fill level
       oRegs                : out   RegArray(0 to 1, 0 to 1);
 
-      lineBreak            : out   std_logic := '0';
-
       regReq               : in    UlpiRegReqType;
       regRep               : out   UlpiRegRepType;
 
@@ -120,10 +118,21 @@ entity Usb2ExampleDev is
       acmFifoInpFill       : out   unsigned(15 downto 0);
       acmFifoInpWen        : in    std_logic := '1';
 
+      acmLineBreak         : out   std_logic := '0';
+
+      baddVolMaster        : out signed(15 downto 0)  := (others => '0');
+      baddVolLeft          : out signed(15 downto 0)  := (others => '0');
+      baddVolRight         : out signed(15 downto 0)  := (others => '0');
+      baddMuteMaster       : out std_logic            := '0';
+      baddMuteLeft         : out std_logic            := '0';
+      baddMuteRight        : out std_logic            := '0';
+      baddPowerState       : out unsigned(1 downto 0) := (others => '0');
+
       ecmFifoOutDat        : out   Usb2ByteType;
       ecmFifoOutDon        : out   std_logic;
       ecmFifoOutEmpty      : out   std_logic;
       ecmFifoOutFill       : out   unsigned(15 downto 0);
+      ecmFifoOutFrms       : out   unsigned(15 downto 0);
       ecmFifoOutRen        : in    std_logic := '1';
 
       ecmFifoInpDat        : in    Usb2ByteType := (others => '0');
@@ -176,6 +185,7 @@ architecture Impl of Usb2ExampleDev is
 
    signal ecmFifoFilledInp                     : unsigned(LD_ECM_FIFO_DEPTH_INP_C downto 0) := (others => '0');
    signal ecmFifoFilledOut                     : unsigned(LD_ECM_FIFO_DEPTH_OUT_C downto 0) := (others => '0');
+   signal ecmFifoFramesOut                     : unsigned(LD_ECM_FIFO_DEPTH_OUT_C downto 0) := (others => '0');
 
    signal ecmFifoTimer                         : unsigned(31 downto 0) := (others => '0');
    signal ecmFifoMinFill                       : unsigned(LD_ECM_FIFO_DEPTH_INP_C - 1 downto 0) := (others => '0');
@@ -191,6 +201,7 @@ architecture Impl of Usb2ExampleDev is
 
    type   MuxSelType                           is ( NONE, CDCACM, BADD, CDCECM );
 
+   signal usb2Ep0ReqParamIn                    : Usb2CtlReqParamType;
    signal usb2Ep0ReqParam                      : Usb2CtlReqParamType;
    signal usb2Ep0CDCACMCtlExt                  : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
    signal usb2Ep0CDCECMCtlExt                  : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
@@ -253,7 +264,7 @@ begin
    U_USB2_CORE : entity work.Usb2Core
       generic map (
          MARK_DEBUG_ULPI_IO_G         => true,
-         MARK_DEBUG_ULPI_LINE_STATE_G => true,
+         MARK_DEBUG_ULPI_LINE_STATE_G => false,
          MARK_DEBUG_PKT_RX_G          => true,
          MARK_DEBUG_PKT_TX_G          => false,
          MARK_DEBUG_PKT_PROC_G        => true,
@@ -282,7 +293,7 @@ begin
 
          usb2Rx                       => usb2Rx,
 
-         usb2Ep0ReqParam              => usb2Ep0ReqParam,
+         usb2Ep0ReqParam              => usb2Ep0ReqParamIn,
          usb2Ep0CtlExt                => usb2Ep0CtlExt,
          usb2Ep0CtlEpExt              => usb2Ep0CtlEpExt,
 
@@ -300,7 +311,7 @@ begin
 
       P_MUX : process (
          muxSel,
-         usb2Ep0ReqParam,
+         usb2Ep0ReqParamIn,
          usb2Ep0CDCACMCtlExt,
          usb2Ep0CDCECMCtlExt,
          usb2Ep0BADDCtlExt,
@@ -314,23 +325,35 @@ begin
          usb2Ep0CtlExt   <= USB2_CTL_EXT_NAK_C;
          usb2Ep0CtlEpExt <= USB2_ENDP_PAIR_IB_INIT_C;
 
-         if ( usb2Ep0ReqParam.vld = '1' ) then
-            -- new mux setting
+         usb2Ep0ReqParam <= usb2Ep0ReqParamIn;
+
+         -- reset state
+         if ( usb2Ep0ReqParamIn.vld = '0' ) then
             v := NONE;
-            if ( usb2Ep0ReqParam.reqType = USB2_REQ_TYP_TYPE_CLASS_C ) then
-               if    ( usb2CtlReqDstInterface( usb2Ep0ReqParam, toUsb2InterfaceNumType( CDC_ACM_IFC_NUM_C ) ) ) then
-                  v := CDCACM;
-               elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParam, toUsb2InterfaceNumType( BADD_IFC_NUM_C ) ) ) then
-                  v := BADD;
-               elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParam, toUsb2InterfaceNumType( CDC_ECM_IFC_NUM_C ) ) ) then
-                  v := CDCECM;
-               end if;
-            end if;
-            -- blank the 'ack' flag during this cycle
-            usb2Ep0CtlExt   <= USB2_CTL_EXT_INIT_C;
          end if;
 
-         -- must switch the mux on the same cycle we see 'vld'
+         if ( muxSel = NONE ) then
+            -- don't propagate 'vld' to the EPs until a choice is made
+            usb2Ep0ReqParam.vld <= '0';
+
+            if ( usb2Ep0ReqParamIn.vld = '1' ) then
+               -- new mux setting
+               if ( usb2Ep0ReqParamIn.reqType = USB2_REQ_TYP_TYPE_CLASS_C ) then
+                  if    ( usb2CtlReqDstInterface( usb2Ep0ReqParamIn, toUsb2InterfaceNumType( CDC_ACM_IFC_NUM_C ) ) ) then
+                     v := CDCACM;
+                  elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParamIn, toUsb2InterfaceNumType( BADD_IFC_NUM_C ) ) ) then
+                     v := BADD;
+                  elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParamIn, toUsb2InterfaceNumType( CDC_ECM_IFC_NUM_C ) ) ) then
+                     v := CDCECM;
+                  end if;
+               end if;
+               -- blank the 'ack/don' flags during this cycle
+               if ( v /= NONE ) then
+                  usb2Ep0CtlExt <= USB2_CTL_EXT_INIT_C;
+               end if;
+            end if;
+         end if;
+
          if    ( muxSel = CDCACM  ) then
             usb2Ep0CtlExt   <= usb2Ep0CDCACMCtlExt;
          elsif ( muxSel = CDCECM  ) then
@@ -380,7 +403,7 @@ begin
             usb2EpIb                   => usb2EpIb(CDC_ACM_BULK_EP_IDX_C),
             usb2EpOb                   => usb2EpOb(CDC_ACM_BULK_EP_IDX_C),
 
-            lineBreak                  => lineBreak,
+            lineBreak                  => acmLineBreak,
 
             fifoMinFillInp             => acmFifoMinFill,
             fifoTimeFillInp            => acmFifoTimer,
@@ -461,7 +484,7 @@ begin
          generic map (
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_IFC_NUM_C),
             SAMPLE_SIZE_G             => 2,
-            MARK_DEBUG_G              => true,
+            MARK_DEBUG_G              => false,
             MARK_DEBUG_BCLK_G         => false
          )
          port map (
@@ -479,13 +502,13 @@ begin
             usb2EpOb                  => usb2EpIb(BADD_ISO_EP_IDX_C),
             usb2DevStatus             => usb2DevStatus,
 
-            volMaster                 => open,
-            muteMaster                => open,
-            volLeft                   => open,
-            volRight                  => open,
-            muteLeft                  => open,
-            muteRight                 => open,
-            powerState                => open,
+            volMaster                 => baddVolMaster,
+            muteMaster                => baddMuteMaster,
+            volLeft                   => baddVolLeft,
+            volRight                  => baddVolRight,
+            muteLeft                  => baddMuteLeft,
+            muteRight                 => baddMuteRight,
+            powerState                => baddPowerState,
 
             i2sBCLK                   => i2sBCLK,
             i2sPBLRC                  => i2sPBLRC,
@@ -532,10 +555,12 @@ begin
             fifoDonOut                 => ecmFifoOutDon,
             fifoRenaOut                => ecmFifoOutRen,
             fifoEmptyOut               => ecmFifoOutEmpty,
-            fifoFilledOut              => ecmFifoFilledOut
+            fifoFilledOut              => ecmFifoFilledOut,
+            fifoFramesOut              => ecmFifoFramesOut
          );
 
       ecmFifoOutFill <= resize(ecmFifoFilledOut, ecmFifoOutFill'length);
+      ecmFifoOutFrms <= resize(ecmFifoFramesOut, ecmFifoOutFrms'length);
       ecmFifoInpFill <= resize(ecmFifoFilledInp, ecmFifoInpFill'length);
 
    end block B_EP_CDCECM;
