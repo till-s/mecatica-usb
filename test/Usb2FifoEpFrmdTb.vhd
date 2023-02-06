@@ -591,7 +591,8 @@ begin
          -- add an output register to the OUT bound FIFO (to improve timing)
          OUT_REG_OUT_G             => true,
          ASYNC_G                   => true,
-         LD_MAX_NUM_FRAMES_G       => 10
+         LD_MAX_FRAMES_INP_G       => 10,
+         LD_MAX_FRAMES_OUT_G       => 10
       )
       port map (
          usb2Clk                   => ulpiTstClk,
