@@ -21,16 +21,27 @@
 #include <linux/platform_device.h>
 #include <linux/etherdevice.h>
 #include <linux/spinlock.h>
+#include <linux/skbuff.h>
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:exFifoEth");
 
 #define MYNAME "usbExampleFifoEth"
+#define MYMTU  1536
 
 #define MAPSZ 0x1000
 
-#define IRQ_STAT_REG 0x50
-#define IRQ_ENBL_REG 0x90
+#define INP_FIFO_SIZE
+
+#define IRQ_STAT_REG       0x50
+#define IRQ_ENBL_REG       0x90
+#define INP_FIFO_FILL_REG  0x40
+#define OUT_FIFO_FILL_REG  0x44
+#define FIFO_REG           0xc0
+
+#define RX_FIFO_EMPTY (1<<8)
+#define RX_FIFO_EOP   (1<<9)
+#define TX_FIFO_EOP   (1<<9)
 
 #define RX_FIFO_IRQ  (1<<0)
 #define TX_FIFO_IRQ  (1<<1)
@@ -40,12 +51,27 @@ struct drv_info {
 	void __iomem            *base;
 	struct task_struct      *kworker_task;
     struct kthread_worker    kworker;
-    struct kthread_work      tx_work;
     struct kthread_work      rx_work;
     spinlock_t               lock;
+    unsigned                 txFifoSize;
+    unsigned                 rxFifoSize;
 };
 
-static void disable_irqs(struct drv_info *me, u32 msk)
+/* Fwd declarations */
+static int ndev_open(struct net_device *ndev);
+static int ndev_close(struct net_device *ndev);
+static netdev_tx_t ndev_hard_start_xmit(struct sk_buff *skb, struct net_device *ndev);
+static void ndev_tx_timeout(struct net_device *ndev, unsigned int txqueue);
+
+static const struct net_device_ops my_ndev_ops = {
+	.ndo_open           = ndev_open,
+	.ndo_stop           = ndev_close,
+	.ndo_start_xmit     = ndev_hard_start_xmit,
+	.ndo_tx_timeout     = ndev_tx_timeout,
+};
+
+static void
+disable_irqs(struct drv_info *me, u32 msk)
 {
 unsigned long flags;
 u32           val;
@@ -57,7 +83,8 @@ u32           val;
 	spin_unlock_irqrestore( &me->lock, flags );
 }
 
-static void enable_irqs(struct drv_info *me, u32 msk)
+static void
+enable_irqs(struct drv_info *me, u32 msk)
 {
 unsigned long flags;
 u32           val;
@@ -69,14 +96,126 @@ u32           val;
 	spin_unlock_irqrestore( &me->lock, flags );
 }
 
-static int rxFramesAvailable(struct drv_info *me)
+static unsigned
+txFifoSize(struct drv_info *me)
 {
+	return 1 << ( ( ioread32( me->base + INP_FIFO_FILL_REG ) >> 28 ) & 0xf );
+}
+
+static unsigned
+rxFifoSize(struct drv_info *me)
+{
+	return 1 << ( ( ioread32( me->base + INP_FIFO_FILL_REG ) >> 24 ) & 0xf );
+}
+
+
+static int
+rxFramesAvailable(struct drv_info *me)
+{
+	return ( ioread32( me->base + OUT_FIFO_FILL_REG ) >> 16 ) & 0xffff;
+}
+
+static int
+rxBytesAvailable(struct drv_info *me)
+{
+	return ioread32( me->base + OUT_FIFO_FILL_REG ) & 0xffff;
+}
+
+static int
+txSpaceAvailable(struct drv_info *me)
+{
+	return me->txFifoSize - ( ioread32( me->base + INP_FIFO_FILL_REG ) & 0xffff );
+}
+
+static inline u32
+rxFifoPop(struct drv_info *me)
+{
+u32 d = ioread32( me->base + FIFO_REG );
+	BUG_ON( !! (d & RX_FIFO_EMPTY) );
+	return d;
+}
+
+static inline void
+rxFifoDrain(struct drv_info *me)
+{
+	while ( ! (RX_FIFO_EMPTY & ioread32( me->base + FIFO_REG ) ) )
+		/* nothing else */;
+}
+
+/* assumes enough space is available! */
+static inline void
+txFifoPush(struct drv_info *me, struct sk_buff *skb)
+{
+int  i;
+u8  *p = (u8*)skb->data;
+	for ( i = 0; i < skb->len; i++ ) {
+		iowrite32( (u32)(*p), me->base + FIFO_REG );
+	}
+	/* EOP marker */
+	iowrite32( (u32)TX_FIFO_EOP, me->base + FIFO_REG );
+}
+
+static int
+ndev_open(struct net_device *ndev)
+{
+	struct drv_info     *me = netdev_priv( ndev );
+
+	enable_irqs( me, RX_FIFO_IRQ | TX_FIFO_IRQ );
+
+	netif_start_queue( ndev );
 	return 0;
 }
 
-static int txSpaceAvailable(struct drv_info *me)
+static int
+ndev_close(struct net_device *ndev)
 {
+	struct drv_info     *me = netdev_priv( ndev );
+
+	netif_stop_queue( ndev );
+	netif_carrier_off( ndev );
+
+	rxFifoDrain( me );
+
 	return 0;
+}
+
+static netdev_tx_t
+ndev_hard_start_xmit(struct sk_buff *skb, struct net_device *ndev)
+{
+	struct drv_info     *me = netdev_priv( ndev );
+
+	/* need 1 slot for the EOP marker */
+	if ( unlikely( skb->len + 1 ) > txSpaceAvailable( me ) ) {
+		ndev->stats.tx_errors++;
+		ndev->stats.tx_dropped++;
+		dev_kfree_skb_any( skb );
+		return NETDEV_TX_OK;
+	}
+
+	txFifoPush( me, skb );
+
+    ndev->stats.tx_packets++;
+    ndev->stats.tx_bytes += skb->len;
+
+	netif_trans_update( ndev );
+	dev_consume_skb_any( skb );
+
+	if ( txSpaceAvailable( me ) < (MYMTU + 1) ) {
+		netif_stop_queue( ndev );
+		enable_irqs( me, TX_FIFO_IRQ );
+	} else {
+		netif_wake_queue( ndev );
+	}
+
+	return NETDEV_TX_OK;
+}
+
+static void
+ndev_tx_timeout(struct net_device *ndev, unsigned int txqueue)
+{
+	netdev_err( ndev, "ndev_timeout -- should not happen\n" );
+	netif_trans_update( ndev );
+	netif_wake_queue( ndev );
 }
 
 static irqreturn_t ex_fifo_eth_drv_irq(int irq, void *closure)
@@ -96,28 +235,66 @@ static irqreturn_t ex_fifo_eth_drv_irq(int irq, void *closure)
 	}
 
 	if ( (pend & TX_FIFO_IRQ) ) {
-		kthread_queue_work( & me->kworker, &me->tx_work );
+		netif_wake_queue( ndev );
 		rval  = IRQ_HANDLED;
 	}
 
 	return rval;
 }
 
-static void tx_work_fn(struct kthread_work *w)
-{
-	struct drv_info *me = container_of( w, struct drv_info, tx_work );
-
-	while ( txSpaceAvailable( me ) ) {
-	}
-
-	enable_irqs( me, TX_FIFO_IRQ );
-}
-
 static void rx_work_fn(struct kthread_work *w)
 {
-	struct drv_info *me = container_of( w, struct drv_info, rx_work );
+	struct drv_info   *me   = container_of( w, struct drv_info, rx_work );
+	struct net_device *ndev = me->ndev;
+	struct sk_buff    *skb;
+	u8                *p;
+	unsigned           len;
+	int                i;
+	u32                d;
 
 	while ( rxFramesAvailable( me ) > 0 ) {
+		/* we don't have accurate length information; just best guess */
+		if ( (len = rxBytesAvailable( me )) > MYMTU ) {
+			len = MYMTU;
+		}
+		skb = netdev_alloc_skb( ndev, len );
+		if ( unlikely( skb == NULL || skb_tailroom( skb ) < len ) ) {
+			if ( skb == NULL ) {
+				netdev_err( ndev, "No memory, RX packet dropped.\n");
+			} else {
+				netdev_err( ndev, "Not enough tailroom (?!), RX packet dropped.\n");
+				dev_kfree_skb_any( skb );
+			}
+			ndev->stats.rx_dropped++;
+			while ( rxFramesAvailable( me ) > 0 ) {
+				while ( ! (rxFifoPop( me ) & RX_FIFO_EOP) )
+					/* nothing else to do */;
+			}
+		} else {
+			p = skb->data;
+			for ( i = 0; i < len; i++ ) {
+				d = rxFifoPop( me );
+				if ( !! (d & RX_FIFO_EOP)  ) {
+					break;
+				}
+				*p = (u8)(d & 0xff);
+				p++;
+			}
+			if ( i < len ) {
+				len = i;
+				skb_put( skb, len ); 
+				skb->protocol = eth_type_trans( skb, ndev );
+				netif_rx( skb );
+				ndev->stats.rx_packets++;
+				ndev->stats.rx_bytes += len;
+			} else {
+				netdev_err( ndev, "Not enough tailroom (?!), RX packet dropped.\n");
+				while ( ! (rxFifoPop( me ) & RX_FIFO_EOP ) )
+					/* nothing else to do */;
+				ndev->stats.rx_dropped++;
+				dev_kfree_skb_any( skb );
+			}
+		}
 	}
 
 	enable_irqs( me, RX_FIFO_IRQ );
@@ -153,6 +330,7 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 	me = netdev_priv( ndev );
 	me->ndev = ndev;
 
+	ndev->netdev_ops = &my_ndev_ops;
 	ndev->dma        = (unsigned char) -1;
 	me->kworker_task = 0;
 
@@ -171,10 +349,12 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 		goto bail;
 	}
 
+	me->txFifoSize = txFifoSize( me );
+	me->rxFifoSize = rxFifoSize( me );
+
 	spin_lock_init( &me->lock );
 
 	kthread_init_worker( &me->kworker );
-	kthread_init_work( &me->tx_work, tx_work_fn );
 	kthread_init_work( &me->rx_work, rx_work_fn );
 
 	me->kworker_task = kthread_run( kthread_worker_fn, &me->kworker, "usb2exfifoeth" );
@@ -187,8 +367,6 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 	if ( ( rval = register_netdev( ndev ) ) ) {
 		goto bail;
 	}
-
-	enable_irqs( me, RX_FIFO_IRQ | TX_FIFO_IRQ );
 
 	platform_set_drvdata( pdev, ndev );
 	me->base        = addr;	
