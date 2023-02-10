@@ -50,8 +50,10 @@ entity Usb2EpCDCACM is
       usb2EpIb                   : out Usb2EndpPairIbType;
       usb2EpOb                   : in  Usb2EndpPairObType;
 
-      -- Line break signal
+      -- Line break, RTS and DTR signals
       lineBreak                  : out std_logic           := '0';
+      DTR                        : out std_logic           := '0';
+      RTS                        : out std_logic           := '0';
 
       -- FIFO control (in usb2Clk domain!)
       --
@@ -104,7 +106,7 @@ begin
 
    G_LINE_BREAK : if ( ENBL_LINE_BREAK_G ) generate
    begin
-      U_BRK : entity work.CDCACMSendBreak
+      U_BRK : entity work.CDCACMCtl
          generic map (
             CDC_IFC_NUM_G               => toUsb2InterfaceNumType( CTL_IFC_NUM_G )
          )
@@ -114,7 +116,9 @@ begin
             usb2SOF                     => usb2Rx.pktHdr.sof,
             usb2Ep0ReqParam             => usb2Ep0ReqParam,
             usb2Ep0CtlExt               => usb2Ep0CtlExt,
-            lineBreak                   => lineBreak
+            lineBreak                   => lineBreak,
+            DTR                         => DTR,
+            RTS                         => RTS
          );
    end generate G_LINE_BREAK;
 

@@ -31,7 +31,7 @@ SRCS+= Usb2FifoAsyncTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
 SRCS+= Usb2FifoEpFrmdTb.vhd
-SRCS+= CDCACMSendBreak.vhd
+SRCS+= CDCACMCtl.vhd
 SRCS+= UlpiLineState.vhd
 SRCS+= Usb2IsoTb.vhd
 SRCS+= UlpiIOBuf.vhd
@@ -101,7 +101,7 @@ Usb2PktTx.o: UsbCrcTbl.o
 
 UlpiIOBufTb.o: UlpiIOBuf.o
 UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o
-Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o CDCACMSendBreak.o
+Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o CDCACMCtl.o
 Usb2FifoEpFrmdTb.o: Usb2Core.o Usb2FifoEp.o
 Usb2FifoTb.o: Usb2Fifo.o
 Usb2FifoAsyncTb.o: Usb2Fifo.o

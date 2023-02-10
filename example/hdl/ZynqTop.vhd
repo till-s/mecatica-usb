@@ -384,7 +384,7 @@ begin
          m_axi_rready                => axilReadMst.rready
       );
 
-   B_ULPI_REG : block is
+   B_AXI_REGS : block is
       type StateType is ( IDLE, WAI, DON );
       type RegType   is record
          state       :  StateType;
@@ -489,7 +489,7 @@ begin
 
       acmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
       ecmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
-      ecmFifoInpDon <= axilWriteMst.wdata(8);
+      ecmFifoInpDon <= axilWriteMst.wdata(9);
 
       acmIrq        <= not acmFifoOutEmpty or acmLineBreak;
 
@@ -752,7 +752,7 @@ begin
 
       ecmIrqEnbl <= r.rwRegs( 1, 4 )(ecmIrqEnbl'range);
 
-   end block B_ULPI_REG;
+   end block B_AXI_REGS;
 
    P_RST : process ( ulpiClkLoc ) is
    begin

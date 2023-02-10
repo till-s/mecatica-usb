@@ -12,6 +12,8 @@
  * compatible with the linux kernel.
  */
 
+/* #define DEBUG */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -64,10 +66,12 @@ static netdev_tx_t ndev_hard_start_xmit(struct sk_buff *skb, struct net_device *
 static void ndev_tx_timeout(struct net_device *ndev, unsigned int txqueue);
 
 static const struct net_device_ops my_ndev_ops = {
-	.ndo_open           = ndev_open,
-	.ndo_stop           = ndev_close,
-	.ndo_start_xmit     = ndev_hard_start_xmit,
-	.ndo_tx_timeout     = ndev_tx_timeout,
+	.ndo_open            = ndev_open,
+	.ndo_stop            = ndev_close,
+	.ndo_start_xmit      = ndev_hard_start_xmit,
+	.ndo_tx_timeout      = ndev_tx_timeout,
+	.ndo_set_mac_address = eth_mac_addr,
+	.ndo_validate_addr   = eth_validate_addr,
 };
 
 static void
@@ -150,6 +154,7 @@ int  i;
 u8  *p = (u8*)skb->data;
 	for ( i = 0; i < skb->len; i++ ) {
 		iowrite32( (u32)(*p), me->base + FIFO_REG );
+		p++;
 	}
 	/* EOP marker */
 	iowrite32( (u32)TX_FIFO_EOP, me->base + FIFO_REG );
@@ -183,9 +188,14 @@ static netdev_tx_t
 ndev_hard_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct drv_info     *me = netdev_priv( ndev );
+	unsigned             avail;
+
+
+	avail = txSpaceAvailable( me );
+	netdev_dbg(ndev, "ex_fifo hard_start_xmit entering (space %d).\n", avail);
 
 	/* need 1 slot for the EOP marker */
-	if ( unlikely( skb->len + 1 ) > txSpaceAvailable( me ) ) {
+	if ( unlikely( skb->len + 1 ) > avail ) {
 		ndev->stats.tx_errors++;
 		ndev->stats.tx_dropped++;
 		dev_kfree_skb_any( skb );
@@ -254,7 +264,7 @@ static void rx_work_fn(struct kthread_work *w)
 
 	while ( rxFramesAvailable( me ) > 0 ) {
 		/* we don't have accurate length information; just best guess */
-		if ( (len = rxBytesAvailable( me )) > MYMTU ) {
+/*		if ( (len = rxBytesAvailable( me )) > MYMTU ) */ {
 			len = MYMTU;
 		}
 		skb = netdev_alloc_skb( ndev, len );
@@ -265,10 +275,10 @@ static void rx_work_fn(struct kthread_work *w)
 				netdev_err( ndev, "Not enough tailroom (?!), RX packet dropped.\n");
 				dev_kfree_skb_any( skb );
 			}
-			ndev->stats.rx_dropped++;
 			while ( rxFramesAvailable( me ) > 0 ) {
 				while ( ! (rxFifoPop( me ) & RX_FIFO_EOP) )
 					/* nothing else to do */;
+				ndev->stats.rx_dropped++;
 			}
 		} else {
 			p = skb->data;
@@ -288,7 +298,7 @@ static void rx_work_fn(struct kthread_work *w)
 				ndev->stats.rx_packets++;
 				ndev->stats.rx_bytes += len;
 			} else {
-				netdev_err( ndev, "Not enough tailroom (?!), RX packet dropped.\n");
+				netdev_err( ndev, "Not enough room (?!), RX packet dropped.\n");
 				while ( ! (rxFifoPop( me ) & RX_FIFO_EOP ) )
 					/* nothing else to do */;
 				ndev->stats.rx_dropped++;
@@ -308,8 +318,6 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 	void   __iomem    *addr = 0;
 	int                rval = -ENODEV;
 	struct drv_info   *me;
-
-	printk(KERN_INFO "ex_fifo probe\n");
 
 	if ( ! (res = platform_get_resource( pdev, IORESOURCE_MEM, 0 )) ) {
 		goto bail;
@@ -334,18 +342,27 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 	ndev->dma        = (unsigned char) -1;
 	me->kworker_task = 0;
 
+	netdev_dbg(ndev, "ex_fifo probe\n");
+
 	if ( (ndev->irq = platform_get_irq( pdev , 0 )) < 0 ) {
 		rval = ndev->irq;
+		netdev_dbg(ndev, "ex_fifo probe\n");
 		goto bail;
 	}
 
 
 	if ( ! (addr = ioremap( res->start, MAPSZ )) ) {
 		rval = -ENOMEM;
+		netdev_err(ndev, "ex_fifo unable to map IO memory\n");
 		goto bail;
 	}
 
+	me->base = addr;
+
+	disable_irqs( me, (RX_FIFO_IRQ | TX_FIFO_IRQ) );
+
 	if ( ( rval = request_irq( ndev->irq, ex_fifo_eth_drv_irq, IRQF_SHARED, ndev->name, ndev ) ) ) {
+		netdev_err(ndev, "ex_fifo unable to request IRQ\n");
 		goto bail;
 	}
 
@@ -361,10 +378,12 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 	if ( IS_ERR( me->kworker_task ) ) {
 		rval             = PTR_ERR( me->kworker_task );
 		me->kworker_task = 0;
+		netdev_err(ndev, "ex_fifo creating worker task failed.\n");
 		goto bail;
 	}
 
 	if ( ( rval = register_netdev( ndev ) ) ) {
+		netdev_err(ndev, "ex_fifo registering netdev failed.\n");
 		goto bail;
 	}
 
@@ -372,6 +391,7 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 	me->base        = addr;	
 	ndev->base_addr = res->start;
 
+	netdev_dbg(ndev, "ex_fifo probe successful.\n");
 	return 0;
 
 bail:

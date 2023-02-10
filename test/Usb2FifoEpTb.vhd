@@ -375,7 +375,7 @@ begin
          emptyOut                  => fifoEmptyOut
       );
 
-   U_BRK : entity work.CDCACMSendBreak
+   U_BRK : entity work.CDCACMCtl
       generic map (
          CDC_IFC_NUM_G => toUsb2InterfaceNumType(IFC_NUM_C)
       )

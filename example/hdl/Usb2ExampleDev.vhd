@@ -98,10 +98,10 @@ entity Usb2ExampleDev is
       -- status vector
       -- CDC-ACM
       -- oRegs(0,0)               : IN  fifo fill level
-      -- oRegs(0,1)               : OUT fifo fill level
+      -- oRegs(0,1)               : RTS, DTR, OUT fifo fill level
       -- CDC-ECM
-      -- oRegs(1,0)               : IN  fifo fill level
-      -- oRegs(1,1)               : OUT fifo fill level
+      -- oRegs(1,0)               : IN  fifo sizes, fifo fill level
+      -- oRegs(1,1)               : OUT fifo frames & fill level
       oRegs                : out   RegArray(0 to 1, 0 to 1);
 
       regReq               : in    UlpiRegReqType;
@@ -119,6 +119,8 @@ entity Usb2ExampleDev is
       acmFifoInpWen        : in    std_logic := '1';
 
       acmLineBreak         : out   std_logic := '0';
+      acmDTR               : out   std_logic := '0';
+      acmRTS               : out   std_logic := '0';
 
       baddVolMaster        : out signed(15 downto 0)  := (others => '0');
       baddVolLeft          : out signed(15 downto 0)  := (others => '0');
@@ -220,6 +222,8 @@ architecture Impl of Usb2ExampleDev is
 
    signal usb2Rx                               : Usb2RxType;
 
+   signal DTR, RTS                             : std_logic;
+
    signal usb2EpIb                             : Usb2EndpPairIbArray(1 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
 
    -- note EP0 output can be observed here; an external agent extending EP0 functionality
@@ -241,16 +245,33 @@ begin
    usb2Rst    <= usb2RstLoc;
 
    -- Register assignments
-   P_RG : process ( acmFifoFilledInp, acmFifoFilledOut, ecmFifoFilledInp, ecmFifoFilledOut ) is
+   P_RG : process (
+      acmFifoFilledInp,
+      acmFifoFilledOut,
+      ecmFifoFilledInp,
+      ecmFifoFilledOut,
+      ecmFifoFramesOut,
+      DTR, RTS
+   ) is
    begin
       oRegs <= ((others => (others => '0')), (others => (others => '0')));
       oRegs(0,0)(acmFifoFilledInp'range) <= std_logic_vector(acmFifoFilledInp);
-      oRegs(0,1)(acmFifoFilledOut'range) <= std_logic_vector(acmFifoFilledOut);
-      oRegs(1,0)(ecmFifoFilledInp'range) <= std_logic_vector(ecmFifoFilledInp);
-      oRegs(1,1)(ecmFifoFilledOut'range) <= std_logic_vector(ecmFifoFilledOut);
+      oRegs(0,1)(15 downto  0)           <= std_logic_vector(resize(acmFifoFilledOut, 16));
+      oRegs(0,1)(16)                     <= DTR;
+      oRegs(0,1)(17)                     <= RTS;
+
+      oRegs(1,0)(31 downto 28)           <= std_logic_vector(to_unsigned(LD_ECM_FIFO_DEPTH_INP_C, 4));
+      oRegs(1,0)(27 downto 24)           <= std_logic_vector(to_unsigned(LD_ECM_FIFO_DEPTH_OUT_C, 4));
+      oRegs(1,0)(23 downto 16)           <= (others => '0');
+      oRegs(1,0)(15 downto  0)           <= std_logic_vector(resize(ecmFifoFilledInp, 16));
+
+      oRegs(1,1)(31 downto 16)           <= std_logic_vector(resize(ecmFifoFramesOut, 16));
+      oRegs(1,1)(15 downto  0)           <= std_logic_vector(resize(ecmFifoFilledOut, 16));
    end process P_RG;
 
 
+   acmDTR          <= DTR;
+   acmRTS          <= RTS;
    acmFifoMinFill  <= unsigned(iRegs(0,0)(acmFifoMinFill'range));
    acmFifoTimer    <= unsigned(iRegs(0,1)(acmFifoTimer'range));
    ulpiForceStp    <= iRegs(0,0)(29);
@@ -404,6 +425,8 @@ begin
             usb2EpOb                   => usb2EpOb(CDC_ACM_BULK_EP_IDX_C),
 
             lineBreak                  => acmLineBreak,
+            DTR                        => DTR,
+            RTS                        => RTS,
 
             fifoMinFillInp             => acmFifoMinFill,
             fifoTimeFillInp            => acmFifoTimer,

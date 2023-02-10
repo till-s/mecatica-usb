@@ -12,7 +12,7 @@ use     work.Usb2Pkg.all;
 -- Example for how to extend EP0 functionality.
 -- This module implements 'send-break' for CDC-ACM.
 
-entity CDCACMSendBreak is
+entity CDCACMCtl is
    generic (
       CDC_IFC_NUM_G   : Usb2InterfaceNumType
    );
@@ -23,11 +23,13 @@ entity CDCACMSendBreak is
       usb2SOF         : in  boolean;
       usb2Ep0ReqParam : in  Usb2CtlReqParamType;
       usb2Ep0CtlExt   : out Usb2CtlExtType;
-      lineBreak       : out std_logic
+      lineBreak       : out std_logic;
+      DTR             : out std_logic;
+      RTS             : out std_logic
    );
-end entity CDCACMSendBreak;
+end entity CDCACMCtl;
 
-architecture Impl of CDCACMSendBreak is
+architecture Impl of CDCACMCtl is
 
    type StateType is (IDLE, DONE);
 
@@ -36,13 +38,17 @@ architecture Impl of CDCACMSendBreak is
       timer     : unsigned(16 downto 0);
       ctlExt    : Usb2CtlExtType;
       indef     : boolean;
+      DTR       : std_logic;
+      RTS       : std_logic;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       state    => IDLE,
       timer    => (others => '0'),
       ctlExt   => USB2_CTL_EXT_INIT_C,
-      indef    => false
+      indef    => false,
+      DTR      => '0',
+      RTS      => '0'
    );
 
    signal r    : RegType := REG_INIT_C;
@@ -54,7 +60,7 @@ architecture Impl of CDCACMSendBreak is
       if ( x.dev2Host or x.reqType /= USB2_REQ_TYP_TYPE_CLASS_C or not usb2CtlReqDstInterface( x, CDC_IFC_NUM_G ) ) then
          return false;
       end if;
-      return x.request = USB2_REQ_CLS_CDC_SEND_BREAK_C;
+      return true;
    end function accept;
 
 begin
@@ -81,15 +87,23 @@ begin
                v.ctlExt.don := '1';
                v.state      := DONE;
                if ( accept(usb2Ep0ReqParam) ) then
-                  v.ctlExt.err         := '0';
-                  v.timer(15 downto 0) := unsigned(usb2Ep0ReqParam.value);
-                  v.timer(16)          := '1';
-                  if    ( usb2Ep0ReqParam.value = x"0000" ) then
-                     v.indef     := false;
-                     v.timer(16) := '0';
-                  elsif ( usb2Ep0ReqParam.value = x"ffff" ) then
-                     v.indef     := true;
-                  end if;
+                  case ( usb2Ep0ReqParam.request ) is
+                     when USB2_REQ_CLS_CDC_SEND_BREAK_C =>
+                        v.ctlExt.err         := '0';
+                        v.timer(15 downto 0) := unsigned(usb2Ep0ReqParam.value);
+                        v.timer(16)          := '1';
+                        if    ( usb2Ep0ReqParam.value = x"0000" ) then
+                           v.indef     := false;
+                           v.timer(16) := '0';
+                        elsif ( usb2Ep0ReqParam.value = x"ffff" ) then
+                           v.indef     := true;
+                        end if;
+                     when USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE =>
+                        v.ctlExt.err         := '0';
+                        v.DTR                := usb2Ep0ReqParam.value(0);
+                        v.RTS                := usb2Ep0ReqParam.value(1);
+                     when others =>
+                  end case;
                end if;
             end if;
 
@@ -113,5 +127,7 @@ begin
 
    usb2Ep0CtlExt <= r.ctlExt;
    lineBreak     <= r.timer(r.timer'left);
+   DTR           <= r.DTR;
+   RTS           <= r.RTS;
 
 end architecture Impl;

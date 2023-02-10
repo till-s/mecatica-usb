@@ -356,6 +356,7 @@ package Usb2Pkg is
 
    -- class-specific request
    constant USB2_REQ_CLS_CDC_SEND_BREAK_C          : Usb2CtlRequestCodeType     := x"23";
+   constant USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE: Usb2CtlRequestCodeType     := x"22";
 
    subtype  Usb2StdDescriptorTypeType              is unsigned(3 downto 0);
    constant USB2_STD_DESC_TYPE_DEVICE_C            : Usb2StdDescriptorTypeType  := x"1";
