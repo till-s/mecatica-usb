@@ -91,6 +91,7 @@ architecture Impl of Usb2StdCtlEp is
       STD_REQUEST,
       READ_TBL,
       SCAN_DESC,
+      SCAN_DESC_LOOP,
       SETUP_CONFIG,
       LOAD_ALT,
       LOAD_EPTS,
@@ -161,6 +162,7 @@ architecture Impl of Usb2StdCtlEp is
    type RegType   is record
       state       : StateType;
       retState    : StateType;
+      retFromRd   : StateType;
       devStatus   : Usb2DevStatusType;
       reqParam    : Usb2CtlReqParamType;
       parmIdx     : unsigned(2 downto 0);
@@ -196,6 +198,7 @@ architecture Impl of Usb2StdCtlEp is
    constant REG_INIT_C : RegType := (
       state       => GET_PARAMS,
       retState    => GET_PARAMS,
+      retFromRd   => GET_PARAMS,
       devStatus   => USB2_DEV_STATUS_INIT_C,
       reqParam    => USB2_CTL_REQ_PARAM_INIT_C,
       parmIdx     => (others => '0'),
@@ -245,6 +248,14 @@ architecture Impl of Usb2StdCtlEp is
 
    signal r   : RegType := REG_INIT_C;
    signal rin : RegType;
+
+   procedure READ_TBL( variable v : inout RegType ) is
+   begin
+      v           := v;
+      v.retFromRd := r.state;
+      v.state     := READ_TBL;
+   end procedure READ_TBL;
+
 
    function hasHaltInp   (constant x : in RegType; constant o : std_logic_vector)
    return boolean is
@@ -397,7 +408,7 @@ begin
 
          when READ_TBL =>
             v.readVal     := descVal;
-            v.state       := r.retState;
+            v.state       := r.retFromRd;
             v.tblRdDone   := true;
 
          when STD_REQUEST =>
@@ -429,8 +440,7 @@ begin
                            if ( not r.tblRdDone ) then
                               v.tblIdx   := r.cfgIdx;
                               v.tblOff   := USB2_CFG_DESC_IDX_ATTRIBUTES_C;
-                              v.retState := r.state;
-                              v.state    := READ_TBL;
+                              READ_TBL( v );
                            else
                               if ( r.readVal(5) = '1' ) then
                                  -- device supports the feature
@@ -576,8 +586,7 @@ begin
                            v.tblOff          := USB2_CFG_DESC_IDX_NUM_INTERFACES_C;
                            v.ifcIdx          := 0;
                            v.epIdx           := 0;
-                           v.retState        := r.state;
-                           v.state           := READ_TBL;
+                           READ_TBL( v );
                         else
                            v.state           := SETUP_CONFIG;
                            v.numIfc          := to_integer(unsigned(r.readVal));
@@ -618,7 +627,8 @@ begin
             end if;
 
          -- skip the current descriptor and look for 'descType'
-         when SCAN_DESC =>
+
+         when SCAN_DESC_LOOP | SCAN_DESC =>
             v.tblRdDone := not r.tblRdDone;
             if ( not r.tblRdDone ) then
                v.tblIdx := r.tblIdx + to_integer(unsigned(descVal));
