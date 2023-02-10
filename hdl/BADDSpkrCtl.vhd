@@ -11,8 +11,7 @@ use     work.Usb2Pkg.all;
 
 -- Example for how to extend EP0 functionality.
 -- This module implements the class-specific control endpoint requests for
--- the UAC3 BADD speaker profile. A slightly more complex example than
--- CDCACMCtl because this agent also must support a data phase.
+-- the UAC3 BADD speaker profile.
 
 entity BADDSpkrCtl is
    generic (

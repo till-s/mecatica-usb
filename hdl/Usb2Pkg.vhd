@@ -355,27 +355,29 @@ package Usb2Pkg is
    ) return Usb2InterfaceNumType;
 
    -- class-specific request
-   constant USB2_REQ_CLS_CDC_SEND_BREAK_C          : Usb2CtlRequestCodeType     := x"23";
-   constant USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE: Usb2CtlRequestCodeType     := x"22";
+   constant USB2_REQ_CLS_CDC_SET_LINE_CODING_C             : Usb2CtlRequestCodeType     := x"20";
+   constant USB2_REQ_CLS_CDC_GET_LINE_CODING_C             : Usb2CtlRequestCodeType     := x"21";
+   constant USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE_C      : Usb2CtlRequestCodeType     := x"22";
+   constant USB2_REQ_CLS_CDC_SEND_BREAK_C                  : Usb2CtlRequestCodeType     := x"23";
 
-   subtype  Usb2StdDescriptorTypeType              is unsigned(3 downto 0);
-   constant USB2_STD_DESC_TYPE_DEVICE_C            : Usb2StdDescriptorTypeType  := x"1";
-   constant USB2_STD_DESC_TYPE_CONFIGURATION_C     : Usb2StdDescriptorTypeType  := x"2";
-   constant USB2_STD_DESC_TYPE_STRING_C            : Usb2StdDescriptorTypeType  := x"3";
-   constant USB2_STD_DESC_TYPE_INTERFACE_C         : Usb2StdDescriptorTypeType  := x"4";
-   constant USB2_STD_DESC_TYPE_ENDPOINT_C          : Usb2StdDescriptorTypeType  := x"5";
-   constant USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C  : Usb2StdDescriptorTypeType  := x"6";
-   constant USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  : Usb2StdDescriptorTypeType  := x"7";
-   constant USB2_STD_DESC_TYPE_INTERFACE_POWER_C   : Usb2StdDescriptorTypeType  := x"8";
+   subtype  Usb2StdDescriptorTypeType                      is unsigned(3 downto 0);
+   constant USB2_STD_DESC_TYPE_DEVICE_C                    : Usb2StdDescriptorTypeType  := x"1";
+   constant USB2_STD_DESC_TYPE_CONFIGURATION_C             : Usb2StdDescriptorTypeType  := x"2";
+   constant USB2_STD_DESC_TYPE_STRING_C                    : Usb2StdDescriptorTypeType  := x"3";
+   constant USB2_STD_DESC_TYPE_INTERFACE_C                 : Usb2StdDescriptorTypeType  := x"4";
+   constant USB2_STD_DESC_TYPE_ENDPOINT_C                  : Usb2StdDescriptorTypeType  := x"5";
+   constant USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C          : Usb2StdDescriptorTypeType  := x"6";
+   constant USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C          : Usb2StdDescriptorTypeType  := x"7";
+   constant USB2_STD_DESC_TYPE_INTERFACE_POWER_C           : Usb2StdDescriptorTypeType  := x"8";
    -- use as a sentinel to terminate table
-   constant USB2_STD_DESC_TYPE_SENTINEL_C          : Usb2ByteType               := x"FF";
+   constant USB2_STD_DESC_TYPE_SENTINEL_C                  : Usb2ByteType               := x"FF";
 
-   function usb2DescIsSentinel(constant x: Usb2ByteType) return boolean;
+   function usb2DescIsSentinel(constant x : Usb2ByteType) return boolean;
     
-   subtype  Usb2StdFeatureType                     is unsigned(1 downto 0);
-   constant USB2_STD_FEAT_ENDPOINT_HALT_C          : Usb2StdFeatureType         := "00";
-   constant USB2_STD_FEAT_DEVICE_REMOTE_WAKEUP_C   : Usb2StdFeatureType         := "01";
-   constant USB2_STD_FEAT_DEVICE_TEST_MODE_C       : Usb2StdFeatureType         := "10";
+   subtype  Usb2StdFeatureType                             is unsigned(1 downto 0);
+   constant USB2_STD_FEAT_ENDPOINT_HALT_C                  : Usb2StdFeatureType         := "00";
+   constant USB2_STD_FEAT_DEVICE_REMOTE_WAKEUP_C           : Usb2StdFeatureType         := "01";
+   constant USB2_STD_FEAT_DEVICE_TEST_MODE_C               : Usb2StdFeatureType         := "10";
 
    type     Usb2CtlReqParamType is record
       dev2Host  : boolean;

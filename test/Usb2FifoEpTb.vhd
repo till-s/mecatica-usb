@@ -188,9 +188,17 @@ architecture sim of Usb2FifoEpTb is
    signal devStatus                : Usb2DevStatusType;
    signal usb2Rx                   : Usb2RxType;
    signal lineBreak                : std_logic;
+   signal DTR                      : std_logic := '0';
+   signal RTS                      : std_logic := '0';
+   signal rate                     : unsigned(31 downto 0) := (others => '0');
+   signal stopBits                 : unsigned( 1 downto 0) := (others => '0');
+   signal parity                   : unsigned( 2 downto 0) := (others => '0');
+   signal dataBits                 : unsigned( 4 downto 0) := (others => '0');
+
 
    signal ep0ReqParam              : Usb2CtlReqParamType;
    signal ep0CtlExt                : Usb2CtlExtType;
+   signal cdcacmCtlEpIb            : Usb2EndpPairIbType;
 
    signal fifoDatInp               : Usb2ByteType := (others => 'U');
    signal fifoDatOut               : Usb2ByteType;
@@ -218,6 +226,9 @@ architecture sim of Usb2FifoEpTb is
       x"00",
       x"ab"
    );
+
+   constant REQ_TYP_CLS_IFC_R_C : Usb2ByteType := x"a1";
+   constant REQ_TYP_CLS_IFC_W_C : Usb2ByteType := x"21";
 
 begin
 
@@ -290,11 +301,11 @@ begin
       ulpiTstWaitDat(ulpiTstOb, d2(10 to 12), EP1, DEV_ADDR_C, nofr => true);
 
       assert lineBreak = '0' report "line-break initially not 0" severity failure;
-      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SEND_BREAK_C, DEV_ADDR_C, val => x"ffff");
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SEND_BREAK_C, DEV_ADDR_C, typ => REQ_TYP_CLS_IFC_W_C, val => x"ffff");
       assert lineBreak = '1' report "line-break not 1" severity failure;
-      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SEND_BREAK_C, DEV_ADDR_C, val => x"0000");
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SEND_BREAK_C, DEV_ADDR_C, typ => REQ_TYP_CLS_IFC_W_C, val => x"0000");
       assert lineBreak = '0' report "line-break not reset to 0" severity failure;
-      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SEND_BREAK_C, DEV_ADDR_C, val => x"0001");
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SEND_BREAK_C, DEV_ADDR_C, typ => REQ_TYP_CLS_IFC_W_C, val => x"0001");
       assert lineBreak = '1' report "line-break not 1 (2nd time)" severity failure;
       ulpiTstSendTok(ulpiTstOb, USB2_PID_TOK_SOF_C, "0000", "0000000" );
       -- 1 frame time = 'at least' 1 frame...
@@ -304,6 +315,41 @@ begin
          ulpiClkTick;
       end loop;
       assert lineBreak = '0' report "line-break not 0 (2nd time)" severity failure;
+
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE_C, DEV_ADDR_C, typ => REQ_TYP_CLS_IFC_W_C, val => x"0001");
+      ulpiClkTick;
+      assert RTS = '0' and DTR = '1' report "Expected DTR (only) asserted" severity failure;
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE_C, DEV_ADDR_C, typ => REQ_TYP_CLS_IFC_W_C, val => x"0002");
+      ulpiClkTick;
+      assert RTS = '1' and DTR = '0' report "Expected RTS (only) asserted" severity failure;
+
+      ulpiTstSendCtlReq(
+         ulpiTstOb,
+         USB2_REQ_CLS_CDC_SET_LINE_CODING_C,
+         DEV_ADDR_C,
+         typ  => REQ_TYP_CLS_IFC_W_C,
+         eda  => (x"aa",x"bb",x"cc",x"dd",x"01",x"02",x"03"),
+         timo => 100
+      );
+
+      ulpiClkTick;
+
+      assert rate       = x"ddccbbaa" report "Unexpected line rate" severity failure;
+      assert stopBits   = "01"        report "Unexpected stop bits" severity failure;
+      assert parity     = "010"       report "Unexpected parity"    severity failure;
+      assert dataBits   = "00011"     report "Unexpected data bits" severity failure;
+
+      ulpiClkTick;
+
+      ulpiTstSendCtlReq(
+         ulpiTstOb,
+         USB2_REQ_CLS_CDC_GET_LINE_CODING_C,
+         DEV_ADDR_C,
+         typ  => REQ_TYP_CLS_IFC_R_C,
+         eda  => (x"aa",x"bb",x"cc",x"dd",x"01",x"02",x"03"),
+         timo => 100
+      );
+
 
       for i in 0 to 20 loop
          ulpiClkTick;
@@ -332,7 +378,7 @@ begin
 
       usb2Ep0ReqParam              => ep0ReqParam,
       usb2Ep0CtlExt                => ep0CtlExt,
-      usb2Ep0CtlEpExt              => open,
+      usb2Ep0CtlEpExt              => cdcacmCtlEpIb,
 
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb
@@ -377,7 +423,8 @@ begin
 
    U_BRK : entity work.CDCACMCtl
       generic map (
-         CDC_IFC_NUM_G => toUsb2InterfaceNumType(IFC_NUM_C)
+         CDC_IFC_NUM_G  => toUsb2InterfaceNumType(IFC_NUM_C),
+         SUPPORT_LINE_G => true
       )
       port map (
          clk                       => ulpiTstClk,
@@ -386,7 +433,16 @@ begin
          usb2SOF                   => usb2rx.pktHdr.sof,
          usb2Ep0ReqParam           => ep0ReqParam,
          usb2Ep0CtlExt             => ep0CtlExt,
-         lineBreak                 => lineBreak
+         usb2Ep0ObExt              => cdcacmCtlEpIb,
+         usb2Ep0IbExt              => epOb(0),
+         lineBreak                 => lineBreak,
+         DTR                       => DTR,
+         RTS                       => RTS,
+         rate                      => rate,
+         stopBits                  => stopBits,
+         parity                    => parity,
+         dataBits                  => dataBits
+
       );
 
 end architecture sim;

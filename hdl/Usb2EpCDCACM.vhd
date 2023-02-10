@@ -19,6 +19,10 @@ entity Usb2EpCDCACM is
       CTL_IFC_NUM_G              : natural;
       -- enable line-break support
       ENBL_LINE_BREAK_G          : boolean := true;
+      -- enable support for get/set line state + coding
+      -- if this is enabled then you *must* connect
+      -- usb2Ep0ObExt/usb2Ep0IbExt!
+      ENBL_LINE_STATE_G          : boolean := false;
       ASYNC_G                    : boolean := false;
       -- FIFO parameters (ld_fifo_depth are the width of the internal
       -- address pointers, i.e., ceil( log2( depth - 1 ) )
@@ -45,6 +49,8 @@ entity Usb2EpCDCACM is
       -- EP0 interface
       usb2Ep0ReqParam            : in  Usb2CtlReqParamType := USB2_CTL_REQ_PARAM_INIT_C;
       usb2Ep0CtlExt              : out Usb2CtlExtType      := USB2_CTL_EXT_NAK_C;
+      usb2Ep0ObExt               : out Usb2EndpPairIbType;
+      usb2Ep0IbExt               : in  Usb2EndpPairObType  := USB2_ENDP_PAIR_OB_INIT_C;
 
       -- Data interface bulk endpoint pair
       usb2EpIb                   : out Usb2EndpPairIbType;
@@ -104,11 +110,13 @@ end entity Usb2EpCDCACM;
 architecture Impl of Usb2EpCDCACM is
 begin
 
-   G_LINE_BREAK : if ( ENBL_LINE_BREAK_G ) generate
+   G_LINE_BREAK : if ( ENBL_LINE_BREAK_G or ENBL_LINE_STATE_G ) generate
    begin
       U_BRK : entity work.CDCACMCtl
          generic map (
             CDC_IFC_NUM_G               => toUsb2InterfaceNumType( CTL_IFC_NUM_G )
+            SUPPORT_LINE_G              => ENBL_LINE_STATE_G,
+            SUPPORT_BREAK_C             => ENBL_LINE_BREAK_G
          )
          port map (
             clk                         => usb2Clk,
@@ -116,6 +124,8 @@ begin
             usb2SOF                     => usb2Rx.pktHdr.sof,
             usb2Ep0ReqParam             => usb2Ep0ReqParam,
             usb2Ep0CtlExt               => usb2Ep0CtlExt,
+            usb2Ep0ObExt                => usb2Ep0ObExt,
+            usb2Ep0IbExt                => usb2Ep0IbExt,
             lineBreak                   => lineBreak,
             DTR                         => DTR,
             RTS                         => RTS
