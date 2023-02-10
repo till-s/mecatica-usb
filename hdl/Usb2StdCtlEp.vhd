@@ -170,6 +170,8 @@ architecture Impl of Usb2StdCtlEp is
       cfgIdx      : Usb2DescIdxType;
       cfgCurr     : CfgIdxType;
       retVal      : Usb2ByteType;
+      readVal     : Usb2ByteType;
+      tmpVal      : Usb2ByteType;
       retSz2      : boolean;
       flg         : std_logic;
       tblIdx      : Usb2DescIdxType;
@@ -213,6 +215,8 @@ architecture Impl of Usb2StdCtlEp is
       cfgIdx      => 0,
       cfgCurr     => 0,
       retVal      => (others => '0'),
+      readVal     => (others => '0'),
+      tmpVal      => (others => '0'),
       altSettings => (others => 0),
       flg         => '0',
       tblIdx      => 0,
@@ -392,7 +396,7 @@ begin
             end if;
 
          when READ_TBL =>
-            v.retVal      := descVal;
+            v.readVal     := descVal;
             v.state       := r.retState;
             v.tblRdDone   := true;
 
@@ -428,7 +432,7 @@ begin
                               v.retState := r.state;
                               v.state    := READ_TBL;
                            else
-                              if ( r.retVal(5) = '1' ) then
+                              if ( r.readVal(5) = '1' ) then
                                  -- device supports the feature
                                  v.devStatus.remWakeup := ( r.reqParam.request(3 downto 0) = USB2_REQ_STD_SET_FEATURE_C );
                                  v.state               := STATUS;
@@ -479,7 +483,7 @@ begin
 
                   when USB2_REQ_STD_GET_DESCRIPTOR_C    =>
                      v.tblOff   := USB2_DESC_IDX_LENGTH_C;
-                     v.retVal   := (others => '0');
+                     v.tmpVal   := (others => '0');
                      v.size2B   := false;
                      v.state    := GET_DESCRIPTOR_SIZE;
                      v.count    := 0;
@@ -576,7 +580,7 @@ begin
                            v.state           := READ_TBL;
                         else
                            v.state           := SETUP_CONFIG;
-                           v.numIfc          := to_integer(unsigned(descVal));
+                           v.numIfc          := to_integer(unsigned(r.readVal));
                            for i in 1 to v.epConfig'length - 1 loop
                               v.epConfig(i).maxPktSizeInp := (others => '0');
                               v.epConfig(i).maxPktSizeOut := (others => '0');
@@ -707,12 +711,12 @@ begin
                   v.tblOff  := USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C + 1;
                   v.state   := r.state;
                   -- intermediate storage
-                  v.retVal  := descVal;
+                  v.tmpVal  := descVal;
                elsif ( r.tblOff = USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C + 1 ) then
                   if ( r.epIsInp ) then
-                     v.epConfig( r.epIdx ).maxPktSizeInp := toPktSizeType(descVal & r.retVal);
+                     v.epConfig( r.epIdx ).maxPktSizeInp := toPktSizeType(descVal & r.tmpVal);
                   else
-                     v.epConfig( r.epIdx ).maxPktSizeOut := toPktSizeType(descVal & r.retVal);
+                     v.epConfig( r.epIdx ).maxPktSizeOut := toPktSizeType(descVal & r.tmpVal);
                   end if;
                   v.numEp  := r.numEp - 1;
                   v.tblOff := USB2_DESC_IDX_LENGTH_C;
@@ -724,11 +728,11 @@ begin
             if ( r.count = 0 ) then
                if ( r.size2B ) then
                   v.tblOff := r.tblOff - 1;
-                  v.retVal := descVal;
+                  v.tmpVal := descVal;
                   v.size2B := false;
                else
-                  if ( r.reqParam.length > w2u( r.retVal & descVal ) ) then
-                     v.auxOff    := to_integer( w2u( r.retVal & descVal ) ) - 1 ;
+                  if ( r.reqParam.length > w2u( r.tmpVal & descVal ) ) then
+                     v.auxOff    := to_integer( w2u( r.tmpVal & descVal ) ) - 1 ;
                   else
                      v.auxOff    := to_integer(r.reqParam.length) - 1;
                      -- is the requested length an exact multiple of the packet size?
