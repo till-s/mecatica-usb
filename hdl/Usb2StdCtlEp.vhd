@@ -181,6 +181,7 @@ architecture Impl of Usb2StdCtlEp is
       auxOff      : Usb2DescIdxType;
       count       : Usb2DescIdxType;
       tblRdDone   : boolean;
+      skipDesc    : boolean;
       altSettings : AltSetArray;
       statusAck   : std_logic;
       ifcIdx      : IfcIdxType;
@@ -227,6 +228,7 @@ architecture Impl of Usb2StdCtlEp is
       auxOff      => 0,
       count       => 0,
       tblRdDone   => false,
+      skipDesc    => true,
       retSz2      => false,
       statusAck   => '1',
       ifcIdx      => 0,
@@ -253,6 +255,13 @@ architecture Impl of Usb2StdCtlEp is
    begin
       v           := v;
       v.retFromRd := r.state;
+      v.state     := READ_TBL;
+   end procedure READ_TBL;
+
+   procedure READ_TBL( variable v : inout RegType; constant t : in StateType) is
+   begin
+      v           := v;
+      v.retFromRd := t;
       v.state     := READ_TBL;
    end procedure READ_TBL;
 
@@ -627,19 +636,22 @@ begin
             end if;
 
          -- skip the current descriptor and look for 'descType'
+         when SCAN_DESC =>
+            READ_TBL( v, SCAN_DESC_LOOP );
 
-         when SCAN_DESC_LOOP | SCAN_DESC =>
-            v.tblRdDone := not r.tblRdDone;
-            if ( not r.tblRdDone ) then
-               v.tblIdx := r.tblIdx + to_integer(unsigned(descVal));
+         when SCAN_DESC_LOOP =>
+            v.skipDesc := not r.skipDesc;
+            READ_TBL( v );
+            if ( r.skipDesc ) then
+               v.tblIdx := r.tblIdx + to_integer(unsigned(r.readVal));
                v.tblOff := USB2_DESC_IDX_TYPE_C;
             else
                v.tblOff := USB2_DESC_IDX_LENGTH_C;
-               if ( usb2DescIsSentinel( descVal ) ) then
+               if ( usb2DescIsSentinel( r.readVal ) ) then
                   -- USB2_STD_DESC_TYPE_SENTINEL_C detected; -> end of table
                   v.protoStall := '1';
                   v.state      := GET_PARAMS;
-               elsif ( Usb2StdDescriptorTypeType(descVal(3 downto 0)) = r.descType ) then
+               elsif ( Usb2StdDescriptorTypeType(r.readVal(3 downto 0)) = r.descType ) then
                   -- found; pre-read aux entry
                   v.tblOff := r.auxOff;
                   v.state  := r.retState;
