@@ -170,10 +170,10 @@ begin
       signal fifoEmpty    : std_logic;
       signal fifoDin      : std_logic_vector(FIFO_WIDTH_F(DIR_INP) - 1 downto 0);
       signal fifoDou      : std_logic_vector(FIFO_WIDTH_F(DIR_INP) - 1 downto 0);
-      signal numFramesInp : unsigned(LD_MAX_FRAMES_INP_G - 1 downto 0) := (others => '0');
-      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_INP_G - 1 downto 0);
-      signal numFramesOut : unsigned(LD_MAX_FRAMES_INP_G - 1 downto 0) := (others => '0');
-      signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_INP_G - 1 downto 0);
+      signal numFramesInp : unsigned(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
+      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_INP_G downto 0);
+      signal numFramesOut : unsigned(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
+      signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_INP_G downto 0);
       signal haveAFrame   : std_logic := '1';
    begin
 
@@ -260,7 +260,7 @@ begin
             LD_TIMER_G   => TIMER_WIDTH_G,
             OUT_REG_G    => ite( OUT_REG_INP_G, 1, 0 ),
             ASYNC_G      => ASYNC_G,
-            XTRA_W2R_G   => LD_MAX_FRAMES_INP_G
+            XTRA_W2R_G   => xtraInp'length
          )
          port map (
             wrClk        => epClkLoc,
@@ -410,7 +410,7 @@ begin
             LD_TIMER_G   => 1,
             OUT_REG_G    => ite( OUT_REG_OUT_G, 1, 0 ),
             ASYNC_G      => ASYNC_G,
-            XTRA_W2R_G   => LD_MAX_FRAMES_OUT_G
+            XTRA_W2R_G   => xtraInp'length
          )
          port map (
             wrClk        => usb2Clk,
@@ -420,6 +420,7 @@ begin
             wen          => fifoWen,
             full         => fifoFull,
             wrFilled     => fifoFilled,
+            wrXtraInp    => xtraInp,
 
             rdClk        => epClkLoc,
             rdRst        => open, -- only allow to be reset from USB
@@ -428,6 +429,7 @@ begin
             ren          => fifoRen,
             empty        => fifoEmpty,
             rdFilled     => filledOut,
+            rdXtraOut    => xtraOut,
 
             minFill      => open,
             timer        => open
