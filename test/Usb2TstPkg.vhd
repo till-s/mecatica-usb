@@ -890,7 +890,7 @@ end if;
           if ( eda'length > 0 ) then
              ulpiTstSendDat( ob, eda, USB2_ENDP_ZERO_C, dva, rtr => 2, w => w, timo => timo );
           end if;
-          ulpiTstWaitDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, rtr => rtr, rak => 2, w => w, timo => timo, estl => (epid = USB2_PID_HSK_STALL_C) );
+          ulpiTstWaitDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, rtr => rtr, rak => 200, w => w, timo => timo, estl => (epid = USB2_PID_HSK_STALL_C) );
        end if;
        ulpiClkTick;
     end procedure ulpiTstSendCtlReq;
