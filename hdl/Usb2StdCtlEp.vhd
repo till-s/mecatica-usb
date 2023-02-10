@@ -717,32 +717,32 @@ begin
                v.state    := SCAN_DESC;
 
                if    ( r.tblOff = USB2_EPT_DESC_IDX_ADDRESS_C ) then
-                  v.epIdx   := to_integer(unsigned(descVal(3 downto 0)));
-                  v.epIsInp := (descVal(7) = '1');
+                  v.epIdx   := to_integer(unsigned(r.readVal(3 downto 0)));
+                  v.epIsInp := (r.readVal(7) = '1');
                   v.tblOff  := USB2_EPT_DESC_IDX_ATTRIBUTES_C;
-                  v.state   := r.state;
+                  READ_TBL( v );
                elsif ( r.tblOff = USB2_EPT_DESC_IDX_ATTRIBUTES_C ) then
                   if ( r.epIsInp ) then
-                     v.epConfig( r.epIdx ).transferTypeInp := descVal(1 downto 0);
+                     v.epConfig( r.epIdx ).transferTypeInp := r.readVal(1 downto 0);
                   else
-                     v.epConfig( r.epIdx ).transferTypeOut := descVal(1 downto 0);
+                     v.epConfig( r.epIdx ).transferTypeOut := r.readVal(1 downto 0);
                   end if;
                   v.tblOff  := USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C;
-                  v.state   := r.state;
+                  READ_TBL( v );
                elsif ( r.tblOff = USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C     ) then
-                  v.tblOff  := USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C + 1;
-                  v.state   := r.state;
                   -- intermediate storage
-                  v.tmpVal  := descVal;
+                  v.tmpVal  := r.readVal;
+                  v.tblOff  := USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C + 1;
+                  READ_TBL( v );
                elsif ( r.tblOff = USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C + 1 ) then
                   if ( r.epIsInp ) then
-                     v.epConfig( r.epIdx ).maxPktSizeInp := toPktSizeType(descVal & r.tmpVal);
+                     v.epConfig( r.epIdx ).maxPktSizeInp := toPktSizeType(r.readVal & r.tmpVal);
                   else
-                     v.epConfig( r.epIdx ).maxPktSizeOut := toPktSizeType(descVal & r.tmpVal);
+                     v.epConfig( r.epIdx ).maxPktSizeOut := toPktSizeType(r.readVal & r.tmpVal);
                   end if;
                   v.numEp  := r.numEp - 1;
                   v.tblOff := USB2_DESC_IDX_LENGTH_C;
-                  v.state  := r.state; -- causes r.numEp to be checked before scanning the next desc.
+                  READ_TBL( v ); -- causes r.numEp to be checked before scanning the next desc.
                end if;
             end if;
 
