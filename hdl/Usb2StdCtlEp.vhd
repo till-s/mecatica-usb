@@ -654,7 +654,7 @@ begin
                elsif ( Usb2StdDescriptorTypeType(r.readVal(3 downto 0)) = r.descType ) then
                   -- found; pre-read aux entry
                   v.tblOff := r.auxOff;
-                  v.state  := r.retState;
+                  READ_TBL( v, r.retState );
                end if;
             end if;
 
@@ -683,17 +683,17 @@ begin
                v.numEp := 0;
                v.state := LOAD_EPTS;
             elsif ( r.tblOff = USB2_IFC_DESC_IDX_IFC_NUM_C   ) then
-               if ( r.ifcIdx = to_integer(unsigned(descVal)) ) then
+               if ( r.ifcIdx = to_integer(unsigned(r.readVal)) ) then
                   v.tblOff := USB2_IFC_DESC_IDX_ALTSETTING_C;
-                  v.state  := r.state;
+                  READ_TBL( v );
                end if;
             elsif ( r.tblOff = USB2_IFC_DESC_IDX_ALTSETTING_C ) then
-               if ( r.altIdx = to_integer(unsigned(descVal)) ) then
+               if ( r.altIdx = to_integer(unsigned(r.readVal)) ) then
                   v.tblOff := USB2_IFC_DESC_IDX_NUM_ENDPOINTS_C;
-                  v.state  := r.state;
+                  READ_TBL( v );
                end if;
             elsif ( r.tblOff = USB2_IFC_DESC_IDX_NUM_ENDPOINTS_C ) then
-               v.numEp    := to_integer(unsigned(descVal));
+               v.numEp    := to_integer(unsigned(r.readVal));
                v.state    := LOAD_EPTS;
             end if;
 
