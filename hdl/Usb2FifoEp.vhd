@@ -208,7 +208,7 @@ begin
 
       G_WITH_DON : if ( LD_MAX_FRAMES_INP_G > 0 ) generate
          fifoDin    <= donInp & datInp;
-         mstInpDon  <= fifoDou( datInp'length );
+         mstInpDon  <= fifoDou( datInp'length ) and not fifoEmpty;
          bFramedInp <= '0'; -- support framing
 
          -- maintain frame counters
