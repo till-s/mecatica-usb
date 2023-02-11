@@ -559,8 +559,8 @@ begin
             usb2Ep0ReqParam            => usb2Ep0ReqParam,
             usb2Ep0CtlExt              => usb2Ep0CDCECMCtlExt,
 
-            usb2EpIb                   => usb2EpIb(CDC_ECM_BULK_EP_IDX_C),
-            usb2EpOb                   => usb2EpOb(CDC_ECM_BULK_EP_IDX_C),
+            usb2EpIb                   => usb2EpOb(CDC_ECM_BULK_EP_IDX_C),
+            usb2EpOb                   => usb2EpIb(CDC_ECM_BULK_EP_IDX_C),
 
             fifoMinFillInp             => ecmFifoMinFill,
             fifoTimeFillInp            => ecmFifoTimer,

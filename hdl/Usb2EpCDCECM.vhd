@@ -42,8 +42,8 @@ entity Usb2EpCDCECM is
       usb2Ep0CtlExt              : out Usb2CtlExtType      := USB2_CTL_EXT_NAK_C;
 
       -- Data interface bulk endpoint pair
-      usb2EpIb                   : out Usb2EndpPairIbType;
-      usb2EpOb                   : in  Usb2EndpPairObType;
+      usb2EpOb                   : out Usb2EndpPairIbType;
+      usb2EpIb                   : in  Usb2EndpPairObType;
 
       -- FIFO control (in usb2Clk domain!)
       --
@@ -111,8 +111,8 @@ begin
             usb2Clk                     => usb2Clk,
             usb2Rst                     => usb2Rst,
 
-            usb2EpIb                    => usb2EpOb,
-            usb2EpOb                    => usb2EpIb,
+            usb2EpIb                    => usb2EpIb,
+            usb2EpOb                    => usb2EpOb,
 
             minFillInp                  => fifoMinFillInp,
             timeFillInp                 => fifoTimeFillInp,
