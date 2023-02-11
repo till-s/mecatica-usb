@@ -580,7 +580,7 @@ begin
 
       usb2Ep0ReqParam              => ep0ReqParam,
       usb2Ep0CtlExt                => ep0CtlExt,
-      usb2Ep0CtlEpExt              => open,
+      usb2Ep0CtlEpIbExt            => open,
 
       usb2HiSpeedEn                => hiSpeedEn,
 
@@ -611,8 +611,8 @@ begin
          minFillInp                => open,
          timeFillInp               => open,
 
-         usb2EpIb                  => epIb(TST_EP_IDX_C),
-         usb2EpOb                  => epOb(TST_EP_IDX_C),
+         usb2EpOb                  => epIb(TST_EP_IDX_C),
+         usb2EpIb                  => epOb(TST_EP_IDX_C),
 
          epClk                     => epClk,
          epRstOut                  => epRstOut,

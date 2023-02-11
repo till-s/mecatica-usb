@@ -35,6 +35,8 @@ end entity Usb2MboxSync;
 
 architecture Impl of Usb2MboxSync is
 
+   attribute KEEP       : string;
+
    signal trigA         : std_logic := '0';
    signal trigB         : std_logic := '0';
 
@@ -56,6 +58,9 @@ begin
 
       signal a2bData       : std_logic_vector(DWIDTH_A2B_G - 1 downto 0) := (others => '0');
       signal b2aData       : std_logic_vector(DWIDTH_B2A_G - 1 downto 0) := (others => '0');
+
+      attribute KEEP of a2bData : signal is "TRUE";
+      attribute KEEP of b2aData : signal is "TRUE";
 
    begin
 

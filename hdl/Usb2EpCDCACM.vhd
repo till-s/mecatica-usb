@@ -53,8 +53,8 @@ entity Usb2EpCDCACM is
       usb2Ep0IbExt               : in  Usb2EndpPairObType  := USB2_ENDP_PAIR_OB_INIT_C;
 
       -- Data interface bulk endpoint pair
-      usb2EpIb                   : out Usb2EndpPairIbType;
-      usb2EpOb                   : in  Usb2EndpPairObType;
+      usb2EpIb                   : in  Usb2EndpPairObType;
+      usb2EpOb                   : out Usb2EndpPairIbType;
 
       -- Line break, RTS and DTR signals
       lineBreak                  : out std_logic           := '0';
@@ -114,9 +114,9 @@ begin
    begin
       U_BRK : entity work.CDCACMCtl
          generic map (
-            CDC_IFC_NUM_G               => toUsb2InterfaceNumType( CTL_IFC_NUM_G )
+            CDC_IFC_NUM_G               => toUsb2InterfaceNumType( CTL_IFC_NUM_G ),
             SUPPORT_LINE_G              => ENBL_LINE_STATE_G,
-            SUPPORT_BREAK_C             => ENBL_LINE_BREAK_G
+            SUPPORT_BREAK_G             => ENBL_LINE_BREAK_G
          )
          port map (
             clk                         => usb2Clk,
