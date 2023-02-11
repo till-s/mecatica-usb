@@ -365,7 +365,7 @@ begin
                if ( ctlExt.err = '1' ) then
                   v.state    := STD_REQUEST;
                else
-                  -- ctlExt.don may arrive the next cycle or any time after
+                  -- ctlExt.don may arrive this cycle or any time after
                   v.state    := WAIT_EXT_DONE;
                   if ( ctlExt.don = '1' ) then
                      v.statusAck := '1';

@@ -47,6 +47,7 @@ entity Usb2FifoEp is
    port (
       usb2Clk                      : in  std_logic;
       usb2Rst                      : in  std_logic := '0';
+      usb2RstOut                   : out std_logic;
 
       -- Endpoint Interface
       usb2EpOb                     : out Usb2EndpPairIbType;
@@ -112,8 +113,10 @@ architecture Impl of Usb2FifoEp is
    signal subOutRdy             : std_logic := '0';
    signal epRstOutLoc           : std_logic := '0';
    signal epClkLoc              : std_logic;
-   signal obFifoRst             : std_logic := '0';
-   signal ibFifoRst             : std_logic := '0';
+   signal obFifoRstUsbClk       : std_logic := '0';
+   signal ibFifoRstUsbClk       : std_logic := '0';
+   signal obFifoRstEpClk        : std_logic := '0';
+   signal ibFifoRstEpClk        : std_logic := '0';
 
    type EpDirType is ( DIR_INP, DIR_OUT );
 
@@ -129,8 +132,10 @@ architecture Impl of Usb2FifoEp is
 
 begin
 
-   epRstOutLoc <= obFifoRst or ibFifoRst;
+   epRstOutLoc <= obFifoRstEpClk or ibFifoRstEpCLk;
    epRstOut    <= epRstOutLoc;
+
+   usb2RstOut  <= obFifoRstUsbClk or ibFifoRstUsbClk;
 
    G_SYNC : if ( not ASYNC_G ) generate
    begin
@@ -270,7 +275,7 @@ begin
          port map (
             wrClk        => epClkLoc,
             wrRst        => open, -- only allow to be reset from USB
-            wrRstOut     => ibFifoRst,
+            wrRstOut     => ibFifoRstEpClk,
 
             din          => fifoDin,
             wen          => fifoWen,
@@ -280,6 +285,7 @@ begin
 
             rdClk        => usb2Clk,
             rdRst        => usb2RstLoc,
+            rdRstOut     => ibFifoRstUsbClk,
 
             dou          => fifoDou,
             ren          => fifoRen,
@@ -424,6 +430,7 @@ begin
          port map (
             wrClk        => usb2Clk,
             wrRst        => usb2RstLoc,
+            wrRstOut     => obFifoRstUsbClk,
 
             din          => fifoDin,
             wen          => fifoWen,
@@ -433,7 +440,7 @@ begin
 
             rdClk        => epClkLoc,
             rdRst        => open, -- only allow to be reset from USB
-            rdRstOut     => obFifoRst,
+            rdRstOut     => obFifoRstEpClk,
             dou          => fifoDou,
             ren          => fifoRen,
             empty        => fifoEmpty,

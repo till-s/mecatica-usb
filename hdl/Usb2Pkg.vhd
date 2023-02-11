@@ -320,6 +320,12 @@ package Usb2Pkg is
    function USB2_REQ_TYP_TYPE_F     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
    function USB2_REQ_TYP_RECIPIENT_F(constant reqTyp : in Usb2ByteType) return std_logic_vector;
 
+   function USB2_MAKE_REQ_TYP_F(
+      constant dev2Host  : in  boolean;
+      constant reqType   : in  std_logic_vector(1 downto 0);
+      constant recipient : in  std_logic_vector(1 downto 0)
+   ) return Usb2ByteType;
+
    constant USB2_REQ_TYP_TYPE_STANDARD_C           : std_logic_vector(1 downto 0) := "00";
    constant USB2_REQ_TYP_TYPE_CLASS_C              : std_logic_vector(1 downto 0) := "01";
    constant USB2_REQ_TYP_TYPE_VENDOR_C             : std_logic_vector(1 downto 0) := "10";
@@ -358,6 +364,12 @@ package Usb2Pkg is
    constant USB2_REQ_CLS_CDC_GET_LINE_CODING_C             : Usb2CtlRequestCodeType     := x"21";
    constant USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE_C      : Usb2CtlRequestCodeType     := x"22";
    constant USB2_REQ_CLS_CDC_SEND_BREAK_C                  : Usb2CtlRequestCodeType     := x"23";
+
+   constant USB2_REQ_CLS_CDC_SET_ETHERNET_PACKET_FILTER_C  : Usb2CtlRequestCodeType     := x"43";
+
+   -- class-specific notification
+   constant USB2_NOT_CLS_CDC_NETWORK_CONNECTION_C          : Usb2CtlRequestCodeType     := x"00";
+   constant USB2_NOT_CLS_CDC_SPEED_CHANGE_C                : Usb2CtlRequestCodeType     := x"2A";
 
    subtype  Usb2StdDescriptorTypeType                      is unsigned(3 downto 0);
    constant USB2_STD_DESC_TYPE_DEVICE_C                    : Usb2StdDescriptorTypeType  := x"1";
@@ -612,5 +624,21 @@ package body Usb2Pkg is
          return '1';
       end if;
    end function epOutRunning;
+
+   function USB2_MAKE_REQ_TYP_F(
+      constant dev2Host  : in  boolean;
+      constant reqType   : in  std_logic_vector(1 downto 0);
+      constant recipient : in  std_logic_vector(1 downto 0)
+   ) return Usb2ByteType is
+      variable v : Usb2ByteType;
+   begin
+      v := (others => '0');
+      if ( dev2Host ) then
+         v(7) := '1';
+      end if;
+      v(6 downto 5) := reqType;
+      v(1 downto 0) := recipient;
+      return v;
+   end function USB2_MAKE_REQ_TYP_F;
 
 end package body Usb2Pkg;
