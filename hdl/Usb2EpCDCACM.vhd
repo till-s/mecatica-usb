@@ -114,9 +114,9 @@ begin
    begin
       U_BRK : entity work.CDCACMCtl
          generic map (
-            CDC_IFC_NUM_G               => toUsb2InterfaceNumType( CTL_IFC_NUM_G )
+            CDC_IFC_NUM_G               => toUsb2InterfaceNumType( CTL_IFC_NUM_G ),
             SUPPORT_LINE_G              => ENBL_LINE_STATE_G,
-            SUPPORT_BREAK_C             => ENBL_LINE_BREAK_G
+            SUPPORT_BREAK_G             => ENBL_LINE_BREAK_G
          )
          port map (
             clk                         => usb2Clk,
@@ -144,8 +144,8 @@ begin
             usb2Clk                     => usb2Clk,
             usb2Rst                     => usb2Rst,
 
-            usb2EpIb                    => usb2EpIb,
-            usb2EpOb                    => usb2EpOb,
+            usb2EpIb                    => usb2EpOb,
+            usb2EpOb                    => usb2EpIb,
 
             minFillInp                  => fifoMinFillInp,
             timeFillInp                 => fifoTimeFillInp,

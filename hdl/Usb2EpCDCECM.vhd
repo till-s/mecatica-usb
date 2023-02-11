@@ -111,8 +111,8 @@ begin
             usb2Clk                     => usb2Clk,
             usb2Rst                     => usb2Rst,
 
-            usb2EpIb                    => usb2EpIb,
-            usb2EpOb                    => usb2EpOb,
+            usb2EpIb                    => usb2EpOb,
+            usb2EpOb                    => usb2EpIb,
 
             minFillInp                  => fifoMinFillInp,
             timeFillInp                 => fifoTimeFillInp,

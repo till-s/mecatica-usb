@@ -611,8 +611,8 @@ begin
          minFillInp                => open,
          timeFillInp               => open,
 
-         usb2EpIb                  => epIb(TST_EP_IDX_C),
-         usb2EpOb                  => epOb(TST_EP_IDX_C),
+         usb2EpOb                  => epIb(TST_EP_IDX_C),
+         usb2EpIb                  => epOb(TST_EP_IDX_C),
 
          epClk                     => epClk,
          epRstOut                  => epRstOut,

@@ -23,7 +23,7 @@ entity Usb2FifoEp is
       -- because at the time a packet is released into the fifo there must already
       -- a decision be made if a second packet would fit.
       -- maxPktSize is the current configuration's maxPktSize as conveyed by
-      -- the 'usb2EpOb.config' input signal.
+      -- the 'usb2EpIb.config' input signal.
       LD_FIFO_DEPTH_OUT_G          : natural  := 0; -- disabled when 0
       TIMER_WIDTH_G                : positive := 1;
       -- add an output register to the INP bound FIFO (to improve timing)
@@ -49,8 +49,8 @@ entity Usb2FifoEp is
       usb2Rst                      : in  std_logic := '0';
 
       -- Endpoint Interface
-      usb2EpIb                     : out Usb2EndpPairIbType;
-      usb2EpOb                     : in  Usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
+      usb2EpOb                     : out Usb2EndpPairIbType;
+      usb2EpIb                     : in  Usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
 
       -- Controls (usb2Clk domain)
       -- accumulate 'minFillInp' items before passing to the endpoint
@@ -178,7 +178,7 @@ begin
       signal epRunning    : std_logic;
    begin
 
-      epRunning  <= epInpRunning( usb2EpOb );
+      epRunning  <= epInpRunning( usb2EpIb );
 
       usb2RstLoc <= usb2Rst or not epRunning;
 
@@ -188,10 +188,10 @@ begin
             if ( usb2RstLoc = '1' ) then
                halted  <= '0';
             else
-               if ( usb2EpOb.setHaltInp = '1' ) then
+               if ( usb2EpIb.setHaltInp = '1' ) then
                   halted <= '1';
                end if;
-               if ( usb2EpOb.clrHaltInp = '1' ) then
+               if ( usb2EpIb.clrHaltInp = '1' ) then
                   halted <= '0';
                end if;
             end if;
@@ -204,7 +204,7 @@ begin
 
       -- only freeze user-access in halted state; EP interaction with the packet
       -- engine proceeds
-      fifoRen             <= usb2EpOb.subInp.rdy and haveAFrame and not fifoEmpty;
+      fifoRen             <= usb2EpIb.subInp.rdy and haveAFrame and not fifoEmpty;
       mstInpDat           <= fifoDou( mstInpDat'range );
 
       -- EP clock domain
@@ -315,16 +315,16 @@ begin
    begin
 
       -- reduce typing
-      maxPktSz   <= usb2EpOb.config.maxPktSizeOut;
-      epRunning  <= epOutRunning( usb2EpOb );
+      maxPktSz   <= usb2EpIb.config.maxPktSizeOut;
+      epRunning  <= epOutRunning( usb2EpIb );
       usb2RstLoc <= usb2Rst or not epRunning;
 
       datOut     <= fifoDou( datOut'range );
 
       G_WITH_DON : if ( LD_MAX_FRAMES_OUT_G > 0 ) generate
       begin
-         fifoDin <= usb2EpOb.mstOut.don & usb2EpOb.mstOut.dat;
-         fifoWen <= (usb2EpOb.mstOut.vld or usb2EpOb.mstOut.don) and not fifoFull;
+         fifoDin <= usb2EpIb.mstOut.don & usb2EpIb.mstOut.dat;
+         fifoWen <= (usb2EpIb.mstOut.vld or usb2EpIb.mstOut.don) and not fifoFull;
          fifoDon <= fifoDou( datOut'length );
          donOut  <= fifoDon;
 
@@ -335,7 +335,7 @@ begin
                if ( usb2RstLoc = '1' ) then
                   numFramesInp <= (others => '0');
                else
-                  if ( (usb2EpOb.mstOut.don and fifoWen) = '1' ) then
+                  if ( (usb2EpIb.mstOut.don and fifoWen) = '1' ) then
                      numFramesInp <= numFramesInp + 1;
                   end if;
                end if;
@@ -363,8 +363,8 @@ begin
       end generate G_WITH_DON;
 
       G_NO_DON : if ( LD_MAX_FRAMES_OUT_G = 0 ) generate
-         fifoDin <= usb2EpOb.mstOut.dat;
-         fifoWen <= usb2EpOb.mstOut.vld and not fifoFull;
+         fifoDin <= usb2EpIb.mstOut.dat;
+         fifoWen <= usb2EpIb.mstOut.vld and not fifoFull;
       end generate G_NO_DON;
 
       P_SEQ : process ( usb2Clk ) is
@@ -375,10 +375,10 @@ begin
                fifoRdy   <= '0';
                lastWen   <= '0';
             else
-               if ( usb2EpOb.setHaltOut = '1' ) then
+               if ( usb2EpIb.setHaltOut = '1' ) then
                   halted <= '1';
                end if;
-               if ( usb2EpOb.clrHaltOut = '1' ) then
+               if ( usb2EpIb.clrHaltOut = '1' ) then
                   halted <= '0';
                end if;
                lastWen <= fifoWen;
@@ -448,15 +448,15 @@ begin
 
    P_COMB : process ( mstInpVld, haltedInp, mstInpDat, bFramedInp, mstInpDon, haltedOut, subOutRdy ) is
    begin
-      usb2EpIb            <= USB2_ENDP_PAIR_IB_INIT_C;
-      usb2EpIb.mstInp.vld <= mstInpVld;
-      usb2EpIb.stalledInp <= haltedInp;
-      usb2EpIb.bFramedInp <= bFramedInp;
-      usb2EpIb.mstInp.err <= '0';
-      usb2EpIb.mstInp.don <= mstInpDon;
-      usb2EpIb.mstInp.dat <= mstInpDat;
-      usb2EpIb.stalledOut <= haltedOut;
-      usb2EpIb.subOut.rdy <= subOutRdy;
+      usb2EpOb            <= USB2_ENDP_PAIR_IB_INIT_C;
+      usb2EpOb.mstInp.vld <= mstInpVld;
+      usb2EpOb.stalledInp <= haltedInp;
+      usb2EpOb.bFramedInp <= bFramedInp;
+      usb2EpOb.mstInp.err <= '0';
+      usb2EpOb.mstInp.don <= mstInpDon;
+      usb2EpOb.mstInp.dat <= mstInpDat;
+      usb2EpOb.stalledOut <= haltedOut;
+      usb2EpOb.subOut.rdy <= subOutRdy;
    end process P_COMB;
 
 end architecture Impl;
