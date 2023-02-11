@@ -378,7 +378,7 @@ begin
 
       usb2Ep0ReqParam              => ep0ReqParam,
       usb2Ep0CtlExt                => ep0CtlExt,
-      usb2Ep0CtlEpExt              => cdcacmCtlEpIb,
+      usb2Ep0CtlEpIbExt            => cdcacmCtlEpIb,
 
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb

@@ -547,7 +547,7 @@ report "SET_INTERFACE";
 
       usb2Ep0ReqParam              => open,
       usb2Ep0CtlExt                => open,
-      usb2Ep0CtlEpExt              => open,
+      usb2Ep0CtlEpIbExt            => open,
 
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb

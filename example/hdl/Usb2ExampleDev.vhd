@@ -316,7 +316,7 @@ begin
 
          usb2Ep0ReqParam              => usb2Ep0ReqParamIn,
          usb2Ep0CtlExt                => usb2Ep0CtlExt,
-         usb2Ep0CtlEpExt              => usb2Ep0CtlEpExt,
+         usb2Ep0CtlEpIbExt            => usb2Ep0CtlEpExt,
 
          usb2HiSpeedEn                => '1',
          usb2RemoteWake               => usb2RemoteWake,

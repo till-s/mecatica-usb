@@ -64,7 +64,7 @@ entity Usb2Core is
       -- class-specific requests). See Usb2StdCtlEp.vhd for more comments.
       usb2Ep0ReqParam              : out   Usb2CtlReqParamType;
       usb2Ep0CtlExt                : in    Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
-      usb2Ep0CtlEpExt              : in    Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+      usb2Ep0CtlEpIbExt            : in    Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
 
       usb2HiSpeedEn                : in    std_logic          := '0';
       usb2RemoteWake               : in    std_logic          := '0';
@@ -315,7 +315,7 @@ begin
       param           => usb2Ep0ReqParam,
       pktHdr          => usb2RxLoc.pktHdr,
       ctlExt          => usb2Ep0CtlExt,
-      ctlEpExt        => usb2Ep0CtlEpExt,
+      ctlEpExt        => usb2Ep0CtlEpIbExt,
 
       suspend         => suspend,
       hiSpeed         => isHiSpeed,

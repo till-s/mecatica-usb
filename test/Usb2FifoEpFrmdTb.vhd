@@ -580,7 +580,7 @@ begin
 
       usb2Ep0ReqParam              => ep0ReqParam,
       usb2Ep0CtlExt                => ep0CtlExt,
-      usb2Ep0CtlEpExt              => open,
+      usb2Ep0CtlEpIbExt            => open,
 
       usb2HiSpeedEn                => hiSpeedEn,
 
