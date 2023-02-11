@@ -397,7 +397,7 @@ begin
 
       -- usb2 clock domain
       haltedOut           <= halted;
-      subOutRdy           <= fifoRdy;
+      subOutRdy           <= fifoRdy and not fifoFull;
 
       -- EP clock domain
       emptyOut            <= fifoEmpty or haltedOutEpClk;
