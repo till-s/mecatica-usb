@@ -311,6 +311,7 @@ begin
       v.devStatus.setHalt       := '0';
       v.devStatus.selHaltInp    := (others => '0');
       v.devStatus.selHaltOut    := (others => '0');
+      v.tblRdDone               := false;
 
       if ( ctlExt.don = '1' ) then
          v.reqParam.vld            := '0';
@@ -346,7 +347,6 @@ begin
       case ( r.state ) is
          when GET_PARAMS =>
             v.flg           := '0';
-            v.tblRdDone     := false;
             if ( epIb.mstCtl.vld = '1' ) then
                v.protoStall    := '0';
                v.err           := '0';
@@ -747,14 +747,21 @@ begin
             end if;
 
          when GET_DESCRIPTOR_SIZE =>
-            if ( r.count = 0 ) then
-               if ( r.size2B ) then
+            if ( r.count /= 0 ) then
+               v.auxOff   := 0;
+               v.retState := r.state;
+               v.state    := SCAN_DESC;
+               v.count    := r.count - 1;
+            else
+               if ( not r.tblRdDone ) then
+                  READ_TBL( v );
+               elsif ( r.size2B ) then
                   v.tblOff := r.tblOff - 1;
-                  v.tmpVal := descVal;
+                  v.tmpVal := r.readVal;
                   v.size2B := false;
                else
-                  if ( r.reqParam.length > w2u( r.tmpVal & descVal ) ) then
-                     v.auxOff    := to_integer( w2u( r.tmpVal & descVal ) ) - 1 ;
+                  if ( r.reqParam.length > w2u( r.tmpVal & r.readVal ) ) then
+                     v.auxOff    := to_integer( w2u( r.tmpVal & r.readVal ) ) - 1 ;
                   else
                      v.auxOff    := to_integer(r.reqParam.length) - 1;
                      -- is the requested length an exact multiple of the packet size?
@@ -762,14 +769,9 @@ begin
                      v.sizeMatch := (r.reqParam.length(EP0_PKT_SIZE_MSK_C'range) = EP0_PKT_SIZE_MSK_C);
                   end if;
                   v.tblOff := 0;
-                  v.state  := READ_DESCRIPTOR;
+                  READ_TBL( v, READ_DESCRIPTOR );
                   v.flg    := '0';
                end if;
-            else
-               v.auxOff   := 0;
-               v.retState := r.state;
-               v.state    := SCAN_DESC;
-               v.count    := r.count - 1;
             end if;
 
          when READ_DESCRIPTOR =>
@@ -801,7 +803,6 @@ begin
                   end if;
                end if;
             end if;
-
 
          when RETURN_VALUE =>
             epOb.mstInp.dat <= r.retVal;
