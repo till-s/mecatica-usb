@@ -64,7 +64,7 @@ entity Usb2FifoEp is
       timeFillInp                  : in  unsigned(TIMER_WIDTH_G - 1 downto 0) := (others => '0');
 
       epClk                        : in  std_logic    := '0';
-      -- reset received from USB
+      -- reset received from USB or endpoint not active in current alt-setting
       epRstOut                     : out std_logic;
 
       -- FIFO Interface IN (to USB); epClk domain
@@ -129,12 +129,12 @@ architecture Impl of Usb2FifoEp is
 
 begin
 
-   epRstOut <= epRstOutLoc;
+   epRstOutLoc <= obFifoRst or ibFifoRst;
+   epRstOut    <= epRstOutLoc;
 
    G_SYNC : if ( not ASYNC_G ) generate
    begin
       epClkLoc       <= usb2Clk;
-      epRstOutLoc    <= usb2Rst;
       haltedInpEpClk <= haltedInp;
       haltedOutEpClk <= haltedOut;
    end generate G_SYNC;
@@ -143,7 +143,6 @@ begin
    begin
 
       epClkLoc    <= epClk;
-      epRstOutLoc <= obFifoRst or ibFifoRst;
 
       U_SYNC_HALT_INP : entity work.Usb2CCSync
          port map (
@@ -175,12 +174,18 @@ begin
       signal numFramesOut : unsigned(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
       signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_INP_G downto 0);
       signal haveAFrame   : std_logic := '1';
+      signal usb2RstLoc   : std_logic;
+      signal epRunning    : std_logic;
    begin
+
+      epRunning  <= epInpRunning( usb2EpOb );
+
+      usb2RstLoc <= usb2Rst or not epRunning;
 
       P_HALT : process ( usb2Clk ) is
       begin
          if ( rising_edge( usb2Clk ) ) then
-            if ( usb2Rst = '1' ) then
+            if ( usb2RstLoc = '1' ) then
                halted  <= '0';
             else
                if ( usb2EpOb.setHaltInp = '1' ) then
@@ -208,7 +213,7 @@ begin
 
       G_WITH_DON : if ( LD_MAX_FRAMES_INP_G > 0 ) generate
          fifoDin    <= donInp & datInp;
-         mstInpDon  <= fifoDou( datInp'length );
+         mstInpDon  <= fifoDou( datInp'length ) and not fifoEmpty;
          bFramedInp <= '0'; -- support framing
 
          -- maintain frame counters
@@ -234,7 +239,7 @@ begin
          P_RD_FRAMES : process ( usb2Clk ) is
          begin
             if ( rising_edge( usb2Clk ) ) then
-               if ( usb2Rst = '1' ) then
+               if ( usb2RstLoc = '1' ) then
                   numFramesOut <= (others => '0');
                else
                   if ( ( fifoRen and mstInpDon ) = '1' ) then
@@ -274,7 +279,7 @@ begin
             wrXtraInp    => xtraInp,
 
             rdClk        => usb2Clk,
-            rdRst        => usb2Rst,
+            rdRst        => usb2RstLoc,
 
             dou          => fifoDou,
             ren          => fifoRen,
@@ -305,10 +310,14 @@ begin
       signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0);
       signal numFramesOut : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
       signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0);
+      signal epRunning    : std_logic;
+      signal usb2RstLoc   : std_logic;
    begin
 
       -- reduce typing
       maxPktSz   <= usb2EpOb.config.maxPktSizeOut;
+      epRunning  <= epOutRunning( usb2EpOb );
+      usb2RstLoc <= usb2Rst or not epRunning;
 
       datOut     <= fifoDou( datOut'range );
 
@@ -323,7 +332,7 @@ begin
          P_WR_FRAMES : process ( usb2Clk ) is
          begin
             if ( rising_edge( usb2Clk ) ) then
-               if ( usb2Rst = '1' ) then
+               if ( usb2RstLoc = '1' ) then
                   numFramesInp <= (others => '0');
                else
                   if ( (usb2EpOb.mstOut.don and fifoWen) = '1' ) then
@@ -361,7 +370,7 @@ begin
       P_SEQ : process ( usb2Clk ) is
       begin
          if ( rising_edge( usb2Clk ) ) then
-            if ( usb2Rst = '1' ) then
+            if ( usb2RstLoc = '1' ) then
                halted    <= '0';
                fifoRdy   <= '0';
                lastWen   <= '0';
@@ -397,7 +406,7 @@ begin
 
       -- usb2 clock domain
       haltedOut           <= halted;
-      subOutRdy           <= fifoRdy;
+      subOutRdy           <= fifoRdy and not fifoFull;
 
       -- EP clock domain
       emptyOut            <= fifoEmpty or haltedOutEpClk;
@@ -414,7 +423,7 @@ begin
          )
          port map (
             wrClk        => usb2Clk,
-            wrRst        => usb2Rst,
+            wrRst        => usb2RstLoc,
 
             din          => fifoDin,
             wen          => fifoWen,

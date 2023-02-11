@@ -218,6 +218,7 @@ architecture sim of Usb2FifoEpFrmdTb is
    signal ep0CtlExt                : Usb2CtlExtType := USB2_CTL_EXT_NAK_C;
 
    signal epClk                    : std_logic    := '0';
+   signal epRstOut                 : std_logic;
    signal epRun                    : boolean      := true;
    signal usb2Don                  : boolean      := false;
    signal epTglOut                 : boolean      := false;
@@ -402,7 +403,7 @@ begin
 
       ulpiClkTick;
 
-      L_PERIODS_OUT : while ( false ) loop
+      L_PERIODS_OUT : while ( true ) loop
          report "Testing OUT with clock period " & time'image( EP_PERIODS_C(epPeriodSelOut) ) & " (stay tuned...)";
 
          for l in speedCfg'range loop
@@ -433,11 +434,20 @@ begin
            epTick;
          end if;
       end loop;
-
       epPeriodSelOut <= 0;
       epTick;
-      startTstInp <= true;
-      ulpiClkTick;
+
+      -- these (precise) delays exercise a bug when the INP fifo 'don' readout was
+      -- not qualified with 'not fifoEmpty'
+      if ( true ) then
+         for i in 1 to 10000 loop
+            ulpiClkTick;
+         end loop;
+
+         epTick;
+         startTstInp <= true;
+         epTick;
+      end if;
 
       L_PERIODS_INP : while ( true ) loop
          report "Testing INP with clock period " & time'image( EP_PERIODS_C(epPeriodSelInp) ) & " (stay tuned...)";
@@ -526,7 +536,7 @@ begin
    P_EP_1_WR  : process is
    begin
       epTick;
-      while not startTstInp loop
+      while not startTstInp or epRstOut = '1' loop
          epTick;
       end loop;
       fifoSendD2( fifoInp, frmsSentInp, 3 );
@@ -605,7 +615,7 @@ begin
          usb2EpOb                  => epOb(TST_EP_IDX_C),
 
          epClk                     => epClk,
-         epRstOut                  => open,
+         epRstOut                  => epRstOut,
 
          datInp                    => fifoInp.dat,
          donInp                    => fifoInp.don,
