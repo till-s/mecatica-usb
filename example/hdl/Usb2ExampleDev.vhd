@@ -421,8 +421,8 @@ begin
             usb2Ep0ReqParam            => usb2Ep0ReqParam,
             usb2Ep0CtlExt              => usb2Ep0CDCACMCtlExt,
 
-            usb2EpIb                   => usb2EpIb(CDC_ACM_BULK_EP_IDX_C),
-            usb2EpOb                   => usb2EpOb(CDC_ACM_BULK_EP_IDX_C),
+            usb2EpIb                   => usb2EpOb(CDC_ACM_BULK_EP_IDX_C),
+            usb2EpOb                   => usb2EpIb(CDC_ACM_BULK_EP_IDX_C),
 
             lineBreak                  => acmLineBreak,
             DTR                        => DTR,
