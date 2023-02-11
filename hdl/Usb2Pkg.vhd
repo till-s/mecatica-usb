@@ -197,7 +197,6 @@ package Usb2Pkg is
       hasHaltOut       => true
    );
 
-
    -- HANDSHAKE
    -- Between endpoints and the packet engine the following
    -- handshake protocol is used in IN direction (mstInp/subInp)
@@ -309,7 +308,7 @@ package Usb2Pkg is
       config     => USB2_ENDP_PAIR_CONFIG_INIT_C
    );
 
-   type Usb2EndpPairConfigArray is array (natural range <>) of Usb2EndpPairConfigType;
+   type Usb2EndpPairConfigArray   is array (natural range <>) of Usb2EndpPairConfigType;
    type Usb2EndpPairIbArray       is array (natural range <>) of Usb2EndpPairIbType;
    type Usb2EndpPairObArray       is array (natural range <>) of Usb2EndpPairObType;
 
@@ -479,6 +478,11 @@ package Usb2Pkg is
       constant i : in natural
    ) return boolean;
 
+   -- indicate if an endpoint is enabled/'chosen' in the currently
+   -- active alt-setting (if any)
+   function epInpRunning(constant ep : in Usb2EndpPairObType) return std_logic;
+   function epOutRunning(constant ep : in Usb2EndpPairObType) return std_logic;
+
 end package Usb2Pkg;
 
 package body Usb2Pkg is
@@ -589,5 +593,24 @@ package body Usb2Pkg is
       return resize( unsigned(x), Usb2InterfaceNumType'length );
    end function toUsb2InterfaceNumType;
 
+   function epInpRunning(constant ep : in Usb2EndpPairObType)
+   return std_logic is
+   begin
+      if ( ep.config.maxPktSizeInp = 0 ) then
+         return '0';
+      else
+         return '1';
+      end if;
+   end function epInpRunning;
+
+   function epOutRunning(constant ep : in Usb2EndpPairObType)
+   return std_logic is
+   begin
+      if ( ep.config.maxPktSizeOut = 0 ) then
+         return '0';
+      else
+         return '1';
+      end if;
+   end function epOutRunning;
 
 end package body Usb2Pkg;

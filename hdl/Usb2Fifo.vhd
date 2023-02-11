@@ -163,8 +163,9 @@ begin
       signal dinB             : std_logic_vector(B_W_C - 1 downto 0);
       signal douB             : std_logic_vector(A_W_C - 1 downto 0) := (others => '0');
 
-      signal resettingA       : std_logic := '0'; -- hold reset state triggered by reset on A side
-      signal resettingB       : std_logic := '0'; -- hold reset state triggered by reset on B side
+      -- signal an initial reset to make sure any side waits for the other one
+      signal resettingA       : std_logic := '1'; -- hold reset state triggered by reset on A side
+      signal resettingB       : std_logic := '1'; -- hold reset state triggered by reset on B side
 
       signal rstAFeedback     : std_logic;        -- resettingA did a full round trip
       signal rstASeenAtB      : std_logic;        -- resettingA output on B side
@@ -237,9 +238,9 @@ begin
 
    end generate G_ASYNC;
 
-   fifoFull   <= isFull( rWr, rdPtrOut );
+   fifoFull   <= isFull( rWr, rdPtrOut ) or wrRstLoc;
    fifoWen    <= not isFull( rWr, rdPtrOut ) and wen;
-   fifoEmpty  <= not rRd.vld(0) or rinRd.delayRd;
+   fifoEmpty  <= not rRd.vld(0) or rinRd.delayRd or rdRstLoc;
 
    advanceReg <= not rRd.vld(0) or (ren and not rinRd.delayRd);
    -- if there is no register then advanceMem == advanceReg
