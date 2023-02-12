@@ -72,11 +72,11 @@ entity Usb2Core is
       usb2SelfPowered              : in    std_logic          := '0';
 
       -- Endpoints are attached here (1 and up)
-      usb2EpIb                     : in    Usb2EndpPairIbArray(1 to USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G) - 1)
+      usb2EpIb                     : in    Usb2EndpPairIbArray(1 to USB2_APP_MAX_ENDPOINTS_F(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_IB_INIT_C );
       -- note EP0 output can be observed here; an external agent extending EP0 functionality
       -- needs to listen to this.
-      usb2EpOb                     : out   Usb2EndpPairObArray(0 to USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G) - 1)
+      usb2EpOb                     : out   Usb2EndpPairObArray(0 to USB2_APP_MAX_ENDPOINTS_F(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_OB_INIT_C )
    );
 
@@ -85,7 +85,7 @@ end entity Usb2Core;
 
 architecture Impl of Usb2Core is
 
-   constant NUM_ENDPOINTS_C : natural         := USB2_APP_NUM_ENDPOINTS_F(DESCRIPTORS_G);
+   constant NUM_ENDPOINTS_C : natural         := USB2_APP_MAX_ENDPOINTS_F(DESCRIPTORS_G);
 
    signal ulpiRx            : UlpiRxType      := ULPI_RX_INIT_C;
    signal usb2RxLoc         : Usb2RxType      := USB2_RX_INIT_C;

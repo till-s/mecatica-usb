@@ -155,7 +155,7 @@ architecture Impl of Usb2ExampleDev is
 
    constant USE_MMCM_C                         : boolean := true;
 
-   constant N_EP_C                             : natural := USB2_APP_NUM_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
+   constant N_EP_C                             : natural := USB2_APP_MAX_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
 
    constant CDC_ACM_BULK_EP_IDX_C              : natural := 1;
    constant BADD_ISO_EP_IDX_C                  : natural := 3;
@@ -559,8 +559,8 @@ begin
             usb2Ep0ReqParam            => usb2Ep0ReqParam,
             usb2Ep0CtlExt              => usb2Ep0CDCECMCtlExt,
 
-            usb2EpIb                   => usb2EpOb(CDC_ECM_BULK_EP_IDX_C),
-            usb2EpOb                   => usb2EpIb(CDC_ECM_BULK_EP_IDX_C),
+            usb2DataEpIb               => usb2EpOb(CDC_ECM_BULK_EP_IDX_C),
+            usb2DataEpOb               => usb2EpIb(CDC_ECM_BULK_EP_IDX_C),
 
             fifoMinFillInp             => ecmFifoMinFill,
             fifoTimeFillInp            => ecmFifoTimer,

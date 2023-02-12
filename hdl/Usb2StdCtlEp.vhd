@@ -82,6 +82,7 @@ architecture Impl of Usb2StdCtlEp is
    constant MAX_INTERFACES_C   : natural          := USB2_APP_MAX_INTERFACES_F ( DESCRIPTORS_G );
    constant CFG_IDX_TABLE_C    : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F ( DESCRIPTORS_G );
    constant STRINGS_IDX_C      : Usb2DescIdxType  := USB2_APP_STRINGS_IDX_F    ( DESCRIPTORS_G );
+   constant NUM_STRINGS_C      : natural          := USB2_APP_NUM_STRINGS_F    ( DESCRIPTORS_G );
 
    type StateType is (
       GET_PARAMS,
@@ -504,10 +505,14 @@ begin
 -- not implemented      when USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  =>
 
                         when USB2_STD_DESC_TYPE_STRING_C            =>
-                           v.count := to_integer(unsigned(r.reqParam.value(7 downto 0)));
-                           -- ignore language ID
-                           v.tblIdx     := STRINGS_IDX_C;
-                           v.descType   := USB2_STD_DESC_TYPE_STRING_C;
+                           if ( NUM_STRINGS_C > 0 ) then
+                              v.count := to_integer(unsigned(r.reqParam.value(7 downto 0)));
+                              -- ignore language ID
+                              v.tblIdx     := STRINGS_IDX_C;
+                              v.descType   := USB2_STD_DESC_TYPE_STRING_C;
+                           else
+                              v.protoStall := '1';
+                           end if;
                         when others                                 =>
                            v.protoStall := '1';
                      end case;
