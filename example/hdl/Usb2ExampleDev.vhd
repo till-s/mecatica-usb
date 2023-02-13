@@ -101,7 +101,7 @@ entity Usb2ExampleDev is
       -- oRegs(0,0)               : IN  fifo fill level
       -- oRegs(0,1)               : RTS, DTR, OUT fifo fill level
       -- CDC-ECM
-      -- oRegs(1,0)               : IN  fifo sizes, fifo fill level
+      -- oRegs(1,0)               : IN  fifo sizes, packetFilter, fifo fill level
       -- oRegs(1,1)               : OUT fifo frames & fill level
       oRegs                : out   RegArray(0 to 1, 0 to 1);
 
@@ -194,6 +194,7 @@ architecture Impl of Usb2ExampleDev is
 
    signal ecmFifoTimer                         : unsigned(31 downto 0) := (others => '0');
    signal ecmFifoMinFill                       : unsigned(LD_ECM_FIFO_DEPTH_INP_C - 1 downto 0) := (others => '0');
+   signal ecmPacketFilter                      : std_logic_vector(4 downto 0);
 
    signal ulpiClkLoc                           : std_logic;
    signal ulpiClkLocNb                         : std_logic;
@@ -254,6 +255,7 @@ begin
       ecmFifoFilledInp,
       ecmFifoFilledOut,
       ecmFifoFramesOut,
+      ecmPacketFilter,
       DTR, RTS
    ) is
    begin
@@ -265,7 +267,8 @@ begin
 
       oRegs(1,0)(31 downto 28)           <= std_logic_vector(to_unsigned(LD_ECM_FIFO_DEPTH_INP_C, 4));
       oRegs(1,0)(27 downto 24)           <= std_logic_vector(to_unsigned(LD_ECM_FIFO_DEPTH_OUT_C, 4));
-      oRegs(1,0)(23 downto 16)           <= (others => '0');
+      oRegs(1,0)(23 downto 21)           <= (others => '0');
+      oRegs(1,0)(20 downto 16)           <= ecmPacketFilter;
       oRegs(1,0)(15 downto  0)           <= std_logic_vector(resize(ecmFifoFilledInp, 16));
 
       oRegs(1,1)(31 downto 16)           <= std_logic_vector(resize(ecmFifoFramesOut, 16));
@@ -574,6 +577,8 @@ begin
 
             fifoMinFillInp             => ecmFifoMinFill,
             fifoTimeFillInp            => ecmFifoTimer,
+
+            packetFilter               => ecmPacketFilter,
 
             epClk                      => ulpiClkLoc,
             epRstOut                   => open,
