@@ -39,6 +39,9 @@ MODULE_ALIAS("platform:exFifoEth");
 #define IRQ_ENBL_REG       0x90
 #define INP_FIFO_FILL_REG  0x40
 #define OUT_FIFO_FILL_REG  0x44
+#define FIFO_CTL_0_REG     0x80
+#define CARRIER_ON         (1<<31)
+#define FIFO_CTL_1_REG     0x84
 #define FIFO_REG           0xc0
 
 #define RX_FIFO_EMPTY (1<<8)
@@ -97,6 +100,21 @@ u32           val;
 		val = ioread32( me->base + IRQ_ENBL_REG );
 		val |= msk;
 		iowrite32( val, me->base + IRQ_ENBL_REG );
+	spin_unlock_irqrestore( &me->lock, flags );
+}
+
+static void set_carrier(struct drv_fifo *me, int on)
+{
+unsigned long flags;
+u32           val;
+	spin_lock_irqsave( &me->lock, flags );
+		val = ioread32( me->base + FIFO_CTL_0_REG );
+		if ( on ) {
+			val |= CARRIER_ON;
+		} else {
+			val &= ~CARRIER_ON;
+		}
+		iowrite32( val, me->base + FIFO_CTL_0_REG );
 	spin_unlock_irqrestore( &me->lock, flags );
 }
 
@@ -168,6 +186,7 @@ ndev_open(struct net_device *ndev)
 	enable_irqs( me, RX_FIFO_IRQ | TX_FIFO_IRQ );
 
 	netif_start_queue( ndev );
+	set_carrier( me, 1 );
 	return 0;
 }
 
@@ -175,6 +194,8 @@ static int
 ndev_close(struct net_device *ndev)
 {
 	struct drv_info     *me = netdev_priv( ndev );
+
+	set_carrier( me, 0 );
 
 	netif_stop_queue( ndev );
 	netif_carrier_off( ndev );
