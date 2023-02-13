@@ -11,6 +11,7 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
+use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
 
 entity Usb2EpCDCECM is
@@ -28,7 +29,8 @@ entity Usb2EpCDCECM is
       FIFO_OUT_REG_OUT_G         : boolean   := false;
       -- width of the IN fifo timer (counts in 60MHz cycles)
       FIFO_TIMER_WIDTH_G         : positive  := 1;
-      CARRIER_DFLT_G             : std_logic := '1'
+      CARRIER_DFLT_G             : std_logic := '1';
+      MARK_DEBUG_G               : boolean   := true
    );
    port (
       usb2Clk                    : in  std_logic;
@@ -107,6 +109,11 @@ entity Usb2EpCDCECM is
 
       carrier                    : in  std_logic := CARRIER_DFLT_G
    );
+
+   attribute MARK_DEBUG of usb2NotifyEpOb : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of packetFilter   : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of carrier        : signal is toStr( MARK_DEBUG_G );
+
 end entity Usb2EpCDCECM;
 
 architecture Impl of Usb2EpCDCECM is
@@ -158,6 +165,8 @@ architecture Impl of Usb2EpCDCECM is
 
    signal carrierLoc      : std_logic;
    signal epRstLoc        : std_logic;
+
+   attribute MARK_DEBUG   of r : signal is toStr( MARK_DEBUG_G );
 
 begin
 
@@ -228,12 +237,13 @@ begin
          when IDLE =>
             if ( carrierLoc /= r.carrier ) then
                v.carrier    := carrierLoc;
-               v.state      := send;
                v.msgCarrier := true;
+               v.state      := SEND;
             elsif ( ( speedInp /= r.speedInp ) or ( speedOut /= r.speedOut ) ) then
-               v.speedInp    := speedInp;
-               v.speedOut    := speedOut;
-               v.msgCarrier  := false;
+               v.speedInp   := speedInp;
+               v.speedOut   := speedOut;
+               v.msgCarrier := false;
+               v.state      := SEND;
             end if;
 
          when SEND =>
@@ -282,6 +292,7 @@ begin
             end case;
 
          when DONE =>
+            v.idx := 0;
             usb2NotifyEpOb.mstInp.don <= '1';
             usb2NotifyEpOb.mstInp.vld <= '0';
             if ( usb2NotifyEpIb.subinp.rdy = '1' ) then
