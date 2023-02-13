@@ -52,11 +52,11 @@ entity Usb2EpCDCECM is
       usb2NotifyEpIb             : in  Usb2EndpPairObType  := USB2_ENDP_PAIR_OB_INIT_C;
       usb2NotifyEpOb             : out Usb2EndpPairIbType  := USB2_ENDP_PAIR_IB_INIT_C;
 
-      packetFilter               : out std_logic_vector(4 downto 0);
-
       -- note that this is in the USB2 clock domain; if you really
       -- need this (and if ASYNC_G) you need to sync from the epClk 
       -- yourself...
+      packetFilter               : out std_logic_vector(4 downto 0);
+
       speedInp                   : in  unsigned(31 downto 0) := to_unsigned( 100000000, 32 );
       speedOut                   : in  unsigned(31 downto 0) := to_unsigned( 100000000, 32 );
 
