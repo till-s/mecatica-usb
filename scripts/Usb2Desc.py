@@ -630,6 +630,18 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
   d = ctxt.Usb2CDCFuncEthernetDesc()
   d.iMACAddress( iMACAddr )
 
+  # endpoint 2, IRQ IN
+  d = ctxt.Usb2EndpointDesc()
+  d.bEndpointAddress( d.ENDPOINT_IN | (epAddr + 1) )
+  d.bmAttributes( d.ENDPOINT_TT_INTERRUPT )
+  d.wMaxPacketSize( 16 )
+
+  if ( hiSpeed ):
+    d.bInterval(8) # (2**(interval - 1) microframes; 16 is max.
+  else:
+    d.bInterval(16) #ms
+
+  numEPPs += 1
   numIfcs += 1
 
   # interface 1
