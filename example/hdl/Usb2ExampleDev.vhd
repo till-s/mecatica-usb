@@ -90,9 +90,10 @@ entity Usb2ExampleDev is
       -- iRegs(0,0)(31)           : USB remote wakeup
 
       -- iRegs(0,1)               : IN fifo fill timer (in ulpi CLK cycles)
-      --                         fill-level and fill-timer work like termios VMIN/VTIME
+      --                            fill-level and fill-timer work like termios VMIN/VTIME
       -- CDC-ECM
       -- iRegs(1,0)(10 downto 0)  : min. fill level of the IN fifo until data are sent to USB
+      -- iRegs(1,0)(31)           : carrier indicator
       -- iRegs(1,1)               : IN fifo fill timer (in ulpi CLK cycles)
       iRegs                : in    RegArray(0 to 1, 0 to 1);
       -- status vector
@@ -158,8 +159,10 @@ architecture Impl of Usb2ExampleDev is
    constant N_EP_C                             : natural := USB2_APP_MAX_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
 
    constant CDC_ACM_BULK_EP_IDX_C              : natural := 1;
+   constant CDC_ACM_IRQ_EP_IDX_C               : natural := 2;
    constant BADD_ISO_EP_IDX_C                  : natural := 3;
    constant CDC_ECM_BULK_EP_IDX_C              : natural := 4;
+   constant CDC_ECM_IRQ_EP_IDX_C               : natural := 5;
 
    constant CDC_ACM_IFC_NUM_C                  : natural := 0; -- uses 2 interfaces
    constant BADD_IFC_NUM_C                     : natural := 2; -- uses 2 interfaces
@@ -540,17 +543,22 @@ begin
    end block B_EP_ISO_BADD;
 
    B_EP_CDCECM : block is
+
+      signal ecmCarrier               : std_logic;
+
    begin
 
       ecmFifoMinFill  <= unsigned(iRegs(1,0)(ecmFifoMinFill'range));
+      ecmCarrier      <= iRegs(1,0)(31);
       ecmFifoTimer    <= unsigned(iRegs(1,1)(ecmFifoTimer'range));
 
       U_CDCECM : entity work.Usb2EpCDCECM
          generic map (
-            CTL_IFC_NUM_G               => CDC_ECM_IFC_NUM_C,
-            LD_FIFO_DEPTH_INP_G         => LD_ECM_FIFO_DEPTH_INP_C,
-            LD_FIFO_DEPTH_OUT_G         => LD_ECM_FIFO_DEPTH_OUT_C,
-            FIFO_TIMER_WIDTH_G          => ecmFifoTimer'length
+            CTL_IFC_NUM_G              => CDC_ECM_IFC_NUM_C,
+            LD_FIFO_DEPTH_INP_G        => LD_ECM_FIFO_DEPTH_INP_C,
+            LD_FIFO_DEPTH_OUT_G        => LD_ECM_FIFO_DEPTH_OUT_C,
+            FIFO_TIMER_WIDTH_G         => ecmFifoTimer'length,
+            CARRIER_DFLT_G             => '0'
          )
          port map (
             usb2Clk                    => ulpiClkLoc,
@@ -561,6 +569,8 @@ begin
 
             usb2DataEpIb               => usb2EpOb(CDC_ECM_BULK_EP_IDX_C),
             usb2DataEpOb               => usb2EpIb(CDC_ECM_BULK_EP_IDX_C),
+            usb2NotifyEpIb             => usb2EpOb(CDC_ECM_IRQ_EP_IDX_C),
+            usb2NotifyEpOb             => usb2EpIb(CDC_ECM_IRQ_EP_IDX_C),
 
             fifoMinFillInp             => ecmFifoMinFill,
             fifoTimeFillInp            => ecmFifoTimer,
@@ -579,7 +589,9 @@ begin
             fifoRenaOut                => ecmFifoOutRen,
             fifoEmptyOut               => ecmFifoOutEmpty,
             fifoFilledOut              => ecmFifoFilledOut,
-            fifoFramesOut              => ecmFifoFramesOut
+            fifoFramesOut              => ecmFifoFramesOut,
+
+            carrier                    => ecmCarrier
          );
 
       ecmFifoOutFill <= resize(ecmFifoFilledOut, ecmFifoOutFill'length);
