@@ -1,3 +1,8 @@
+# Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.
+# You may obtain a copy of the license at
+#   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+# This notice must not be removed.
+
 # Zybo PMOD JB1_P
 set_property PACKAGE_PIN T20 [get_ports ulpiStp]
 # Zybo PMOD JB1_N
@@ -66,7 +71,6 @@ set_property PACKAGE_PIN L17 [get_ports i2sPBLRC]
 set_property PACKAGE_PIN M17 [get_ports i2sPBDAT]
 set_property PACKAGE_PIN P18 [get_ports i2sMUTEb]
 set_property IOSTANDARD LVCMOS33 [get_ports -regex i2s.*]
-set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets i2sBCLK_IBUF]
 
 set_property PACKAGE_PIN M14 [get_ports {LED[0]}]
 set_property PACKAGE_PIN M15 [get_ports {LED[1]}]

@@ -17,9 +17,9 @@ package Usb2DescPkg is
    subtype  Usb2DescIdxType    is natural range 0 to USB2_APP_DESCRIPTORS_C'length - 1;
    type Usb2DescIdxArray is array(natural range <>) of Usb2DescIdxType;
 
-   function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray) return positive;
+--   function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray) return positive;
 
-   function USB2_APP_NUM_ENDPOINTS_F(constant d: Usb2ByteArray) return positive;
+   function USB2_APP_MAX_ENDPOINTS_F(constant d: Usb2ByteArray) return positive;
 
    -- max. number of interfaces among all configurations
    -- e.g., if config 1 has 1 interface and config 2 has
@@ -34,7 +34,28 @@ package Usb2DescPkg is
    -- settings includes the default (0) setting.
    function USB2_APP_MAX_ALTSETTINGS_F(constant d: Usb2ByteArray) return natural;
 
-   function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray) return Usb2DescIdxArray;
+   -- A high-speed device is expected to follow the layout:
+   --      FS-device descriptor
+   --      FS-device qualifier
+   --      FS-config
+   --      FS-interfaces
+   --      ...
+   --      SENTINEL
+   --      HS-device descriptor
+   --      FS-device qualifier
+   --      FS-config
+   --      FS-interfaces
+   --      string-descriptors
+   --      SENTINEL
+   --
+   -- A full-speed only device follows the layout
+   --      FS-device descriptor
+   --      FS-config
+   --      FS-interfaces
+   --      string-descriptors
+   --      SENTINEL
+   -- it has a zero-length HS_CONFIG_IDX_TBL
+   function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray; constant hs : boolean := false) return Usb2DescIdxArray;
 
    function USB2_APP_NUM_STRINGS_F(constant d: Usb2ByteArray) return natural;
 
@@ -44,13 +65,15 @@ package Usb2DescPkg is
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
       constant s: integer;
-      constant t: Usb2StdDescriptorTypeType
+      constant t: Usb2StdDescriptorTypeType;
+      constant a: boolean := false
    ) return integer;
 
    -- skip to the next descriptor
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
-      constant s: integer
+      constant s: integer;
+      constant a: boolean := false
    ) return integer;
 
    function usb2CountDescriptors(
@@ -97,12 +120,16 @@ package body Usb2DescPkg is
 
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
-      constant s: integer
+      constant s: integer;
+      constant a: boolean := false
    ) return integer is
       variable i : integer := s;
    begin
       i := i + to_integer( unsigned( d(i + USB2_DESC_IDX_LENGTH_C) ) );
       if ( i >= d'length ) then
+         return -1;
+      end if;
+      if ( a and usb2DescIsSentinel( d(i + USB2_DESC_IDX_TYPE_C) ) ) then
          return -1;
       end if;
       return i;
@@ -121,13 +148,14 @@ package body Usb2DescPkg is
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
       constant s: integer;
-      constant t: Usb2StdDescriptorTypeType
+      constant t: Usb2StdDescriptorTypeType;
+      constant a: boolean := false
    ) return integer is
       variable i : integer := s;
    begin
 report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " & toStr(d(i+USB2_DESC_IDX_TYPE_C));
       while ( i >= 0 and Usb2StdDescriptorTypeType(d(i + USB2_DESC_IDX_TYPE_C)(3 downto 0)) /= t ) loop
-         i := usb2NextDescriptor(d, i);
+         i := usb2NextDescriptor(d, i, a);
       end loop;
       return i;
    end function usb2NextDescriptor;
@@ -156,7 +184,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return highest + 1;
    end function findMax;
 
-   function USB2_APP_NUM_ENDPOINTS_F(constant d: Usb2ByteArray)
+   function USB2_APP_MAX_ENDPOINTS_F(constant d: Usb2ByteArray)
    return positive is
       variable v : integer;
    begin
@@ -166,7 +194,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       end if;
       report integer'image(v) & " endpoints";
       return v;
-   end function USB2_APP_NUM_ENDPOINTS_F;
+   end function USB2_APP_MAX_ENDPOINTS_F;
 
    function USB2_APP_MAX_INTERFACES_F(constant d: Usb2ByteArray)
    return natural is
@@ -203,20 +231,38 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return n;
    end function usb2CountDescriptors;
   
-   function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray)
+   function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray; constant i: integer)
    return positive is
       variable nc : natural;
    begin
-      nc := usb2CountDescriptors(d, USB2_STD_DESC_TYPE_CONFIGURATION_C);
+      if ( i < 0 ) then
+         return -1;
+      end if;
+      nc := usb2CountDescriptors(d(i to d'high), USB2_STD_DESC_TYPE_CONFIGURATION_C);
       assert nc > 0 report "No configurations?" severity failure;
       return nc;
    end function USB2_APP_NUM_CONFIGURATIONS_F;
 
-   function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray)
+   function deviceDescriptorIndex(constant d: Usb2ByteArray; constant hs : boolean)
+   return integer is
+      variable i : integer;
+   begin
+      i := usb2NextDescriptor(d, 0, USB2_STD_DESC_TYPE_DEVICE_C);
+      if ( hs ) then
+         i := usb2NextDescriptor(d, i, USB2_STD_DESC_TYPE_DEVICE_C);
+      end if;
+      return i;
+   end function deviceDescriptorIndex;
+
+   function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray; constant hs : boolean := false)
    return Usb2DescIdxArray is
-      constant NC : positive := USB2_APP_NUM_CONFIGURATIONS_F(d);
+      constant di : natural  := deviceDescriptorIndex(d, hs);
+      constant NC : integer  := USB2_APP_NUM_CONFIGURATIONS_F(d, di);
       variable rv : Usb2DescIdxArray(0 to NC);
    begin
+      if ( NC < 0 ) then
+         return rv;
+      end if;
       rv(0) := usb2NextDescriptor(d, 0, USB2_STD_DESC_TYPE_DEVICE_C);
       for i in 1 to NC loop
          rv(i) := usb2NextDescriptor(d, rv(i-1), USB2_STD_DESC_TYPE_CONFIGURATION_C);

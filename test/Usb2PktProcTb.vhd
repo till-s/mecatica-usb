@@ -167,7 +167,7 @@ architecture sim of Usb2PktProcTb is
    constant CONFIG_INDEX_C         : std_logic_vector(7 downto 0) := x"00";
    constant CONFIG_BAD_VALUE_C     : std_logic_vector(7 downto 0) := x"02";
 
-   constant NUM_ENDPOINTS_C        : natural                      := USB2_APP_NUM_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
+   constant NUM_ENDPOINTS_C        : natural                      := USB2_APP_MAX_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
 
    constant ALT_C                  : std_logic_vector(15 downto 0) := x"0001";
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";

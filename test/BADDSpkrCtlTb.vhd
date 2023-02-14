@@ -137,7 +137,7 @@ architecture sim of BADDSpkrCtlTb is
    -- index is zero-based (?)
    constant CONFIG_INDEX_C         : std_logic_vector(7 downto 0) := x"00";
 
-   constant NUM_ENDPOINTS_C        : natural                      := USB2_APP_NUM_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
+   constant NUM_ENDPOINTS_C        : natural                      := USB2_APP_MAX_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
 
    signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
