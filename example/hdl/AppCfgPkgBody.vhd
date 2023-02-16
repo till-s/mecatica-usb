@@ -107,7 +107,7 @@ package body Usb2AppCfgPkg is
        76 => x"03",  -- bmAttributes
        77 => x"08",  -- wMaxPacketSize
        78 => x"00",
-       79 => x"ff",  -- bInterval
+       79 => x"10",  -- bInterval
       -- Usb2InterfaceDesc
        80 => x"09",  -- bLength
        81 => x"04",  -- bDescriptorType
@@ -360,7 +360,7 @@ package body Usb2AppCfgPkg is
       300 => x"03",  -- bmAttributes
       301 => x"08",  -- wMaxPacketSize
       302 => x"00",
-      303 => x"10",  -- bInterval
+      303 => x"08",  -- bInterval
       -- Usb2InterfaceDesc
       304 => x"09",  -- bLength
       305 => x"04",  -- bDescriptorType

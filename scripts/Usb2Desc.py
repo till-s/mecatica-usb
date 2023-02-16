@@ -811,9 +811,15 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineSt
   d.bmAttributes( d.ENDPOINT_TT_INTERRUPT )
   d.wMaxPacketSize(8)
   if ( hiSpeed ):
-    d.bInterval(16) # (2**(interval - 1) microframes; 16 is max.
+    if ( lineState ):
+      d.bInterval(8)
+    else:
+      d.bInterval(16) # (2**(interval - 1) microframes; 16 is max.
   else:
-    d.bInterval(255) #ms
+    if ( lineState ):
+      d.bInterval(16) #ms
+    else:
+      d.bInterval(255) #ms
 
   numIfcs += 1
   numEPPs += 1
