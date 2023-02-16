@@ -228,6 +228,7 @@ architecture Impl of Usb2StdCtlEp is
       size2B      : boolean;
       sizeMatch   : boolean;
       setupDone   : boolean;
+      patchOthCfg : std_logic_vector(1 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -270,7 +271,8 @@ architecture Impl of Usb2StdCtlEp is
       descType    => (others => '0'),
       size2B      => false,
       sizeMatch   => false,
-      setupDone   => false
+      setupDone   => false,
+      patchOthCfg => (others => '0')
    );
 
    -- a vivado work-around. Vivado complained about a index expression (when NUM_ENDPOINTS_G = 0) but
@@ -527,11 +529,12 @@ begin
                      v.state    := RETURN_VALUE;
 
                   when USB2_REQ_STD_GET_DESCRIPTOR_C    =>
-                     v.tblOff   := USB2_DESC_IDX_LENGTH_C;
-                     v.retVal   := (others => '0');
-                     v.size2B   := false;
-                     v.state    := GET_DESCRIPTOR_SIZE;
-                     v.count    := 0;
+                     v.tblOff      := USB2_DESC_IDX_LENGTH_C;
+                     v.retVal      := (others => '0');
+                     v.size2B      := false;
+                     v.state       := GET_DESCRIPTOR_SIZE;
+                     v.count       := 0;
+                     v.patchOthCfg := (others => '0');
                      case ( Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) ) ) is
                         when USB2_STD_DESC_TYPE_DEVICE_C            =>
                            v.tblIdx   := selCfgIdxTbl( tblSelHS )(0);
@@ -553,10 +556,13 @@ begin
                            if (   Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) )
                                 = USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C ) then
                               if ( FS_CFG_IDX_TABLE_C'length > 0 and HS_CFG_IDX_TABLE_C'length > 0 ) then
-                                 tblSelHS := not tblSelHS; -- other speed
+                                 tblSelHS         := not tblSelHS; -- other speed
+                                 -- during READ_DESCRIPTOR we must patch the descriptor type
+                                 -- to read 'OTHER_SPEED_CONFIGURATION'
+                                 v.patchOthCfg(1) := '1';
                               else
                                  -- use a table that fails the '<' comparison below
-                                 tblSelHs := ( HS_CFG_IDX_TABLE_C'length <= 0 );
+                                 tblSelHs         := ( HS_CFG_IDX_TABLE_C'length <= 0 );
                               end if;
                            end if;
                            -- according to the spec this is 0-based and thus not identical
@@ -827,6 +833,9 @@ begin
                v.state := STATUS;
             else
                epOb.mstInp.dat <= descVal;
+               if ( r.patchOthCfg(0) = '1' ) then
+                  epOb.mstInp.dat(Usb2StdDescriptorTypeType'range) <= std_logic_vector( USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C );
+               end if;
                epOb.mstInp.vld <= not r.flg;
                epOb.mstInp.don <= r.flg;
                epOb.mstInp.err <= '0';
@@ -844,10 +853,10 @@ begin
                      else
                         v.tblOff := r.tblOff + 1;
                      end if;
+                     v.patchOthCfg := '0' & r.patchOthCfg(r.patchOthCfg'left downto 1);
                   end if;
                end if;
             end if;
-
 
          when RETURN_VALUE =>
             epOb.mstInp.dat <= r.retVal;
