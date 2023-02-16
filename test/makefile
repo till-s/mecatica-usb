@@ -45,6 +45,7 @@ ifneq ($(VIVADO),)
 SRCS += I2SPlayback.vhd
 SRCS += I2SPlaybackTb.vhd
 endif
+SRCS += OthSpeedCfgTb.vhd
 
 
 PROG+=UlpiIOTb
@@ -62,6 +63,7 @@ PROG+=Usb2FifoAsyncTb
 ifneq ($(VIVADO),)
 PROG+=I2SPlaybackTb
 endif
+PROG += OthSpeedCfgTb
 
 all: $(addsuffix @run,$(PROG))
 	echo "All Tests PASSED"
@@ -110,6 +112,7 @@ Usb2IsoTb.o: Usb2Core.o
 Usb2PktProcTb.o: Usb2Core.o
 Usb2PktTxTb.o: Usb2PktTx.o UlpiIO.o
 UsbCrcTblTb.o: UsbCrcTbl.o
+OthSpeedCfgTb.o: Usb2Core.o
 
 BADDSpkrCtlTb.o: Usb2Core.o BADDSpkrCtl.o
 I2SPlayback.o: Usb2CCSync.o
