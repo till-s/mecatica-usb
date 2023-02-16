@@ -9,7 +9,7 @@ CROSS:=$(addsuffix -linux-,$(XA))
 
 
 blktst: blktst.c
-	$(CROSS)$(CC) -O2 -Wall -o $@ $< -lusb-1.0
+	$(CC) -O2 -Wall -o $@ $< -lusb-1.0
 
 mod-objs := drv_fifo_eth.o
 # Kernel Module:

@@ -103,7 +103,7 @@ u32           val;
 	spin_unlock_irqrestore( &me->lock, flags );
 }
 
-static void set_carrier(struct drv_fifo *me, int on)
+static void set_carrier(struct drv_info *me, int on)
 {
 unsigned long flags;
 u32           val;
@@ -137,11 +137,13 @@ rxFramesAvailable(struct drv_info *me)
 	return ( ioread32( me->base + OUT_FIFO_FILL_REG ) >> 16 ) & 0xffff;
 }
 
+/*
 static int
 rxBytesAvailable(struct drv_info *me)
 {
 	return ioread32( me->base + OUT_FIFO_FILL_REG ) & 0xffff;
 }
+*/
 
 static int
 txSpaceAvailable(struct drv_info *me)
