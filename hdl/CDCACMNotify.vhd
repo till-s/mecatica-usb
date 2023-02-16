@@ -162,8 +162,8 @@ begin
                -- when 5 => covered by others
                when  6 => usb2NotifyEpOb.mstInp.dat <= MSZ_C;
                -- when 7 => covered by others
-               -- when 8 => covered by others
-               when  9 => usb2NotifyEpOb.mstInp.dat <= r.dat;
+               when  8 => usb2NotifyEpOb.mstInp.dat <= r.dat;
+               -- when 9 => covered by others
                when others =>  null;
             end case;
 
