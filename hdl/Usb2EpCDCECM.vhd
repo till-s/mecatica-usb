@@ -30,7 +30,7 @@ entity Usb2EpCDCECM is
       -- width of the IN fifo timer (counts in 60MHz cycles)
       FIFO_TIMER_WIDTH_G         : positive  := 1;
       CARRIER_DFLT_G             : std_logic := '1';
-      MARK_DEBUG_G               : boolean   := true
+      MARK_DEBUG_G               : boolean   := false
    );
    port (
       usb2Clk                    : in  std_logic;
