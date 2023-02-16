@@ -41,7 +41,8 @@ package Usb2TstPkg is
    );
 
    procedure usb2TstPkgConfig(
-       constant epOb : in Usb2EndpPairObArray
+       constant epOb : in Usb2EndpPairObArray;
+       constant hs   : in boolean := false
    );
 
    -- send a byte vector on ULPI
@@ -258,6 +259,7 @@ package body Usb2TstPkg is
 
    shared variable dtglInp : std_logic_vector(0 to MAX_ENDPOINTS_C - 1) := (others => '0');
    shared variable dtglOut : std_logic_vector(0 to MAX_ENDPOINTS_C - 1) := (others => '0');
+   shared variable hiSpeed : boolean                                    := false;
 
    shared variable epCfg   : Usb2TstEpCfgArray := (
       -- use initial size so we are able to read the device descriptor
@@ -830,6 +832,7 @@ end if;
       variable v         : Usb2ByteArray(0 to 7);
       variable stalled   : boolean;
       constant codl      : unsigned(7 downto 0) := resize(cod, 8);
+      variable rpol      : Usb2TstRetryPolicyType;
    begin
       v             := (others => (others => '0'));
       v(1)          := std_logic_vector( resize(cod, v(1)'length) );
@@ -839,6 +842,11 @@ end if;
       v(IDX_I_H_C)  := idx(15 downto 8);
       v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
       v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
+      if hiSpeed then
+         rpol := PING;
+      else
+         rpol := NAK;
+      end if;
       -- hacks to pass explicit request type values
       if ( typ'length = 8 ) then
          v(TYP_I_C) := typ;
@@ -888,10 +896,12 @@ end if;
              return;
           end if;
           -- STATUS
-          ulpiTstSendDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, false, rtr => 2, w => w, timo => timo);
+report "status start";
+          ulpiTstSendDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, false, rtr => 2, w => w, timo => timo, rtrPol => rpol );
+report "status end";
        else
           if ( eda'length > 0 ) then
-             ulpiTstSendDat( ob, eda, USB2_ENDP_ZERO_C, dva, rtr => 2, w => w, timo => timo );
+             ulpiTstSendDat( ob, eda, USB2_ENDP_ZERO_C, dva, rtr => 2, w => w, timo => timo, rtrPol => rpol );
           end if;
           ulpiTstWaitDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, rtr => rtr, rak => 2, w => w, timo => timo, estl => (epid = USB2_PID_HSK_STALL_C) );
        end if;
@@ -906,9 +916,11 @@ end if;
     end procedure usb2TstPkgConfig;
 
     procedure usb2TstPkgConfig(
-       constant epOb : in Usb2EndpPairObArray
+       constant epOb : in Usb2EndpPairObArray;
+       constant hs   : in boolean := false
     ) is
     begin
+       hiSpeed := hs;
        for i in epOb'range loop
           epCfg(i).maxPktSizeInp := to_integer( epOb(i).config.maxPktSizeInp );
           epCfg(i).maxPktSizeOut := to_integer( epOb(i).config.maxPktSizeOut );
