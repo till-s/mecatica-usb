@@ -311,7 +311,7 @@ begin
    P_SEQ_NOTE : process ( usb2Clk ) is
    begin
       if ( rising_edge( usb2Clk ) ) then
-         if ( usb2EpResetting = '1' ) then
+         if ( ( usb2EpResetting or not epInpRunning( usb2NotifyEpIb ) ) = '1' ) then
             r <= REG_INIT_C;
          else
             r <= rin;
