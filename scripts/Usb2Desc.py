@@ -147,7 +147,6 @@ class Usb2DescContext(list):
     totl = 0
     self.Usb2DeviceDesc()
     for d in self:
-      print(d.className())
       if ( d.bDescriptorType() == ns.DSC_TYPE_DEVICE ):
         if ( not devd is None ):
           ifcd.bNumEndpoints(nume)
@@ -594,6 +593,7 @@ class Usb2DescContext(list):
     DSC_ACM_SUP_NOTIFY_NETWORK_CONN = 0x08
     DSC_ACM_SUP_SEND_BREAK          = 0x04
     DSC_ACM_SUP_LINE_CODING         = 0x02
+    DSC_ACM_SUP_LINE_STATE          = 0x02
     DSC_ACM_SUP_COMM_FEATURE        = 0x01
     def __init__(self):
       super().__init__(4, self.DSC_TYPE_CS_INTERFACE)
@@ -758,7 +758,7 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
 # epPktSize None selects the max. allowed for the selected speed
 # ifcNum defines the index of the first of two interfaces used by
 # this class
-def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, hiSpeed=True):
+def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineState=False, hiSpeed=True):
   numIfcs = 0
   numEPPs = 0
   if epPktSize is None:
@@ -793,6 +793,8 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, hiSpee
   v = 0
   if ( sendBreak ):
     v |= d.DSC_ACM_SUP_SEND_BREAK
+  if ( lineState ):
+    v |= d.DSC_ACM_SUP_LINE_STATE
   d.bmCapabilities(v)
 
   # functional descriptors; union

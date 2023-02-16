@@ -369,6 +369,7 @@ package Usb2Pkg is
 
    -- class-specific notification
    constant USB2_NOT_CLS_CDC_NETWORK_CONNECTION_C          : Usb2CtlRequestCodeType     := x"00";
+   constant USB2_NOT_CLS_CDC_SERIAL_STATE_C                : Usb2CtlRequestCodeType     := x"20";
    constant USB2_NOT_CLS_CDC_SPEED_CHANGE_C                : Usb2CtlRequestCodeType     := x"2A";
 
    subtype  Usb2StdDescriptorTypeType                      is unsigned(3 downto 0);

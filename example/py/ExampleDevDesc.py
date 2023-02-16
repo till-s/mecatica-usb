@@ -7,7 +7,7 @@
 
 import Usb2Desc
 
-def mkExampleDevDescriptors(ifcNumber=0, epAddr=1, iMACAddr = None, epPktSize=None, sendBreak=False, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False):
+def mkExampleDevDescriptors(ifcNumber=0, epAddr=1, iMACAddr = None, epPktSize=None, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False):
   remWake = True
   c  = Usb2Desc.Usb2DescContext()
   d  = c.Usb2DeviceDesc()
@@ -39,7 +39,7 @@ def mkExampleDevDescriptors(ifcNumber=0, epAddr=1, iMACAddr = None, epPktSize=No
     ifcNumber_ = ifcNumber
     epAddr_    = epAddr
 
-    ifs, eps = Usb2Desc.addBasicACM(c, ifcNumber_, epAddr_, epPktSize, sendBreak, hiSpeed = speed)
+    ifs, eps = Usb2Desc.addBasicACM(c, ifcNumber_, epAddr_, epPktSize, sendBreak=True, lineState=True, hiSpeed = speed)
     ifcNumber_ += ifs
     epAddr_    += eps
 

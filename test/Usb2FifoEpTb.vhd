@@ -423,12 +423,12 @@ begin
 
    U_BRK : entity work.CDCACMCtl
       generic map (
-         CDC_IFC_NUM_G  => toUsb2InterfaceNumType(IFC_NUM_C),
+         CTL_IFC_NUM_G  => IFC_NUM_C,
          SUPPORT_LINE_G => true
       )
       port map (
-         clk                       => ulpiTstClk,
-         rst                       => open,
+         usb2Clk                   => ulpiTstClk,
+         usb2Rst                   => open,
 
          usb2SOF                   => usb2rx.pktHdr.sof,
          usb2Ep0ReqParam           => ep0ReqParam,

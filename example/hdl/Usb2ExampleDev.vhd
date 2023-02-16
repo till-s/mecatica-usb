@@ -81,6 +81,8 @@ entity Usb2ExampleDev is
       -- control vector
       -- CDC-ACM
       -- iRegs(0,0)(10 downto 0)  : min. fill level of the IN fifo until data are sent to USB
+      -- iRegs(0,0)(25)           : DSR
+      -- iRegs(0,0)(26)           : DCD
       -- iRegs(0,0)(27)           : enable 'blast' mode; OUT fifo is constantly drained; IN fifo
       --                         is blast with an incrementing 8-bit counter.
       -- iRegs(0,0)(28)           : disable 'loopback' mode; OUT fifo is fed into IN fifo; loopback
@@ -99,7 +101,7 @@ entity Usb2ExampleDev is
       -- status vector
       -- CDC-ACM
       -- oRegs(0,0)               : IN  fifo fill level
-      -- oRegs(0,1)               : RTS, DTR, OUT fifo fill level
+      -- oRegs(0,1)               : RTS, DTR, lineBreak, OUT fifo fill level
       -- CDC-ECM
       -- oRegs(1,0)               : IN  fifo sizes, packetFilter, fifo fill level
       -- oRegs(1,1)               : OUT fifo frames & fill level
@@ -214,6 +216,7 @@ architecture Impl of Usb2ExampleDev is
    signal usb2Ep0BADDCtlExt                    : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
    signal usb2Ep0CtlExt                        : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
    signal usb2Ep0BADDCtlEpExt                  : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+   signal usb2Ep0CDCACMCtlEpExt                : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
    signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
    signal usb2DevStatus                        : Usb2DevStatusType;
 
@@ -226,7 +229,7 @@ architecture Impl of Usb2ExampleDev is
 
    signal usb2Rx                               : Usb2RxType;
 
-   signal DTR, RTS                             : std_logic;
+   signal DTR, RTS, lineBreak, DCD, DSR        : std_logic;
 
    signal usb2EpIb                             : Usb2EndpPairIbArray(1 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
 
@@ -256,7 +259,7 @@ begin
       ecmFifoFilledOut,
       ecmFifoFramesOut,
       ecmPacketFilter,
-      DTR, RTS
+      DTR, RTS, lineBreak
    ) is
    begin
       oRegs <= ((others => (others => '0')), (others => (others => '0')));
@@ -264,6 +267,7 @@ begin
       oRegs(0,1)(15 downto  0)           <= std_logic_vector(resize(acmFifoFilledOut, 16));
       oRegs(0,1)(16)                     <= DTR;
       oRegs(0,1)(17)                     <= RTS;
+      oRegs(0,1)(18)                     <= lineBreak;
 
       oRegs(1,0)(31 downto 28)           <= std_logic_vector(to_unsigned(LD_ECM_FIFO_DEPTH_INP_C, 4));
       oRegs(1,0)(27 downto 24)           <= std_logic_vector(to_unsigned(LD_ECM_FIFO_DEPTH_OUT_C, 4));
@@ -278,12 +282,15 @@ begin
 
    acmDTR          <= DTR;
    acmRTS          <= RTS;
+   acmLineBreak    <= lineBreak;
    acmFifoMinFill  <= unsigned(iRegs(0,0)(acmFifoMinFill'range));
    acmFifoTimer    <= unsigned(iRegs(0,1)(acmFifoTimer'range));
    ulpiForceStp    <= iRegs(0,0)(29);
    usb2RemoteWake  <= iRegs(0,0)(31);
    acmFifoDisable  <= iRegs(0,0)(30);
    acmFifoBlast    <= iRegs(0,0)(27);
+   DCD             <= iRegs(0,0)(26);
+   DSR             <= iRegs(0,0)(25);
    acmFifoLoopback <= not iRegs(0,0)(28);
 
    -- USB2 Core
@@ -342,7 +349,8 @@ begin
          usb2Ep0CDCACMCtlExt,
          usb2Ep0CDCECMCtlExt,
          usb2Ep0BADDCtlExt,
-         usb2Ep0BADDCtlEpExt
+         usb2Ep0BADDCtlEpExt,
+         usb2Ep0CDCACMCtlEpExt
       ) is
          variable v : MuxSelType;
       begin
@@ -383,6 +391,7 @@ begin
 
          if    ( muxSel = CDCACM  ) then
             usb2Ep0CtlExt   <= usb2Ep0CDCACMCtlExt;
+            usb2Ep0CtlEpExt <= usb2Ep0CDCACMCtlEpExt;
          elsif ( muxSel = CDCECM  ) then
             usb2Ep0CtlExt   <= usb2Ep0CDCECMCtlExt;
          elsif ( muxSel = BADD ) then
@@ -416,7 +425,9 @@ begin
             CTL_IFC_NUM_G               => CDC_ACM_IFC_NUM_C,
             LD_FIFO_DEPTH_INP_G         => LD_ACM_FIFO_DEPTH_INP_C,
             LD_FIFO_DEPTH_OUT_G         => LD_ACM_FIFO_DEPTH_OUT_C,
-            FIFO_TIMER_WIDTH_G          => acmFifoTimer'length
+            FIFO_TIMER_WIDTH_G          => acmFifoTimer'length,
+            ENBL_LINE_BREAK_G           => true,
+            ENBL_LINE_STATE_G           => true
          )
          port map (
             usb2Clk                    => ulpiClkLoc,
@@ -426,13 +437,13 @@ begin
 
             usb2Ep0ReqParam            => usb2Ep0ReqParam,
             usb2Ep0CtlExt              => usb2Ep0CDCACMCtlExt,
+            usb2Ep0ObExt               => usb2Ep0CDCACMCtlEpExt,
+            usb2Ep0IbExt               => usb2EpOb(0),
 
-            usb2EpIb                   => usb2EpOb(CDC_ACM_BULK_EP_IDX_C),
-            usb2EpOb                   => usb2EpIb(CDC_ACM_BULK_EP_IDX_C),
-
-            lineBreak                  => acmLineBreak,
-            DTR                        => DTR,
-            RTS                        => RTS,
+            usb2DataEpIb               => usb2EpOb(CDC_ACM_BULK_EP_IDX_C),
+            usb2DataEpOb               => usb2EpIb(CDC_ACM_BULK_EP_IDX_C),
+            usb2NotifyEpIb             => usb2EpOb(CDC_ACM_IRQ_EP_IDX_C),
+            usb2NotifyEpOb             => usb2EpIb(CDC_ACM_IRQ_EP_IDX_C),
 
             fifoMinFillInp             => acmFifoMinFill,
             fifoTimeFillInp            => acmFifoTimer,
@@ -449,7 +460,13 @@ begin
             fifoDataOut                => acmFifoDatOut,
             fifoRenaOut                => acmFifoRenOut,
             fifoEmptyOut               => acmFifoEmptyOut,
-            fifoFilledOut              => acmFifoFilledOut
+            fifoFilledOut              => acmFifoFilledOut,
+
+            lineBreak                  => lineBreak,
+            DTR                        => DTR,
+            RTS                        => RTS,
+            rxCarrier                  => DCD,
+            txCarrier                  => DSR
          );
 
       P_CNT : process ( ulpiClkLoc ) is
