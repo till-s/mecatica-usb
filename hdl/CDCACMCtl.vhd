@@ -28,8 +28,10 @@ entity CDCACMCtl is
       usb2SOF         : in  boolean;
       usb2Ep0ReqParam : in  Usb2CtlReqParamType;
       usb2Ep0CtlExt   : out Usb2CtlExtType;
-      usb2Ep0ObExt    : out Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+
       usb2Ep0IbExt    : in  Usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
+      usb2Ep0ObExt    : out Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+
       lineBreak       : out std_logic;
       DTR             : out std_logic := '0';
       RTS             : out std_logic := '0';
