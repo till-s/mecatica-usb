@@ -588,11 +588,14 @@ package body Usb2TstPkg is
                stl := true;
                return;
             end if;
-            if (    ( (pid = USB2_PID_HSK_NAK_C)  and ( rtrPol = NAK  ) )
-                 or ( (pid = USB2_PID_HSK_NYET_C) and ( rtrPol = PING ) )
-               ) then
-               agn := true;
+            if ( (pid = USB2_PID_HSK_NAK_C)  and ( rtrPol = NAK  ) ) then
+               agn := (pid = USB2_PID_HSK_NAK_C);
+--assert pid /= USB2_PID_HSK_NYET_C report "XXXXXXXXX" severity failure;
             else
+               if ( (pid = USB2_PID_HSK_NYET_C) and ( rtrPol = PING ) ) then
+                  -- treat NYET as ACK
+                  pid := USB2_PID_HSK_ACK_C;
+               end if;
                assert pid = epid report "unexpected handshake response to data TX" &
 "got " & integer'image(to_integer(unsigned(pid))) & " exp " & integer'image(to_integer(unsigned(epid))) severity failure;
                if ( rr = rtr and pid = USB2_PID_HSK_ACK_C ) then
