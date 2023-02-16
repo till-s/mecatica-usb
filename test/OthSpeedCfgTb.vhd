@@ -123,7 +123,7 @@ package body Usb2AppCfgPkg is
       -- Usb2ConfigurationDesc
        94 => x"09",  -- bLength
        95 => x"02",  -- bDescriptorType
-       96 => x"12",  -- wTotalLength
+       96 => x"22",  -- wTotalLength
        97 => x"00",
        98 => x"01",  -- bNumInterfaces
        99 => x"02",  -- bConfigurationValue
@@ -140,71 +140,89 @@ package body Usb2AppCfgPkg is
       109 => x"00",  -- bInterfaceSubClass
       110 => x"00",  -- bInterfaceProtocol
       111 => x"07",  -- iInterface
+      -- Usb2InterfaceDesc
+      112 => x"09",  -- bLength
+      113 => x"04",  -- bDescriptorType
+      114 => x"00",  -- bInterfaceNumber
+      115 => x"01",  -- bAlternateSetting
+      116 => x"01",  -- bNumEndpoints
+      117 => x"00",  -- bInterfaceClass
+      118 => x"00",  -- bInterfaceSubClass
+      119 => x"00",  -- bInterfaceProtocol
+      120 => x"00",  -- iInterface
+      -- Usb2EndpointDesc
+      121 => x"07",  -- bLength
+      122 => x"05",  -- bDescriptorType
+      123 => x"81",  -- bEndpointAddress
+      124 => x"03",  -- bmAttributes
+      125 => x"10",  -- wMaxPacketSize
+      126 => x"00",
+      127 => x"00",  -- bInterval
       -- Usb2Desc
-      112 => x"04",  -- bLength
-      113 => x"03",  -- bDescriptorType
-      114 => x"09",
-      115 => x"04",
+      128 => x"04",  -- bLength
+      129 => x"03",  -- bDescriptorType
+      130 => x"09",
+      131 => x"04",
       -- Usb2StringDesc
-      116 => x"0e",  -- bLength
-      117 => x"03",  -- bDescriptorType
-      118 => x"46",
-      119 => x"00",
-      120 => x"4f",
-      121 => x"00",
-      122 => x"4f",
-      123 => x"00",
-      124 => x"42",
-      125 => x"00",
-      126 => x"41",
-      127 => x"00",
-      128 => x"52",
-      129 => x"00",
-      -- Usb2StringDesc
-      130 => x"06",  -- bLength
-      131 => x"03",  -- bDescriptorType
-      132 => x"43",
-      133 => x"00",
-      134 => x"31",
+      132 => x"0e",  -- bLength
+      133 => x"03",  -- bDescriptorType
+      134 => x"46",
       135 => x"00",
-      -- Usb2StringDesc
-      136 => x"06",  -- bLength
-      137 => x"03",  -- bDescriptorType
-      138 => x"49",
+      136 => x"4f",
+      137 => x"00",
+      138 => x"4f",
       139 => x"00",
-      140 => x"30",
+      140 => x"42",
       141 => x"00",
-      -- Usb2StringDesc
-      142 => x"06",  -- bLength
-      143 => x"03",  -- bDescriptorType
-      144 => x"43",
+      142 => x"41",
+      143 => x"00",
+      144 => x"52",
       145 => x"00",
-      146 => x"32",
-      147 => x"00",
       -- Usb2StringDesc
-      148 => x"06",  -- bLength
-      149 => x"03",  -- bDescriptorType
-      150 => x"49",
+      146 => x"06",  -- bLength
+      147 => x"03",  -- bDescriptorType
+      148 => x"43",
+      149 => x"00",
+      150 => x"31",
       151 => x"00",
-      152 => x"31",
-      153 => x"00",
       -- Usb2StringDesc
-      154 => x"06",  -- bLength
-      155 => x"03",  -- bDescriptorType
-      156 => x"43",
+      152 => x"06",  -- bLength
+      153 => x"03",  -- bDescriptorType
+      154 => x"49",
+      155 => x"00",
+      156 => x"30",
       157 => x"00",
-      158 => x"33",
-      159 => x"00",
       -- Usb2StringDesc
-      160 => x"06",  -- bLength
-      161 => x"03",  -- bDescriptorType
-      162 => x"49",
+      158 => x"06",  -- bLength
+      159 => x"03",  -- bDescriptorType
+      160 => x"43",
+      161 => x"00",
+      162 => x"32",
       163 => x"00",
-      164 => x"32",
-      165 => x"00",
+      -- Usb2StringDesc
+      164 => x"06",  -- bLength
+      165 => x"03",  -- bDescriptorType
+      166 => x"49",
+      167 => x"00",
+      168 => x"31",
+      169 => x"00",
+      -- Usb2StringDesc
+      170 => x"06",  -- bLength
+      171 => x"03",  -- bDescriptorType
+      172 => x"43",
+      173 => x"00",
+      174 => x"33",
+      175 => x"00",
+      -- Usb2StringDesc
+      176 => x"06",  -- bLength
+      177 => x"03",  -- bDescriptorType
+      178 => x"49",
+      179 => x"00",
+      180 => x"32",
+      181 => x"00",
       -- Usb2SentinelDesc
-      166 => x"02",  -- bLength
-      167 => x"ff"   -- bDescriptorType
+      182 => x"02",  -- bLength
+      183 => x"ff"   -- bDescriptorType
    );
    begin
    return c;
@@ -241,7 +259,8 @@ architecture sim of OthSpeedCfgTb is
    constant EP0_SZ_C               : Usb2ByteType           := USB2_APP_DESCRIPTORS_F(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
 
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
-   constant ALT_C                  : std_logic_vector(15 downto 0) := x"0000";
+   constant ALT0_C                 : std_logic_vector(15 downto 0) := x"0000";
+   constant ALT1_C                 : std_logic_vector(15 downto 0) := x"0001";
    
    signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
@@ -288,7 +307,7 @@ begin
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => USB2_APP_DESCRIPTORS_C(18 to 27));
 
       reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C) & x"01";
-      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => othConf(94 to 111));
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => othConf(94 to 127));
       -- switch speed, delay until visible
       hiSpeed <= '1';
       while not devStatus.hiSpeed loop
@@ -311,7 +330,17 @@ begin
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => othConf(28 to 45));
 
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C,     val => (x"00" & CONFIG_VALUE_C ) );
-      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT_C, idx => IFC_C );
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT0_C, idx => IFC_C );
+
+      assert epInpRunning( epOb(1) ) = '0' report "altsetting 0 and EP running?" severity failure;
+
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT1_C, idx => IFC_C );
+
+      assert epInpRunning( epOb(1) ) = '1' report "altsetting 1 and EP not running?" severity failure;
+
+      ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_INTERFACE_C,     DEV_ADDR_C, val => ALT0_C, idx => IFC_C );
+
+      assert epInpRunning( epOb(1) ) = '0' report "altsetting 0; EP deactivation failed" severity failure;
 
       for i in 0 to 20 loop
          ulpiClkTick;

@@ -487,6 +487,8 @@ class Usb2DescContext(list):
   class Usb2InterfaceDesc(Usb2Desc.clazz):
     def __init__(self):
       super().__init__(9, self.DSC_TYPE_INTERFACE)
+      self.bInterfaceNumber( 0 )
+      self.bAlternateSetting( 0 )
     @acc(2)
     def bInterfaceNumber(self, v): return v
     @acc(3)

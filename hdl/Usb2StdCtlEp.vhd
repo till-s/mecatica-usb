@@ -116,6 +116,7 @@ architecture Impl of Usb2StdCtlEp is
       READ_TBL,
       SCAN_DESC,
       SETUP_CONFIG,
+      DEACT_IFC,
       LOAD_ALT,
       LOAD_EPTS,
       GET_DESCRIPTOR_SIZE,
@@ -197,6 +198,16 @@ architecture Impl of Usb2StdCtlEp is
 
    type    AltSetArray   is array(IfcIdxType) of AltSetIdxType;
 
+   type EndpAssocType is record
+      ifc         : IfcIdxType;
+   end record EndpAssocType;
+
+   constant ENDP_ASSOC_INIT_C : EndpAssocType := (
+      ifc         => 0
+   );
+
+   type EndpAssocArray is array (natural range 1 to NUM_ENDPOINTS_G - 1) of EndpAssocType;
+
    type RegType   is record
       state       : StateType;
       retState    : StateType;
@@ -206,6 +217,8 @@ architecture Impl of Usb2StdCtlEp is
       err         : std_logic;
       protoStall  : std_logic;
       epConfig    : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1);
+      epAssocInp  : EndpAssocArray;
+      epAssocOut  : EndpAssocArray;
       cfgIdx      : Usb2DescIdxType;
       cfgCurr     : CfgIdxType;
       retVal      : Usb2ByteType;
@@ -250,6 +263,8 @@ architecture Impl of Usb2StdCtlEp is
                                   ),
                         others => USB2_ENDP_PAIR_CONFIG_INIT_C
                      ),
+      epAssocInp  => (others => ENDP_ASSOC_INIT_C),
+      epAssocOut  => (others => ENDP_ASSOC_INIT_C),
       cfgIdx      => 0,
       cfgCurr     => 0,
       retVal      => (others => '0'),
@@ -671,7 +686,8 @@ begin
                            v.tblOff   := USB2_DESC_IDX_LENGTH_C;
                            v.tblIdx   := r.cfgIdx;
                            v.descType := USB2_STD_DESC_TYPE_INTERFACE_C;
-                           v.state    := LOAD_ALT;
+                           v.state    := DEACT_IFC;
+                           v.epIdx    := 1;
                      end if;
 
                   when USB2_REQ_STD_SYNCH_FRAME_C       =>
@@ -718,6 +734,19 @@ begin
                v.state                 := LOAD_ALT;
                v.altIdx                :=  0;
                v.err                   := '0';
+            end if;
+
+         when DEACT_IFC =>
+            if ( r.epIdx > r.epAssocInp'high ) then
+               v.state := LOAD_ALT;
+            else
+               if ( r.epAssocInp( r.epIdx ).ifc = r.ifcIdx ) then
+                  v.epConfig( r.epIdx ).maxPktSizeInp := (others => '0');
+               end if;
+               if ( r.epAssocOut( r.epIdx ).ifc = r.ifcIdx ) then
+                  v.epConfig( r.epIdx ).maxPktSizeOut := (others => '0');
+               end if;
+               v.epIdx := r.epIdx + 1;
             end if;
 
          when LOAD_ALT =>
@@ -785,8 +814,10 @@ begin
                elsif ( r.tblOff = USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C + 1 ) then
                   if ( r.epIsInp ) then
                      v.epConfig( r.epIdx ).maxPktSizeInp := toPktSizeType(descVal & r.retVal);
+                     v.epAssocInp( r.epIdx ).ifc         := r.ifcIdx;
                   else
                      v.epConfig( r.epIdx ).maxPktSizeOut := toPktSizeType(descVal & r.retVal);
+                     v.epAssocOut( r.epIdx ).ifc         := r.ifcIdx;
                   end if;
                   v.numEp  := r.numEp - 1;
                   v.tblOff := USB2_DESC_IDX_LENGTH_C;
