@@ -3,12 +3,14 @@
 --   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
 -- This notice must not be removed.
 
+-- Bram based FIFO
+
 library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
--- Bram based FIFO
+use     work.Usb2UtilPkg.all;
 
 entity Usb2Fifo is
    generic (
@@ -21,7 +23,13 @@ entity Usb2Fifo is
       -- extra (user) bits synchronized from the write -> read side
       XTRA_W2R_G   : natural  := 0;
       -- extra (user) bits synchronized from the read  -> write side
-      XTRA_R2W_G   : natural  := 0
+      XTRA_R2W_G   : natural  := 0;
+      -- observe framing by the 'don' flag which signals the end
+      -- of the incoming frame (din is not stored during the 'don'
+      -- cycle) and prepend a 2-byte header representing the frame
+      -- size (LSB first) on the output. 'sof' is asserted when
+      -- transmitting the first header byte.
+      FRAMED_G     : boolean  := false
    );
    port (
       wrClk        : in  std_logic;
@@ -31,6 +39,7 @@ entity Usb2Fifo is
       wrXtraOut    : out std_logic_vector(XTRA_R2W_G - 1 downto 0);
 
       din          : in  std_logic_vector(DATA_WIDTH_G - 1 downto 0);
+      don          : in  std_logic := '0';
       wen          : in  std_logic;
       full         : out std_logic;
       -- fill level as seen by the write clock
@@ -42,6 +51,7 @@ entity Usb2Fifo is
       rdXtraOut    : out std_logic_vector(XTRA_W2R_G - 1 downto 0);
       rdRstOut     : out std_logic;
       dou          : out std_logic_vector(DATA_WIDTH_G - 1 downto 0);
+      sof          : out std_logic := '0';
       ren          : in  std_logic;
       empty        : out std_logic;
 
@@ -52,7 +62,7 @@ entity Usb2Fifo is
       -- start
       minFill      : in  unsigned(LD_DEPTH_G - 1 downto 0) := (others => '0');
       -- if filled to less than 'minFill' then readout is started 'timer' (read) clock
-      -- ticks after the last item was written; all-ones waits forever 
+      -- ticks after the last item was written; all-ones waits forever
       timer        : in  unsigned(LD_TIMER_G - 1 downto 0) := (others => '0')
    );
 end entity Usb2Fifo;
@@ -64,6 +74,8 @@ architecture Impl of Usb2Fifo is
 
    constant FULL_C    : IdxType                           := to_unsigned(2**(LD_DEPTH_G), LD_DEPTH_G + 1);
    constant FOREVER_C : unsigned(LD_TIMER_G - 1 downto 0) := (others => '1');
+   constant HSZ_C     : natural                           := 2;
+   constant DWIDTH_C  : natural                           := DATA_WIDTH_G + ite( FRAMED_G, 1, 0 );
 
    type RdRegType is record
       rdPtr     : IdxType;
@@ -79,12 +91,32 @@ architecture Impl of Usb2Fifo is
       delayRd   => '1'
    );
 
+   type WrState is ( FWD, H2 );
+
+   function wrPtrSet(
+      constant h : IdxType := (others => '0')
+   ) return IdxType is
+   begin
+      if ( FRAMED_G ) then
+         return h + HSZ_C;
+      else
+         return h;
+      end if;
+   end function wrPtrSet;
+
+
    type WrRegType is record
+      state     : WrState;
       wrPtr     : IdxType;
+      hdPtr     : IdxType;
+      len       : IdxType;
    end record WrRegType;
 
    constant WR_REG_INIT_C : WrRegType := (
-      wrPtr     => ( others => '0' )
+      state     => FWD,
+      wrPtr     => wrPtrSet,
+      hdPtr     => ( others => '0' ),
+      len       => ( others => '0' )
    );
 
    signal wrPtrOut              : IdxType := (others => '0');
@@ -102,7 +134,7 @@ architecture Impl of Usb2Fifo is
 
    function isFull(constant x : in WrRegType; constant rp : in IdxType) return std_logic is
    begin
-      if ( occupied(x, rp) = FULL_C ) then
+      if ( occupied(x, rp) >= FULL_C ) then
          return '1';
       else
          return '0';
@@ -127,9 +159,14 @@ architecture Impl of Usb2Fifo is
    signal fifoEmpty         : std_logic;
    signal fifoFull          : std_logic;
    signal fifoWen           : std_logic;
+   signal fifoDin           : std_logic_vector(DWIDTH_C - 1 downto 0);
+   signal fifoDou           : std_logic_vector(DWIDTH_C - 1 downto 0);
+   signal fifoDinLoc        : std_logic_vector(DWIDTH_C - 1 downto 0);
    signal fifoRen           : std_logic;
+   signal fifoWrAddr        : unsigned(LD_DEPTH_G - 1 downto 0);
    signal advanceReg        : std_logic;
    signal advanceMem        : std_logic;
+   signal fifoWBsy          : std_logic := '0';
 
    signal timerStrobe       : std_logic := '0';
 
@@ -142,8 +179,17 @@ begin
 
    assert not ( EXACT_THR_G and ASYNC_G ) report "Cannot compute exact level in ASYNC mode" severity failure;
 
+   assert not FRAMED_G or DATA_WIDTH_G >= 8 report "FRAMED_G needs DATA_WIDTH_G >= 8" severity failure;
+
    G_SYNC : if ( not ASYNC_G ) generate
-      wrPtrOut    <= rWr.wrPtr;
+
+      G_FRMD : if ( FRAMED_G ) generate
+         wrPtrOut    <= rWr.hdPtr;
+      end generate G_FRMD;
+      G_NFRMD : if ( not FRAMED_G ) generate
+         wrPtrOut    <= rWr.wrPtr;
+      end generate G_NFRMD;
+
       rdPtrOut    <= rRd.rdPtr;
       timerStrobe <= fifoWen;
       wrRstLoc    <= wrRst or rdRst;
@@ -159,9 +205,10 @@ begin
       signal cenB             : std_logic;
       signal dinA             : std_logic_vector(A_W_C - 1 downto 0);
       signal douA             : std_logic_vector(B_W_C - 1 downto 0) := (others => '0');
- 
+
       signal dinB             : std_logic_vector(B_W_C - 1 downto 0);
       signal douB             : std_logic_vector(A_W_C - 1 downto 0) := (others => '0');
+      signal wrPtrInp         : IdxType := (others => '0');
 
       -- signal an initial reset to make sure any side waits for the other one
       signal resettingA       : std_logic := '1'; -- hold reset state triggered by reset on A side
@@ -174,7 +221,14 @@ begin
       signal rstBSeenAtA      : std_logic;        -- resettingB output on A side
    begin
 
-      dinA         <= wrXtraInp & rstBSeenAtA & resettingA & std_logic_vector( rWr.wrPtr );
+      G_FRMD : if ( FRAMED_G ) generate
+         wrPtrInp <= rWr.hdPtr;
+      end generate G_FRMD;
+      G_NFRMD : if ( not FRAMED_G ) generate
+         wrPtrInp <= rWr.wrPtr;
+      end generate G_NFRMD;
+
+      dinA         <= wrXtraInp & rstBSeenAtA & resettingA & std_logic_vector( wrPtrInp  );
       dinB         <= rdXtraInp & rstASeenAtB & resettingB & std_logic_vector( rRd.rdPtr );
 
       rdPtrOut     <= IdxType( douA( rdPtrOut'range ) );
@@ -238,8 +292,10 @@ begin
 
    end generate G_ASYNC;
 
-   fifoFull   <= isFull( rWr, rdPtrOut ) or wrRstLoc;
-   fifoWen    <= not isFull( rWr, rdPtrOut ) and wen;
+   -- in H2 state when the second part of the header is written we cannot
+   -- accept data; when 'don' is asserted (first part of header being written)
+   -- input data are ignored anyways.
+   fifoFull   <= isFull( rWr, rdPtrOut ) or wrRstLoc or toSl( rWr.state = H2 );
    fifoEmpty  <= not rRd.vld(0) or rinRd.delayRd or rdRstLoc;
 
    advanceReg <= not rRd.vld(0) or (ren and not rinRd.delayRd);
@@ -303,16 +359,56 @@ begin
       rinRd <= v;
    end process P_RD_COMB;
 
-   P_WR_COMB : process ( rWr, fifoWen ) is
-      variable v : WrRegType;
+   P_WR_COMB : process ( rWr, rdPtrOut, fifoDinLoc, wen, din, don ) is
+      variable v  : WrRegType;
+      variable wr : std_logic;
+      variable l  : unsigned(15 downto 0);
    begin
       v := rWr;
 
-      if ( fifoWen = '1' ) then
+      fifoDin    <= fifoDinLoc;
+      wr         := not isFull( rWr, rdPtrOut ) and wen;
+      fifoWrAddr <= rWr.wrPtr( fifoWrAddr'range );
+
+      if ( wr = '1' ) then
+         v.len      := rWr.len   + 1;
+      end if;
+
+      l := resize( rWr.len, l'length );
+
+      if ( FRAMED_G ) then
+         case ( rWr.state ) is
+            when FWD =>
+               if ( ( not isFull( rWr, rdPtrOut ) and don ) = '1' ) then
+                  if DATA_WIDTH_G >= 16 then
+                     fifoDin    <= '1' & std_logic_vector( resize(l, DATA_WIDTH_G ) );
+                     v.len      := (others => '0');
+                     v.hdPtr    := rWr.wrPtr;
+                  else
+                     fifoDin    <= '1' & std_logic_vector( resize(l(7 downto 0), DATA_WIDTH_G ) );
+                     v.len      := rWr.len;
+                     v.hdPtr    := rWr.hdPtr + 1;
+                     v.state    := H2;
+                  end if;
+                  wr         := '1';
+                  fifoWrAddr <= rWr.hdPtr(fifoWrAddr'range);
+               end if;
+            when H2 =>
+               fifoDin       <= '0' & std_logic_vector( resize(l(15 downto 8), DATA_WIDTH_G ) );
+               wr            := '1';
+               v.len         := (others => '0');
+               fifoWrAddr    <= rWr.hdPtr(fifoWrAddr'range);
+               v.hdPtr       := rWr.wrPtr - 1;
+               v.state       := FWD;
+         end case;
+      end if;
+
+      if ( wr = '1' ) then
          v.wrPtr    := rWr.wrPtr + 1;
       end if;
 
-      rinWr <= v;
+      fifoWen  <= wr;
+      rinWr    <= v;
    end process P_WR_COMB;
 
 
@@ -340,7 +436,7 @@ begin
 
    U_BRAM : entity work.Usb2Bram
       generic map (
-         DATA_WIDTH_G => DATA_WIDTH_G,
+         DATA_WIDTH_G => DWIDTH_C,
          ADDR_WIDTH_G => LD_DEPTH_G,
          EN_REGB_G    => (OUT_REG_G > 0)
       )
@@ -348,19 +444,28 @@ begin
          clka         => wrClk,
          ena          => open,
          wea          => fifoWen,
-         addra        => rWr.wrPtr(rWr.wrPtr'left - 1 downto 0),
+         addra        => fifoWrAddr,
          rdata        => open,
-         wdata        => din,
+         wdata        => fifoDin,
 
          clkb         => rdClk,
          enb          => advanceMem,
          ceb          => advanceReg,
          web          => open,
          addrb        => rRd.rdPtr(rRd.rdPtr'left - 1 downto 0),
-         rdatb        => dou,
+         rdatb        => fifoDou,
          wdatb        => open
       );
 
+   fifoDinLoc(din'range) <= din;
+
+   G_FRMD_DIO : if ( FRAMED_G ) generate
+      fifoDinLoc(fifoDinLoc'left) <= '0';
+      sof                         <= fifoDou(fifoDou'left);
+   end generate G_FRMD_DIO;
+
+
+   dou      <= fifoDou(dou'range);
    empty    <= fifoEmpty;
    full     <= fifoFull;
    rdFilled <= occupied( rRd, wrPtrOut );

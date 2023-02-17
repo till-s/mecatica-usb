@@ -629,12 +629,6 @@ begin
       signal clkFbI, clkFbO    : std_logic;
       signal refClkLoc         : std_logic;
 
-      function ite(constant x : boolean; constant a,b : real) return real is
-      begin if x then return a; else return b; end if; end function ite;
-
-      function ite(constant x : boolean; constant a,b : natural) return natural is
-      begin if x then return a; else return b; end if; end function ite;
-
       constant CLK_MULT_F_C    : real    := ite( ULPI_CLK_MODE_INP_G, CLK_MULT_F_G,        15.000 );
       constant REF_PERIOD_C    : real    := ite( ULPI_CLK_MODE_INP_G, SYS_CLK_PERIOD_NS_G, 16.667 );
       constant CLK0_DIV_C      : natural := ite( ULPI_CLK_MODE_INP_G, CLK0_DIV_G,          15     );

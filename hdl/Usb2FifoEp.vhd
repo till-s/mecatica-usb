@@ -97,11 +97,6 @@ end entity Usb2FifoEp;
 
 architecture Impl of Usb2FifoEp is
 
-   function ite(constant c: boolean; constant a,b : natural) return natural is
-   begin
-      if ( c ) then return a; else return b; end if;
-   end function ite;
-
    signal haltedInp             : std_logic := '1';
    signal haltedOut             : std_logic := '1';
    signal haltedInpEpClk        : std_logic := '1';

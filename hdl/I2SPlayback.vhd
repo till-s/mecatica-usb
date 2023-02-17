@@ -81,14 +81,6 @@ architecture Impl of I2SPlayback is
       return v;
    end function nbits;
 
-   function ite(
-      constant hs : in std_logic;
-      constant a,b : in integer
-   ) return integer is
-   begin
-      if ( hs = '1' ) then return a; else return b; end if;
-   end function ite;
-
    constant LD_SOF_CNT_FS_C       : natural := 0;
    constant LD_SOF_CNT_HS_C       : natural := 3;
 
