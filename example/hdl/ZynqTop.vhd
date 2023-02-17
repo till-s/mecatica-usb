@@ -17,6 +17,7 @@ use unisim.vcomponents.all;
 use work.StdLogPkg.all;
 use work.Ps7Pkg.all;
 use work.UlpiPkg.all;
+use work.Usb2UtilPkg.all;
 use work.Usb2Pkg.all;
 
 entity ZynqTop is
@@ -74,16 +75,6 @@ architecture top_level of ZynqTop is
 
    attribute IO_BUFFER_TYPE              : string;
    attribute ASYNC_REG                   : string;
-
-   function  ite(constant c: boolean; constant a,b: integer) return integer is
-   begin
-      if ( c ) then return a; else return b; end if;
-   end function ite;
-
-   function  ite(constant c: boolean; constant a,b: real   ) return real    is
-   begin
-      if ( c ) then return a; else return b; end if;
-   end function ite;
 
    constant  ADDR_PREFIX_C               : std_logic_vector(7 downto 0) := x"C0";
 

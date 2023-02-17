@@ -15,10 +15,12 @@ entity Usb2Bram is
       -- 9-bits into parity seems to work when using 
       -- the full depth; when using less then the 9-th
       -- bit goes into spare data...
-      DATA_WIDTH_G   : natural       :=  9;
-      ADDR_WIDTH_G   : natural       := 11;
-      EN_REGA_G      : boolean       := false;
-      EN_REGB_G      : boolean       := false
+      DATA_WIDTH_G   : natural          :=  9;
+      ADDR_WIDTH_G   : natural          := 11;
+      EN_REGA_G      : boolean          := false;
+      EN_REGB_G      : boolean          := false;
+      INIT_G         : std_logic_vector := "";
+      INIT_DFLT_G    : std_logic        := '0'
    );
    port (
       clka           : in  std_logic := '0';
@@ -40,11 +42,21 @@ entity Usb2Bram is
 end entity Usb2Bram;
 
 architecture Impl of Usb2Bram is
+
    subtype DataType is std_logic_vector(DATA_WIDTH_G - 1 downto 0);
 
    type    MemArray is array (natural range 0 to 2**ADDR_WIDTH_G - 1) of DataType;
 
-   shared variable memory   : MemArray;
+   function memInit return MemArray is
+      variable v : MemArray := (others => (others => INIT_DFLT_G));
+   begin
+      for i in INIT_G'range loop
+         v( i / DATA_WIDTH_G ) ( i mod DATA_WIDTH_G ) := INIT_G(i);
+      end loop;
+      return v;
+   end function memInit;
+
+   shared variable memory   : MemArray := memInit;
 
    signal  rdata_r  : std_logic_vector(wdata'range) := (others => '0');
    signal  rdatb_r  : std_logic_vector(wdata'range) := (others => '0');

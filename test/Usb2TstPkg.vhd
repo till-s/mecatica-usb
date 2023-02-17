@@ -41,7 +41,8 @@ package Usb2TstPkg is
    );
 
    procedure usb2TstPkgConfig(
-       constant epOb : in Usb2EndpPairObArray
+       constant epOb : in Usb2EndpPairObArray;
+       constant hs   : in boolean := false
    );
 
    -- send a byte vector on ULPI
@@ -258,6 +259,7 @@ package body Usb2TstPkg is
 
    shared variable dtglInp : std_logic_vector(0 to MAX_ENDPOINTS_C - 1) := (others => '0');
    shared variable dtglOut : std_logic_vector(0 to MAX_ENDPOINTS_C - 1) := (others => '0');
+   shared variable hiSpeed : boolean                                    := false;
 
    shared variable epCfg   : Usb2TstEpCfgArray := (
       -- use initial size so we are able to read the device descriptor
@@ -588,11 +590,14 @@ package body Usb2TstPkg is
                stl := true;
                return;
             end if;
-            if (    ( (pid = USB2_PID_HSK_NAK_C)  and ( rtrPol = NAK  ) )
-                 or ( (pid = USB2_PID_HSK_NYET_C) and ( rtrPol = PING ) )
-               ) then
-               agn := true;
+            if ( (pid = USB2_PID_HSK_NAK_C)  and ( rtrPol = NAK  ) ) then
+               agn := (pid = USB2_PID_HSK_NAK_C);
+--assert pid /= USB2_PID_HSK_NYET_C report "XXXXXXXXX" severity failure;
             else
+               if ( (pid = USB2_PID_HSK_NYET_C) and ( rtrPol = PING ) ) then
+                  -- treat NYET as ACK
+                  pid := USB2_PID_HSK_ACK_C;
+               end if;
                assert pid = epid report "unexpected handshake response to data TX" &
 "got " & integer'image(to_integer(unsigned(pid))) & " exp " & integer'image(to_integer(unsigned(epid))) severity failure;
                if ( rr = rtr and pid = USB2_PID_HSK_ACK_C ) then
@@ -828,6 +833,7 @@ report integer'image(ra) & " of " & integer'image(rak);
       variable v         : Usb2ByteArray(0 to 7);
       variable stalled   : boolean;
       constant codl      : unsigned(7 downto 0) := resize(cod, 8);
+      variable rpol      : Usb2TstRetryPolicyType;
    begin
       v             := (others => (others => '0'));
       v(1)          := std_logic_vector( resize(cod, v(1)'length) );
@@ -837,6 +843,11 @@ report integer'image(ra) & " of " & integer'image(rak);
       v(IDX_I_H_C)  := idx(15 downto 8);
       v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
       v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
+      if hiSpeed then
+         rpol := PING;
+      else
+         rpol := NAK;
+      end if;
       -- hacks to pass explicit request type values
       if ( typ'length = 8 ) then
          v(TYP_I_C) := typ;
@@ -886,10 +897,12 @@ report integer'image(ra) & " of " & integer'image(rak);
              return;
           end if;
           -- STATUS
-          ulpiTstSendDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, false, rtr => 2, w => w, timo => timo);
+report "status start";
+          ulpiTstSendDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, false, rtr => 2, w => w, timo => timo, rtrPol => rpol );
+report "status end";
        else
           if ( eda'length > 0 ) then
-             ulpiTstSendDat( ob, eda, USB2_ENDP_ZERO_C, dva, rtr => 2, w => w, timo => timo );
+             ulpiTstSendDat( ob, eda, USB2_ENDP_ZERO_C, dva, rtr => 2, w => w, timo => timo, rtrPol => rpol );
           end if;
           ulpiTstWaitDat(ob, USB2_TST_NULL_DATA_C, USB2_ENDP_ZERO_C, dva, rtr => rtr, rak => 200, w => w, timo => timo, estl => (epid = USB2_PID_HSK_STALL_C) );
        end if;
@@ -904,9 +917,11 @@ report integer'image(ra) & " of " & integer'image(rak);
     end procedure usb2TstPkgConfig;
 
     procedure usb2TstPkgConfig(
-       constant epOb : in Usb2EndpPairObArray
+       constant epOb : in Usb2EndpPairObArray;
+       constant hs   : in boolean := false
     ) is
     begin
+       hiSpeed := hs;
        for i in epOb'range loop
           epCfg(i).maxPktSizeInp := to_integer( epOb(i).config.maxPktSizeInp );
           epCfg(i).maxPktSizeOut := to_integer( epOb(i).config.maxPktSizeOut );

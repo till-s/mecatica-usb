@@ -7,27 +7,57 @@
 
 import Usb2Desc
 
-def mkExampleDevDescriptors(ifcNumber, epAddr, iMACAddr = None, epPktSize=None, sendBreak=False, iProduct=None, doWrap=True, hiSpeed=True):
+def mkExampleDevDescriptors(ifcNumber=0, epAddr=1, iMACAddr = None, epPktSize=None, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False):
   remWake = True
-  c  = Usb2Desc.SingleCfgDevice(0x0123, 0xabcd, remWake)
-  d  = c.deviceDesc
-  if ( not iProduct is None ):
+  c  = Usb2Desc.Usb2DescContext()
+  d  = c.Usb2DeviceDesc()
+  d.bMaxPacketSize0( 64 )
+  d.idVendor( 0x0123 )
+  d.idProduct( 0xabcd )
+  d.bcdDevice( 0x0100 )
+  if not iProduct is None:
     d.iProduct( iProduct )
   d.setIADMultiFunction()
+  devd = d
+  
+  d = c.Usb2ConfigurationDesc()
+  d.bMaxPower(0x32)
+  if ( remWake ):
+    d.bmAttributes( d.CONF_ATT_REMOTE_WAKEUP )
+  cnfd = d
 
-  ifs, eps = Usb2Desc.addBasicACM(c, ifcNumber, epAddr, epPktSize, sendBreak, hiSpeed)
-  ifcNumber += ifs
-  epAddr    += eps
+  if ( dualSpeed ):
+    speeds = [ False, True ]
+  elif ( hiSpeed ):
+    speeds = [ True ]
+  else:
+    speeds = [ False ]
 
-  ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber, epAddr, hiSpeed = hiSpeed, has24Bits = False, isAsync = True  )
-  ifcNumber += ifs
-  epAddr    += eps
+  for i in range(len(speeds)):
+    speed = speeds[i]
 
-  if not iMACAddr is None:
-    print(iMACAddr)
-    ifs, eps = Usb2Desc.addBasicECM( c, ifcNumber, epAddr, iMACAddr = iMACAddr, hiSpeed = hiSpeed)
-    ifcNumber += ifs
-    epAddr    += eps
+    ifcNumber_ = ifcNumber
+    epAddr_    = epAddr
+
+    ifs, eps = Usb2Desc.addBasicACM(c, ifcNumber_, epAddr_, epPktSize, sendBreak=True, lineState=True, hiSpeed = speed)
+    ifcNumber_ += ifs
+    epAddr_    += eps
+
+    ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = False, isAsync = True  )
+    ifcNumber_ += ifs
+    epAddr_    += eps
+
+    if not iMACAddr is None:
+      print(iMACAddr)
+      ifs, eps = Usb2Desc.addBasicECM( c, ifcNumber_, epAddr_, iMACAddr = iMACAddr, hiSpeed = speed)
+      ifcNumber_ += ifs
+      epAddr_    += eps
+
+    if i < len(speeds) - 1:
+      # separate multiple (speed) device descriptors by a sentinel
+      c.Usb2SentinelDesc()
+      devd.clone()
+      cnfd.clone()
 
   if ( doWrap ):
     c.wrapup()

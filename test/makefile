@@ -27,6 +27,7 @@ SRCS+= Usb2PktTxTb.vhd
 SRCS+= Usb2HskTb.vhd
 SRCS+= Usb2Fifo.vhd
 SRCS+= Usb2FifoTb.vhd
+SRCS+= Usb2FifoFrmdTb.vhd
 SRCS+= Usb2FifoAsyncTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
@@ -45,6 +46,7 @@ ifneq ($(VIVADO),)
 SRCS += I2SPlayback.vhd
 SRCS += I2SPlaybackTb.vhd
 endif
+SRCS += OthSpeedCfgTb.vhd
 
 
 PROG+=UlpiIOTb
@@ -52,6 +54,7 @@ PROG+=UsbCrcTblTb
 PROG+=Usb2PktProcTb
 PROG+=Usb2PktTxTb
 PROG+=Usb2FifoTb
+PROG+=Usb2FifoFrmdTb
 PROG+=Usb2FifoEpTb
 PROG+=Usb2FifoEpFrmdTb
 PROG+=Usb2HskTb
@@ -62,6 +65,7 @@ PROG+=Usb2FifoAsyncTb
 ifneq ($(VIVADO),)
 PROG+=I2SPlaybackTb
 endif
+PROG += OthSpeedCfgTb
 
 all: $(addsuffix @run,$(PROG))
 	echo "All Tests PASSED"
@@ -104,12 +108,14 @@ UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o
 Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o CDCACMCtl.o
 Usb2FifoEpFrmdTb.o: Usb2Core.o Usb2FifoEp.o
 Usb2FifoTb.o: Usb2Fifo.o
+Usb2FifoFrmdTb.o: Usb2Fifo.o
 Usb2FifoAsyncTb.o: Usb2Fifo.o
 Usb2HskTb.o: Usb2PktTx.o UlpiIO.o
 Usb2IsoTb.o: Usb2Core.o
 Usb2PktProcTb.o: Usb2Core.o
 Usb2PktTxTb.o: Usb2PktTx.o UlpiIO.o
 UsbCrcTblTb.o: UsbCrcTbl.o
+OthSpeedCfgTb.o: Usb2Core.o
 
 BADDSpkrCtlTb.o: Usb2Core.o BADDSpkrCtl.o
 I2SPlayback.o: Usb2CCSync.o

@@ -17,6 +17,21 @@ package Usb2UtilPkg is
 
    function toSl(constant x : in boolean) return std_logic;
 
+   function ite(constant x: in boolean; constant a,b: integer)
+   return integer;
+
+   function ite(constant x: in boolean; constant a,b: std_logic_vector)
+   return std_logic_vector;
+
+   function ite(constant x: in boolean; constant a,b: unsigned)
+   return unsigned;
+
+   function ite(constant x: in boolean; constant a,b: signed)
+   return signed;
+
+   function ite(constant x: in boolean; constant a,b: real)
+   return real;
+
 end package Usb2UtilPkg;
 
 package body Usb2UtilPkg is
@@ -30,5 +45,35 @@ package body Usb2UtilPkg is
    begin
       if ( x ) then return '1'; else return '0'; end if;
    end function toSl;
+
+   function ite(constant x: in boolean; constant a,b: integer)
+   return integer is
+   begin
+      if ( x ) then return a; else return b; end if;
+   end function ite;
+
+   function ite(constant x: in boolean; constant a,b: std_logic_vector)
+   return std_logic_vector is
+   begin
+      if ( x ) then return a; else return b; end if;
+   end function ite;
+
+   function ite(constant x: in boolean; constant a,b: unsigned)
+   return unsigned is
+   begin
+      if ( x ) then return a; else return b; end if;
+   end function ite;
+
+   function ite(constant x: in boolean; constant a,b: signed)
+   return signed is
+   begin
+      if ( x ) then return a; else return b; end if;
+   end function ite;
+
+   function ite(constant x: in boolean; constant a,b: real)
+   return real is
+   begin
+      if ( x ) then return a; else return b; end if;
+   end function ite;
 
 end package body Usb2UtilPkg;

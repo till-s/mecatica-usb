@@ -30,7 +30,7 @@ entity Usb2EpCDCECM is
       -- width of the IN fifo timer (counts in 60MHz cycles)
       FIFO_TIMER_WIDTH_G         : positive  := 1;
       CARRIER_DFLT_G             : std_logic := '1';
-      MARK_DEBUG_G               : boolean   := true
+      MARK_DEBUG_G               : boolean   := false
    );
    port (
       usb2Clk                    : in  std_logic;
@@ -311,7 +311,7 @@ begin
    P_SEQ_NOTE : process ( usb2Clk ) is
    begin
       if ( rising_edge( usb2Clk ) ) then
-         if ( usb2EpResetting = '1' ) then
+         if ( ( usb2EpResetting or not epInpRunning( usb2NotifyEpIb ) ) = '1' ) then
             r <= REG_INIT_C;
          else
             r <= rin;

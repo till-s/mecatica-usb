@@ -21,7 +21,7 @@ entity Usb2EpCDCACM is
       ENBL_LINE_BREAK_G          : boolean := true;
       -- enable support for get/set line state + coding
       -- if this is enabled then you *must* connect
-      -- usb2Ep0ObExt/usb2Ep0IbExt!
+      -- usb2Ep0ObExt/usb2Ep0IbExt as well as usb2NotifyEpIb/usb2NotifyEpOb!
       ENBL_LINE_STATE_G          : boolean := false;
       ASYNC_G                    : boolean := false;
       -- FIFO parameters (ld_fifo_depth are the width of the internal
@@ -53,13 +53,11 @@ entity Usb2EpCDCACM is
       usb2Ep0IbExt               : in  Usb2EndpPairObType  := USB2_ENDP_PAIR_OB_INIT_C;
 
       -- Data interface bulk endpoint pair
-      usb2EpIb                   : in  Usb2EndpPairObType;
-      usb2EpOb                   : out Usb2EndpPairIbType;
-
-      -- Line break, RTS and DTR signals
-      lineBreak                  : out std_logic           := '0';
-      DTR                        : out std_logic           := '0';
-      RTS                        : out std_logic           := '0';
+      usb2DataEpIb               : in  Usb2EndpPairObType;
+      usb2DataEpOb               : out Usb2EndpPairIbType;
+      -- Notification interface bulk endpoint pair
+      usb2NotifyEpIb             : in  Usb2EndpPairObType;
+      usb2NotifyEpOb             : out Usb2EndpPairIbType;
 
       -- FIFO control (in usb2Clk domain!)
       --
@@ -73,6 +71,14 @@ entity Usb2EpCDCACM is
       --  - All-ones waits indefinitely.
       --  - Time may be reduced while the timer is running.
       fifoTimeFillInp            : in  unsigned(FIFO_TIMER_WIDTH_G - 1 downto 0)  := (others => '0');
+
+      -- Control signals (if ENBL_LINE_STATE_G).
+      -- These signals are in the usb2 clock domain; if you need them
+      -- you need to synchronize your self (if ASYNC_G)
+      rate                       : out unsigned(31 downto 0) := (others => '0');
+      stopBits                   : out unsigned( 1 downto 0) := (others => '0');
+      parity                     : out unsigned( 2 downto 0) := (others => '0');
+      dataBits                   : out unsigned( 4 downto 0) := (others => '0');
 
       -- *******************************************************
       -- signals below here are in the epClk domain (if ASYNC_G)
@@ -103,7 +109,24 @@ entity Usb2EpCDCACM is
       fifoEmptyOut               : out std_logic;
       -- (approximate) fill level. The deassertion of fifoEmptyOut and the value of
       -- fifoFilledOut are delayed by several cycles of the slower clock if ASYNC_G.
-      fifoFilledOut              : out unsigned(LD_FIFO_DEPTH_OUT_G downto 0)
+      fifoFilledOut              : out unsigned(LD_FIFO_DEPTH_OUT_G downto 0);
+
+      -- Control signals
+      -- Line break (if ENBL_LINE_BREAK_G) -- this must match
+      -- the functional descriptor's bmCapabilities(2)
+      lineBreak                  : out std_logic := '0';
+      -- Line state (if ENBL_LINE_STATE_G) -- this must match
+      -- the functional descriptor's bmCapabilities(1)
+      DTR                        : out std_logic := '0';
+      RTS                        : out std_logic := '0';
+
+      overRun                    : in  std_logic := '0';
+      parityError                : in  std_logic := '0';
+      framingError               : in  std_logic := '0';
+      ringDetected               : in  std_logic := '0';
+      breakState                 : in  std_logic := '0';
+      txCarrier                  : in  std_logic := '0';
+      rxCarrier                  : in  std_logic := '0'
    );
 end entity Usb2EpCDCACM;
 
@@ -114,23 +137,55 @@ begin
    begin
       U_BRK : entity work.CDCACMCtl
          generic map (
-            CDC_IFC_NUM_G               => toUsb2InterfaceNumType( CTL_IFC_NUM_G ),
+            CTL_IFC_NUM_G               => CTL_IFC_NUM_G,
+            ASYNC_G                     => ASYNC_G,
             SUPPORT_LINE_G              => ENBL_LINE_STATE_G,
             SUPPORT_BREAK_G             => ENBL_LINE_BREAK_G
          )
          port map (
-            clk                         => usb2Clk,
-            rst                         => usb2Rst,
+            usb2Clk                     => usb2Clk,
+            usb2Rst                     => usb2Rst,
             usb2SOF                     => usb2Rx.pktHdr.sof,
             usb2Ep0ReqParam             => usb2Ep0ReqParam,
             usb2Ep0CtlExt               => usb2Ep0CtlExt,
             usb2Ep0ObExt                => usb2Ep0ObExt,
             usb2Ep0IbExt                => usb2Ep0IbExt,
+            rate                        => rate,
+            stopBits                    => stopBits,
+            parity                      => parity,
+            dataBits                    => dataBits,
+
+            epClk                       => epClk,
             lineBreak                   => lineBreak,
             DTR                         => DTR,
             RTS                         => RTS
          );
    end generate G_LINE_BREAK;
+
+   G_NOTIFY : if ( ENBL_LINE_STATE_G ) generate
+      U_NOTIFY : entity work.CDCACMNotify
+         generic map (
+            CTL_IFC_NUM_G               => CTL_IFC_NUM_G,
+            ASYNC_G                     => ASYNC_G
+         )
+         port map (
+            usb2Clk                     => usb2Clk,
+            usb2Rst                     => usb2Rst,
+
+            usb2NotifyEpIb              => usb2NotifyEpIb,
+            usb2NotifyEpOb              => usb2NotifyEpOb,
+
+            epClk                       => epClk,
+
+            overRun                     => overRun,
+            parityError                 => parityError,
+            framingError                => framingError,
+            ringDetected                => ringDetected,
+            breakState                  => breakState,
+            txCarrier                   => txCarrier,
+            rxCarrier                   => rxCarrier
+         );
+   end generate G_NOTIFY;
 
    U_FIFO : entity work.Usb2FifoEp
          generic map (
@@ -144,8 +199,8 @@ begin
             usb2Clk                     => usb2Clk,
             usb2Rst                     => usb2Rst,
 
-            usb2EpIb                    => usb2EpIb,
-            usb2EpOb                    => usb2EpOb,
+            usb2EpIb                    => usb2DataEpIb,
+            usb2EpOb                    => usb2DataEpOb,
 
             minFillInp                  => fifoMinFillInp,
             timeFillInp                 => fifoTimeFillInp,

@@ -117,6 +117,7 @@ architecture Impl of Usb2StdCtlEp is
       SCAN_DESC,
       SCAN_DESC_LOOP,
       SETUP_CONFIG,
+      DEACT_IFC,
       LOAD_ALT,
       LOAD_EPTS,
       GET_DESCRIPTOR_SIZE,
@@ -198,6 +199,16 @@ architecture Impl of Usb2StdCtlEp is
 
    type    AltSetArray   is array(IfcIdxType) of AltSetIdxType;
 
+   type EndpAssocType is record
+      ifc         : IfcIdxType;
+   end record EndpAssocType;
+
+   constant ENDP_ASSOC_INIT_C : EndpAssocType := (
+      ifc         => 0
+   );
+
+   type EndpAssocArray is array (natural range 1 to NUM_ENDPOINTS_G - 1) of EndpAssocType;
+
    type RegType   is record
       state       : StateType;
       retState    : StateType;
@@ -208,6 +219,8 @@ architecture Impl of Usb2StdCtlEp is
       err         : std_logic;
       protoStall  : std_logic;
       epConfig    : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1);
+      epAssocInp  : EndpAssocArray;
+      epAssocOut  : EndpAssocArray;
       cfgIdx      : Usb2DescIdxType;
       cfgCurr     : CfgIdxType;
       retVal      : Usb2ByteType;
@@ -233,6 +246,7 @@ architecture Impl of Usb2StdCtlEp is
       size2B      : boolean;
       sizeMatch   : boolean;
       setupDone   : boolean;
+      patchOthCfg : std_logic_vector(1 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -255,6 +269,8 @@ architecture Impl of Usb2StdCtlEp is
                                   ),
                         others => USB2_ENDP_PAIR_CONFIG_INIT_C
                      ),
+      epAssocInp  => (others => ENDP_ASSOC_INIT_C),
+      epAssocOut  => (others => ENDP_ASSOC_INIT_C),
       cfgIdx      => 0,
       cfgCurr     => 0,
       retVal      => (others => '0'),
@@ -279,7 +295,8 @@ architecture Impl of Usb2StdCtlEp is
       descType    => (others => '0'),
       size2B      => false,
       sizeMatch   => false,
-      setupDone   => false
+      setupDone   => false,
+      patchOthCfg => (others => '0')
    );
 
    -- a vivado work-around. Vivado complained about a index expression (when NUM_ENDPOINTS_G = 0) but
@@ -550,11 +567,13 @@ begin
                      v.state    := RETURN_VALUE;
 
                   when USB2_REQ_STD_GET_DESCRIPTOR_C    =>
-                     v.tblOff   := USB2_DESC_IDX_LENGTH_C;
-                     v.tmpVal   := (others => '0');
-                     v.size2B   := false;
-                     v.state    := GET_DESCRIPTOR_SIZE;
-                     v.count    := 0;
+                     v.tblOff      := USB2_DESC_IDX_LENGTH_C;
+                     v.retVal      := (others => '0');
+                     v.size2B      := false;
+                     v.state       := GET_DESCRIPTOR_SIZE;
+                     v.count       := 0;
+                     v.patchOthCfg := (others => '0');
+
                      case ( Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) ) ) is
                         when USB2_STD_DESC_TYPE_DEVICE_C            =>
                            v.tblIdx   := selCfgIdxTbl( tblSelHS )(0);
@@ -576,10 +595,13 @@ begin
                            if (   Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) )
                                 = USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C ) then
                               if ( FS_CFG_IDX_TABLE_C'length > 0 and HS_CFG_IDX_TABLE_C'length > 0 ) then
-                                 tblSelHS := not tblSelHS; -- other speed
+                                 tblSelHS         := not tblSelHS; -- other speed
+                                 -- during READ_DESCRIPTOR we must patch the descriptor type
+                                 -- to read 'OTHER_SPEED_CONFIGURATION'
+                                 v.patchOthCfg(1) := '1';
                               else
                                  -- use a table that fails the '<' comparison below
-                                 tblSelHs := ( HS_CFG_IDX_TABLE_C'length <= 0 );
+                                 tblSelHs         := ( HS_CFG_IDX_TABLE_C'length <= 0 );
                               end if;
                            end if;
                            -- according to the spec this is 0-based and thus not identical
@@ -687,7 +709,8 @@ begin
                            v.tblOff   := USB2_DESC_IDX_LENGTH_C;
                            v.tblIdx   := r.cfgIdx;
                            v.descType := USB2_STD_DESC_TYPE_INTERFACE_C;
-                           v.state    := LOAD_ALT;
+                           v.state    := DEACT_IFC;
+                           v.epIdx    := 1;
                      end if;
 
                   when USB2_REQ_STD_SYNCH_FRAME_C       =>
@@ -738,6 +761,19 @@ begin
                v.state                 := LOAD_ALT;
                v.altIdx                :=  0;
                v.err                   := '0';
+            end if;
+
+         when DEACT_IFC =>
+            if ( r.epIdx > r.epAssocInp'high ) then
+               v.state := LOAD_ALT;
+            else
+               if ( r.epAssocInp( r.epIdx ).ifc = r.ifcIdx ) then
+                  v.epConfig( r.epIdx ).maxPktSizeInp := (others => '0');
+               end if;
+               if ( r.epAssocOut( r.epIdx ).ifc = r.ifcIdx ) then
+                  v.epConfig( r.epIdx ).maxPktSizeOut := (others => '0');
+               end if;
+               v.epIdx := r.epIdx + 1;
             end if;
 
          when LOAD_ALT =>
@@ -805,8 +841,10 @@ begin
                elsif ( r.tblOff = USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C + 1 ) then
                   if ( r.epIsInp ) then
                      v.epConfig( r.epIdx ).maxPktSizeInp := toPktSizeType(r.readVal & r.tmpVal);
+                     v.epAssocInp( r.epIdx ).ifc         := r.ifcIdx;
                   else
                      v.epConfig( r.epIdx ).maxPktSizeOut := toPktSizeType(r.readVal & r.tmpVal);
+                     v.epAssocOut( r.epIdx ).ifc         := r.ifcIdx;
                   end if;
                   v.numEp  := r.numEp - 1;
                   v.tblOff := USB2_DESC_IDX_LENGTH_C;
@@ -855,6 +893,9 @@ begin
                v.state := STATUS;
             else
                epOb.mstInp.dat <= descVal;
+               if ( r.patchOthCfg(0) = '1' ) then
+                  epOb.mstInp.dat(Usb2StdDescriptorTypeType'range) <= std_logic_vector( USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C );
+               end if;
                epOb.mstInp.vld <= not r.flg;
                epOb.mstInp.don <= r.flg;
                epOb.mstInp.err <= '0';
@@ -872,6 +913,7 @@ begin
                      else
                         v.tblOff := r.tblOff + 1;
                      end if;
+                     v.patchOthCfg := '0' & r.patchOthCfg(r.patchOthCfg'left downto 1);
                   end if;
                end if;
             end if;

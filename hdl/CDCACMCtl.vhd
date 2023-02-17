@@ -14,7 +14,8 @@ use     work.Usb2Pkg.all;
 
 entity CDCACMCtl is
    generic (
-      CDC_IFC_NUM_G   : Usb2InterfaceNumType;
+      CTL_IFC_NUM_G   : natural;
+      ASYNC_G         : boolean := false;
       -- whether to enable support for set/get line coding, set line-state
       -- if this is enabled then usb2Ep0ObExt/usb2EpIbExt must be connected!
       SUPPORT_LINE_G  : boolean := false;
@@ -22,21 +23,28 @@ entity CDCACMCtl is
       SUPPORT_BREAK_G : boolean := true
    );
    port (
-      clk             : in  std_logic;
-      rst             : in  std_logic := '0';
+      usb2Clk         : in  std_logic;
+      usb2Rst         : in  std_logic := '0';
       
       usb2SOF         : in  boolean;
       usb2Ep0ReqParam : in  Usb2CtlReqParamType;
       usb2Ep0CtlExt   : out Usb2CtlExtType;
-      usb2Ep0ObExt    : out Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+
       usb2Ep0IbExt    : in  Usb2EndpPairObType := USB2_ENDP_PAIR_OB_INIT_C;
-      lineBreak       : out std_logic;
-      DTR             : out std_logic := '0';
-      RTS             : out std_logic := '0';
+      usb2Ep0ObExt    : out Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+
+      -- these signals are in the usb2 clock domain; if you need them
+      -- you need to synchronize your self (if ASYNC_G)
       rate            : out unsigned(31 downto 0) := (others => '0');
       stopBits        : out unsigned( 1 downto 0) := (others => '0');
       parity          : out unsigned( 2 downto 0) := (others => '0');
-      dataBits        : out unsigned( 4 downto 0) := (others => '0')
+      dataBits        : out unsigned( 4 downto 0) := (others => '0');
+
+      epClk           : in  std_logic := '0';
+
+      lineBreak       : out std_logic;
+      DTR             : out std_logic := '0';
+      RTS             : out std_logic := '0'
    );
 end entity CDCACMCtl;
 
@@ -44,7 +52,9 @@ architecture Impl of CDCACMCtl is
 
    type StateType is (IDLE, SEND, RECV, DONE);
 
-   constant LCODING_SZ_C : natural := 7;
+   constant LCODING_SZ_C  : natural := 7;
+
+   constant CTL_IFC_NUM_C : Usb2InterfaceNumType := toUsb2InterfaceNumType( CTL_IFC_NUM_G );
 
    type RegType is record
       state     : stateType;
@@ -73,10 +83,13 @@ architecture Impl of CDCACMCtl is
 
    signal ob   : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
 
+   signal din  : std_logic_vector(2 downto 0) := (others => '0');
+   signal dou  : std_logic_vector(din'range);
+
    function accept(constant x: Usb2CtlReqParamType)
    return boolean is
    begin
-      if ( x.reqType /= USB2_REQ_TYP_TYPE_CLASS_C or not usb2CtlReqDstInterface( x, CDC_IFC_NUM_G ) ) then
+      if ( x.reqType /= USB2_REQ_TYP_TYPE_CLASS_C or not usb2CtlReqDstInterface( x, CTL_IFC_NUM_G ) ) then
          return false;
       end if;
       return true;
@@ -185,10 +198,10 @@ begin
       rin <= v;
    end process P_COMB;
 
-   P_SEQ : process ( clk ) is
+   P_SEQ : process ( usb2Clk ) is
    begin
-      if ( rising_edge( clk ) ) then
-         if ( rst = '1' ) then
+      if ( rising_edge( usb2Clk ) ) then
+         if ( usb2Rst = '1' ) then
             r <= REG_INIT_C;
          else
             r <= rin;
@@ -199,7 +212,20 @@ begin
    usb2Ep0CtlExt <= r.ctlExt;
 
    G_BREAK_SUP : if ( SUPPORT_BREAK_G ) generate
-      lineBreak     <= r.timer(r.timer'left);
+
+      G_BRK_ASYNC : if ( ASYNC_G ) generate
+         U_SYNC : entity work.Usb2CCSync
+            port map (
+               clk => epClk,
+               d   => r.timer(r.timer'left),
+               q   => lineBreak
+            );
+      end generate G_BRK_ASYNC;
+
+      G_BRK_SYNC : if ( not ASYNC_G ) generate
+         lineBreak     <= r.timer(r.timer'left);
+      end generate G_BRK_SYNC;
+
    end generate G_BREAK_SUP;
 
    G_LINE_SUP : if ( SUPPORT_LINE_G ) generate
@@ -212,8 +238,27 @@ begin
          return v;
       end function;
    begin
-      DTR           <= r.DTR;
-      RTS           <= r.RTS;
+
+      G_MDM_ASYNC : if ( ASYNC_G ) generate
+         U_SYNC_RTS : entity work.Usb2CCSync
+            port map (
+               clk => epClk,
+               d   => r.DTR,
+               q   => DTR
+            );
+         U_SYNC_DTR : entity work.Usb2CCSync
+            port map (
+               clk => epClk,
+               d   => r.RTS,
+               q   => RTS
+            );
+      end generate G_MDM_ASYNC;
+
+      G_MDM_SYNC : if ( not ASYNC_G ) generate
+         DTR  <= r.DTR;
+         RTS  <= r.RTS;
+      end generate G_MDM_SYNC;
+
       rate          <= toUnsigned( r.buf(3 to 6) );
       stopBits      <= unsigned( r.buf(2)(stopBits'range) );
       parity        <= unsigned( r.buf(1)(parity'range)   );

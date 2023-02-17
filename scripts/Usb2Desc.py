@@ -85,6 +85,7 @@ def acc(off,sz=1):
             v >>= 8
          return self
       setattr(setter, "origName", func.__name__)
+      setattr(setter, "offset",   off          )
       return setter
     return deco
 
@@ -130,55 +131,88 @@ class Usb2DescContext(list):
     return self.strtbl_[i-1]
 
   # compute and insert the following data
-  #  - interface number (added to interface descriptor and interface association descriptor's
-  #    'bFirstInterface')
   #  - number of endpoints for each interface (added to interface descriptor)
   #  - number of interfaces (added to configuration descriptor)
+  #  - set configuration value; the firmware assumes this is 1-based and contiguous
   #  - total config. descriptor length (added to configuration descriptor)
   #  - create and add string descriptor (for all accumulated strings)
   #  - create and add sentinel descriptor (non-spec conforming but used by FW)
   def wrapup(self):
     if ( self.wrapped ):
        raise RuntimeError("Context is already wrapped")
-    cnf  = None
-    totl = 0
-    nume = 0
-    tote = 0
-    intf = None
     ns   = self.Usb2Desc.clazz
-    ifn  = -1
+    # append sentinel
+    devds = []
+    devd = None
+    totl = 0
+    self.Usb2DeviceDesc()
     for d in self:
-      if ( d.bDescriptorType() == ns.DSC_TYPE_CONFIGURATION ):
-        if ( not cnf is None ):
-          raise RuntimeError("Multiple Configurations Not Supported (shouldn't be hard to add)")
-        cnf  = d
-        totl = 0
-        ifn  = -1
-      if   ( d.bDescriptorType() == ns.DSC_TYPE_INTERFACE_ASSOCIATION ):
+      if ( d.bDescriptorType() == ns.DSC_TYPE_DEVICE ):
+        if ( not devd is None ):
+          ifcd.bNumEndpoints(nume)
+          cnfd.wTotalLength(totl)
+          cnfd.bNumInterfaces(ifn + 1)
+          devd.bNumConfigurations(numc)
+        numc = 0
+        cnfd = None
+        devd = d
+        devds.append(d)
+      elif ( d.bDescriptorType() == ns.DSC_TYPE_CONFIGURATION ):
+        if ( not cnfd is None ):
+          ifcd.bNumEndpoints(nume)
+          cnfd.wTotalLength(totl)
+          cnfd.bNumInterfaces(ifn + 1)
+          print("Configuration total length {:d}, num interfaces {:d}, num endpoints {:d}".format(totl, ifn + 1, tote))
+        cnfd  = d
+        ifcd  = None
+        totl  = 0
+        ifn   = -1
+        tote  = 0
+        numc += 1
+        cnfd.bConfigurationValue( numc )
+      elif   ( d.bDescriptorType() == ns.DSC_TYPE_INTERFACE_ASSOCIATION ):
         # must keep track when adding them because other descriptors
         # also hold references to interface numbers
-        # intf.bInterfaceNumber( ifn )
+        # ifcd.bInterfaceNumber( ifn )
         # d.bFirstInterface( ifn + 1 )
         pass
       elif ( d.bDescriptorType() == ns.DSC_TYPE_INTERFACE ):
-        if (not intf is None):
-           intf.bNumEndpoints(nume)
+        if (not ifcd is None):
+           ifcd.bNumEndpoints(nume)
         nume = 0
-        intf = d
-        if ( intf.bAlternateSetting() == 0 ):
+        ifcd = d
+        if ( ifcd.bAlternateSetting() == 0 ):
            ifn += 1
         # must keep track when adding them because other descriptors
         # also hold references to interface numbers
-        # intf.bInterfaceNumber( ifn )
+        # ifcd.bInterfaceNumber( ifn )
       elif ( d.bDescriptorType() == ns.DSC_TYPE_ENDPOINT ):
         nume += 1
         tote += 1
-      totl += d.bLength()
-    if ( not intf is None ):
-       intf.bNumEndpoints(nume)
-    cnf.wTotalLength(totl)
-    cnf.bNumInterfaces(ifn + 1)
-    print("Configuration total length {:d}, num interfaces {:d}, num endpoints {:d}".format(totl, ifn + 1, tote))
+      # don't count a separating sentinel
+      if ( d.bDescriptorType() != ns.DSC_TYPE_SENTINEL):
+        totl += d.bLength()
+    # remove sentinel
+    self.pop()
+
+    # If there are two device descriptors then assume they describe
+    # full- and hi-speed devices, respectively. Insert and fill qualifier
+    # descriptors.
+    # Note that the devds list still contains the (dummy) sentinel device
+    # descriptor.
+    if ( len(devds) > 2 ):
+       fsd = devds[0]
+       hsd = devds[1]
+       self.Usb2Device_QualifierDesc( fsd )
+       self.Usb2Device_QualifierDesc( hsd )
+       fsq = self.pop()
+       hsq = self.pop()
+       idx = self.index(fsd)
+       self.insert( idx + 1, fsq )
+       # fsd and hsd may reference the same object
+       idx = self.index( hsd, idx + 2 )
+       self.insert( idx + 1, hsq )
+
     # append string descriptors
     if ( len( self.strtbl_ ) > 0 ):
       # lang-id at string index 0
@@ -186,7 +220,7 @@ class Usb2DescContext(list):
       for s in self.strtbl_:
          self.Usb2StringDesc( s )
     # append TAIL
-    self.Usb2Desc(2, ns.DSC_TYPE_SENTINEL)
+    self.Usb2SentinelDesc()
     self.wrapped_ = True
 
   def vhdl(self, f = sys.stdout):
@@ -201,11 +235,20 @@ class Usb2DescContext(list):
       for x in self:
         print('{}      -- {}'.format(eol, x.className()), file = f)
         eol = ""
+        off = 0
         for b in x.cont:
            print('{}      {:3d} => x"{:02x}"'.format(eol, i, b), end = "", file = f)
-           i += 1
-           eol = ",\n"
-      print(file = f)
+           offNam = x.nameAt(off)
+           i   += 1
+           off += 1
+           if not offNam is None:
+             eol  = ",  -- {}\n".format( offNam )
+           else:
+             eol  = ",\n"
+      if not offNam is None:
+        print( "   -- {}\n".format( offNam ), file = f )
+      else:
+        print(file = f)
 
 
   # the 'factory' decorator converts local classes
@@ -301,6 +344,25 @@ class Usb2DescContext(list):
     @acc(1)
     def bDescriptorType(self, v): return v
 
+    def clone(self):
+      no = getattr(self.context, self.className())()
+      for a in dir(self):
+        if ( not getattr(getattr(self, a), "origName", None ) is None ):
+          getattr(no, a)( getattr(self, a)() )
+      return no
+
+    def nameAt(self, off):
+      for a in dir(self):
+        tsto = getattr( getattr(self, a), "offset", -1 )
+        if tsto == off:
+          return getattr( getattr(self, a), "origName" )
+      return None
+
+  @factory
+  class Usb2SentinelDesc(Usb2Desc.clazz):
+    def __init__(self):
+      super().__init__(2, self.DSC_TYPE_SENTINEL)
+
   @factory
   class Usb2StringDesc(Usb2Desc.clazz):
 
@@ -317,8 +379,11 @@ class Usb2DescContext(list):
 
     def __init__(self):
       super().__init__(18, self.DSC_TYPE_DEVICE)
+      self.bcdUSB(0x0200)
       self.bcdDevice(0x0200)
 
+    @acc(2,2)
+    def bcdUSB(self, v): return v
     @acc(4)
     def bDeviceClass(self, v): return v
     @acc(5)
@@ -350,10 +415,17 @@ class Usb2DescContext(list):
 
   @factory
   class Usb2Device_QualifierDesc(Usb2Desc.clazz):
-    def __init__(self):
-      super.__init__(10, self.DSC_TYPE_DEVICE_QUALIFIER)
+    def __init__(self, other=None):
+      super().__init__(10, self.DSC_TYPE_DEVICE_QUALIFIER)
       self.bcdUSB(0x0200)
       self.bReserved(0)
+      if not other is None:
+        self.bcdUSB( other.bcdUSB() )
+        self.bDeviceClass( other.bDeviceClass() )
+        self.bDeviceSubClass( other.bDeviceSubClass() )
+        self.bDeviceProtocol( other.bDeviceProtocol() )
+        self.bMaxPacketSize0( other.bMaxPacketSize0() )
+        self.bNumConfigurations( other.bNumConfigurations() )
 
     @acc(2,2)
     def bcdUSB(self, v): return v
@@ -389,10 +461,22 @@ class Usb2DescContext(list):
     @acc(6)
     def iConfiguration(self, v): return self.cvtString(v)
     @acc(7)
-    def bmAttributes(self, v): return v | 0x80
+    def bmAttributes(self, v):
+      if isinstance(v, CvtReader):
+        v.obj |= 0x80
+      else:
+        v |= 0x80
+      return v
     @acc(8)
     def bMaxPower(self, v): return v
 
+  # Note that descriptors generated for the Usb2 firmware
+  # never use 'OTHER_SPEED_CONFIGURATION' descriptors explicitly.
+  # Instead, the descriptors for hi-speed capable devices may
+  # contain two sections holding device- and configuration descriptors
+  # for full- and high-speed, respectively. The firmware patches
+  # the descriptor type of configuration descriptors belonging to
+  # the currently inactive speed.
   @factory
   class Usb2Other_Speed_ConfigurationDesc(Usb2ConfigurationDesc.clazz):
     def __init__(self):
@@ -403,6 +487,8 @@ class Usb2DescContext(list):
   class Usb2InterfaceDesc(Usb2Desc.clazz):
     def __init__(self):
       super().__init__(9, self.DSC_TYPE_INTERFACE)
+      self.bInterfaceNumber( 0 )
+      self.bAlternateSetting( 0 )
     @acc(2)
     def bInterfaceNumber(self, v): return v
     @acc(3)
@@ -509,6 +595,7 @@ class Usb2DescContext(list):
     DSC_ACM_SUP_NOTIFY_NETWORK_CONN = 0x08
     DSC_ACM_SUP_SEND_BREAK          = 0x04
     DSC_ACM_SUP_LINE_CODING         = 0x02
+    DSC_ACM_SUP_LINE_STATE          = 0x02
     DSC_ACM_SUP_COMM_FEATURE        = 0x01
     def __init__(self):
       super().__init__(4, self.DSC_TYPE_CS_INTERFACE)
@@ -580,7 +667,6 @@ class SingleCfgDevice(Usb2DescContext):
 
     # configuration
     d = self.Usb2ConfigurationDesc()
-    d.bConfigurationValue(1)
     d.bMaxPower(0x32)
     if ( remWake ):
       d.bmAttributes( d.CONF_ATT_REMOTE_WAKEUP )
@@ -674,7 +760,7 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
 # epPktSize None selects the max. allowed for the selected speed
 # ifcNum defines the index of the first of two interfaces used by
 # this class
-def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, hiSpeed=True):
+def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineState=False, hiSpeed=True):
   numIfcs = 0
   numEPPs = 0
   if epPktSize is None:
@@ -709,6 +795,8 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, hiSpee
   v = 0
   if ( sendBreak ):
     v |= d.DSC_ACM_SUP_SEND_BREAK
+  if ( lineState ):
+    v |= d.DSC_ACM_SUP_LINE_STATE
   d.bmCapabilities(v)
 
   # functional descriptors; union
@@ -723,9 +811,15 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, hiSpee
   d.bmAttributes( d.ENDPOINT_TT_INTERRUPT )
   d.wMaxPacketSize(8)
   if ( hiSpeed ):
-    d.bInterval(16) # (2**(interval - 1) microframes; 16 is max.
+    if ( lineState ):
+      d.bInterval(8)
+    else:
+      d.bInterval(16) # (2**(interval - 1) microframes; 16 is max.
   else:
-    d.bInterval(255) #ms
+    if ( lineState ):
+      d.bInterval(16) #ms
+    else:
+      d.bInterval(255) #ms
 
   numIfcs += 1
   numEPPs += 1
