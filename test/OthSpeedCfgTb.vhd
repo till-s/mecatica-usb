@@ -15,6 +15,39 @@ use     work.Usb2DescPkg.all;
 
 package body Usb2AppCfgPkg is
 
+   -- Python code to generate USB2_APP_DESCRIPTORS_F
+   --
+   -- import Usb2Desc
+   -- 
+   -- c = Usb2Desc.Usb2DescContext()
+   -- d = c.Usb2DeviceDesc()
+   -- d.iProduct("FOOBAR")
+   -- d.bMaxPacketSize0(8)
+   -- d = c.Usb2ConfigurationDesc()
+   -- d.iConfiguration("C1")
+   -- d = c.Usb2InterfaceDesc()
+   -- d.iInterface("I0")
+   -- d = c.Usb2Desc(2, c.Usb2Desc.clazz.DSC_TYPE_SENTINEL)
+   -- d = c.Usb2DeviceDesc()
+   -- d.bMaxPacketSize0(64)
+   -- d = c.Usb2ConfigurationDesc()
+   -- d.iConfiguration("C2")
+   -- d = c.Usb2InterfaceDesc()
+   -- d.iInterface("I1")
+   -- d = c.Usb2ConfigurationDesc()
+   -- d.iConfiguration("C3")
+   -- d = c.Usb2InterfaceDesc()
+   -- d.iInterface("I2")
+   -- d = c.Usb2InterfaceDesc()
+   -- d.bAlternateSetting( 1 )
+   -- d = c.Usb2EndpointDesc()
+   -- epAddr = 1
+   -- d.bEndpointAddress( d.ENDPOINT_IN | (epAddr) )
+   -- d.bmAttributes( d.ENDPOINT_TT_INTERRUPT )
+   -- d.wMaxPacketSize( 16 )
+   -- c.wrapup()
+   -- c.vhdl()
+
    function USB2_APP_DESCRIPTORS_F return Usb2ByteArray is
    constant c : Usb2ByteArray := (
       -- Usb2DeviceDesc
