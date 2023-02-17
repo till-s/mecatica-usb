@@ -863,10 +863,6 @@ report integer'image(ra) & " of " & integer'image(rak);
 
             when x"0" & USB2_REQ_STD_GET_DESCRIPTOR_C =>
                v(TYP_I_C)(7) := '1';
-               len           := len + 20;
-               v(LEN_I_L_C)  := std_logic_vector(len( 7 downto 0));
-               v(LEN_I_H_C)  := std_logic_vector(len(15 downto 8));
-
 
             when x"0" & USB2_REQ_STD_SET_ADDRESS_C =>
 
