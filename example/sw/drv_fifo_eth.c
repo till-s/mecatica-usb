@@ -12,6 +12,23 @@
  * compatible with the linux kernel.
  */
 
+/*
+ * Demo driver for the Usb2Example ECM ethernet device.
+ *
+ * THIS IS NOT A USB DRIVER.
+ *
+ * This driver implements a 'peer' device to the USB-ECM
+ * device. The latter is accessed by the host via USB;
+ * this device implements a network device on the target
+ * (zynq) system and accesses the ECM device's fifos from
+ * the AXI bus.
+ *
+ *   Target (zynq)                                 Host
+ *   Linux                   firmware              Linux
+ * 
+ *    this driver <- AXI ->  Usb2Example <- USB -> ECM USB driver
+ */
+
 /* #define DEBUG */
 
 #include <linux/module.h>
