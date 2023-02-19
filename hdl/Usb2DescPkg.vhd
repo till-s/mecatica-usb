@@ -7,6 +7,7 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
+use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
 use     work.Usb2AppCfgPkg.all;
 
@@ -69,6 +70,23 @@ package Usb2DescPkg is
       constant a: boolean := false -- terminate at sentinel?
    ) return integer;
 
+   -- find next descriptor of a certain type starting at index s; returns -1 if none is found
+   function usb2NextDescriptor(
+      constant d: Usb2ByteArray;
+      constant s: integer;
+      constant t: Usb2ByteType;
+      constant a: boolean := false -- terminate at sentinel?
+   ) return integer;
+
+   -- find next descriptor of a certain class-specific subtype starting at index s; returns -1 if none found
+   function usb2NextCsDescriptor(
+      constant  d: Usb2ByteArray;
+      constant  s: integer;
+      constant st: Usb2ByteType;
+      constant  e: boolean := false; -- class specific endpoint desciptor (not interface)
+      constant  a: boolean := false  -- terminate at sentinel?
+   ) return integer;
+
    -- skip to the next descriptor
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
@@ -115,6 +133,8 @@ package Usb2DescPkg is
    constant USB2_EPT_DESC_IDX_ATTRIBUTES_C                : natural := 3;
    constant USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C              : natural := 4;
 
+   constant USB2_CS_DESC_IDX_SUBTYPE_C                    : natural := 2;
+
 end package Usb2DescPkg;
 
 package body Usb2DescPkg is
@@ -149,17 +169,50 @@ package body Usb2DescPkg is
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
       constant s: integer;
-      constant t: Usb2StdDescriptorTypeType;
+      constant t: Usb2ByteType;
       constant a: boolean := false
    ) return integer is
       variable i : integer := s;
    begin
 report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " & toStr(d(i+USB2_DESC_IDX_TYPE_C));
-      while ( i >= 0 and Usb2StdDescriptorTypeType(d(i + USB2_DESC_IDX_TYPE_C)(3 downto 0)) /= t ) loop
+      while ( i >= 0 and d(i + USB2_DESC_IDX_TYPE_C) /= t ) loop
          i := usb2NextDescriptor(d, i, a);
       end loop;
       return i;
    end function usb2NextDescriptor;
+
+   -- find next descriptor of a certain type starting at index s; returns -1 if none is found
+   function usb2NextDescriptor(
+      constant d: Usb2ByteArray;
+      constant s: integer;
+      constant t: Usb2StdDescriptorTypeType;
+      constant a: boolean := false
+   ) return integer is
+      constant tt : Usb2ByteType := x"0" & std_logic_vector(t);
+   begin
+      return usb2NextDescriptor(d, s, tt, a);
+   end function usb2NextDescriptor;
+
+   -- find next descriptor of a certain class-specific subtype starting at index s; returns -1 if none found
+   function usb2NextCsDescriptor(
+      constant  d: Usb2ByteArray;
+      constant  s: integer;
+      constant st: Usb2ByteType;
+      constant  e: boolean := false; -- class specific endpoint desciptor (not interface)
+      constant  a: boolean := false  -- terminate at sentinel?
+   ) return integer is
+      constant dt : Usb2ByteType := ite(e, USB2_CS_DESC_TYPE_ENDPOINT_C, USB2_CS_DESC_TYPE_INTERFACE_C);
+      variable  i : integer;
+   begin
+      i := usb2NextDescriptor(d, s, dt, a);
+      while ( i >= 0 and d(i + USB2_CS_DESC_IDX_SUBTYPE_C) /= st ) loop
+         i := usb2NextDescriptor(d, i, a );
+         if ( i >= 0 ) then
+            i := usb2NextDescriptor(d, i, dt, a);
+         end if;
+      end loop;
+      return i;
+   end function usb2NextCsDescriptor;
 
    function findMax(
       constant d : Usb2ByteArray;

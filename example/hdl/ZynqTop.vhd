@@ -78,8 +78,6 @@ architecture top_level of ZynqTop is
 
    constant  ADDR_PREFIX_C               : std_logic_vector(7 downto 0) := x"C0";
 
-   constant  GEN_ULPI_C                  : boolean := true;
-
    constant  USE_ETH_CLK_C               : boolean := false;
 
    constant  ULPI_CLK_MODE_INP_C         : boolean := (ULPI_CLK_MODE_INP_G /= 0);
@@ -118,8 +116,7 @@ architecture top_level of ZynqTop is
    signal ulpiClkLoc                     : std_logic;
    signal ulpiRst                        : std_logic := '1';
    signal refLocked                      : std_logic;
-   signal refLockedSync                  : std_logic_vector(1 downto 0) := (others => '0');
-   attribute ASYNC_REG of refLockedSync  : signal is "TRUE";
+   signal refLockedSync                  : std_logic;
 
    signal axiClk                         : std_logic;
    signal axiRst                         : std_logic;
@@ -414,69 +411,69 @@ begin
       ulpiRstb <= '1';
    end generate G_NO_EXT_RST;
 
-      U_ULPI_TOP : entity work.Usb2ExampleDev
-         generic map (
-            SYS_CLK_PERIOD_NS_G  => SYS_CLK_PERIOD_NS_C,
-            ULPI_CLK_MODE_INP_G  => ULPI_CLK_MODE_INP_C,
-            REF_CLK_DIV_G        => REF_CLK_DIV_C,
-            CLK_MULT_F_G         => CLK_MULT_F_C,
-            CLK0_DIV_G           => CLK0_DIV_C,
-            CLK2_DIV_G           => CLK2_DIV_C,
-            CLK1_INP_PHASE_G     => -58.5
-         )
-         port map (
-            refClkNb             => refClkNb,
+   U_ULPI_TOP : entity work.Usb2ExampleDev
+      generic map (
+         SYS_CLK_PERIOD_NS_G  => SYS_CLK_PERIOD_NS_C,
+         ULPI_CLK_MODE_INP_G  => ULPI_CLK_MODE_INP_C,
+         REF_CLK_DIV_G        => REF_CLK_DIV_C,
+         CLK_MULT_F_G         => CLK_MULT_F_C,
+         CLK0_DIV_G           => CLK0_DIV_C,
+         CLK2_DIV_G           => CLK2_DIV_C,
+         CLK1_INP_PHASE_G     => -58.5
+      )
+      port map (
+         refClkNb             => refClkNb,
 
-            ulpiClkOut           => ulpiClkLoc,
+         ulpiClkOut           => ulpiClkLoc,
 
-            ulpiClk              => ulpiClk,
-            ulpiRst              => ulpiRst,
-            ulpiStp              => ulpiStp,
-            ulpiDir              => ulpiDir,
-            ulpiNxt              => ulpiNxt,
-            ulpiDat              => ulpiDat,
+         ulpiClk              => ulpiClk,
+         ulpiRst              => ulpiRst,
+         ulpiStp              => ulpiStp,
+         ulpiDir              => ulpiDir,
+         ulpiNxt              => ulpiNxt,
+         ulpiDat              => ulpiDat,
 
-            usb2Rst              => open,
-            refLocked            => refLocked,
+         usb2Rst              => open,
+         refLocked            => refLocked,
 
-            iRegs                => rwRegsDev,
-            oRegs                => roRegsDev,
+         iRegs                => rwRegsDev,
+         oRegs                => roRegsDev,
 
-            regReq               => regReq,
-            regRep               => regRep,
+         regReq               => regReq,
+         regRep               => regRep,
 
-            acmFifoOutDat        => acmFifoOutDat,
-            acmFifoOutEmpty      => acmFifoOutEmpty,
-            acmFifoOutFill       => open,
-            acmFifoOutRen        => acmFifoOutRen,
+         acmFifoOutDat        => acmFifoOutDat,
+         acmFifoOutEmpty      => acmFifoOutEmpty,
+         acmFifoOutFill       => open,
+         acmFifoOutRen        => acmFifoOutRen,
 
-            acmFifoInpDat        => acmFifoInpDat,
-            acmFifoInpFull       => acmFifoInpFull,
-            acmFifoInpFill       => open,
-            acmFifoInpWen        => acmFifoInpWen,
+         acmFifoInpDat        => acmFifoInpDat,
+         acmFifoInpFull       => acmFifoInpFull,
+         acmFifoInpFill       => open,
+         acmFifoInpWen        => acmFifoInpWen,
 
-            acmLineBreak         => acmLineBreak,
+         acmLineBreak         => acmLineBreak,
 
-            ecmFifoOutDat        => ecmFifoOutDat,
-            ecmFifoOutDon        => ecmFifoOutDon,
-            ecmFifoOutEmpty      => ecmFifoOutEmpty,
-            ecmFifoOutFill       => ecmFifoOutFill,
-            ecmFifoOutFrms       => ecmFifoOutFrms,
-            ecmFifoOutRen        => ecmFifoOutRen,
+         ecmFifoOutDat        => ecmFifoOutDat,
+         ecmFifoOutDon        => ecmFifoOutDon,
+         ecmFifoOutEmpty      => ecmFifoOutEmpty,
+         ecmFifoOutFill       => ecmFifoOutFill,
+         ecmFifoOutFrms       => ecmFifoOutFrms,
+         ecmFifoOutRen        => ecmFifoOutRen,
 
-            ecmFifoInpDat        => ecmFifoInpDat,
-            ecmFifoInpDon        => ecmFifoInpDon,
-            ecmFifoInpFull       => ecmFifoInpFull,
-            ecmFifoInpFill       => ecmFifoInpFill,
-            ecmFifoInpWen        => ecmFifoInpWen,
+         ecmFifoInpDat        => ecmFifoInpDat,
+         ecmFifoInpDon        => ecmFifoInpDon,
+         ecmFifoInpFull       => ecmFifoInpFull,
+         ecmFifoInpFill       => ecmFifoInpFill,
+         ecmFifoInpWen        => ecmFifoInpWen,
 
 
-            clk2Nb               => open,
+         clk2Nb               => open,
 
-            i2sBCLK              => i2sBCLKLoc,
-            i2sPBLRC             => i2sPBLRC,
-            i2sPBDAT             => i2sPBDAT
-         );
+         i2sBCLK              => i2sBCLKLoc,
+         i2sPBLRC             => i2sPBLRC,
+         i2sPBDAT             => i2sPBDAT
+      );
 
       acmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
       ecmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
@@ -745,11 +742,17 @@ begin
 
    end block B_AXI_REGS;
 
+   U_RST_SYNC : entity work.Usb2CCSync
+      port map (
+         clk   => ulpiClkLoc,
+         d     => refLocked,
+         q     => refLockedSync
+      );
+
    P_RST : process ( ulpiClkLoc ) is
    begin
       if ( rising_edge( ulpiClkLoc ) ) then
-         refLockedSync <= refLocked & refLockedSync(refLockedSync'left downto 1);
-         if ( ( refLockedSync(0) and ulpiRstCnt(ulpiRstCnt'left) ) = '1' ) then
+         if ( ( refLockedSync and ulpiRstCnt(ulpiRstCnt'left) ) = '1' ) then
             ulpiRstCnt <= ulpiRstCnt - 1;
          end if;
       end if;

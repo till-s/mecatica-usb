@@ -372,8 +372,14 @@ package Usb2Pkg is
    constant USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C          : Usb2StdDescriptorTypeType  := x"6";
    constant USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C          : Usb2StdDescriptorTypeType  := x"7";
    constant USB2_STD_DESC_TYPE_INTERFACE_POWER_C           : Usb2StdDescriptorTypeType  := x"8";
+
+   constant USB2_CS_DESC_TYPE_INTERFACE_C                  : Usb2ByteType               := x"24";
+   constant USB2_CS_DESC_TYPE_ENDPOINT_C                   : Usb2ByteType               := x"25";
+
    -- use as a sentinel to terminate table
    constant USB2_STD_DESC_TYPE_SENTINEL_C                  : Usb2ByteType               := x"FF";
+
+   constant USB2_CS_DESC_SUBTYPE_ACM_C                     : Usb2ByteType               := x"02";
 
    function usb2DescIsSentinel(constant x : Usb2ByteType) return boolean;
     
