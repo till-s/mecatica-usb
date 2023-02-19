@@ -3,7 +3,7 @@
 --   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
 -- This notice must not be removed.
 
--- Instantiation of a CDC ACM Endpoint with a FIFO interface as well
+-- Instantiation of a multiple endpoints, clock generation as well
 -- as the necessary IO-Buffers
 
 library ieee;
@@ -24,6 +24,12 @@ entity Usb2ExampleDev is
    generic (
       SYS_CLK_PERIOD_NS_G  : real     := 20.0;
       ULPI_CLK_MODE_INP_G  : boolean  := true;
+
+      -- Note that the terms 'INPUT' and 'OUTPUT' clock, respectively
+      -- follow the definitions in the ULPI spec, i.e., the directions
+      -- are with reference to the ULPI-PHY and therefore opposite to
+      -- the directions as seen by the FPGA. E.g., OUTPUT clock mode
+      -- is when the PHY drives the clock to a FPGA input pin.
 
       -- ULPI INPUT CLOCK MODE PARAMETERS
 
@@ -100,11 +106,21 @@ entity Usb2ExampleDev is
       iRegs                : in    RegArray(0 to 1, 0 to 1);
       -- status vector
       -- CDC-ACM
-      -- oRegs(0,0)               : fifo sizes, IN  fifo fill level
-      -- oRegs(0,1)               : RTS, DTR, lineBreak, OUT fifo fill level
+      -- oRegs(0,0)(15 downto  0) : IN  fifo fill level
+      -- oRegs(0,0)(27 downto 24) : ld of OUT fifo size
+      -- oRegs(0,0)(31 downto 28) : ld of IN  fifo size
+
+      -- oRegs(0,1)(15 downto  0) : OUT fifo fill level
+      -- oRegs(0,1)(16)           : DTR
+      -- oRegs(0,1)(17)           : RTS
+      -- oRegs(0,1)(18)           : lineBreak
       -- CDC-ECM
-      -- oRegs(1,0)               : fifo sizes, packetFilter, IN fifo fill level
-      -- oRegs(1,1)               : OUT fifo frames & fill level
+      -- oRegs(1,0)(15 downto  0) : IN fifo fill level
+      -- oRegs(1,0)(20 downto 16) : packet filter flags
+      -- oRegs(1,0)(27 downto 24) : ld of OUT fifo size
+      -- oRegs(1,0)(31 downto 28) : ld of IN  fifo size
+      -- oRegs(1,1)(15 downto  0) : OUT fifo fill level
+      -- oRegs(1,1)(31 downto 16) : OUT fifo # of frames
       oRegs                : out   RegArray(0 to 1, 0 to 1);
 
       regReq               : in    UlpiRegReqType;
@@ -156,6 +172,19 @@ end entity Usb2ExampleDev;
 architecture Impl of Usb2ExampleDev is
    attribute MARK_DEBUG                        : string;
 
+   function acmCapabilities return Usb2ByteType is
+      variable i                     : integer;
+      variable v                     : Usb2ByteType := (others => '0');
+      constant IDX_BM_CAPABILITIES_C : natural      := 3;
+   begin
+      i := usb2NextCsDesc(USB2_APP_DESCRIPTORS_C, 0, USB2_CS_DESC_SUBTYPE_ACM_C);
+      assert i >= 0 report "CDCACM functional descriptor not found" severity failure;
+      if ( i >= 0 ) then
+         v := USB2_APP_DESCRIPTORS_C( i + IDX_BM_CAPABILITIES_C );
+      end if;
+      return v; 
+   end function acmCapabilities;
+
    constant USE_MMCM_C                         : boolean := true;
 
    constant N_EP_C                             : natural := USB2_APP_MAX_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
@@ -175,6 +204,10 @@ architecture Impl of Usb2ExampleDev is
    -- min. 2 ethernet frames -> 4kB
    constant LD_ECM_FIFO_DEPTH_INP_C            : natural := 12;
    constant LD_ECM_FIFO_DEPTH_OUT_C            : natural := 12;
+
+   constant CDC_ACM_BM_CAPABILITIES            : Usb2ByteType := acmCapabilities;
+   constant ENBL_LINE_BREAK_C                  : boolean      := (CDC_ACM_BM_CAPABILITIES(2) = '1');
+   constant ENBL_LINE_STATE_C                  : boolean      := (CDC_ACM_BM_CAPABILITIES(1) = '1');
 
    signal acmFifoTimer                         : unsigned(31 downto 0) := (others => '0');
    signal acmFifoMinFill                       : unsigned(LD_ACM_FIFO_DEPTH_INP_C - 1 downto 0) := (others => '0');
@@ -431,8 +464,8 @@ begin
             LD_FIFO_DEPTH_INP_G         => LD_ACM_FIFO_DEPTH_INP_C,
             LD_FIFO_DEPTH_OUT_G         => LD_ACM_FIFO_DEPTH_OUT_C,
             FIFO_TIMER_WIDTH_G          => acmFifoTimer'length,
-            ENBL_LINE_BREAK_G           => true,
-            ENBL_LINE_STATE_G           => true
+            ENBL_LINE_BREAK_G           => ENBL_LINE_BREAK_C,
+            ENBL_LINE_STATE_G           => ENBL_LINE_STATE_C
          )
          port map (
             usb2Clk                    => ulpiClkLoc,

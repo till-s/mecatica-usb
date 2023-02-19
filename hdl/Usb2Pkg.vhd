@@ -372,8 +372,14 @@ package Usb2Pkg is
    constant USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C          : Usb2StdDescriptorTypeType  := x"6";
    constant USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C          : Usb2StdDescriptorTypeType  := x"7";
    constant USB2_STD_DESC_TYPE_INTERFACE_POWER_C           : Usb2StdDescriptorTypeType  := x"8";
+
+   constant USB2_CS_DESC_TYPE_INTERFACE_C                  : Usb2ByteType               := x"24";
+   constant USB2_CS_DESC_TYPE_ENDPOINT_C                   : Usb2ByteType               := x"25";
+
    -- use as a sentinel to terminate table
    constant USB2_STD_DESC_TYPE_SENTINEL_C                  : Usb2ByteType               := x"FF";
+
+   constant USB2_CS_DESC_SUBTYPE_ACM_C                     : Usb2ByteType               := x"02";
 
    function usb2DescIsSentinel(constant x : Usb2ByteType) return boolean;
     
@@ -487,6 +493,40 @@ package Usb2Pkg is
    -- components in reset.
    function epInpRunning(constant ep : in Usb2EndpPairObType) return std_logic;
    function epOutRunning(constant ep : in Usb2EndpPairObType) return std_logic;
+
+   type Usb2DescRWIbType is record
+      addr       : unsigned(15 downto 0);
+      ren        : std_logic;
+      wen        : std_logic;
+      wdata      : Usb2ByteType;
+   end record Usb2DescRWIbType;
+
+   constant USB2_DESC_RW_IB_INIT_C : Usb2DescRWIbType := (
+      addr       => (others => '0'),
+      -- if 'ren' and 'wen' are accessed simultaneously then 'ren' is ignored
+      ren        => '0',
+      wen        => '0',
+      wdata      => (others => '0')
+   );
+
+   type Usb2DescRWObType is record
+      ack        : std_logic;
+      err        : std_logic;
+      rdata      : Usb2ByteType;
+   end record Usb2DescRWObType;
+
+   constant USB2_DESC_RW_OB_INIT_C : Usb2DescRWObType := (
+      ack        => '0',
+      err        => '0',
+      rdata      => (others => '0')
+   );
+
+   constant USB2_DESC_RW_OB_FAIL_C : Usb2DescRWObType := (
+      ack        => '1',
+      err        => '1',
+      rdata      => (others => '0')
+   );
+
 
 end package Usb2Pkg;
 
