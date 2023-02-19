@@ -58,6 +58,9 @@ entity Usb2StdCtlEp is
       hiSpeed         : in  std_logic          := '0';
       selfPowered     : in  std_logic          := '0';
 
+      descRWIb        : in  Usb2DescRWIbType   := USB2_DESC_RW_IB_INIT_C;
+      descRWOb        : out Usb2DescRWObType   := USB2_DESC_RW_OB_FAIL_C;
+
       devStatus       : out Usb2DevStatusType;
       epConfig        : out Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1)
    );
