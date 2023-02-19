@@ -11,6 +11,7 @@ use     ieee.math_real.all;
 use     work.Usb2UtilPkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2Pkg.all;
+use     work.Usb2PrivPkg.all;
 use     work.Usb2DescPkg.all;
 
 -- Top-level USB module; ties lower-level modules together
@@ -52,11 +53,13 @@ entity Usb2Core is
 
       ulpiForceStp                 : in    std_logic       := '0';
 
+      -- access to registers in the ULPI PHY
       ulpiRegReq                   : in    UlpiRegReqType  := ULPI_REG_REQ_INIT_C;
       ulpiRegRep                   : out   UlpiRegRepType;
 
       -- device state (ADDRESS->CONFIGURED) and other info
       usb2DevStatus                : out   Usb2DevStatusType;
+
       -- incoming packet headers; e.g., SOFs can be seen here
       usb2Rx                       : out   Usb2RxType;
 
@@ -66,16 +69,18 @@ entity Usb2Core is
       usb2Ep0CtlExt                : in    Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
       usb2Ep0CtlEpIbExt            : in    Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
 
+      -- global device configuration (in most cases tied to a static value;
+      -- should also match what the descriptors say)
       usb2HiSpeedEn                : in    std_logic          := '0';
       usb2RemoteWake               : in    std_logic          := '0';
-      -- indicate whether the device is currently self-powered (for USB GET_STATUS req.)
+      --    indicate whether the device is currently self-powered (for USB GET_STATUS req.)
       usb2SelfPowered              : in    std_logic          := '0';
 
       -- Endpoints are attached here (1 and up)
       usb2EpIb                     : in    Usb2EndpPairIbArray(1 to USB2_APP_MAX_ENDPOINTS_F(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_IB_INIT_C );
       -- note EP0 output can be observed here; an external agent extending EP0 functionality
-      -- needs to listen to this.
+      -- needs to listen to usb2EpOb(0).
       usb2EpOb                     : out   Usb2EndpPairObArray(0 to USB2_APP_MAX_ENDPOINTS_F(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_OB_INIT_C )
    );
@@ -106,7 +111,7 @@ architecture Impl of Usb2Core is
    signal isHiSpeedNego     : std_logic;
 
    signal txDataMst         : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
-   signal txDataSub         : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
+   signal txDataSub         : Usb2PkTxSubType := USB2_PKTX_SUB_INIT_C;
 
    signal devStatus         : Usb2DevStatusType := USB2_DEV_STATUS_INIT_C;
    signal epConfig          : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_CONFIG_INIT_C);

@@ -59,7 +59,7 @@
 #    "example/hdl/Ps7Pkg.vhd"
 #    "example/hdl/StdLogPkg.vhd"
 #    "example/hdl/AppCfgPkgBody.vhd"
-#    "example/hdl/Usb2CdcAcmDev.vhd"
+#    "example/hdl/Usb2ExampleDev.vhd"
 #    "example/hdl/ZynqTop.vhd"
 #    "example/xdc/zynq_zybo_pins.xdc"
 #    "example/xdc/clk_inp.xdc"
@@ -86,12 +86,9 @@ proc checkRequiredFiles { origin_dir} {
  "[file normalize "$origin_dir/../../hdl/Usb2UtilPkg.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/Usb2AppCfgPkg.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/Usb2DescPkg.vhd"]"\
- "[file normalize "$origin_dir/../hdl/AppCfgPkgBody.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/CDCACMCtl.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/BADDSpkrCtl.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/I2SPlayback.vhd"]"\
- "[file normalize "$origin_dir/../hdl/Ps7Pkg.vhd"]"\
- "[file normalize "$origin_dir/../hdl/StdLogPkg.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/UlpiIOBuf.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/UlpiIO.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/UlpiLineState.vhd"]"\
@@ -104,7 +101,10 @@ proc checkRequiredFiles { origin_dir} {
  "[file normalize "$origin_dir/../../hdl/Usb2PktProc.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/Usb2StdCtlEp.vhd"]"\
  "[file normalize "$origin_dir/../../hdl/Usb2Core.vhd"]"\
- "[file normalize "$origin_dir/../hdl/Usb2CdcAcmDev.vhd"]"\
+ "[file normalize "$origin_dir/../hdl/AppCfgPkgBody.vhd"]"\
+ "[file normalize "$origin_dir/../hdl/Ps7Pkg.vhd"]"\
+ "[file normalize "$origin_dir/../hdl/StdLogPkg.vhd"]"\
+ "[file normalize "$origin_dir/../hdl/Usb2ExampleDev.vhd"]"\
  "[file normalize "$origin_dir/../hdl/ZynqTop.vhd"]"\
  "[file normalize "$origin_dir/../xdc/zynq_zybo_pins.xdc"]"\
  "[file normalize "$origin_dir/../xdc/clk_inp.xdc"]"\
@@ -281,7 +281,7 @@ set files [list \
  [file normalize "${origin_dir}/../../hdl/Usb2PktProc.vhd"] \
  [file normalize "${origin_dir}/../../hdl/Usb2StdCtlEp.vhd"] \
  [file normalize "${origin_dir}/../../hdl/Usb2Core.vhd"] \
- [file normalize "${origin_dir}/../hdl/Usb2CdcAcmDev.vhd"] \
+ [file normalize "${origin_dir}/../hdl/Usb2ExampleDev.vhd"] \
  [file normalize "${origin_dir}/../hdl/ZynqTop.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
@@ -402,7 +402,7 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "VHDL" -objects $file_obj
 
-set file "$origin_dir/../hdl/Usb2CdcAcmDev.vhd"
+set file "$origin_dir/../hdl/Usb2ExampleDev.vhd"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "VHDL" -objects $file_obj

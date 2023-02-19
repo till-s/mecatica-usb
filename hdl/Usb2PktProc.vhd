@@ -9,6 +9,7 @@ use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
+use     work.Usb2PrivPkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
@@ -33,7 +34,7 @@ entity Usb2PktProc is
       usb2Rx          : in  usb2RxType;
 
       txDataMst       : out Usb2StrmMstType;
-      txDataSub       : in  Usb2StrmSubType
+      txDataSub       : in  Usb2PkTxSubType
    );
 end entity Usb2PktProc;
 

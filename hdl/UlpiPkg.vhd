@@ -56,6 +56,9 @@ package UlpiPkg is
    -- without an external logic gate. The timing budget (6ns output delay + 5ns
    -- setup time leaves ~5ns for board trace delays (small) and in-FPGA (significant)
    -- delay; (e.g., ARTIX-7 speed grade 1 needs IBUF + routing + OBUF ~ 8ns).
+   -- Experiments showed that the USB3340 did work just fine in NORMAL
+   -- mode but actually failed in one of the other modes. So these are
+   -- kept mostly for the record.
    type UlpiStpModeType is ( NORMAL, WAIT_FOR_NXT, WAIT_FOR_NXT_MASKED );
 
    type UlpiRegReqType is record

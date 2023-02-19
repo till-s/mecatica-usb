@@ -9,6 +9,7 @@ use     ieee.numeric_std.all;
 
 use     work.UlpiPkg.all;
 use     work.Usb2Pkg.all;
+use     work.Usb2PrivPkg.all;
 
 entity UlpiIOTb is
 end entity UlpiIOTb;
@@ -48,7 +49,7 @@ architecture Sim of UlpiIOTb is
    signal tokSeen         : natural   := 0;
 
    signal txDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
-   signal txDataSub       : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
+   signal txDataSub       : Usb2PkTxSubType := USB2_PKTX_SUB_INIT_C;
 
    signal ulpiIb          : UlpiIbType;
    signal ulpiOb          : UlpiObType;

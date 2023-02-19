@@ -9,10 +9,11 @@ use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
+use     work.Usb2PrivPkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
--- Module that converts a USB packet
+-- Module to convert a USB packet
 -- into a low-level ulpi stream;
 -- The PID is sent by the user in 'txDataMst.usr'
 -- and prepended by this module which also takes
@@ -28,7 +29,7 @@ entity Usb2PktTx is
       ulpiTxReq      : out UlpiTxReqType;
       ulpiTxRep      : in  UlpiTxRepType;
       txDataMst      : in  Usb2StrmMstType;
-      txDataSub      : out Usb2StrmSubType;
+      txDataSub      : out Usb2PkTxSubType;
       hiSpeed        : in  std_logic
    );
 end entity Usb2PktTx;
