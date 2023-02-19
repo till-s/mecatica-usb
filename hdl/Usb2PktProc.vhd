@@ -9,6 +9,7 @@ use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
+use     work.Usb2PrivPkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
@@ -33,7 +34,7 @@ entity Usb2PktProc is
       usb2Rx          : in  usb2RxType;
 
       txDataMst       : out Usb2StrmMstType;
-      txDataSub       : in  Usb2StrmSubType
+      txDataSub       : in  Usb2PkTxSubType
    );
 end entity Usb2PktProc;
 
@@ -113,6 +114,7 @@ architecture Impl of Usb2PktProc is
       DATA_OUT,
       ISO_OUT,
       DRAIN,
+      DUMP,
       WAIT_DON,
       WAIT_ACK,
       HSK,
@@ -628,11 +630,23 @@ begin
                   v.donFlg := '1';
                end if;
 
-               if ( ( not ei.mstInp.don and txDataSub.don and txDataSub.err ) = '1' ) then
+               if ( (    (    (not ei.bFramedInp and not ei.mstInp.don)
+                           or (    ei.bFramedInp and     ei.mstInp.vld)
+                         )
+                     and txDataSub.don
+                     and txDataSub.err
+                    ) = '1' ) then
                   -- phy abort
-                  epObLoc( to_integer( r.epIdx ) ).subInp.err <= '1';
-                  v.state := IDLE;
+                  v.state := DUMP;
                end if;
+            end if;
+
+         when DUMP =>
+            epObLoc( to_integer( r.epIdx ) ).subInp.rdy <= '1';
+            if ( (   (not ei.bFramedInp and     ei.mstInp.don)
+                  or (    ei.bFramedInp and not ei.mstInp.vld)
+                  ) = '1' ) then
+                  v.state := IDLE;
             end if;
 
          when DATA_OUT | DRAIN =>

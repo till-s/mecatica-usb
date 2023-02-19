@@ -100,10 +100,10 @@ entity Usb2ExampleDev is
       iRegs                : in    RegArray(0 to 1, 0 to 1);
       -- status vector
       -- CDC-ACM
-      -- oRegs(0,0)               : IN  fifo fill level
+      -- oRegs(0,0)               : fifo sizes, IN  fifo fill level
       -- oRegs(0,1)               : RTS, DTR, lineBreak, OUT fifo fill level
       -- CDC-ECM
-      -- oRegs(1,0)               : IN  fifo sizes, packetFilter, fifo fill level
+      -- oRegs(1,0)               : fifo sizes, packetFilter, IN fifo fill level
       -- oRegs(1,1)               : OUT fifo frames & fill level
       oRegs                : out   RegArray(0 to 1, 0 to 1);
 
@@ -263,7 +263,12 @@ begin
    ) is
    begin
       oRegs <= ((others => (others => '0')), (others => (others => '0')));
-      oRegs(0,0)(acmFifoFilledInp'range) <= std_logic_vector(acmFifoFilledInp);
+
+      oRegs(0,0)(31 downto 28)           <= std_logic_vector(to_unsigned(LD_ACM_FIFO_DEPTH_INP_C, 4));
+      oRegs(0,0)(27 downto 24)           <= std_logic_vector(to_unsigned(LD_ACM_FIFO_DEPTH_OUT_C, 4));
+      oRegs(0,0)(23 downto 16)           <= (others => '0');
+      oRegs(0,0)(15 downto  0)           <= std_logic_vector(resize(acmFifoFilledInp, 16));
+
       oRegs(0,1)(15 downto  0)           <= std_logic_vector(resize(acmFifoFilledOut, 16));
       oRegs(0,1)(16)                     <= DTR;
       oRegs(0,1)(17)                     <= RTS;

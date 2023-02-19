@@ -9,6 +9,7 @@ use     ieee.numeric_std.all;
 use     ieee.math_real.all;
 
 use     work.Usb2Pkg.all;
+use     work.Usb2PrivPkg.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2TstPkg.all;
@@ -21,7 +22,7 @@ end entity Usb2HskTb;
 architecture sim of Usb2HskTb is
 
    signal txDataMst       : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
-   signal txDataSub       : Usb2StrmSubType := USB2_STRM_SUB_INIT_C;
+   signal txDataSub       : Usb2PkTxSubType := USB2_PKTX_SUB_INIT_C;
 
    signal ulpiRx          : UlpiRxType;
    signal ulpiTxReq       : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;

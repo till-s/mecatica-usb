@@ -7,6 +7,8 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
+-- Public package for USB data types, constants, functions etc.
+
 package Usb2Pkg is
 
    subtype  Usb2PidType             is std_logic_vector(3 downto 0);
@@ -102,16 +104,10 @@ package Usb2Pkg is
 
    type Usb2StrmSubType is record
       rdy   : std_logic;
-      -- if an error occurs then the stream is aborted (sender must stop)
-      -- i.e., 'don' may be asserted before all the data are sent!
-      err   : std_logic;
-      don   : std_logic;
    end record Usb2StrmSubType;
 
    constant USB2_STRM_SUB_INIT_C : Usb2StrmSubType := (
-      rdy   => '0',
-      err   => '0',
-      don   => '0'
+      rdy   => '0'
    );
 
    type Usb2RxType is record
@@ -173,8 +169,7 @@ package Usb2Pkg is
    constant USB2_TT_BULK_C        : Usb2TransferType := "10";
    constant USB2_TT_INTERRUPT_C   : Usb2TransferType := "11";
 
-   -- this information is passed via generic to the packet
-   -- processor but also passed into the endpoint descriptor
+   -- this information is extracted from the descriptors
    -- Note that the endpoint address/number is implicitly
    -- encoded (place of the endpoint in an array).
    -- If one direction of a pair is unsupported/not implemented
@@ -311,10 +306,6 @@ package Usb2Pkg is
    type Usb2EndpPairConfigArray   is array (natural range <>) of Usb2EndpPairConfigType;
    type Usb2EndpPairIbArray       is array (natural range <>) of Usb2EndpPairIbType;
    type Usb2EndpPairObArray       is array (natural range <>) of Usb2EndpPairObType;
-
-   type Usb2DevConfigType is record
-      hasRemoteWakeup  : boolean;
-   end record Usb2DevConfigType;
 
    function USB2_REQ_TYP_DEV2HOST_F (constant reqTyp : in Usb2ByteType) return boolean;
    function USB2_REQ_TYP_TYPE_F     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
@@ -491,8 +482,9 @@ package Usb2Pkg is
       constant i : in natural
    ) return boolean;
 
-   -- indicate if an endpoint is enabled/'chosen' in the currently
-   -- active alt-setting (if any)
+   -- indicates whether an endpoint is enabled/'chosen' in the currently
+   -- active alt-setting (if any) may be used to hold external endpoint
+   -- components in reset.
    function epInpRunning(constant ep : in Usb2EndpPairObType) return std_logic;
    function epOutRunning(constant ep : in Usb2EndpPairObType) return std_logic;
 

@@ -11,7 +11,7 @@ GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 -include config.mk
 
 SRCS+= Usb2UtilPkg.vhd
-SRCS+= UlpiPkg.vhd Usb2Pkg.vhd
+SRCS+= UlpiPkg.vhd Usb2Pkg.vhd Usb2PrivPkg.vhd
 SRCS+= Usb2TstPkg.vhd
 SRCS+= Usb2AppCfgPkg.vhd
 SRCS+= Usb2DescPkg.vhd
@@ -86,11 +86,11 @@ build: $(PROG)
 $(PROG): %Tb : %Tb.o
 	$(GHDL) -e $(GHDLFLAGS) $($(@:%.o=%)_GHDLFLAGS) -o $@ -Wl,-no-pie $@
 
-$(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o Usb2DescPkg.o
+$(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o Usb2PrivPkg.o UlpiPkg.o Usb2UtilPkg.o Usb2DescPkg.o
 
 Usb2DescPkg.o: Usb2AppCfgPkg.o
 Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
-Usb2TstPkg.o: Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o
+Usb2TstPkg.o Usb2PrivPkg.o: Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o
 
 $(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
 
