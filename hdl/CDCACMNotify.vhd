@@ -18,7 +18,7 @@ entity CDCACMNotify is
    generic (
       CTL_IFC_NUM_G              : natural;
       ASYNC_G                    : boolean   := false;
-      MARK_DEBUG_G               : boolean   := true
+      MARK_DEBUG_G               : boolean   := false
    );
    port (
       usb2Clk                    : in  std_logic;
