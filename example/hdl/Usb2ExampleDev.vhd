@@ -183,6 +183,36 @@ architecture Impl of Usb2ExampleDev is
       return v;
    end function acmCapabilities;
 
+   function ecmMacAddr return integer is
+      variable i                    : integer;
+      variable si                   : integer;
+      constant IDX_MAC_ADDR_SIDX_C  : natural := 3;
+   begin
+      i := usb2NextCsDescriptor(USB2_APP_DESCRIPTORS_C, 0, USB2_CS_DESC_SUBTYPE_ETHERNET_NETWORKING_C);
+      assert i >= 0 report "CDCECM functional descriptor not found" severity failure;
+      if ( i < 0 ) then
+         return -1;
+      end if;
+      si := to_integer(unsigned(USB2_APP_DESCRIPTORS_C( i + IDX_MAC_ADDR_SIDX_C )));
+      assert si > 0 report "CDCECM invalid iMACAddr string index" severity failure;
+      if ( si < 1 ) then
+         return -1;
+      end if;
+      i := USB2_APP_STRINGS_IDX_F( USB2_APP_DESCRIPTORS_C );
+      while ( si > 0 ) loop
+         i := usb2NextDescriptor( USB2_APP_DESCRIPTORS_C, i, a => true );
+         if ( i < 0 ) then
+            return -1;
+         end if;
+         i := usb2NextDescriptor( USB2_APP_DESCRIPTORS_C, i, USB2_STD_DESC_TYPE_STRING_C, a => true );
+         if ( i < 0 ) then
+            return -1;
+         end if;
+         si := si - 1;
+      end loop;
+      return i;
+   end function ecmMacAddr;
+
    constant USE_MMCM_C                         : boolean := true;
 
    constant N_EP_C                             : natural := USB2_APP_MAX_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
@@ -202,6 +232,8 @@ architecture Impl of Usb2ExampleDev is
    -- min. 2 ethernet frames -> 4kB
    constant LD_ECM_FIFO_DEPTH_INP_C            : natural := 12;
    constant LD_ECM_FIFO_DEPTH_OUT_C            : natural := 12;
+
+   constant ECM_MAC_IDX_C                      : integer := ecmMacAddr;
 
    constant CDC_ACM_BM_CAPABILITIES            : Usb2ByteType := acmCapabilities;
    constant ENBL_LINE_BREAK_C                  : boolean      := (CDC_ACM_BM_CAPABILITIES(2) = '1');
@@ -254,6 +286,11 @@ architecture Impl of Usb2ExampleDev is
 
    signal usb2RemoteWake                       : std_logic;
 
+   signal descRWIb                             : Usb2DescRWIbType   := USB2_DESC_RW_IB_INIT_C;
+   signal descRWOb                             : Usb2DescRWObType   := USB2_DESC_RW_OB_INIT_C;
+
+   signal macAddrPatchDone                     : std_logic := '1';
+
    signal muxSel                               : MuxSelType         := NONE;
    signal muxSelIn                             : MuxSelType         := NONE;
 
@@ -280,7 +317,7 @@ begin
    -- Output assignments
 
    ulpiClkOut <= ulpiClkLoc;
-   usb2RstLoc <= usb2DevStatus.usb2Rst or ulpiRst;
+   usb2RstLoc <= usb2DevStatus.usb2Rst or ulpiRst or not macAddrPatchDone;
    usb2Rst    <= usb2RstLoc;
 
    -- Register assignments
@@ -375,7 +412,11 @@ begin
          usb2RemoteWake               => usb2RemoteWake,
 
          usb2EpIb                     => usb2EpIb,
-         usb2EpOb                     => usb2EpOb
+         usb2EpOb                     => usb2EpOb,
+
+         descRWClk                    => ulpiClkLoc,
+         descRWIb                     => descRWIb,
+         descRWOb                     => descRWOb
       );
 
    -- Control EP-0 mux
@@ -604,14 +645,122 @@ begin
    end block B_EP_ISO_BADD;
 
    B_EP_CDCECM : block is
-
-      signal ecmCarrier               : std_logic;
-
+      signal   ecmCarrier             : std_logic;
    begin
+
 
       ecmFifoMinFill  <= unsigned(iRegs(1,0)(ecmFifoMinFill'range));
       ecmCarrier      <= iRegs(1,0)(31);
       ecmFifoTimer    <= unsigned(iRegs(1,1)(ecmFifoTimer'range));
+
+      -- Patch device DNA into the iMACAddress descriptor (which is a string,
+      -- so we must convert to utf-16-le which is trivial for '0'-'F')
+      G_PATCH : if ( ECM_MAC_IDX_C >= 0 ) generate
+         signal   dnaShift                 : std_logic := '0';
+         signal   dnaRead                  : std_logic := '0';
+         signal   dnaOut                   : std_logic := '0';
+
+         -- each nibble is one unicode character
+         constant OFFBEG_C                 : Usb2DescIdxType := 2 + 2*2;   -- header + 2 unicode char
+         constant OFFEND_C                 : Usb2DescIdxType := 2 + 2*11;  -- header + 11 unicode chars
+
+         constant SREG_INIT_C              : std_logic_vector(4 downto 0) := ( 0 => '1', others => '0');
+
+         type StateType is ( INIT, SHIFT_AND_PATCH, DONE );
+
+         type RegType is record
+            state        : StateType;
+            dnaRead      : std_logic;
+            offset       : Usb2DescIdxType;
+            -- one extra bit as a marker
+            sreg         : std_logic_vector(4 downto 0);
+         end record RegType;
+
+         constant REG_INIT_C : RegType := (
+            state        => INIT,
+            dnaRead      => '1',
+            offset       => (2 + 2*2),
+            sreg         => SREG_INIT_C
+         );
+
+         signal   r      : RegType := REG_INIT_C;
+         signal   rin    : RegType;
+
+         function ascii(constant x : in std_logic_vector(3 downto 0))
+         return Usb2ByteType is
+            variable v : unsigned(Usb2ByteType'range);
+         begin
+            v := 16#30# + resize(unsigned(x), v'length);
+            if ( unsigned(x) > 9 ) then
+               v := v + 7;
+            end if;
+            return Usb2ByteType(v);
+         end function ascii;
+
+      begin
+
+         dnaRead         <= r.dnaRead;
+
+         P_COMB : process ( r, dnaOut, descRWIb ) is
+            variable v : RegType;
+         begin
+            v                := r;
+            macAddrPatchDone <= '0';
+            dnaShift         <= '0';
+            descRWIb         <= USB2_DESC_RW_IB_INIT_C;
+            descRWIb.addr    <= to_unsigned( ECM_MAC_IDX_C + r.offset, descRWIb.addr'length );
+            descRWIb.wdata   <= ascii( r.sreg(3 downto 0) );
+
+            case ( r.state ) is
+               when INIT =>
+                  v.state   := SHIFT_AND_PATCH;
+                  v.dnaRead := '0';
+
+               when SHIFT_AND_PATCH =>
+                  if ( r.sreg(r.sreg'left) = '1' ) then
+                     -- got a nibble; write
+                    descRWIb.cen <= '1';
+                    descRWIb.wen <= '1';
+                    if ( r.offset = OFFEND_C ) then
+                       v.state  := DONE;
+                    else
+                       v.offset := r.offset + 2; -- next unicode char
+                       v.sreg   := SREG_INIT_C;
+                    end if;
+                  else
+                     dnaShift <= '1';
+                     v.sreg   := r.sreg(r.sreg'left - 1 downto 0) & dnaOut;
+                  end if;
+
+               when DONE =>
+                  macAddrPatchDone <= '1';
+            end case;
+
+            rin <= v;
+         end process P_COMB;
+
+         P_SEQ  : process ( ulpiClkLoc ) is
+         begin
+            if ( rising_edge( ulpiClkLoc ) ) then
+               -- while clock not stable hold in reset
+               if ( ulpiRst = '1' ) then
+                  r <= REG_INIT_C;
+               else
+                  r <= rin;
+               end if;
+            end if;
+         end process P_SEQ;
+
+         U_DNA_PORT : DNA_PORT
+            port map (
+               CLK                        => ulpiClkLoc,
+               DIN                        => '0',
+               READ                       => dnaRead,
+               SHIFT                      => dnaShift,
+               DOUT                       => dnaOut
+            );
+
+      end generate G_PATCH;
 
       U_CDCECM : entity work.Usb2EpCDCECM
          generic map (

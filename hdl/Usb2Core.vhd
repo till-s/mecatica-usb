@@ -33,7 +33,8 @@ entity Usb2Core is
       ULPI_DIR_IOB_G               : boolean         := true;
       ULPI_DIN_IOB_G               : boolean         := true;
       ULPI_STP_MODE_G              : UlpiStpModeType := NORMAL;
-      DESCRIPTORS_G                : Usb2ByteArray
+      DESCRIPTORS_G                : Usb2ByteArray;
+      DESCRIPTOR_BRAM_G            : boolean         := false
    );
 
    port (
@@ -82,7 +83,17 @@ entity Usb2Core is
       -- note EP0 output can be observed here; an external agent extending EP0 functionality
       -- needs to listen to usb2EpOb(0).
       usb2EpOb                     : out   Usb2EndpPairObArray(0 to USB2_APP_MAX_ENDPOINTS_F(DESCRIPTORS_G) - 1)
-                                           := ( others => USB2_ENDP_PAIR_OB_INIT_C )
+                                           := ( others => USB2_ENDP_PAIR_OB_INIT_C );
+
+      -- access to descriptors in memory (only if DESCRIPTOR_BRAM_G is true)
+      -- NOTE: when modifying contents be *very careful*! Nothing that
+      --       alters the structure and layout of descriptors must be changed!
+      --       This is only intended for tweaking contents such as a MAC
+      --       address, for example.
+      descRWClk                    : in  std_logic          := '0';
+      descRWIb                     : in  Usb2DescRWIbType   := USB2_DESC_RW_IB_INIT_C;
+      -- readout has a 1-cycle pipeline delay
+      descRWOb                     : out Usb2DescRWObType   := USB2_DESC_RW_OB_INIT_C
    );
 
 
@@ -308,7 +319,8 @@ begin
    generic map (
       MARK_DEBUG_G    => MARK_DEBUG_EP0_G,
       NUM_ENDPOINTS_G => NUM_ENDPOINTS_C,
-      DESCRIPTORS_G   => DESCRIPTORS_G
+      DESCRIPTORS_G   => DESCRIPTORS_G,
+      DESCRIPTOR_BRAM_G => DESCRIPTOR_BRAM_G
    )
    port map (
       clk             => clk,
@@ -327,7 +339,11 @@ begin
       selfPowered     => usb2SelfPowered,
 
       devStatus       => devStatus,
-      epConfig        => epConfig
+      epConfig        => epConfig,
+
+      descRWClk       => descRWClk,
+      descRWIb        => descRWIb,
+      descRWOb        => descRWOb
   );
 
 end architecture Impl;

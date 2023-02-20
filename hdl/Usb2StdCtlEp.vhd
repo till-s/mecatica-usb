@@ -20,9 +20,9 @@ use     work.Usb2DescPkg.all;
 entity Usb2StdCtlEp is
    generic (
       NUM_ENDPOINTS_G   : positive;
+      ENDPOINT_G        : Usb2EndpIdxType := USB2_ENDP_ZERO_C;
       DESCRIPTORS_G     : Usb2ByteArray;
       DESCRIPTOR_BRAM_G : boolean         := true;
-      ENDPOINT_G        : Usb2EndpIdxType := USB2_ENDP_ZERO_C;
       MARK_DEBUG_G      : boolean         := true
    );
    port (
@@ -59,11 +59,18 @@ entity Usb2StdCtlEp is
       hiSpeed         : in  std_logic          := '0';
       selfPowered     : in  std_logic          := '0';
 
-      descRWIb        : in  Usb2DescRWIbType   := USB2_DESC_RW_IB_INIT_C;
-      descRWOb        : out Usb2DescRWObType   := USB2_DESC_RW_OB_INIT_C;
-
       devStatus       : out Usb2DevStatusType;
-      epConfig        : out Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1)
+      epConfig        : out Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1);
+
+      -- access to descriptors in memory (only if DESCRIPTOR_BRAM_G is true)
+      -- NOTE: when modifying contents be *very careful*! Nothing that
+      --       alters the structure and layout of descriptors must be changed!
+      --       This is only intended for tweaking contents such as a MAC
+      --       address, for example.
+      descRWClk       : in  std_logic          := '0';
+      descRWIb        : in  Usb2DescRWIbType   := USB2_DESC_RW_IB_INIT_C;
+      -- readout has a 1-cycle pipeline delay
+      descRWOb        : out Usb2DescRWObType   := USB2_DESC_RW_OB_INIT_C
    );
 end entity Usb2StdCtlEp;
 
@@ -308,8 +315,11 @@ architecture Impl of Usb2StdCtlEp is
    -- therefore we introduce a dummy signal array that is never empty.
    signal allEpIb: Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_G - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
 
-   signal r   : RegType := REG_INIT_C;
-   signal rin : RegType;
+   signal r                 : RegType := REG_INIT_C;
+   signal rin               : RegType;
+
+   signal ramDatA           : Usb2ByteType := (others => '0');
+   signal ramRenA           : std_logic    := '0';
 
    procedure READ_TBL( variable v : inout RegType ) is
    begin
@@ -355,7 +365,7 @@ begin
 
    allEpIb(1 to NUM_ENDPOINTS_G - 1) <= usrEpIb;
 
-   P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt, pktHdr, suspend, hiSpeed, selfPowered ) is
+   P_COMB : process ( r, epIb, allEpIb, ctlExt, ctlEpExt, pktHdr, suspend, hiSpeed, selfPowered, ramDatA ) is
       variable v          : RegType;
       variable descVal    : Usb2ByteType;
       variable tokOutSeen : boolean;
@@ -364,7 +374,11 @@ begin
       v    := r;
       epOb                      <= USB2_ENDP_PAIR_IB_INIT_C;
 
-      descVal                   := DSC_C( r.tblIdx + r.tblOff );
+      if ( DESCRIPTOR_BRAM_G ) then
+         descVal                := ramDatA;
+      else
+         descVal                := DSC_C( r.tblIdx + r.tblOff );
+      end if;
 
       epOb.stalledInp           <= r.protoStall;
       epOb.stalledOut           <= r.protoStall;
@@ -373,6 +387,7 @@ begin
       v.devStatus.selHaltInp    := (others => '0');
       v.devStatus.selHaltOut    := (others => '0');
       v.tblRdDone               := false;
+      ramRenA                   <= '0';
 
       if ( ctlExt.don = '1' ) then
          v.reqParam.vld            := '0';
@@ -486,9 +501,23 @@ begin
             end if;
 
          when READ_TBL =>
-            v.readVal     := descVal;
-            v.state       := r.retFromRd;
-            v.tblRdDone   := true;
+            if ( DESCRIPTOR_BRAM_G and not r.tblRdDone ) then
+               v.tblRdDone   := true;
+               ramRenA       <= '1';
+               if ( r.retFromRd = READ_DESCRIPTOR ) then
+                  -- pre-increment table offset (pipeline)
+                  v.tblOff := r.tblOff + 1;
+               end if;
+            else
+               -- keep result in a register mostly to ensure
+               -- every read goes through this READ_TBL 'wait' state
+               -- this is necessary if DESCRIPTOR_BRAM_G is enabled
+               v.readVal     := descVal;
+               v.state       := r.retFromRd;
+               -- flag is reset by default but we
+               -- keep it asserted
+               v.tblRdDone   := true;
+            end if;
 
          when STD_REQUEST =>
             -- dispatch standard requests
@@ -908,13 +937,15 @@ begin
                   v.state := STATUS;
                else
                   if ( epIb.subInp.rdy = '1' ) then
-                     if ( r.auxOff = r.tblOff ) then
+                     -- account for pipeline delay when reading BRAM
+                     if ( r.tblOff = r.auxOff + ite( DESCRIPTOR_BRAM_G, 1, 0 ) ) then
                         if ( r.sizeMatch ) then
                            v.state := STATUS;
                         else
                            v.flg := '1';
                         end if;
                      else
+                        ramRenA  <= '1';
                         v.tblOff := r.tblOff + 1;
                      end if;
                      v.patchOthCfg := '0' & r.patchOthCfg(r.patchOthCfg'left downto 1);
@@ -1007,6 +1038,61 @@ begin
          end if;
       end if;
    end process P_SEQ;
+
+   G_DESC_BRAM : if ( DESCRIPTOR_BRAM_G ) generate
+      attribute RAM_STYLE   : string;
+      attribute ROM_STYLE   : string;
+
+      constant AW_C   : positive         := numBits(DESCRIPTORS_G'high);
+
+      function INIT_F return std_logic_vector is
+         variable v : std_logic_vector(0 to 8*DESCRIPTORS_G'length - 1);
+      begin
+         for i in v'range loop
+            v(i) := DESCRIPTORS_G( i / Usb2ByteType'length )( i mod Usb2ByteType'length );
+         end loop;
+         return v;
+      end function INIT_F;
+
+      signal   addrA  : unsigned(AW_C - 1 downto 0);
+
+      signal descMem  : Usb2ByteArray(DESCRIPTORS_G'range) := DESCRIPTORS_G;
+
+      attribute RAM_STYLE of descMem : signal is "BLOCK";
+      attribute ROM_STYLE of descMem : signal is "BLOCK";
+
+   begin
+
+      addrA <= to_unsigned( r.tblIdx + r.tblOff, addrA'length );
+
+      -- Note: I could not use Usb2Bram here - when used as
+      --       a pure ROM vivado (2022.1) would always synthesize
+      --       it into fabric; no ROM_STYLE/RAM_STYLE helped...
+      --       It worked when applying the attributes to a signal
+      --       (as opposed to a shared variable required by TDP)
+
+      P_BRAM_A : process ( clk ) is
+      begin
+         if ( rising_edge( clk ) ) then
+            if ( ramRenA = '1' ) then
+               ramDatA <= descMem( r.tblIdx + r.tblOff );
+            end if;
+         end if;
+      end process P_BRAM_A;
+
+      P_BRAM_B : process ( descRWClk ) is
+      begin
+         if ( rising_edge( descRWClk ) ) then
+            if ( descRWIb.cen = '1' ) then
+               descRWOb.rdata <= descMem( to_integer( descRWIb.addr ) );
+               if ( descRWIb.wen = '1' ) then
+                  descMem( to_integer( descRWIb.addr ) ) <= descRWIb.wdata;
+               end if;
+            end if;
+         end if;
+      end process P_BRAM_B;
+
+   end generate G_DESC_BRAM;
 
    param     <= r.reqParam;
    epConfig  <= r.epConfig;
