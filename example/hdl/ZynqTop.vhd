@@ -24,7 +24,14 @@ entity ZynqTop is
    generic (
       -- ulpi 'INPUT clock mode is when the link generates the clock'
       -- NOTE: constraints matching the clock configuration have to be applied
-      ULPI_CLK_MODE_INP_G : integer := 1
+      ULPI_CLK_MODE_INP_G                : integer := 1;
+      MARK_DEBUG_EP0_CTL_MUX_G           : boolean := false;
+      MARK_DEBUG_ULPI_IO_G               : boolean := false;
+      MARK_DEBUG_ULPI_LINE_STATE_G       : boolean := false;
+      MARK_DEBUG_PKT_RX_G                : boolean := false;
+      MARK_DEBUG_PKT_TX_G                : boolean := false;
+      MARK_DEBUG_PKT_PROC_G              : boolean := false;
+      MARK_DEBUG_EP0_G                   : boolean := false
    );
    port (
       ethClk            : in    std_logic;
@@ -413,13 +420,20 @@ begin
 
    U_ULPI_TOP : entity work.Usb2ExampleDev
       generic map (
-         SYS_CLK_PERIOD_NS_G  => SYS_CLK_PERIOD_NS_C,
-         ULPI_CLK_MODE_INP_G  => ULPI_CLK_MODE_INP_C,
-         REF_CLK_DIV_G        => REF_CLK_DIV_C,
-         CLK_MULT_F_G         => CLK_MULT_F_C,
-         CLK0_DIV_G           => CLK0_DIV_C,
-         CLK2_DIV_G           => CLK2_DIV_C,
-         CLK1_INP_PHASE_G     => -58.5
+         SYS_CLK_PERIOD_NS_G              => SYS_CLK_PERIOD_NS_C,
+         ULPI_CLK_MODE_INP_G              => ULPI_CLK_MODE_INP_C,
+         REF_CLK_DIV_G                    => REF_CLK_DIV_C,
+         CLK_MULT_F_G                     => CLK_MULT_F_C,
+         CLK0_DIV_G                       => CLK0_DIV_C,
+         CLK2_DIV_G                       => CLK2_DIV_C,
+         CLK1_INP_PHASE_G                 => -58.5,
+         MARK_DEBUG_EP0_CTL_MUX_G         => MARK_DEBUG_EP0_CTL_MUX_G,
+         MARK_DEBUG_ULPI_IO_G             => MARK_DEBUG_ULPI_IO_G,
+         MARK_DEBUG_ULPI_LINE_STATE_G     => MARK_DEBUG_ULPI_LINE_STATE_G,
+         MARK_DEBUG_PKT_RX_G              => MARK_DEBUG_PKT_RX_G,
+         MARK_DEBUG_PKT_TX_G              => MARK_DEBUG_PKT_TX_G,
+         MARK_DEBUG_PKT_PROC_G            => MARK_DEBUG_PKT_PROC_G,
+         MARK_DEBUG_EP0_G                 => MARK_DEBUG_EP0_G
       )
       port map (
          refClkNb             => refClkNb,
