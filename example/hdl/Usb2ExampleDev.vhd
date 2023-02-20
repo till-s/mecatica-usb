@@ -195,22 +195,24 @@ architecture Impl of Usb2ExampleDev is
       constant IDX_MAC_ADDR_SIDX_C  : natural := 3;
    begin
       i := usb2NextCsDescriptor(USB2_APP_DESCRIPTORS_C, 0, USB2_CS_DESC_SUBTYPE_ETHERNET_NETWORKING_C);
-      assert i >= 0 report "CDCECM functional descriptor not found" severity failure;
+      assert i >= 0 report "CDCECM functional descriptor not found" severity warning;
       if ( i < 0 ) then
          return -1;
       end if;
       si := to_integer(unsigned(USB2_APP_DESCRIPTORS_C( i + IDX_MAC_ADDR_SIDX_C )));
-      assert si > 0 report "CDCECM invalid iMACAddr string index" severity failure;
+      assert si > 0 report "CDCECM invalid iMACAddr string index" severity warning;
       if ( si < 1 ) then
          return -1;
       end if;
       i := USB2_APP_STRINGS_IDX_F( USB2_APP_DESCRIPTORS_C );
       while ( si > 0 ) loop
          i := usb2NextDescriptor( USB2_APP_DESCRIPTORS_C, i, a => true );
+         assert i >= 0 report "Skipping string descriptor failed" severity warning;
          if ( i < 0 ) then
             return -1;
          end if;
          i := usb2NextDescriptor( USB2_APP_DESCRIPTORS_C, i, USB2_STD_DESC_TYPE_STRING_C, a => true );
+         assert i >= 0 report "Locating next string descriptor failed" severity warning;
          if ( i < 0 ) then
             return -1;
          end if;
@@ -390,7 +392,8 @@ begin
          ULPI_DIR_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIN_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_STP_MODE_G              => NORMAL,
-         DESCRIPTORS_G                => USB2_APP_DESCRIPTORS_C
+         DESCRIPTORS_G                => USB2_APP_DESCRIPTORS_C,
+         DESCRIPTOR_BRAM_G            => true
       )
       port map (
          clk                          => ulpiClkLoc,
@@ -559,7 +562,6 @@ begin
       P_CNT : process ( ulpiClkLoc ) is
       begin
          if ( rising_edge( ulpiClkLoc ) ) then
-
             if ( (acmFifoBlast and acmFifoWenInp) = '1' ) then
                cnt <= cnt + 1;
             end if;
