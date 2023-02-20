@@ -426,7 +426,7 @@ begin
          CLK_MULT_F_G                     => CLK_MULT_F_C,
          CLK0_DIV_G                       => CLK0_DIV_C,
          CLK2_DIV_G                       => CLK2_DIV_C,
-         CLK1_INP_PHASE_G                 => -58.5
+         CLK1_INP_PHASE_G                 => -58.5,
          MARK_DEBUG_EP0_CTL_MUX_G         => MARK_DEBUG_EP0_CTL_MUX_G,
          MARK_DEBUG_ULPI_IO_G             => MARK_DEBUG_ULPI_IO_G,
          MARK_DEBUG_ULPI_LINE_STATE_G     => MARK_DEBUG_ULPI_LINE_STATE_G,
