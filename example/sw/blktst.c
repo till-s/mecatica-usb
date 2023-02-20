@@ -18,7 +18,8 @@
 #include <time.h>
 #include <errno.h>
 
-#define INTF_NUMBER 1
+#define CTRL_INTF_NUMBER 0
+#define DATA_INTF_NUMBER 1
 
 
 #define _STR_(x) # x
@@ -29,6 +30,30 @@
 
 #define TOTSZ_HS (100*1024*1024)
 #define TOTSZ_FS (2*1024*1024)
+
+static int setLineState(libusb_device_handle *devh, int rts, int dtr)
+{
+uint16_t val, idx, len;
+	val = 0;
+	if ( rts ) {
+		val |= 2;
+	}
+	if ( dtr ) {
+		val |= 1;
+	}
+	idx = CTRL_INTF_NUMBER;
+	len = 0;
+	return libusb_control_transfer(
+		devh,
+		LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+        0x22, /* SET_CONTROL_LINE_STATE */
+		val,
+		idx,
+        NULL,
+		len,
+		1000
+	);
+}
 
 static void usage(const char *nm, int lvl)
 {
@@ -194,25 +219,51 @@ enum libusb_speed                                spd;
 		goto bail;
 	}
 
-	if ( cfg->bNumInterfaces <= INTF_NUMBER ) {
+	if ( cfg->bNumInterfaces <= DATA_INTF_NUMBER ) {
 		fprintf(stderr, "unexpected number of interfaces!\n");
 		goto bail;
 	}
 
-    /* CDC Data */
-	if ( cfg->interface[INTF_NUMBER].altsetting[0].bInterfaceClass != 10 ) {
-		fprintf(stderr, "unexpected interface class (not CDC Data)\n");
+    /* CDC ACM */
+	if ( cfg->interface[CTRL_INTF_NUMBER].altsetting[0].bInterfaceClass !=  2 ) {
+		fprintf(stderr, "unexpected interface class (not CDC)\n");
+		goto bail;
+	}
+	if ( cfg->interface[CTRL_INTF_NUMBER].altsetting[0].bInterfaceSubClass !=  2 ) {
+		fprintf(stderr, "unexpected interface subclass (not ACM)\n");
 		goto bail;
 	}
 
-	st = libusb_claim_interface( devh, INTF_NUMBER );
+	st = libusb_claim_interface( devh, CTRL_INTF_NUMBER );
 	if ( st ) {
 		fprintf(stderr, "libusb_claim_interface: %i\n", st);
 		goto bail;
 	}
 
-	e = cfg->interface[INTF_NUMBER].altsetting[0].endpoint;
-	for ( i = 0; i < cfg->interface[INTF_NUMBER].altsetting[0].bNumEndpoints; i++, e++ ) {
+    /* ensure modem control lines are clear (asserting DTR
+	 * switches from 'blast' mode which we exercise here to
+	 * loopback mode).
+	 */
+	st = setLineState( devh, 0, 0 );
+	if ( st ) {
+		fprintf(stderr, "Control transfer to reset DTR failed: %i\n", st);
+		goto bail;
+	}
+
+    /* CDC Data */
+	if ( cfg->interface[DATA_INTF_NUMBER].altsetting[0].bInterfaceClass != 10 ) {
+		fprintf(stderr, "unexpected interface class (not CDC Data)\n");
+		goto bail;
+	}
+
+	st = libusb_claim_interface( devh, DATA_INTF_NUMBER );
+	if ( st ) {
+		fprintf(stderr, "libusb_claim_interface: %i\n", st);
+		goto bail;
+	}
+
+	e = cfg->interface[DATA_INTF_NUMBER].altsetting[0].endpoint;
+	for ( i = 0; i < cfg->interface[DATA_INTF_NUMBER].altsetting[0].bNumEndpoints; i++, e++ ) {
 		if ( LIBUSB_TRANSFER_TYPE_BULK != (LIBUSB_TRANSFER_TYPE_MASK & e->bmAttributes) ) {
 			continue;
 		}
