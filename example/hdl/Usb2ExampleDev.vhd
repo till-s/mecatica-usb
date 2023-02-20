@@ -22,8 +22,8 @@ use     work.StdLogPkg.all;
 
 entity Usb2ExampleDev is
    generic (
-      SYS_CLK_PERIOD_NS_G  : real     := 20.0;
-      ULPI_CLK_MODE_INP_G  : boolean  := true;
+      SYS_CLK_PERIOD_NS_G                : real     := 20.0;
+      ULPI_CLK_MODE_INP_G                : boolean  := true;
 
       -- Note that the terms 'INPUT' and 'OUTPUT' clock, respectively
       -- follow the definitions in the ULPI spec, i.e., the directions
@@ -37,12 +37,12 @@ entity Usb2ExampleDev is
       -- sysClk with an MMCM - depending on the system clock rate
       -- the CLK_MULT_F_G/CLK0_DIV_G/REF_CLK_DIV_G must be set to
       -- generate the 60MHz ULPI clock at CLKOUT0 of the MMCM
-      REF_CLK_DIV_G        : positive := 1;
-      CLK_MULT_F_G         : real     := 24.0;
-      CLK0_DIV_G           : positive := 20;
+      REF_CLK_DIV_G                      : positive := 1;
+      CLK_MULT_F_G                       : real     := 24.0;
+      CLK0_DIV_G                         : positive := 20;
       -- CLKOUT2 is not currently used by could be employed to
       -- generate 200MHz for an IDELAY control module
-      CLK2_DIV_G           : positive := 6;
+      CLK2_DIV_G                         : positive := 6;
       -- CLKOUT1 is used to generate a phase-shifted clock that
       -- toggles the DDR which produces the ULPI clock. This phase
       -- shift helps with timing and *must* be at least slightly negative
@@ -50,7 +50,7 @@ entity Usb2ExampleDev is
       -- (use a negative phase-shift to compensate
       -- the significant delays in the clock path and the output delay of the ULPI
       -- transceiver).
-      CLK1_INP_PHASE_G     : real     := -29.25;
+      CLK1_INP_PHASE_G                   : real     := -29.25;
 
       -- ULPI OUTPUT CLOCK MODE PARAMETERS
 
@@ -62,9 +62,15 @@ entity Usb2ExampleDev is
       -- multicycle exception in the constraints must be removed!
       -- (delay the internal clock to compensate for the output delay of the
       -- ULPI transceiver)
-      CLK0_OUT_PHASE_G     : real     := 15.0;
+      CLK0_OUT_PHASE_G                   : real     := 15.0;
 
-      MARK_DEBUG_G         : boolean  := true
+      MARK_DEBUG_EP0_CTL_MUX_G           : boolean  := true;
+      MARK_DEBUG_ULPI_IO_G               : boolean  := true;
+      MARK_DEBUG_ULPI_LINE_STATE_G       : boolean  := false;
+      MARK_DEBUG_PKT_RX_G                : boolean  := false;
+      MARK_DEBUG_PKT_TX_G                : boolean  := false;
+      MARK_DEBUG_PKT_PROC_G              : boolean  := false;
+      MARK_DEBUG_EP0_G                   : boolean  := false
    );
    port (
       refClkNb             : in    std_logic;
@@ -270,10 +276,10 @@ architecture Impl of Usb2ExampleDev is
    signal usb2EpOb                             : Usb2EndpPairObArray(0 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_OB_INIT_C );
 
 
-   attribute MARK_DEBUG                        of usb2Ep0ReqParam   : signal is toStr(MARK_DEBUG_G);
-   attribute MARK_DEBUG                        of usb2Ep0CtlExt     : signal is toStr(MARK_DEBUG_G);
-   attribute MARK_DEBUG                        of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_G);
-   attribute MARK_DEBUG                        of muxSel            : signal is toStr(MARK_DEBUG_G);
+   attribute MARK_DEBUG                        of usb2Ep0ReqParam   : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
+   attribute MARK_DEBUG                        of usb2Ep0CtlExt     : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
+   attribute MARK_DEBUG                        of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
+   attribute MARK_DEBUG                        of muxSel            : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
 
 begin
 
@@ -337,12 +343,12 @@ begin
 
    U_USB2_CORE : entity work.Usb2Core
       generic map (
-         MARK_DEBUG_ULPI_IO_G         => true,
-         MARK_DEBUG_ULPI_LINE_STATE_G => false,
-         MARK_DEBUG_PKT_RX_G          => true,
-         MARK_DEBUG_PKT_TX_G          => false,
-         MARK_DEBUG_PKT_PROC_G        => true,
-         MARK_DEBUG_EP0_G             => true,
+         MARK_DEBUG_ULPI_IO_G         => MARK_DEBUG_ULPI_IO_G,
+         MARK_DEBUG_ULPI_LINE_STATE_G => MARK_DEBUG_ULPI_LINE_STATE_G,
+         MARK_DEBUG_PKT_RX_G          => MARK_DEBUG_PKT_RX_G,
+         MARK_DEBUG_PKT_TX_G          => MARK_DEBUG_PKT_TX_G,
+         MARK_DEBUG_PKT_PROC_G        => MARK_DEBUG_PKT_PROC_G,
+         MARK_DEBUG_EP0_G             => MARK_DEBUG_EP0_G,
          ULPI_NXT_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIR_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIN_IOB_G               => not ULPI_CLK_MODE_INP_G,
