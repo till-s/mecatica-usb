@@ -32,6 +32,12 @@ package Usb2UtilPkg is
    function ite(constant x: in boolean; constant a,b: real)
    return real;
 
+   function ite(constant x: in boolean; constant a,b: string)
+   return string;
+
+   -- number of bits required to represent 'x'
+   function numBits(constant x : positive) return positive;
+
 end package Usb2UtilPkg;
 
 package body Usb2UtilPkg is
@@ -75,5 +81,23 @@ package body Usb2UtilPkg is
    begin
       if ( x ) then return a; else return b; end if;
    end function ite;
+
+   function ite(constant x: in boolean; constant a,b: string)
+   return string is
+   begin
+      if ( x ) then return a; else return b; end if;
+   end function ite;
+
+   function numBits(constant x : positive)
+   return positive is
+      variable r : positive := 1;
+      variable c : positive := 2;
+   begin
+      while ( x >= c ) loop
+         c := c * 2;
+         r := r + 1;
+      end loop;
+      return r;
+   end function numBits;
 
 end package body Usb2UtilPkg;

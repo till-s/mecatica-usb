@@ -89,10 +89,8 @@ entity Usb2ExampleDev is
       -- iRegs(0,0)(10 downto 0)  : min. fill level of the IN fifo until data are sent to USB
       -- iRegs(0,0)(25)           : DSR
       -- iRegs(0,0)(26)           : DCD
-      -- iRegs(0,0)(27)           : enable 'blast' mode; OUT fifo is constantly drained; IN fifo
-      --                         is blast with an incrementing 8-bit counter.
-      -- iRegs(0,0)(28)           : disable 'loopback' mode; OUT fifo is fed into IN fifo; loopback
-      --                         is *enabled* by default. Note        : 'blast' overrides 'loopback'.
+
+      -- iRegs(0,0)(28)           : enable 'local' mode when the ACM is controlled from AXI.
       -- iRegs(0,0)(29)           : assert forced ULPI STP (useful to bring the PHY to reason if it holds DIR)
       -- iRegs(0,0)(30)           : mask/disable IN/OUT fifo's write/read enable when set.
       -- iRegs(0,0)(31)           : USB remote wakeup
@@ -177,12 +175,12 @@ architecture Impl of Usb2ExampleDev is
       variable v                     : Usb2ByteType := (others => '0');
       constant IDX_BM_CAPABILITIES_C : natural      := 3;
    begin
-      i := usb2NextCsDesc(USB2_APP_DESCRIPTORS_C, 0, USB2_CS_DESC_SUBTYPE_ACM_C);
+      i := usb2NextCsDescriptor(USB2_APP_DESCRIPTORS_C, 0, USB2_CS_DESC_SUBTYPE_ACM_C);
       assert i >= 0 report "CDCACM functional descriptor not found" severity failure;
       if ( i >= 0 ) then
          v := USB2_APP_DESCRIPTORS_C( i + IDX_BM_CAPABILITIES_C );
       end if;
-      return v; 
+      return v;
    end function acmCapabilities;
 
    constant USE_MMCM_C                         : boolean := true;
@@ -222,6 +220,7 @@ architecture Impl of Usb2ExampleDev is
    signal acmFifoDisable                       : std_logic    := '0';
    signal acmFifoBlast                         : std_logic    := '0';
    signal acmFifoLoopback                      : std_logic    := '0';
+   signal acmFifoLocal                         : std_logic    := '0';
 
    signal ecmFifoFilledInp                     : unsigned(LD_ECM_FIFO_DEPTH_INP_C downto 0) := (others => '0');
    signal ecmFifoFilledOut                     : unsigned(LD_ECM_FIFO_DEPTH_OUT_C downto 0) := (others => '0');
@@ -326,10 +325,13 @@ begin
    ulpiForceStp    <= iRegs(0,0)(29);
    usb2RemoteWake  <= iRegs(0,0)(31);
    acmFifoDisable  <= iRegs(0,0)(30);
-   acmFifoBlast    <= iRegs(0,0)(27);
+
    DCD             <= iRegs(0,0)(26);
    DSR             <= iRegs(0,0)(25);
-   acmFifoLoopback <= not iRegs(0,0)(28);
+   acmFifoLocal    <= iRegs(0,0)(28);
+
+   acmFifoLoopback <= DTR;
+   acmFifoBlast    <= not acmFifoLoopback;
 
    -- USB2 Core
 
@@ -523,6 +525,7 @@ begin
          acmFifoDatOut,
          acmFifoBlast,
          acmFifoLoopback,
+         acmFifoLocal,
          cnt,
          acmFifoDisable,
          acmFifoFullInp,
@@ -537,20 +540,20 @@ begin
          acmFifoInpFull  <= '1';
          wen             := not acmFifoFullInp  and not acmFifoDisable;
          ren             := not acmFifoEmptyOut and not acmFifoDisable;
-         if    ( acmFifoBlast = '1' ) then
-            acmFifoDatInp    <= std_logic_vector( cnt );
-            wen              := wen and '1';
-            ren              := ren and '1';
-         elsif ( acmFifoLoopback = '1' ) then
-            acmFifoDatInp    <= acmFifoDatOut;
-            wen              := wen and not acmFifoEmptyOut;
-            ren              := ren and not acmFifoFullInp;
-         else
+         if ( acmFifoLocal = '1' ) then
             acmFifoDatInp    <= acmFifoInpDat;
             acmFifoOutEmpty  <= acmFifoEmptyOut;
             acmFifoInpFull   <= acmFifoFullInp;
             wen              := wen and acmFifoInpWen;
             ren              := ren and acmFifoOutRen;
+         elsif ( acmFifoLoopback = '1' ) then
+            acmFifoDatInp    <= acmFifoDatOut;
+            wen              := wen and not acmFifoEmptyOut;
+            ren              := ren and not acmFifoFullInp;
+         else -- if ( acmFifoBlast = '1' ) then
+            acmFifoDatInp    <= std_logic_vector( cnt );
+            wen              := wen and '1';
+            ren              := ren and '1';
          end if;
          acmFifoWenInp <= wen;
          acmFifoRenOut <= ren;

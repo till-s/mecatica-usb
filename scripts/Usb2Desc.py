@@ -632,6 +632,7 @@ class Usb2DescContext(list):
       self.wMaxSegmentSize( 1514 )
       self.wNumberMCFilters( 0x8000 )
       self.bNumberPowerFilters( 0 )
+
     @acc(3)
     def iMACAddress(self, v): return self.cvtString(v)
     @acc(4,4)

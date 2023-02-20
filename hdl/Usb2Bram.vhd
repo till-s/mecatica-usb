@@ -56,6 +56,10 @@ architecture Impl of Usb2Bram is
       return v;
    end function memInit;
 
+   -- note for the record: an attempt to force vivado 2022.1 to use block ram
+   -- (RAM_STYLE "BLOCK", ROM_STYLE "BLOCK") for an instantiation where
+   -- only one read port of this entity was used (ROM) the attribute was
+   -- ignored and the rom implemented in fabric no matter what I tried!
    shared variable memory   : MemArray := memInit;
 
    signal  rdata_r  : std_logic_vector(wdata'range) := (others => '0');

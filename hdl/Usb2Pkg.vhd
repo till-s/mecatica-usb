@@ -380,6 +380,7 @@ package Usb2Pkg is
    constant USB2_STD_DESC_TYPE_SENTINEL_C                  : Usb2ByteType               := x"FF";
 
    constant USB2_CS_DESC_SUBTYPE_ACM_C                     : Usb2ByteType               := x"02";
+   constant USB2_CS_DESC_SUBTYPE_ETHERNET_NETWORKING_C     : Usb2ByteType               := x"0F";
 
    function usb2DescIsSentinel(constant x : Usb2ByteType) return boolean;
     
@@ -496,37 +497,25 @@ package Usb2Pkg is
 
    type Usb2DescRWIbType is record
       addr       : unsigned(15 downto 0);
-      ren        : std_logic;
+      cen        : std_logic;
       wen        : std_logic;
       wdata      : Usb2ByteType;
    end record Usb2DescRWIbType;
 
    constant USB2_DESC_RW_IB_INIT_C : Usb2DescRWIbType := (
       addr       => (others => '0'),
-      -- if 'ren' and 'wen' are accessed simultaneously then 'ren' is ignored
-      ren        => '0',
+      cen        => '0',
       wen        => '0',
       wdata      => (others => '0')
    );
 
    type Usb2DescRWObType is record
-      ack        : std_logic;
-      err        : std_logic;
       rdata      : Usb2ByteType;
    end record Usb2DescRWObType;
 
    constant USB2_DESC_RW_OB_INIT_C : Usb2DescRWObType := (
-      ack        => '0',
-      err        => '0',
       rdata      => (others => '0')
    );
-
-   constant USB2_DESC_RW_OB_FAIL_C : Usb2DescRWObType := (
-      ack        => '1',
-      err        => '1',
-      rdata      => (others => '0')
-   );
-
 
 end package Usb2Pkg;
 
