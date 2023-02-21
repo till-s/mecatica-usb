@@ -47,9 +47,9 @@ entity Usb2Fifo is
 
       rdClk        : in  std_logic;
       rdRst        : in  std_logic := '0';
+      rdRstOut     : out std_logic;
       rdXtraInp    : in  std_logic_vector(XTRA_R2W_G - 1 downto 0) := (others => '0');
       rdXtraOut    : out std_logic_vector(XTRA_W2R_G - 1 downto 0);
-      rdRstOut     : out std_logic;
       dou          : out std_logic_vector(DATA_WIDTH_G - 1 downto 0);
       sof          : out std_logic := '0';
       ren          : in  std_logic;

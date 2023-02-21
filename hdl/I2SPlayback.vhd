@@ -61,7 +61,7 @@ architecture Impl of I2SPlayback is
 
    constant FRMSZ_C                : natural := BYTESpSMP_C * SAMPLING_FREQ_G / SI_FREQ_G;
 
-   constant LD_FIFO_DEPTH_C        : natural := 10;
+   constant LD_FIFO_DEPTH_C        : natural := 11;
 
    function max(constant a, b: integer) return integer is
    begin
@@ -123,10 +123,10 @@ architecture Impl of I2SPlayback is
    -- endpoint to keep the fifo level between MINFILL_C and MAX_FILL_C.
 
    constant MINFILL_C     : bit_vector(15 downto 0) :=
-      to_bitvector( std_logic_vector( to_unsigned( 2**LD_FIFO_DEPTH_C - FRMSZ_C, 16) ) );
+      to_bitvector( std_logic_vector( to_unsigned( 2**(LD_FIFO_DEPTH_C - 1) - FRMSZ_C, 16) ) );
 
    constant MAXFILL_C     : bit_vector(15 downto 0) :=
-      to_bitvector( std_logic_vector( to_unsigned( 2**LD_FIFO_DEPTH_C + FRMSZ_C, 16) ) );
+      to_bitvector( std_logic_vector( to_unsigned( 2**(LD_FIFO_DEPTH_C - 1) + FRMSZ_C, 16) ) );
 
    function freq(constant f : in real) return std_logic_vector is
       variable v : std_logic_vector(31 downto 0);
@@ -185,7 +185,7 @@ architecture Impl of I2SPlayback is
       hiWater             : std_logic;
       rate                : std_logic_vector(31 downto 8);
       sofCnt              : signed(LD_SOF_CNT_MAX_C downto 0);
-      fifoFill            : unsigned(LD_FIFO_DEPTH_C downto 0);
+      fifoFill            : unsigned(LD_FIFO_DEPTH_C - 1 downto 0);
       newFrame            : std_logic;
    end record Usb2RegType;
 
@@ -232,6 +232,8 @@ architecture Impl of I2SPlayback is
    signal fifoAlmostEmpty : std_logic;
    signal fifoAlmostFull  : std_logic;
    signal fifoRst         : std_logic := '0';
+   signal rdFilled        : unsigned(LD_FIFO_DEPTH_C downto 0);
+   signal wrFilled        : unsigned(LD_FIFO_DEPTH_C downto 0);
 
    signal usb2Resetting   : std_logic;
    signal waitForFrame    : std_logic := '1';
@@ -397,8 +399,6 @@ begin
       end if;
    end process P_RST_I2S;
 
-   usb2Resetting         <= usb2Rst or ( u2sRstTgl xor s2uRstOut );
-
    fifoWen               <= not waitForFrame and usb2EpIb.mstOut.vld;
    fifoDin( 7 downto 0)  <= usb2EpIb.mstOut.dat;
    -- allow reader to synchronize with a frame so that the byte-
@@ -538,44 +538,44 @@ begin
       end if;
    end process P_USB_SEQ;
 
-   U_I2S_PLAYBACK_FIFO : FIFO18E1
-   generic map (
-      ALMOST_EMPTY_OFFSET     => MINFILL_C,    -- Sets the almost empty threshold
-      ALMOST_FULL_OFFSET      => MAXFILL_C,    -- Sets almost full threshold
-      DATA_WIDTH              => 9,            -- Sets data width to 4-36
-      DO_REG                  => 1,            -- Enable output register (1-0) Must be 1 if EN_SYN = FALSE
-      EN_SYN                  => FALSE,        -- Specifies FIFO as dual-clock (FALSE) or Synchronous (TRUE)
-      FIFO_MODE               => "FIFO18",     -- Sets mode to FIFO18 or FIFO18_36
-      FIRST_WORD_FALL_THROUGH => TRUE,         -- Sets the FIFO FWFT to FALSE, TRUE
-      INIT                    => X"000000000", -- Initial values on output port
-      SIM_DEVICE              => "7SERIES",    -- Must be set to "7SERIES" for simulation behavior
-      SRVAL                   => X"000000000"  -- Set/Reset value for output port
-   )
-   port map (
-      DO                     => fifoDou,
-      DOP                    => fifoDop,
+   U_I2S_PLAYBACK_FIFO : entity work.Usb2Fifo
+      generic map (
+         DATA_WIDTH_G => 9,
+         LD_DEPTH_G   => LD_FIFO_DEPTH_C,
+         LD_TIMER_G   => 1,
+         OUT_REG_G    => 0,
+         ASYNC_G      => true
+      )
+      port map (
+         wrClk        => usb2Clk,
+         wrRst        => usb2Rst,
+         wrRstOut     => usb2Resetting,
 
-      ALMOSTEMPTY            => fifoAlmostEmpty,
-      ALMOSTFULL             => fifoAlmostFull,
-      EMPTY                  => fifoEmpty,
-      FULL                   => fifoFull,
-      RDCOUNT                => open,
-      RDERR                  => open,
-      WRCOUNT                => open,
-      WRERR                  => open,
+         din(7 downto 0) => fifoDin(7 downto 0),
+         din(8)          => fifoDip(0),
+         wen          => fifoWen,
+         full         => fifoFull,
+         wrFilled     => wrFilled,
 
-      RDCLK                  => i2sBCLK,
-      RDEN                   => fifoRen,
-      REGCE                  => '0',
-      -- async reset; must be asserted for 5 read or write cycles
-      RST                    => fifoRst,
-      RSTREG                 => '0',
+         rdClk        => i2sBCLK,
+         rdRst        => open,
+         rdRstOut     => open,
+         dou(7 downto 0) => fifoDou(7 downto 0),
+         dou(8)          => fifoDop(0),
+         ren          => fifoRen,
+         empty        => fifoEmpty,
+         rdFilled     => rdFilled
+      );
 
-      WRCLK                  => usb2Clk,
-      WREN                   => fifoWen,
-      DI                     => fifoDin,
-      DIP                    => fifoDip
-   );
+   P_FILL_LEVEL : process ( rdFilled, wrFilled ) is
+      variable dr : unsigned(rdFilled'range);
+      variable dw : unsigned(wrFilled'range);
+   begin
+      dr := rdFilled - resize(unsigned(to_stdlogicvector(MINFILL_C)), rdFilled'length);
+      fifoAlmostEmpty <= dr(dr'left);
+      dw := resize(unsigned(to_stdlogicvector(MAXFILL_C)), rdFilled'length) - wrFilled;
+      fifoAlmostFull  <= dw(dw'left);
+   end process P_FILL_LEVEL;
 
    usb2RstBsy <= usb2Resetting;
 
