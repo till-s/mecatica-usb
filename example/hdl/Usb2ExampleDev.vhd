@@ -70,7 +70,8 @@ entity Usb2ExampleDev is
       MARK_DEBUG_PKT_RX_G                : boolean  := false;
       MARK_DEBUG_PKT_TX_G                : boolean  := false;
       MARK_DEBUG_PKT_PROC_G              : boolean  := false;
-      MARK_DEBUG_EP0_G                   : boolean  := false
+      MARK_DEBUG_EP0_G                   : boolean  := false;
+      MARK_DEBUG_SND_G                   : boolean  := false
    );
    port (
       refClkNb             : in    std_logic;
@@ -620,7 +621,7 @@ begin
          generic map (
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_IFC_NUM_C),
             SAMPLE_SIZE_G             => 2,
-            MARK_DEBUG_G              => false,
+            MARK_DEBUG_G              => MARK_DEBUG_SND_G,
             MARK_DEBUG_BCLK_G         => false
          )
          port map (

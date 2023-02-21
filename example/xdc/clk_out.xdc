@@ -4,6 +4,8 @@
 # This notice must not be removed.
 
 # Define ULPI clock for ULPI OUTPUT CLOCK mode
+# The pin is not a clock-capable one on the demo PMOD board; thus
+# we must set CLOCK_DEDICATED_ROUTE and fiddle with MMCM phase...
 create_clock -period 16.665 -name ulpiClk [get_ports ulpiClk]
 set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets -hier -regex .*/G_MMCM.U_ULPI_CLK_IOBUF/O]
 
