@@ -31,7 +31,8 @@ entity ZynqTop is
       MARK_DEBUG_PKT_RX_G                : boolean := false;
       MARK_DEBUG_PKT_TX_G                : boolean := false;
       MARK_DEBUG_PKT_PROC_G              : boolean := false;
-      MARK_DEBUG_EP0_G                   : boolean := false
+      MARK_DEBUG_EP0_G                   : boolean := false;
+      MARK_DEBUG_SND_G                   : boolean := true
    );
    port (
       ethClk            : in    std_logic;
@@ -433,7 +434,8 @@ begin
          MARK_DEBUG_PKT_RX_G              => MARK_DEBUG_PKT_RX_G,
          MARK_DEBUG_PKT_TX_G              => MARK_DEBUG_PKT_TX_G,
          MARK_DEBUG_PKT_PROC_G            => MARK_DEBUG_PKT_PROC_G,
-         MARK_DEBUG_EP0_G                 => MARK_DEBUG_EP0_G
+         MARK_DEBUG_EP0_G                 => MARK_DEBUG_EP0_G,
+         MARK_DEBUG_SND_G                 => MARK_DEBUG_SND_G
       )
       port map (
          refClkNb             => refClkNb,
