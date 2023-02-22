@@ -14,7 +14,7 @@ use     ieee.numeric_std.all;
 
 use     work.Usb2Pkg.all;
 
-entity Usb2EpBADD is
+entity Usb2EpBADDSpkr is
    generic (
       -- Interface number of control interface
       AC_IFC_NUM_G        : Usb2InterfaceNumType;
@@ -70,9 +70,9 @@ entity Usb2EpBADD is
       i2sPBLRC            : in  std_logic;
       i2sPBDAT            : out std_logic
    );
-end entity Usb2EpBADD;
+end entity Usb2EpBADDSpkr;
 
-architecture Impl of Usb2EpBADD is
+architecture Impl of Usb2EpBADDSpkr is
 begin
 
    U_BADD_CTL : entity work.BADDSpkrCtl

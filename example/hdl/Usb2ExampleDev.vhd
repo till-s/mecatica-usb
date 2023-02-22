@@ -617,7 +617,7 @@ begin
 
    B_EP_ISO_BADD : block is
    begin
-      U_BADD : entity work.Usb2EpBADD
+      U_BADD : entity work.Usb2EpBADDSpkr
          generic map (
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_IFC_NUM_C),
             SAMPLE_SIZE_G             => 2,
