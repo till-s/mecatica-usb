@@ -28,43 +28,7 @@
 # 2. The following source(s) files that were local or imported into the original project.
 #    (Please see the '$orig_proj_dir' and '$origin_dir' variable setting below at the start of the script)
 #
-#    "example/Usb2Example/Usb2Example.srcs/sources_1/ip/processing_system7_0/processing_system7_0.xci"
-#    "example/Usb2Example/Usb2Example.srcs/sources_1/ip/axi2axil_converter_0/axi2axil_converter_0.xci"
-#    "example/Usb2Example/Usb2Example.srcs/utils_1/imports/synth_1/ZyboTop.dcp"
-#
 # 3. The following remote source files that were added to the original project:-
-#
-#    "hdl/Usb2Pkg.vhd"
-#    "hdl/UlpiPkg.vhd"
-#    "hdl/Usb2UtilPkg.vhd"
-#    "hdl/Usb2AppCfgPkg.vhd"
-#    "hdl/Usb2DescPkg.vhd"
-#    "hdl/CDCACMCtl.vhd"
-#    "hdl/BADDSpkrCtl.vhd"
-#    "hdl/I2SPlayback.vhd"
-#    "hdl/UlpiIOBuf.vhd"
-#    "hdl/UlpiIO.vhd"
-#    "hdl/UlpiLineState.vhd"
-#    "hdl/Usb2Bram.vhd"
-#    "hdl/Usb2Fifo.vhd"
-#    "hdl/Usb2FifoEp.vhd"
-#    "hdl/UsbCrcTbl.vhd"
-#    "hdl/Usb2PktRx.vhd"
-#    "hdl/Usb2PktTx.vhd"
-#    "hdl/Usb2PktProc.vhd"
-#    "hdl/Usb2StdCtlEp.vhd"
-#    "hdl/Usb2Core.vhd"
-#    "xdc/usb3340_clkinp_io_timing.xdc"
-#    "xdc/usb3340_clkout_io_timing.xdc"
-#    "example/hdl/Ps7Pkg.vhd"
-#    "example/hdl/StdLogPkg.vhd"
-#    "example/hdl/AppCfgPkgBody.vhd"
-#    "example/hdl/Usb2ExampleDev.vhd"
-#    "example/hdl/ZynqTop.vhd"
-#    "example/xdc/zynq_zybo_pins.xdc"
-#    "example/xdc/clk_inp.xdc"
-#    "example/xdc/clk_out.xdc"
-#    "example/xdc/i2s.xdc"
 #
 #*****************************************************************************************
 
@@ -80,38 +44,7 @@ proc checkRequiredFiles { origin_dir} {
     }
   }
 
-  set files [list \
- "[file normalize "$origin_dir/../../hdl/Usb2Pkg.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/UlpiPkg.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2UtilPkg.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2AppCfgPkg.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2DescPkg.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/CDCACMCtl.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/BADDSpkrCtl.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/I2SPlayback.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/UlpiIOBuf.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/UlpiIO.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/UlpiLineState.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2Bram.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2Fifo.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2FifoEp.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/UsbCrcTbl.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2PktRx.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2PktTx.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2PktProc.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2StdCtlEp.vhd"]"\
- "[file normalize "$origin_dir/../../hdl/Usb2Core.vhd"]"\
- "[file normalize "$origin_dir/../hdl/AppCfgPkgBody.vhd"]"\
- "[file normalize "$origin_dir/../hdl/Ps7Pkg.vhd"]"\
- "[file normalize "$origin_dir/../hdl/StdLogPkg.vhd"]"\
- "[file normalize "$origin_dir/../hdl/Usb2ExampleDev.vhd"]"\
- "[file normalize "$origin_dir/../hdl/ZynqTop.vhd"]"\
- "[file normalize "$origin_dir/../xdc/zynq_zybo_pins.xdc"]"\
- "[file normalize "$origin_dir/../xdc/clk_inp.xdc"]"\
- "[file normalize "$origin_dir/../xdc/clk_out.xdc"]"\
- "[file normalize "$origin_dir/../xdc/i2s.xdc"]"\
- "[file normalize "$origin_dir/../../xdc/usb3340_clkinp_io_timing.xdc"]"\
- "[file normalize "$origin_dir/../../xdc/usb3340_clkout_io_timing.xdc"]"\
+  set files [
   ]
   foreach ifile $files {
     if { ![file isfile $ifile] } {
@@ -119,6 +52,9 @@ proc checkRequiredFiles { origin_dir} {
       set status false
     }
   }
+
+  puts "checkRequiredFiles not implemented"
+  set status false
 
   return $status
 }
@@ -257,161 +193,48 @@ if {[string equal [get_filesets -quiet sources_1] ""]} {
 
 # Set 'sources_1' fileset object
 set obj [get_filesets sources_1]
-set files [list \
- [file normalize "${origin_dir}/../../hdl/Usb2Pkg.vhd"] \
- [file normalize "${origin_dir}/../../hdl/UlpiPkg.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2UtilPkg.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2AppCfgPkg.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2DescPkg.vhd"] \
+set vhdl_files [list \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2Pkg.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2PrivPkg.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/UlpiPkg.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2UtilPkg.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2AppCfgPkg.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2DescPkg.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/UlpiIOBuf.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/UlpiIO.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/UlpiLineState.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2Bram.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2Fifo.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2CCSync.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2MboxSync.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2FifoEp.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/UsbCrcTbl.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2PktRx.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2PktTx.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2PktProc.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2StdCtlEp.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/Usb2Core.vhd"] \
+ [file normalize "${origin_dir}/../../endpoints/CDCACM/hdl/CDCACMCtl.vhd"] \
+ [file normalize "${origin_dir}/../../endpoints/CDCACM/hdl/CDCACMNotify.vhd"] \
+ [file normalize "${origin_dir}/../../endpoints/CDCACM/hdl/Usb2EpCDCACM.vhd"] \
+ [file normalize "${origin_dir}/../../endpoints/BADDSpkr/hdl/BADDSpkrCtl.vhd"] \
+ [file normalize "${origin_dir}/../../endpoints/BADDSpkr/hdl/I2SPlayback.vhd"] \
+ [file normalize "${origin_dir}/../../endpoints/BADDSpkr/hdl/Usb2EpBADDSpkr.vhd"] \
+ [file normalize "${origin_dir}/../../endpoints/CDCECM/hdl/Usb2EpCDCECM.vhd"] \
  [file normalize "${origin_dir}/../hdl/AppCfgPkgBody.vhd"] \
- [file normalize "${origin_dir}/../../hdl/CDCACMCtl.vhd"] \
- [file normalize "${origin_dir}/../../hdl/BADDSpkrCtl.vhd"] \
- [file normalize "${origin_dir}/../../hdl/I2SPlayback.vhd"] \
  [file normalize "${origin_dir}/../hdl/Ps7Pkg.vhd"] \
  [file normalize "${origin_dir}/../hdl/StdLogPkg.vhd"] \
- [file normalize "${origin_dir}/../../hdl/UlpiIOBuf.vhd"] \
- [file normalize "${origin_dir}/../../hdl/UlpiIO.vhd"] \
- [file normalize "${origin_dir}/../../hdl/UlpiLineState.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2Bram.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2Fifo.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2FifoEp.vhd"] \
- [file normalize "${origin_dir}/../../hdl/UsbCrcTbl.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2PktRx.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2PktTx.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2PktProc.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2StdCtlEp.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2Core.vhd"] \
  [file normalize "${origin_dir}/../hdl/Usb2ExampleDev.vhd"] \
  [file normalize "${origin_dir}/../hdl/ZynqTop.vhd"] \
 ]
-add_files -norecurse -fileset $obj $files
+add_files -norecurse -fileset $obj $vhdl_files
 
 # Set 'sources_1' fileset file properties for remote files
-set file "$origin_dir/../../hdl/Usb2Pkg.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/UlpiPkg.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2UtilPkg.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2AppCfgPkg.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2DescPkg.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../hdl/AppCfgPkgBody.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/CDCACMCtl.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/BADDSpkrCtl.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/I2SPlayback.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../hdl/Ps7Pkg.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../hdl/StdLogPkg.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/UlpiIOBuf.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/UlpiIO.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/UlpiLineState.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2Bram.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2Fifo.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2FifoEp.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/UsbCrcTbl.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2PktRx.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2PktTx.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2PktProc.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2StdCtlEp.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../../hdl/Usb2Core.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../hdl/Usb2ExampleDev.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
-set file "$origin_dir/../hdl/ZynqTop.vhd"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "VHDL" -objects $file_obj
-
+foreach file $vhdl_files {
+ set file [file normalize $file]
+ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
+ set_property -name "file_type" -value "VHDL" -objects $file_obj
+}
 
 # Set 'sources_1' fileset file properties for local files
 # None
@@ -421,48 +244,6 @@ set obj [get_filesets sources_1]
 set_property -name "generic" -value "ULPI_CLK_MODE_INP_G=${clk_mode_inp}" -objects $obj
 set_property -name "top" -value "ZynqTop" -objects $obj
 set_property -name "vhdl_generic" -value "ULPI_CLK_MODE_INP_G=${clk_mode_inp}" -objects $obj
-
-# Set 'sources_1' fileset object
-set obj [get_filesets sources_1]
-# Add local files from the original project (-no_copy_sources specified)
-set files [list \
- [file normalize "${origin_dir}/../${_xil_proj_name_}/${_xil_proj_name_}.srcs/sources_1/ip/processing_system7_0/processing_system7_0.xci" ]\
-]
-set added_files [add_files -fileset sources_1 $files]
-
-# Set 'sources_1' fileset file properties for remote files
-# None
-
-# Set 'sources_1' fileset file properties for local files
-set file "processing_system7_0/processing_system7_0.xci"
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "generate_files_for_reference" -value "0" -objects $file_obj
-set_property -name "registered_with_manager" -value "1" -objects $file_obj
-if { ![get_property "is_locked" $file_obj] } {
-  set_property -name "synth_checkpoint_mode" -value "Singular" -objects $file_obj
-}
-
-
-# Set 'sources_1' fileset object
-set obj [get_filesets sources_1]
-# Add local files from the original project (-no_copy_sources specified)
-set files [list \
- [file normalize "${origin_dir}/../${_xil_proj_name_}/${_xil_proj_name_}.srcs/sources_1/ip/axi2axil_converter_0/axi2axil_converter_0.xci" ]\
-]
-set added_files [add_files -fileset sources_1 $files]
-
-# Set 'sources_1' fileset file properties for remote files
-# None
-
-# Set 'sources_1' fileset file properties for local files
-set file "axi2axil_converter_0/axi2axil_converter_0.xci"
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "generate_files_for_reference" -value "0" -objects $file_obj
-set_property -name "registered_with_manager" -value "1" -objects $file_obj
-if { ![get_property "is_locked" $file_obj] } {
-  set_property -name "synth_checkpoint_mode" -value "Singular" -objects $file_obj
-}
-
 
 # Create 'constrs_1' fileset (if not found)
 if {[string equal [get_filesets -quiet constrs_1] ""]} {
@@ -503,6 +284,18 @@ set_property -name "used_in" -value "implementation" -objects $file_obj
 set_property -name "used_in_synthesis" -value "0" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
+set file "[file normalize "$origin_dir/../xdc/zynq_zybo_timing.xdc"]"
+set file_added [add_files -norecurse -fileset $obj [list $file]]
+set file "$origin_dir/../xdc/zynq_zybo_timing.xdc"
+set file [file normalize $file]
+set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
+set_property -name "file_type" -value "XDC" -objects $file_obj
+set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
+set_property -name "used_in" -value "implementation" -objects $file_obj
+set_property -name "used_in_synthesis" -value "0" -objects $file_obj
+
+
+# Add/Import constrs file and set constrs file properties
 set file "[file normalize "$origin_dir/../xdc/i2s.xdc"]"
 set file_added [add_files -norecurse -fileset $obj [list $file]]
 set file "$origin_dir/../xdc/i2s.xdc"
@@ -514,9 +307,9 @@ set_property -name "used_in" -value "implementation" -objects $file_obj
 set_property -name "used_in_synthesis" -value "0" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
-set file "[file normalize "$origin_dir/../../xdc/usb3340_clkinp_io_timing.xdc"]"
+set file "[file normalize "$origin_dir/../../core/xdc/usb3340_clkinp_io_timing.xdc"]"
 set file_added [add_files -norecurse -fileset $obj [list $file]]
-set file "$origin_dir/../../xdc/usb3340_clkinp_io_timing.xdc"
+set file "$origin_dir/../../core/xdc/usb3340_clkinp_io_timing.xdc"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
@@ -525,15 +318,40 @@ set_property -name "used_in" -value "implementation" -objects $file_obj
 set_property -name "used_in_synthesis" -value "0" -objects $file_obj
 
 # Add/Import constrs file and set constrs file properties
-set file "[file normalize "$origin_dir/../../xdc/usb3340_clkout_io_timing.xdc"]"
+set file "[file normalize "$origin_dir/../../core/xdc/usb3340_clkout_io_timing.xdc"]"
 set file_added [add_files -norecurse -fileset $obj [list $file]]
-set file "$origin_dir/../../xdc/usb3340_clkout_io_timing.xdc"
+set file "$origin_dir/../../core/xdc/usb3340_clkout_io_timing.xdc"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
 set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
 set_property -name "used_in" -value "implementation" -objects $file_obj
 set_property -name "used_in_synthesis" -value "0" -objects $file_obj
+
+# Add/Import constrs file and set constrs file properties
+set file "[file normalize "$origin_dir/../../core/xdc/Usb2CCSync.xdc"]"
+set file_added [add_files -norecurse -fileset $obj [list $file]]
+set file "$origin_dir/../../core/xdc/Usb2CCSync.xdc"
+set file [file normalize $file]
+set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
+set_property -name "file_type" -value "XDC" -objects $file_obj
+set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
+set_property -name "used_in" -value "implementation" -objects $file_obj
+set_property -name "used_in_synthesis" -value "0" -objects $file_obj
+set_property -name "scoped_to_ref" -value "Usb2CCSync" -objects $file_obj
+
+# Add/Import constrs file and set constrs file properties
+set file "[file normalize "$origin_dir/../../core/xdc/Usb2MboxSync.xdc"]"
+set file_added [add_files -norecurse -fileset $obj [list $file]]
+set file "$origin_dir/../../core/xdc/Usb2MboxSync.xdc"
+set file [file normalize $file]
+set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
+set_property -name "file_type" -value "XDC" -objects $file_obj
+set_property -name "is_enabled" -value "${clk_mode_out}" -objects $file_obj
+set_property -name "used_in" -value "implementation" -objects $file_obj
+set_property -name "used_in_synthesis" -value "0" -objects $file_obj
+set_property -name "scoped_to_ref" -value "Usb2MboxSync" -objects $file_obj
+
 
 # Set 'constrs_1' fileset properties
 set obj [get_filesets constrs_1]

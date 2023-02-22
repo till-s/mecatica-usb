@@ -32,7 +32,7 @@ entity ZynqTop is
       MARK_DEBUG_PKT_TX_G                : boolean := false;
       MARK_DEBUG_PKT_PROC_G              : boolean := false;
       MARK_DEBUG_EP0_G                   : boolean := false;
-      MARK_DEBUG_SND_G                   : boolean := true
+      MARK_DEBUG_SND_G                   : boolean := false
    );
    port (
       ethClk            : in    std_logic;
