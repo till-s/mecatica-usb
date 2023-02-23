@@ -51,15 +51,12 @@ typedef struct ExampleDev {
 #define ACM_FIFO_BASE    0x000000c0
 
 #define ACM_FIFO_CTRL    0x00000000
-/* Enable 'blast' mode; incoming traffic is dumped, output
- * is filled by firmware as fast as it can be consumed; for
- * throughput testing (from USB)
+/* Disable loopback/blast mode (by default traffic is
+ * looped back in firmware or dumped, depending on the
+ * DTR control line). This bit let's the AXI interface
+ * take over ACM fifo.
  */
-#define ACM_FIFO_CTRL_BLAST        (1<<27)
-/* Disable loopback mode (by default traffic is looped
- * back in firmware)
- */
-#define ACM_FIFO_CTRL_LOOP_DIS     (1<<28)
+#define ACM_FIFO_CTRL_INTL_DIS     (1<<28)
 /* Minfill level before data is handed to USB;
  * increases efficiency with slower writers
  */
@@ -263,8 +260,9 @@ int           lineBreak;
 	}
 
 	if ( dumpFifo ) {
+        printf("Dumping FIFO Contents; generate a LINE BREAK on the host to terminate\n");
 		val = read_ctrl_reg( pdev, ACM_FIFO_CTRL );
-		val |= ACM_FIFO_CTRL_LOOP_DIS;
+		val |= ACM_FIFO_CTRL_INTL_DIS;
 		write_ctrl_reg( pdev, ACM_FIFO_CTRL, val );
 
 		lineBreak = 0;
@@ -294,6 +292,9 @@ int           lineBreak;
 				}
 			}
 		}
+		val = read_ctrl_reg( pdev, ACM_FIFO_CTRL );
+		val &= ~ACM_FIFO_CTRL_INTL_DIS;
+		write_ctrl_reg( pdev, ACM_FIFO_CTRL, val );
 	}
 
 	rv = 0;

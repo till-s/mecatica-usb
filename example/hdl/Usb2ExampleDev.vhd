@@ -397,7 +397,7 @@ begin
          DESCRIPTOR_BRAM_G            => true
       )
       port map (
-         clk                          => ulpiClkLoc,
+         ulpiClk                      => ulpiClkLoc,
 
          ulpiRst                      => ulpiRst,
          usb2Rst                      => usb2RstLoc,

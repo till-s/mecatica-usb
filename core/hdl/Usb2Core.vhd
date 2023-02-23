@@ -38,7 +38,7 @@ entity Usb2Core is
    );
 
    port (
-      clk                          : in    std_logic;
+      ulpiClk                      : in    std_logic;
 
       -- resets only the ULPI interface
       ulpiRst                      : in    std_logic := '0';
@@ -199,9 +199,9 @@ begin
       regMuxIn <= v;
    end process P_COMB;
 
-   P_REG_MUX : process ( clk ) is
+   P_REG_MUX : process ( ulpiClk ) is
    begin
-      if ( rising_edge( clk ) ) then
+      if ( rising_edge( ulpiClk ) ) then
          if ( ulpiRst = '1' ) then
             regMux <= IDLE;
          else
@@ -219,7 +219,7 @@ begin
       ULPI_STP_MODE_G => ULPI_STP_MODE_G
    )
    port map (
-      ulpiClk         => clk,
+      ulpiClk         => ulpiClk,
       rst             => ulpiRst,
 
       ulpiIb          => ulpiIb,
@@ -240,7 +240,7 @@ begin
          MARK_DEBUG_G => MARK_DEBUG_ULPI_LINE_STATE_G
       )
       port map (
-         clk          => clk,
+         clk          => ulpiClk,
          rst          => ulpiRst,
 
          ulpiRx       => ulpiRx,
@@ -265,7 +265,7 @@ begin
       MARK_DEBUG_G    => MARK_DEBUG_PKT_RX_G
    )
    port map (
-      clk             => clk,
+      clk             => ulpiClk,
       rst             => usb2Rst,
       ulpiRx          => ulpiRx,
       usb2Rx          => usb2RxLoc
@@ -286,7 +286,7 @@ begin
       MARK_DEBUG_G    => MARK_DEBUG_PKT_TX_G
    )
    port map (
-      clk             => clk,
+      clk             => ulpiClk,
       rst             => usb2Rst,
       ulpiTxReq       => ulpiPktTxReq,
       ulpiTxRep       => ulpiTxRep,
@@ -302,7 +302,7 @@ begin
       NUM_ENDPOINTS_G => NUM_ENDPOINTS_C
    )
    port map (
-      clk             => clk,
+      clk             => ulpiClk,
       rst             => usb2Rst,
       devStatus       => devStatus,
       epConfig        => epConfig,
@@ -323,7 +323,7 @@ begin
       DESCRIPTOR_BRAM_G => DESCRIPTOR_BRAM_G
    )
    port map (
-      clk             => clk,
+      clk             => ulpiClk,
       rst             => usb2Rst,
       epIb            => epOb(0),
       epOb            => epIb(0),

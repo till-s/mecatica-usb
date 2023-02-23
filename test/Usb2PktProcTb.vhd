@@ -332,7 +332,7 @@ report "GET_DESCRIPTOR(STR), nonexistent!";
       DESCRIPTORS_G                => USB2_APP_DESCRIPTORS_C
    )
    port map (
-      clk                          => ulpiTstClk,
+      ulpiClk                      => ulpiTstClk,
 
       ulpiRst                      => open,
       usb2Rst                      => open,
