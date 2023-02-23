@@ -141,9 +141,9 @@ observed.
 A number of generics controls the properties of the ULPI interface:
 <dl>
 <dt>
-`ULPI_NXT_IOB_G`
+<tt ULPI_NXT_IOB_G />
 </dt>
-  <dd>Whether to place the register for `NXT` into an `IOB` should be `true`
+  <dd>Whether to place the register for <tt NXT/> into an `IOB` should be `true`
       for output-clock mode and `false` for input-clock mode. In the latter case
       it is better to place this register in fabric because it leaves the tool
       more freedom to adjust hold-timing. In output-clock mode the ULPI interface
