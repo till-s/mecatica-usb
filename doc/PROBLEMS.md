@@ -6,6 +6,7 @@ a strange problem (hi-speed):
 
 TX transactions sometimes fail; the PHY does not seem
 to to send anything on USB. I conclude this from
+
   - host reports transaction error
   - PHY does not report RXCMD (line-state change) after
     packet transmission.
@@ -19,8 +20,10 @@ received previously! If, e.g., the transmission was an ACK
 to an OUT transacion then it worked when OUT sent all zeroes
 but failed when the data were all FFx
 
+```
 OUT DATA0 0x00, 0x00, ...   -> ACK OK
 OUT DATA0 0xff, 0xff, ...   -> ACK failed
+```
 
 the timing between EOP and ACK was identical. However, if I
 delayed the ACK phase significantly (above what's allowed
@@ -38,6 +41,7 @@ And yet, playing silence (all zeros) works but playing
 sound causes the feedback packet transmission to fail
 (in the same way described above).
 
+```
 OK: (note that NXT usually also takes a 1cycle longer
     to be taken by NXT than the failing case)
 
@@ -65,6 +69,7 @@ DAT   00 00 00 00 00 _TXCMD__ d0 d1 d2 d3 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
                        ^       ^                     ^
                   NXT earlier, no NXT deassertion   no line state upd
+```
 
 The timing from the previous RX (DIR deassertion) is the same in
 both cases (6 clocks)
