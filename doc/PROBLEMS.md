@@ -42,8 +42,8 @@ sound causes the feedback packet transmission to fail
 (in the same way described above).
 
 ```
-OK: (note that NXT usually also takes a 1cycle longer
-    to be taken by NXT than the failing case)
+OK: (note that TXCMD takes a 1cycle longer
+    to be taken by NXT than in the failing case)
 
 OUT DATA0 0x00, 0x00, ... IN,  TXCMD, feedback data OK
                                                        ____     ___
