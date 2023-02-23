@@ -141,26 +141,35 @@ observed.
 A number of generics controls the properties of the ULPI interface:
 <dl>
 <dt>
-<tt ULPI_NXT_IOB_G />
-</dt>
-  <dd>Whether to place the register for <tt NXT/> into an `IOB` should be `true`
-      for output-clock mode and `false` for input-clock mode. In the latter case
-      it is better to place this register in fabric because it leaves the tool
-      more freedom to adjust hold-timing. In output-clock mode the ULPI interface
-      is basically source-synchronous (in the PHY-\>FPGA direction) and placing
-      this register into `IOB` is advantageous.
-  </dd>
-<dt>
+
+`ULPI_NXT_IOB_G`
+
+</dt> <dd>
+
+  Whether to place the register for <tt NXT/> into an `IOB` should be `true`
+  for output-clock mode and `false` for input-clock mode. In the latter case
+  it is better to place this register in fabric because it leaves the tool
+  more freedom to adjust hold-timing. In output-clock mode the ULPI interface
+  is basically source-synchronous (in the PHY-\>FPGA direction) and placing
+  this register into `IOB` is advantageous.
+
+</dd><dt>
+
 `ULPI_DIR_IOB_G`
-</dt>
-  <dd>See `ULPI_DIR_NXT_IOB_G`.
-  </dd>
-<dt>
+
+</dt><dd>
+
+  See `ULPI_DIR_NXT_IOB_G`.
+
+</dd><dt>
+
 `ULPI_DIN_IOB_G`
-</dt>
-  <dd>See `ULPI_DIR_NXT_IOB_G`. Controls placing of the data-in registers.
-  </dd>
-</dl>
+
+</dt><dd>
+
+  See `ULPI_DIR_NXT_IOB_G`. Controls placing of the data-in registers.
+
+</dd></dl>
 
 #### Ports
 <dl>
