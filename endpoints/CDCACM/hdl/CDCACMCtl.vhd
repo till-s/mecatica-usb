@@ -195,6 +195,13 @@ begin
             v.state := IDLE;
       end case;
 
+      -- vld is de-asserted when the host decides
+      -- to do a 'short read', i.e, not to consume all
+      -- available data.
+      if ( usb2Ep0ReqParam.vld = '0' ) then
+         v.state := IDLE;
+      end if;
+
       rin <= v;
    end process P_COMB;
 

@@ -399,7 +399,6 @@ package Usb2Pkg is
       index     : std_logic_vector(15 downto 0);
       length    : unsigned        (15 downto 0);
       vld       : std_logic;
-      extAbort  : boolean;
    end record Usb2CtlReqParamType;
 
    constant USB2_CTL_REQ_PARAM_INIT_C : Usb2CtlReqParamType := (
@@ -410,8 +409,7 @@ package Usb2Pkg is
       value     => ( others => '0' ),
       index     => ( others => '0' ),
       length    => ( others => '0' ),
-      vld       => '0',
-      extAbort  => false
+      vld       => '0'
     );
 
    type Usb2CtlExtType is record
@@ -437,7 +435,8 @@ package Usb2Pkg is
 
       -- if the external agent replies to a 'read' request
       -- then, during the data phase the external agent also must
-      -- monitor 'extAbort' and abort the data phase (w/o asserting don/ack/err).
+      -- monitor 'vld' and abort the data phase if 'vld' deasserts
+      -- (w/o asserting don/ack/err).
       -- This may happen if the host does not read all of the available data.
 
       -- to sum it up: 'ack' acknowledges reception of the request.

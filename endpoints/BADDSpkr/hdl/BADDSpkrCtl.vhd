@@ -401,7 +401,8 @@ begin
             v.state := IDLE;
       end case;
 
-      if ( usb2Ep0ReqParam.extAbort ) then
+      -- host did not bother to read all the data
+      if ( usb2Ep0ReqParam.vld = '0' ) then
          v.state := IDLE;
       end if;
 

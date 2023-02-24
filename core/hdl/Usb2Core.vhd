@@ -73,6 +73,8 @@ entity Usb2Core is
       -- global device configuration (in most cases tied to a static value;
       -- should also match what the descriptors say)
       usb2HiSpeedEn                : in    std_logic          := '0';
+      -- signal remote-wakeup (requires remote wakeup to be enabled by the host
+      -- and in the currently active configuration descriptor)
       usb2RemoteWake               : in    std_logic          := '0';
       --    indicate whether the device is currently self-powered (for USB GET_STATUS req.)
       usb2SelfPowered              : in    std_logic          := '0';

@@ -146,7 +146,7 @@ A number of generics controls the properties of the ULPI interface:
 
 </dt> <dd>
 
-  Whether to place the register for <tt NXT/> into an `IOB` should be `true`
+  Whether to place the register for `NXT` into an `IOB` should be `true`
   for output-clock mode and `false` for input-clock mode. In the latter case
   it is better to place this register in fabric because it leaves the tool
   more freedom to adjust hold-timing. In output-clock mode the ULPI interface
@@ -172,13 +172,176 @@ A number of generics controls the properties of the ULPI interface:
 </dd></dl>
 
 #### Ports
-<dl>
-<dt>clk
-</dl>
+
+<dl><dt>
+
+`ulpiClk`
+
+</dt><dd>
+
+  Clock for the core. Synchronous to the ULPI interface.
+
+</dd><dt>
+
+`ulpiRst`
+
+</dt><dd>
+
+  Reset for the ULPI interface (ULPI IO block and line-state manager).
+  This signal ***must not*** be asserted when the host signals a reset
+  (`SE0`) condition (available in `usb2DevStatus` record) because the
+  ULPI interface and line-state manager must continue operating.
+
+<dd><dt>
+
+`usb2Rst`
+
+</dt><dd>
+
+  Reset for the Usb2 engine. It is OK to assert this reset when the host
+  signals a `SE0` condition.
+
+</dd><dt>
+
+`ulpiIb`, `ulpiOb`
+
+</dt><dd>
+
+  ULPI interface signals. Connect to the ULPI PHY via IO buffers. The
+  `ulpiIb.dir` signal should control the direction of the data lines
+  (combinatorial path). Consult the example design for more information.
+
+</dd><dt>
+
+`UlpiRegReq`, `UlpiRegRep` (special use-cases only)
+
+</dt><dd>
+
+  Interface to the ULPI PHY registers for specialized testing or debugging
+  needs. Ordinary applications may ignore this interface (open); advanced
+  users must consult the source code for more information. 
+
+</dd><dt>
+
+`usb2DevStatus`
+
+</dt><dd>
+
+  Record holding global (and dynamic) information about the device such as
+
+  - whether remote wakeup is supported and enabled
+  - Current Usb2 device state (Usb2-spec, 9.1)
+  - Usb2 reset (as signalled by the host). This should be ORed with potential
+    other sources of reset and propagated to the `usb2Rst` input.
+  - The `halt`-related signals are for internal use only. Corresponding
+    signals for endpoint use are part of the `usb2EpOb` records.
+
+</dd><dt>
+
+`usb2Rx` (special use-cases only)
+
+</dt><dd>
+
+  Record providing low-level USB information such as the current token
+  being processed etc. The only member which is potentialy useful to
+  applications is the frame-number info in the `pktHdr` sub-record:
+
+  - `vld` qualifies the contents of the `pktHdr` record. Other fields
+    are only valid while `vld` is asserted high.
+  - `sof` is `true` if a start-of-frame packet is being received.
+  - `tokDat` are the data bits associated with the token. In combination
+    with `sof` the `tokDat` field conveys the frame number.
+
+</dd><dt>
+
+`usb2Ep0ReqParam`, `usb2Ep0CtlExt`, `usb2Ep0CtlEpIbExt`
+
+</dt><dd>
+
+  Port where an external agent handling control transfers directed
+  to endpoint zero can be handled. Note that standard requests are
+  handled internally, however, functionality (e.g., for class-
+  specific requests) can be extended by connecting an external
+  agent (see dedicated section for more information).
+
+</dd><dt>
+
+`usb2HiSpeedEn`
+
+</dt><dd>
+
+  Global device configuration; signals whether high-speed support
+  should be enabled. In most cases this is tied to a static value.
+
+</dd><dt>
+
+`usb2RemoteWake`
+
+</dt><dd>
+
+  Signal remote wakeup. In order to take effect remote-wakeup must
+  have been enable by the host and marked as supported in the currently
+  active configuration descriptor.
+
+</dd><dt>
+
+`usb2SelfPowered`
+
+</dt><dd>
+
+  Signal whether the device is currently self powered (for supporting
+  the `GET_STATUS`request).
+
+</dd><dt>
+
+`usb2EpIb`, `usbEpOb`
+
+</dt><dd>
+
+  Array of endpoint signals. This is the main port where endpoints are
+  attached. Consult the dedicated section for more information.
+
+</dd></dl>
+
+### Endpoint Interface
 
 ### Endpoint Zero Interface
 
-### Endpoint Interface
+  The endpoint zero interface consists of the signals
+
+  - `usb2Ep0ReqParam` - output; holds the information passed by the `SETUP` phase
+    of a control transaction.
+  - `usb2Ep0CtlExt` - input: signals to `EP0` whether an external agent is able to
+    handle the currently active request. This port also communicates when the agent
+    is done handling the request as well as error status information.
+  - `usb2Ep0CtlEpIbExt` - input: the external agent supplies data during the data phase
+    of a `IN` control request here.
+  - `usb2EpOb(0)` - output: the external agent may observe data during the data phase
+    or an `OUT` control request here.
+
+  The `usb2Ep0CtlEpIbExt`/`usbEpOb(0)` pair groups the standard in- and outbound
+  endpoint signals. They follow the same protocol as ordinary endpoint pairs but are
+  only used during the data phase of endpoint-zero control transactions when an external
+  agent takes over handling such a transaction.
+
+  Note that the `Usb2Core` handles standard requests (such as `GET_DESCRIPTOR` etc.)
+  internally. The core also deals with the `SETUP` phase of all requests and stores
+  the setup data in the `usb2Ep0ReqParam` record.
+
+  Once the `SETUP` phase is done the core asserts `usb2Ep0ReqParam.vld` and at this
+  time an external agent may inspect the request parameters and decide if it wants
+  to handle the request. It *must* assert `ctlExt.ack` for one cycle concurrently
+  with or after seeing `vld` and at the same time signal with `ctlExt.err` and
+  `ctlExt.don` how it wants to proceed:
+
+  | `vld` | `ack` | `err` | `don` | Semantics
+  | ----- | ----- | ----- | ----- | ---------
+  |   1   |   1   |   0   |   0   | Accept request, neet more time to process
+  |   1   |   1   |   1   |   1   | Reject request
+  |   1   |   1   |   0   |   1   | Accept request, processing done
+
+ Note that the agent may take several clock cycles between 'seeing' `vld` and
+ asserting `ack`.
 
 ### Descriptors
 

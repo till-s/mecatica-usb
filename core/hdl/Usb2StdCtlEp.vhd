@@ -246,7 +246,6 @@ architecture Impl of Usb2StdCtlEp is
       tblRdDone   : boolean;
       skipDesc    : boolean;
       altSettings : AltSetArray;
-      statusAck   : std_logic;
       ifcIdx      : IfcIdxType;
       altIdx      : AltSetIdxType;
       numIfc      : IfcIdxType;
@@ -296,7 +295,6 @@ architecture Impl of Usb2StdCtlEp is
       tblRdDone   => false,
       skipDesc    => true,
       retSz2      => false,
-      statusAck   => '1',
       ifcIdx      => 0,
       altIdx      => 0,
       numIfc      => 0,
@@ -422,7 +420,6 @@ begin
             )
          then
             v.protoStall          := '0';
-            v.reqParam.extAbort   := false;
          end if;
          v.reqParam.vld := '0';
       end if;
@@ -477,7 +474,6 @@ begin
                   -- ctlExt.don may arrive this cycle or any time after
                   v.state    := WAIT_EXT_DONE;
                   if ( ctlExt.don = '1' ) then
-                     v.statusAck := '1';
                      v.state     := STATUS;
                   end if;
                end if;
@@ -488,11 +484,9 @@ begin
             if ( tokOutSeen and r.reqParam.dev2Host ) then
                -- host does not read all available data
                v.state               := STATUS;
-               v.statusAck           := '1';
-               v.reqParam.extAbort   := true;
+               v.reqParam.vld        := '0';
             elsif ( ctlExt.don = '1' ) then
                v.protoStall := ctlExt.err;
-               v.statusAck  := ctlExt.ack;
                if ( ctlExt.err = '1' ) then
                   v.state   := GET_PARAMS;
                else
@@ -527,7 +521,6 @@ begin
             v.err         := '0';
             v.retVal      := (others => '0');
             v.retSz2      := false;
-            v.statusAck   := '1';
 
             if (    ( r.reqParam.reqType = USB2_REQ_TYP_TYPE_STANDARD_C )
                 and ( r.reqParam.request(7 downto 4) = "0000"           )
@@ -974,48 +967,29 @@ begin
 
          when STATUS =>
             if ( r.reqParam.dev2Host ) then
-               epOb.subOut.rdy <= r.statusAck;
+               epOb.subOut.rdy <= '1';
 
-               -- wait for external agent done
-               if ( ( not r.statusAck and ctlExt.ack ) = '1' ) then
-                  v.statusAck  := '1';
-               end if;
-
-               if ( (r.statusAck and epIb.mstOut.don) = '1' ) then
+               if ( epIb.mstOut.don = '1' ) then
                   v.state := GET_PARAMS;
                end if;
 
             else
                epOb.mstInp.vld <= '0';
                epOb.mstInp.err <= '0';
-               epOb.mstInp.don <= r.statusAck;
-               if ( r.statusAck = '0' ) then
-                  -- packet processor keeps sending NAK until
-                  -- it sees 'vld' or 'don'. Keep monitoring
-                  -- the external agent
-                  v.statusAck     := ctlExt.ack;
-                  epOb.mstInp.don <= ctlExt.ack;
-                  if ( ctlExt.ack = '1' ) then
-                     if ( epIb.subInp.rdy = '1' ) then
-                        v.state := GET_PARAMS;
+               epOb.mstInp.don <= '1';
+               if ( epIb.subInp.rdy = '1' ) then
+                  if ( r.reqParam.request = USB2_REQ_STD_SET_ADDRESS_C ) then
+                        -- when SET_ADDRESS completed successfully we set the device address and
+                        -- change state DEFAULT <=> ADDRESS
+                        -- behaviour when CONFIGURED is undefined
+                     v.devStatus.devAddr := Usb2DevAddrType(r.reqParam.value(Usb2DevAddrType'range));
+                     if ( v.devStatus.devAddr = USB2_DEV_ADDR_DFLT_C ) then
+                        v.devStatus.state := DEFAULT;
+                     else
+                        v.devStatus.state := ADDRESS;
                      end if;
                   end if;
-               else
-                  epOb.mstInp.don <= '1';
-                  if ( epIb.subInp.rdy = '1' ) then
-                     if ( r.reqParam.request = USB2_REQ_STD_SET_ADDRESS_C ) then
-                           -- when SET_ADDRESS completed successfully we set the device address and
-                           -- change state DEFAULT <=> ADDRESS
-                           -- behaviour when CONFIGURED is undefined
-                        v.devStatus.devAddr := Usb2DevAddrType(r.reqParam.value(Usb2DevAddrType'range));
-                        if ( v.devStatus.devAddr = USB2_DEV_ADDR_DFLT_C ) then
-                           v.devStatus.state := DEFAULT;
-                        else
-                           v.devStatus.state := ADDRESS;
-                        end if;
-                     end if;
-                     v.state := GET_PARAMS;
-                  end if;
+                  v.state := GET_PARAMS;
                end if;
             end if;
       end case;
