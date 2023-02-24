@@ -1,10 +1,10 @@
-# TSILL Usb
+# Mecatica Usb
 
 by Till Straumann, 2023.
 
 ## Introduction
 
-TSILL Usb is a versatile and generic USB-2-device implementation in
+Mecatica Usb is a versatile and generic USB-2-device implementation in
 VHDL supporting an ULPI-standard interface (using an off-the shelf ULPI
 PHY chip).
 
@@ -29,7 +29,7 @@ a single cable.
 
 ## License
 
-TSILL Usb is released under the [European-Union Public
+Mecatica Usb is released under the [European-Union Public
 License](https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12)
 
 ## Features
@@ -95,7 +95,7 @@ support these functions out of the box (tested under linux).
    (under linux: using the vanilla `snd-usb-audio` driver) is converted
    into a `i2s` stream in the FPGA and forwarded to an audio-codec.  
 
-The TSILL Usb package also comes with an example design for the Digilent
+The Mecatica Usb package also comes with an example design for the Digilent
 ZYBO (first version) development board which features a Zynq-XC7Z010 device.
 While this board is already old - it is the one I have and porting the design
 to its successor or a similar one should be straightforward.
@@ -258,7 +258,7 @@ A number of generics controls the properties of the ULPI interface:
 
 </dt><dd>
 
-  Port where an external agent handling control transfers directed
+  Ports where an external agent handling control transfers directed
   to endpoint zero can be handled. Note that standard requests are
   handled internally, however, functionality (e.g., for class-
   specific requests) can be extended by connecting an external
@@ -298,7 +298,7 @@ A number of generics controls the properties of the ULPI interface:
 
 </dt><dd>
 
-  Array of endpoint signals. This is the main port where endpoints are
+  Array of endpoint signals. These are the main ports where endpoints are
   attached. Consult the dedicated section for more information.
 
 </dd></dl>
@@ -307,7 +307,7 @@ A number of generics controls the properties of the ULPI interface:
 
 ### Endpoint Zero Interface
 
-  The endpoint zero interface consists of the signals
+The endpoint zero interface consists of the signals
 
   - `usb2Ep0ReqParam` - output; holds the information passed by the `SETUP` phase
     of a control transaction.
@@ -319,20 +319,20 @@ A number of generics controls the properties of the ULPI interface:
   - `usb2EpOb(0)` - output: the external agent may observe data during the data phase
     or an `OUT` control request here.
 
-  The `usb2Ep0CtlEpIbExt`/`usbEpOb(0)` pair groups the standard in- and outbound
-  endpoint signals. They follow the same protocol as ordinary endpoint pairs but are
-  only used during the data phase of endpoint-zero control transactions when an external
-  agent takes over handling such a transaction.
+The `usb2Ep0CtlEpIbExt`/`usbEpOb(0)` pair groups the standard in- and outbound
+endpoint signals. They follow the same protocol as ordinary endpoint pairs but are
+only used during the data phase of endpoint-zero control transactions when an external
+agent takes over handling such a transaction.
 
-  Note that the `Usb2Core` handles standard requests (such as `GET_DESCRIPTOR` etc.)
-  internally. The core also deals with the `SETUP` phase of all requests and stores
-  the setup data in the `usb2Ep0ReqParam` record.
+Note that the `Usb2Core` handles standard requests (such as `GET_DESCRIPTOR` etc.)
+internally. The core also deals with the `SETUP` phase of all requests and stores
+the setup data in the `usb2Ep0ReqParam` record.
 
-  Once the `SETUP` phase is done the core asserts `usb2Ep0ReqParam.vld` and at this
-  time an external agent may inspect the request parameters and decide if it wants
-  to handle the request. It *must* assert `ctlExt.ack` for one cycle concurrently
-  with or after seeing `vld` and at the same time signal with `ctlExt.err` and
-  `ctlExt.don` how it wants to proceed:
+Once the `SETUP` phase is done the core asserts `usb2Ep0ReqParam.vld` and at this
+time an external agent may inspect the request parameters and decide if it wants
+to handle the request. It *must* assert `ctlExt.ack` for one cycle concurrently
+with or after seeing `vld` and at the same time signal with `ctlExt.err` and
+`ctlExt.don` how it wants to proceed:
 
   | `vld` | `ack` | `err` | `don` | Semantics
   | ----- | ----- | ----- | ----- | ---------
@@ -340,8 +340,22 @@ A number of generics controls the properties of the ULPI interface:
   |   1   |   1   |   1   |   1   | Reject request
   |   1   |   1   |   0   |   1   | Accept request, processing done
 
- Note that the agent may take several clock cycles between 'seeing' `vld` and
- asserting `ack`.
+Note that the agent may take several clock cycles between 'seeing' `vld` and
+asserting `ack`. Once the request has been accepted the agent is responsible
+for handling an (optional) data phase which follows the protocol for endpoint
+data exchanged described in the previous section. The respective signals are
+bundled in `usb2Ep0CtlEpIbExt` and `usb2EpOb(0)`, respectively.
+
+If the data phase is involving an *IN* endpoint (read request) then the agent
+must monitor `usb2Ep0ReqParam.vld` and abort any transacion if this signal is
+deasserted. This can happen if the host decides not to read all available data.
+
+If the agent rejects the request (`don = ack = err = 1`) then the request is
+passed on to the (internal) standard endpoint-zero and handled there if it
+is a standard request. A *protocol-`STALL`* state is entered if the request
+is found to be unsupported.
+
+Further information is available in the comments of `Usb2Pkg.vhd`.
 
 ### Descriptors
 

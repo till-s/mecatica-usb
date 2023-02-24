@@ -200,10 +200,10 @@ package Usb2Pkg is
    --      1        0       Dn       0         master has data
    --      1        0       Dn       1         sub consumes Dn
    --      1        0       Dn+1     1         sub consumes Dn+1
-   --      1        0       Dn+2     0         wait cycle (optional)
+   --      1        0       Dn+2     0         wait cycle (sub not ready)
    --      1        0       Dn+2     1         sub consumes Dn+2
-   --      0        1        X       0         master done
-   --      0        1        X       0         wait cycle (optional)
+   --      0        1        X       0         master done (no data xfer)
+   --      0        1        X       0         wait cycle (optional, if sub not ready)
    --      0        1        X       1         sub consumes 'don' flag
    --
    -- NOTES:
@@ -213,12 +213,15 @@ package Usb2Pkg is
    --     has 'vld' asserted:
    --      0        1        X        0       NULL packet
    --      0        1        X        1       sub consumes 'don' flag
+   --
+   --      0        1        X        1       NULL packet (w/o wait cycle)
+   --
    --   - if the endpoint sets the 'bFramedInp' (no framing) flag
    --     then the 'don' flag is not used (and must never be asserted).
    --     Packets are directly framed by 'vld' but no NULL packets can
    --     be sent; packets are always at least 1 byte.
    --   - the master (IN direction) may request to abort the ongoing
-   --     transfer by asserting 'err' and 'don' and waiting for 'rdy'.
+   --     transfer by asserting 'err' and 'don' (and waiting for 'rdy').
    --     It must not assert 'vld' nor 'don' together with 'err'.
    --
    -- In the OUT direction a slightly different protocol must be
@@ -415,8 +418,8 @@ package Usb2Pkg is
    type Usb2CtlExtType is record
       -- 'ack' the param's 'vld' flag
       ack       : std_logic;
-      -- if set during the 'ack' phase
-      -- then the external agent is OK
+      -- if 'err' is clear during the 'ack'
+      -- phase then the external agent is OK
       -- to take over the data phase of
       -- the request; otherwise (err=1)
       -- a STALL will be emitted by the
@@ -427,10 +430,9 @@ package Usb2Pkg is
       -- 'don' for 1 cycle and conveys
       -- status:
       --    don  ack  err
-      --     1    0    0    -> NAK
-      --     1    1    0    -> ACK
-      --     1    0    1    -> STALL
-      --     1    1    1    -> STALL
+      --     0    x    X    -> NAK
+      --     1    x    0    -> ACK
+      --     1    x    1    -> STALL
       don       : std_logic;
 
       -- if the external agent replies to a 'read' request
@@ -445,19 +447,36 @@ package Usb2Pkg is
       -- If the agent needs no data phase then 'don' and 'ack' may both be
       -- asserted when accepting the request.
       --  Handling request with data phase
-      --    vld  ack  don
-      --     1    0    0
-      --     1    1    0  -> request accepted
+      --    vld  ack  don err
+      --     1    0    0   x
+      --     1    1    0   0  -> request accepted
       --     1  <handle data phase>
-      --     1    1    1  -> request done, ACK during status phase
+      --     1    x    1   0  -> request done, ACK during status phase
       --     0    0    0
       --  Handling request without data phase
-      --    vld  ack  don
-      --     1    0    0
-      --     1    1    1  -> ack request and flag done in one operation
-      --                     NOTE: in this case the status phase always
-      --                           ACKs the request.
+      --    vld  ack  don err
+      --     1    0    0   x
+      --     1    1    1   0  -> ack request and flag done in one operation
       --     0    0    0
+      --  Reject request and pass to Std EP0 for handling
+      --    vld  ack  don err
+      --     1    0    0   x
+      --     1    1    1   1  -> pass request to std request handling
+      --  Accept request; error during data phase
+      --    vld  ack  don err
+      --     1    0    0   x
+      --     1    1    0   0
+      --        <data phase with error>
+      --     1    x    1   1 -> STALL
+      --     0    0    0   0
+      --  Short read by host (READ request)
+      --    vld  ack  don err
+      --     1    0    0   x
+      --     1    1    0   0  -> accept request
+      --        <data phase [IN direction]>
+      --     0    0    0   0  -> 'vld' deasserted while not don yet
+      --                          => agent must abort read operation
+      --                             and wait for next command.
    end record Usb2CtlExtType;
 
    constant USB2_CTL_EXT_NAK_C : Usb2CtlExtType := (
