@@ -20,7 +20,9 @@ An example design for the Digilent-ZYBO board is provided which instantiates
 the USB-2 core as well as some functions (including an example for isochronous
 transfers) is included.
 
-## What About USB-3
+<details><summary><h2>
+What About USB-3
+</h2></summary>
 
 To date, no Xilinx-FPGA family MGT supports the USB-3 standard; therefore,
 no effort has been made to suport USB-3. However, for many applications
@@ -28,12 +30,16 @@ USB-2 still provides attractive medium-speed connectivity for data transfer
 and/or management tasks and at the same time can supply power (USB-C) over
 a single cable.
 
+</details>
+
 ## License
 
 Mecatica Usb is released under the [European-Union Public
 License](https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12)
 
-## Features
+<details><summary><h2>
+Features
+</h2></summary>
 
 The Usb2Core implements the following features:
 
@@ -119,6 +125,8 @@ to its successor or a similar one should be straightforward.
        This demonstrates and exercises the ECM ethernet function by
        connecting the Zynq-linux network stack to the host's networking.
 
+</details>
+
 ## Usb2Core
 
 The Usb2Core aggregates all the standard components necessary to provide
@@ -136,6 +144,8 @@ The ULPI Interface is designed to minimize combinatorial paths and push
 critical registers into IOBs when desirable. Meeting timing on low-level
 devices can become non-trivial if these important design goals are not
 observed.
+
+<details><summary><h4>More Information</h4></summary>
 
 #### Generics
 
@@ -304,6 +314,8 @@ A number of generics controls the properties of the ULPI interface:
 
 </dd></dl>
 
+</details>
+
 ### Endpoint Interface
 
 Endpoints in Mecatica Usb are grouped in *pairs* sharing the same endpoint
@@ -330,6 +342,8 @@ groups:
    `mstInp`, and `subOut`).
  - *Halt-feature* and *STALL* support (`setHaltInp`, `clrHaltInp`, `setHaltOut`,
    `clrHaltOut`, `stalledInp`, `stalledOut`).
+
+<details><summary><h4>More Information</h4></summary>
 
 #### Configuration Information
 
@@ -379,7 +393,14 @@ signals are:
 
 Consult the USB specification for more information about this feature.
 
+</details>
+
 ### Endpoint Zero Interface
+
+The endpoint zero interface lets functions communicate with the control
+endpoint zero.
+
+<details><summary><h4>More Information</h4></summary>
 
 The endpoint zero interface consists of the signals
 
@@ -410,7 +431,7 @@ with or after seeing `vld` and at the same time signal with `ctlExt.err` and
 
   | `vld` | `ack` | `err` | `don` | Semantics
   | ----- | ----- | ----- | ----- | ---------
-  |   1   |   1   |   0   |   0   | Accept request, neet more time to process
+  |   1   |   1   |   0   |   0   | Accept request, need more time to process
   |   1   |   1   |   1   |   1   | Reject request
   |   1   |   1   |   0   |   1   | Accept request, processing done
 
@@ -431,6 +452,8 @@ is found to be unsupported.
 
 Further information is available in the comments of `Usb2Pkg.vhd`.
 
+</details>
+
 ### Descriptors
 
 Mecatica Usb uses a semi-static approach with regard to Usb descriptors.
@@ -444,6 +467,8 @@ The `Usb2Core` expects the descriptors to be passed as a generic (`DESCRIPTORS_G
 The application is expected to set this to
 
     DESCRIPTORS_G => USB2_APP_DESCRIPTORS_C
+
+<details><summary><h4>More Information</h4></summary>
 
 The `Usb2DescPkg` also provides utility functions that can be used to navigate
 the descriptors in order to extract information for configuring details of
@@ -491,7 +516,7 @@ A simple device lists:
 
  1. The *DEVICE* descriptor
  2. A *CONFIGURATION* descriptor (followed by all *INTERFACE* and *ENDPOINT* descriptors
-    etc.). Optionally, more *CONFIGURATOIN*, *INTERFACE* and *ENDPOINT* descriptors may
+    etc.). Optionally, more *CONFIGURATION*, *INTERFACE* and *ENDPOINT* descriptors may
     follow.
  3. All string descriptors
  4. A special (non-Usb conformant) *SENTINEL* descriptor to mark the end of the
@@ -510,7 +535,7 @@ of the currently inactive speed to be read as *OTHER_SPEED_CONFIGURATION*.
   2. Full-speed *DEVICE_QUALIFIER* descriptor (holding info about the high-speed
      *DEVICE* descriptor).
   3. Full-speed *CONFIGURATION* descriptor (followed by all *INTERFACE* and *ENDPOINT*
-     descriptors etc.). Optionally, more full-speed *CONFIGURATOIN*, *INTERFACE* and
+     descriptors etc.). Optionally, more full-speed *CONFIGURATION*, *INTERFACE* and
      *ENDPOINT* descriptors may follow.
   4. A special (non-Usb conformant) *SENTINEL* descriptor to mark the end of the
      full-speed section.
@@ -518,11 +543,13 @@ of the currently inactive speed to be read as *OTHER_SPEED_CONFIGURATION*.
   6. High-speed *DEVICE_QUALIFIER* descriptor (holding info about the full-speed
      *DEVICE* descriptor).
   7. High-speed *CONFIGURATION* descriptor (followed by all *INTERFACE* and *ENDPOINT*
-     descriptors etc.). Optionally, more high-speed *CONFIGURATOIN*, *INTERFACE* and
+     descriptors etc.). Optionally, more high-speed *CONFIGURATION*, *INTERFACE* and
      *ENDPOINT* descriptors may follow.
   8. String descriptors. Note that these are shared among all other descriptors.
   9. A special (non-Usb conformant) *SENTINEL* descriptor to mark the end of the
      table.
+
+</details>
 
 ### Constraints
 
