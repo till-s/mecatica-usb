@@ -25,7 +25,7 @@ What About USB-3
 </h2></summary>
 
 To date, no Xilinx-FPGA family MGT supports the USB-3 standard; therefore,
-no effort has been made to suport USB-3. However, for many applications
+no effort has been made to support USB-3. However, for many applications
 USB-2 still provides attractive medium-speed connectivity for data transfer
 and/or management tasks and at the same time can supply power (USB-C) over
 a single cable.
@@ -127,7 +127,9 @@ to its successor or a similar one should be straightforward.
 
 </details>
 
-## Usb2Core
+<details><summary><h2>
+Usb2Core
+</h2></summary>
 
 The Usb2Core aggregates all the standard components necessary to provide
 core functionality:
@@ -144,8 +146,6 @@ The ULPI Interface is designed to minimize combinatorial paths and push
 critical registers into IOBs when desirable. Meeting timing on low-level
 devices can become non-trivial if these important design goals are not
 observed.
-
-<details><summary><h4>More Information</h4></summary>
 
 #### Generics
 
@@ -314,8 +314,6 @@ A number of generics controls the properties of the ULPI interface:
 
 </dd></dl>
 
-</details>
-
 ### Endpoint Interface
 
 Endpoints in Mecatica Usb are grouped in *pairs* sharing the same endpoint
@@ -342,8 +340,6 @@ groups:
    `mstInp`, and `subOut`).
  - *Halt-feature* and *STALL* support (`setHaltInp`, `clrHaltInp`, `setHaltOut`,
    `clrHaltOut`, `stalledInp`, `stalledOut`).
-
-<details><summary><h4>More Information</h4></summary>
 
 #### Configuration Information
 
@@ -393,14 +389,10 @@ signals are:
 
 Consult the USB specification for more information about this feature.
 
-</details>
-
 ### Endpoint Zero Interface
 
 The endpoint zero interface lets functions communicate with the control
 endpoint zero.
-
-<details><summary><h4>More Information</h4></summary>
 
 The endpoint zero interface consists of the signals
 
@@ -452,8 +444,6 @@ is found to be unsupported.
 
 Further information is available in the comments of `Usb2Pkg.vhd`.
 
-</details>
-
 ### Descriptors
 
 Mecatica Usb uses a semi-static approach with regard to Usb descriptors.
@@ -467,8 +457,6 @@ The `Usb2Core` expects the descriptors to be passed as a generic (`DESCRIPTORS_G
 The application is expected to set this to
 
     DESCRIPTORS_G => USB2_APP_DESCRIPTORS_C
-
-<details><summary><h4>More Information</h4></summary>
 
 The `Usb2DescPkg` also provides utility functions that can be used to navigate
 the descriptors in order to extract information for configuring details of
