@@ -361,6 +361,22 @@ by normal endpoints which only require
    used by the endpoint. This is in most cases a static configuration-type
    signal.
 
+#### Halt Feature
+
+Mecatica Usb supports the Usb *HALT* feature (host may "halt" endpoints
+via standard control requests, see 9.4.5 of the USB spec.). The respective
+signals are:
+
+ - `stalledInp`, `stalledOut` - input: may be asserted by the endpoint to
+   signal an error condition which causes the endpoint's "halt"-bit to be
+   set. While this bit is set the core will reply with *STALL* acknowledge
+   messages to the host. The halt-bit remains set after the `stalled` input
+   is deasserted once the host issues a `CLEAR_FEATURE` request to the endpoint.
+   The host may also set the halt-bit itself by issuing a `SET_FEATURE` request.
+ - `haltedInp`, `haltedOut` - output: signals whether the endpoint is currently
+   halted.
+
+Consult the USB specification for more information about this feature.
 
 ### Endpoint Zero Interface
 

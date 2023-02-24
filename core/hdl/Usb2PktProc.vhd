@@ -321,12 +321,16 @@ begin
    assert to_integer( TIME_DATA_TX_C ) /= 0 report "TIME_DATA_TX_C must not be zero!" severity failure;
 
    P_COMB : process ( r, rd, devStatus, epConfig, epIb, epObLoc, txDataSub, bufReadbackInp, usb2Rx ) is
-      variable v  : RegType;
-      variable ei : Usb2EndpPairIbType;
+      variable v         : RegType;
+      variable ei        : Usb2EndpPairIbType;
+      variable haltedInp : boolean;
+      variable haltedOut : boolean;
    begin
       v                := r;
       v.prevDevState   := devStatus.state;
       ei               := epIb( to_integer( r.epIdx ) );
+      haltedInp        := (devStatus.haltedInp( to_integer( r.epIdx ) ) = '1');
+      haltedOut        := (devStatus.haltedOut( to_integer( r.epIdx ) ) = '1');
       epIbDbg          <= ei;
 
       txDataMst        <= ei.mstInp;
@@ -343,10 +347,8 @@ begin
 
       for i in epObLoc'range loop
          epObLoc(i).subInp        <= USB2_STRM_SUB_INIT_C;
-         epObLoc(i).setHaltInp    <= devStatus.selHaltInp(i) and devStatus.setHalt;
-         epObLoc(i).clrHaltInp    <= devStatus.selHaltInp(i) and devStatus.clrHalt;
-         epObLoc(i).setHaltOut    <= devStatus.selHaltOut(i) and devStatus.setHalt;
-         epObLoc(i).clrHaltOut    <= devStatus.selHaltOut(i) and devStatus.clrHalt;
+         epObLoc(i).haltedInp     <= devStatus.haltedInp(i);
+         epObLoc(i).haltedOut     <= devStatus.haltedInp(i);
          epObLoc(i).config        <= epConfig(i);
 
          if ( epConfig( i ).transferTypeOut = USB2_TT_CONTROL_C ) then
@@ -423,6 +425,8 @@ begin
                   v.epIdx          := usb2TokenPktEndp( usb2Rx.pktHdr );
                   v.timer          := USB2_TIMER_EXPIRED_C;
                   ei               := epIb( to_integer( v.epIdx ) );
+                  haltedInp        := (devStatus.haltedInp( to_integer( v.epIdx ) ) = '1');
+                  haltedOut        := (devStatus.haltedOut( to_integer( v.epIdx ) ) = '1');
                   -- don't propagate RX RDY back to IN endpoint of they advertise
                   -- an unframed stream
                   v.nakDon         := ei.bFramedInp;
@@ -470,7 +474,7 @@ begin
                               end case;
                            end if;
                         end if;
-                     elsif ( ei.stalledInp = '1' ) then
+                     elsif ( haltedInp ) then
                         v.pid      := USB2_PID_HSK_STALL_C;
                         v.timer    := TIME_HSK_TX_C;
                         v.nxtState := HSK;
@@ -535,7 +539,7 @@ begin
                if    ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                   v.pid   := USB2_PID_SPC_NONE_C;
                   v.state := DRAIN;
-                  if ( usb2PidGroup( usb2Rx.pktHdr.pid ) = USB2_PID_GROUP_DAT_C and ei.stalledOut = '0' ) then
+                  if ( usb2PidGroup( usb2Rx.pktHdr.pid ) = USB2_PID_GROUP_DAT_C and not haltedOut ) then
                      -- no super-sophisticated sequence checking; in particular: we don't check if the
                      -- EP configuration actually asked for multiple transactions per micro-frame.
                      -- When needed the user may track the number of packets received (usr) as well as the PIDs
@@ -553,7 +557,7 @@ begin
                      end if;
                   end if;
                elsif ( checkDatHdr( usb2Rx.pktHdr ) ) then
-                  if ( ei.stalledOut = '1' ) then
+                  if ( haltedOut ) then
                      v.pid   := USB2_PID_HSK_STALL_C;
                      v.state := DRAIN;
                   elsif ( not sequenceOutMatch( v, usb2Rx.pktHdr ) ) then
@@ -885,7 +889,7 @@ begin
             if ( devStatus.hiSpeed and r.pid = USB2_PID_HSK_ACK_C and r.tok = USB2_PID_TOK_OUT_C and ei.subOut.rdy = '0' ) then
                v.pid := USB2_PID_HSK_NYET_C;
             end if;
-            if ( (ei.stalledInp or ei.stalledOut) = '1' ) then
+            if ( haltedInp or haltedOut ) then
                v.pid := USB2_PID_HSK_STALL_C;
             end if;
             if ( txDataSub.don = '1' ) then
@@ -897,14 +901,9 @@ begin
 
       end case;
 
-      if ( devStatus.clrHalt = '1' ) then
-         v.dataTglInp := r.dataTglInp and not devStatus.selHaltInp(r.dataTglInp'range);
-         v.dataTglOut := r.dataTglOut and not devStatus.selHaltOut(r.dataTglOut'range);
-      end if;
-      if ( devStatus.setHalt = '1' ) then
-         v.dataTglInp := r.dataTglInp or devStatus.selHaltInp(r.dataTglInp'range);
-         v.dataTglOut := r.dataTglOut or devStatus.selHaltOut(r.dataTglOut'range);
-      end if;
+      -- 9.4.5: CLEAR_FEATURE ENDPOINT_HALT always results in the data toggle being reset
+      v.dataTglInp := v.dataTglInp and not devStatus.clrHaltedInp(r.dataTglInp'range);
+      v.dataTglOut := v.dataTglOut and not devStatus.clrHaltedOut(r.dataTglOut'range);
 
       if ( devStatus.state /= DEFAULT and devStatus.state /= ADDRESS and devStatus.state /= CONFIGURED ) then
          -- discard everything we've done

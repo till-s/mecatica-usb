@@ -161,7 +161,6 @@ begin
    end generate G_Usb2FifoAsyncCC;
 
    G_INP_FIFO : if ( LD_FIFO_DEPTH_INP_G > 0 ) generate
-      signal halted       : std_logic := '0';
       signal haltedEpClk  : std_logic;
       signal fifoWen      : std_logic;
       signal fifoFull     : std_logic;
@@ -182,24 +181,8 @@ begin
 
       usb2RstLoc <= usb2Rst or not epRunning;
 
-      P_HALT : process ( usb2Clk ) is
-      begin
-         if ( rising_edge( usb2Clk ) ) then
-            if ( usb2RstLoc = '1' ) then
-               halted  <= '0';
-            else
-               if ( usb2EpIb.setHaltInp = '1' ) then
-                  halted <= '1';
-               end if;
-               if ( usb2EpIb.clrHaltInp = '1' ) then
-                  halted <= '0';
-               end if;
-            end if;
-         end if;
-      end process P_HALT;
-
       -- usb2 clock domain
-      haltedInp           <= halted;
+      haltedInp           <= usb2EpIb.haltedInp;
       mstInpVld           <= not fifoEmpty and haveAFrame and not mstInpDon;
 
       -- only freeze user-access in halted state; EP interaction with the packet
@@ -295,7 +278,6 @@ begin
    end generate G_INP_FIFO;
 
    G_OUT_FIFO : if ( LD_FIFO_DEPTH_OUT_G > 0 ) generate
-      signal halted       : std_logic := '0';
       signal fifoWen      : std_logic;
       signal fifoRen      : std_logic;
       signal fifoFull     : std_logic;
@@ -372,16 +354,9 @@ begin
       begin
          if ( rising_edge( usb2Clk ) ) then
             if ( usb2RstLoc = '1' ) then
-               halted    <= '0';
                fifoRdy   <= '0';
                lastWen   <= '0';
             else
-               if ( usb2EpIb.setHaltOut = '1' ) then
-                  halted <= '1';
-               end if;
-               if ( usb2EpIb.clrHaltOut = '1' ) then
-                  halted <= '0';
-               end if;
                lastWen <= fifoWen;
                if ( ( fifoRdy or fifoWen ) = '0' ) then
                   if ( fifoFilled <= 2**LD_FIFO_DEPTH_OUT_G - maxPktSz ) then
@@ -406,7 +381,7 @@ begin
       -- engine proceeds
 
       -- usb2 clock domain
-      haltedOut           <= halted;
+      haltedOut           <= usb2EpIb.haltedOut;
       subOutRdy           <= fifoRdy and not fifoFull;
 
       -- EP clock domain

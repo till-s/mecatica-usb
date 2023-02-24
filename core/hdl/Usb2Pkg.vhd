@@ -137,27 +137,27 @@ package Usb2Pkg is
    type Usb2DevStateType is (POWERED, DEFAULT, ADDRESS, CONFIGURED, SUSPENDED);
 
    type Usb2DevStatusType is record
-      state      : Usb2DevStateType;
-      devAddr    : Usb2DevAddrType;
-      remWakeup  : boolean; -- whether remote wakeup is supported and enabled
-      hiSpeed    : boolean; -- device is in hi-speed mode (supported and enabled)
-      selHaltInp : std_logic_vector(15 downto 0);
-      selHaltOut : std_logic_vector(15 downto 0);
-      clrHalt    : std_logic;
-      setHalt    : std_logic;
-      usb2Rst    : std_logic;
+      state            : Usb2DevStateType;
+      devAddr          : Usb2DevAddrType;
+      remWakeup        : boolean; -- whether remote wakeup is supported and enabled
+      hiSpeed          : boolean; -- device is in hi-speed mode (supported and enabled)
+      haltedInp        : std_logic_vector(15 downto 0);
+      haltedOut        : std_logic_vector(15 downto 0);
+      clrHaltedInp     : std_logic_vector(15 downto 0);
+      clrHaltedOut     : std_logic_vector(15 downto 0);
+      usb2Rst          : std_logic;
    end record;
 
    constant USB2_DEV_STATUS_INIT_C : Usb2DevStatusType := (
-      state      => DEFAULT,
-      devAddr    => (others => '0'),
-      hiSpeed    => false,
-      remWakeup  => false,
-      selHaltInp => (others => '0'),
-      selHaltOut => (others => '0'),
-      clrHalt    => '0',
-      setHalt    => '0',
-      usb2Rst    => '0'
+      state             => DEFAULT,
+      devAddr           => (others => '0'),
+      hiSpeed           => false,
+      remWakeup         => false,
+      haltedInp         => (others => '0'),
+      haltedOut         => (others => '0'),
+      clrHaltedInp      => (others => '0'),
+      clrHaltedOut      => (others => '0'),
+      usb2Rst           => '0'
    );
 
    subtype Usb2TransferType is std_logic_vector(1 downto 0);
@@ -286,11 +286,18 @@ package Usb2Pkg is
       subInp     : Usb2StrmSubType;
       -- control endpoints receive setup data here;
       mstCtl     : Usb2StrmMstType;
-      -- standard 'halt' feature; asserted for 1 cycle
-      setHaltInp : std_logic;
-      clrHaltInp : std_logic;
-      setHaltOut : std_logic;
-      clrHaltOut : std_logic;
+      -- standard 'halt' feature; asserted while the
+      -- endpoint is halted; either as a result of
+      -- the associated IbType asserting 'stalledInp/stalledOut'
+      -- or a SET_FEATURE request.
+      -- The halt feature is reset (provided that the
+      -- 'stalledInp/stalledOut' condition no longer holds)
+      --    - by a CLEAR_FEATURE request
+      --    - by a SET_CONFIGURATION request
+      --    - by a SET_INTERFACE request
+      -- (see 9.4.5)
+      haltedInp  : std_logic;
+      haltedOut  : std_logic;
       -- current configuration values
       config     : Usb2EndpPairConfigType;
    end record Usb2EndpPairObType;
@@ -299,10 +306,8 @@ package Usb2Pkg is
       mstOut     => USB2_STRM_MST_INIT_C,
       subInp     => USB2_STRM_SUB_INIT_C,
       mstCtl     => USB2_STRM_MST_INIT_C,
-      setHaltInp => '0',
-      clrHaltInp => '0',
-      setHaltOut => '0',
-      clrHaltOut => '0',
+      haltedInp  => '0',
+      haltedOut  => '0',
       config     => USB2_ENDP_PAIR_CONFIG_INIT_C
    );
 

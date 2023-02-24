@@ -228,7 +228,6 @@ architecture Impl of Usb2StdCtlEp is
       reqParam    : Usb2CtlReqParamType;
       parmIdx     : unsigned(2 downto 0);
       err         : std_logic;
-      protoStall  : std_logic;
       epConfig    : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1);
       epAssocInp  : EndpAssocArray;
       epAssocOut  : EndpAssocArray;
@@ -267,7 +266,6 @@ architecture Impl of Usb2StdCtlEp is
       reqParam    => USB2_CTL_REQ_PARAM_INIT_C,
       parmIdx     => (others => '0'),
       err         => '0',
-      protoStall  => '0',
       epConfig    => (
                         0      => ( 
                                      transferTypeInp => USB2_TT_CONTROL_C,
@@ -333,6 +331,17 @@ architecture Impl of Usb2StdCtlEp is
       v.state     := READ_TBL;
    end procedure READ_TBL;
 
+   procedure setProtoStall( variable v : inout RegType; constant x : in std_logic ) is
+   begin
+      v                        := v;
+      v.devStatus.haltedInp(0) := x;
+      v.devStatus.haltedOut(0) := x;
+   end procedure setProtoStall;
+
+   function isProtoStalled( constant c : in RegType ) return boolean is
+   begin
+      return c.devStatus.haltedInp(0) = '1';
+   end function isProtoStalled;
 
    function hasHaltInp   (constant x : in RegType; constant o : std_logic_vector)
    return boolean is
@@ -378,12 +387,15 @@ begin
          descVal                := DSC_C( r.tblIdx + r.tblOff );
       end if;
 
-      epOb.stalledInp           <= r.protoStall;
-      epOb.stalledOut           <= r.protoStall;
-      v.devStatus.clrHalt       := '0';
-      v.devStatus.setHalt       := '0';
-      v.devStatus.selHaltInp    := (others => '0');
-      v.devStatus.selHaltOut    := (others => '0');
+      for i in 1 to NUM_ENDPOINTS_G - 1 loop
+         if ( allEpIb( i ).stalledInp = '1' ) then
+            v.devStatus.haltedInp( i ) := '1';
+         end if;
+         if ( allEpIb( i ).stalledOut = '1' ) then
+            v.devStatus.haltedOut( i ) := '1';
+         end if;
+      end loop;
+
       v.tblRdDone               := false;
       ramRenA                   <= '0';
 
@@ -392,6 +404,9 @@ begin
       end if;
       v.devStatus.hiSpeed       := (hiSpeed = '1');
       tblSelHS                  := r.devStatus.hiSpeed;
+
+      v.devStatus.clrHaltedInp  := (others => '0');
+      v.devStatus.clrHaltedOut  := (others => '0');
 
       if ( r.devStatus.hiSpeed ) then
          v.epConfig(0).maxPktSizeInp := to_unsigned( 64, v.epConfig(0).maxPktSizeInp'length );
@@ -419,7 +434,7 @@ begin
               and            ( ENDPOINT_G                 = USB2_ENDP_ZERO_C     )
             )
          then
-            v.protoStall          := '0';
+            setProtoStall( v, '0' );
          end if;
          v.reqParam.vld := '0';
       end if;
@@ -430,7 +445,7 @@ begin
          when GET_PARAMS =>
             v.flg           := '0';
             if ( epIb.mstCtl.vld = '1' ) then
-               v.protoStall    := '0';
+               setProtoStall( v, '0' );
                v.err           := '0';
                v.setupDone     := false;
 
@@ -486,7 +501,7 @@ begin
                v.state               := STATUS;
                v.reqParam.vld        := '0';
             elsif ( ctlExt.don = '1' ) then
-               v.protoStall := ctlExt.err;
+               setProtoStall( v, ctlExt.err );
                if ( ctlExt.err = '1' ) then
                   v.state   := GET_PARAMS;
                else
@@ -563,25 +578,23 @@ begin
                         then
                            if ( Usb2StdFeatureType( r.reqParam.value(1 downto 0) ) = USB2_STD_FEAT_ENDPOINT_HALT_C ) then
                               if ( r.reqParam.request = USB2_REQ_STD_SET_FEATURE_C ) then
-                                 if ( r.reqParam.index(7) = '0' and hasHaltOut(r, r.reqParam.index(3 downto 0)) ) then 
-                                    v.devStatus.selHaltOut(epIdx(r.reqParam)) := '1';
-                                    v.devStatus.setHalt := '1';
-                                    v.state             := STATUS;
-                                 elsif ( hasHaltInp( r, r.reqParam.index(3 downto 0) ) ) then
-                                    v.devStatus.selHaltInp(epIdx(r.reqParam)) := '1';
-                                    v.devStatus.setHalt := '1';
-                                    v.state             := STATUS;
+                                 if    ( r.reqParam.index(7) = '0' and hasHaltOut(r, r.reqParam.index(3 downto 0)) ) then 
+                                    v.devStatus.haltedOut(epIdx(r.reqParam)) := '1';
+                                    v.state                                  := STATUS;
+                                 elsif ( r.reqParam.index(7) = '1' and hasHaltInp(r, r.reqParam.index(3 downto 0)) ) then 
+                                    v.devStatus.haltedInp(epIdx(r.reqParam)) := '1';
+                                    v.state                                  := STATUS;
                                  end if;
                               else
                                  -- this resets the data toggles on the target endpoint
                                  if ( r.reqParam.index(7) = '0' ) then 
-                                    v.devStatus.selHaltOut(epIdx(r.reqParam)) := '1';
-                                    v.devStatus.clrHalt := '1';
-                                    v.state             := STATUS;
+                                    v.devStatus.haltedOut(epIdx(r.reqParam))    := '0';
+                                    v.devStatus.clrHaltedOut(epIdx(r.reqParam)) := '1';
+                                    v.state                                     := STATUS;
                                  else
-                                    v.devStatus.selHaltInp(epIdx(r.reqParam)) := '1';
-                                    v.devStatus.clrHalt := '1';
-                                    v.state             := STATUS;
+                                    v.devStatus.haltedInp(epIdx(r.reqParam))    := '0';
+                                    v.devStatus.clrHaltedInp(epIdx(r.reqParam)) := '1';
+                                    v.state                                     := STATUS;
                                  end if;
                               end if;
                            end if;
@@ -613,7 +626,7 @@ begin
                               end if;
                            else
                               -- full-speed only device must return error
-                              v.protoStall := '1';
+                              setProtoStall( v, '1' );
                            end if;
 
                         when USB2_STD_DESC_TYPE_CONFIGURATION_C     |
@@ -637,7 +650,7 @@ begin
                               v.tblOff     := USB2_CFG_DESC_IDX_TOTAL_LENGTH_C + 1;
                               v.size2B     := true;
                            else
-                              v.protoStall := '1';
+                              setProtoStall( v, '1' );
                            end if;
 
                         when USB2_STD_DESC_TYPE_STRING_C            =>
@@ -647,12 +660,12 @@ begin
                               v.tblIdx     := STRINGS_IDX_C;
                               v.descType   := USB2_STD_DESC_TYPE_STRING_C;
                            else
-                              v.protoStall := '1';
+                              setProtoStall( v, '1' );
                            end if;
                         when others                                 =>
-                           v.protoStall := '1';
+                           setProtoStall( v, '1' );
                      end case;
-                     if ( v.protoStall = '1' ) then
+                     if ( isProtoStalled( v ) ) then
                         v.state    := GET_PARAMS;
                      end if;
 
@@ -680,9 +693,9 @@ begin
                               v.state     := RETURN_VALUE;
                               if ( unsigned(r.reqParam.index(3 downto 0)) > 0 ) then
                                  if ( r.reqParam.index(7) = '0' ) then
-                                    v.retVal(0) := allEpIb( to_integer( unsigned( r.reqParam.index(3 downto 0) ) ) ).stalledOut;
+                                    v.retVal(0) := r.devStatus.haltedOut( to_integer( unsigned( r.reqParam.index(3 downto 0) ) ) );
                                  else
-                                    v.retVal(0) := allEpIb( to_integer( unsigned( r.reqParam.index(3 downto 0) ) ) ).stalledInp;
+                                    v.retVal(0) := r.devStatus.haltedInp( to_integer( unsigned( r.reqParam.index(3 downto 0) ) ) );
                                  end if;
                               else
                                  -- EP0 is never halted
@@ -698,6 +711,13 @@ begin
                      v.state    := STATUS;
 
                   when USB2_REQ_STD_SET_CONFIGURATION_C =>
+                     for i in 1 to v.epConfig'length - 1 loop
+                        v.epConfig(i).maxPktSizeInp := (others => '0');
+                        v.epConfig(i).maxPktSizeOut := (others => '0');
+                        -- SET_CONFIGURATION clears halt 9.4.5
+                        v.devStatus.haltedInp(i)    := '0';
+                        v.devStatus.haltedOut(i)    := '0';
+                     end loop;
                      if ( r.reqParam.value(7 downto 0) = x"00" ) then
                         v.devStatus.state := ADDRESS;
                         v.state           := STATUS;
@@ -715,10 +735,6 @@ begin
                         else
                            v.state           := SETUP_CONFIG;
                            v.numIfc          := to_integer(unsigned(r.readVal));
-                           for i in 1 to v.epConfig'length - 1 loop
-                              v.epConfig(i).maxPktSizeInp := (others => '0');
-                              v.epConfig(i).maxPktSizeOut := (others => '0');
-                           end loop;
                         end if;
                      end if;
 
@@ -745,7 +761,7 @@ begin
                end case;
             end if;
             if ( v.state    = GET_PARAMS ) then
-               v.protoStall := '1';
+               setProtoStall( v, '1' );
                -- if we cause a STALL we don't explicitly have to enter STATUS state;
                -- any transaction but a new SETUP will be STALLed by the packet processor.
                -- OTOH, we want to be ready for a new SETUP so going back to GET_PARAMS
@@ -766,7 +782,7 @@ begin
                v.tblOff := USB2_DESC_IDX_LENGTH_C;
                if ( usb2DescIsSentinel( r.readVal ) ) then
                   -- USB2_STD_DESC_TYPE_SENTINEL_C detected; -> end of table
-                  v.protoStall := '1';
+                  setProtoStall( v, '1' );
                   v.state      := GET_PARAMS;
                elsif ( Usb2StdDescriptorTypeType(r.readVal(3 downto 0)) = r.descType ) then
                   -- found; pre-read aux entry
@@ -868,9 +884,11 @@ begin
                   if ( r.epIsInp ) then
                      v.epConfig( r.epIdx ).maxPktSizeInp := toPktSizeType(r.readVal & r.tmpVal);
                      v.epAssocInp( r.epIdx ).ifc         := r.ifcIdx;
+                     v.devStatus.haltedInp( r.epIdx )    := '0'; -- SET_INTERFACE clears halt 9.4.5
                   else
                      v.epConfig( r.epIdx ).maxPktSizeOut := toPktSizeType(r.readVal & r.tmpVal);
                      v.epAssocOut( r.epIdx ).ifc         := r.ifcIdx;
+                     v.devStatus.haltedOut( r.epIdx )    := '0'; -- SET_INTERFACE clears halt 9.4.5
                   end if;
                   v.numEp  := r.numEp - 1;
                   v.tblOff := USB2_DESC_IDX_LENGTH_C;
