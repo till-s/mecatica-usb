@@ -182,7 +182,7 @@ architecture sim of Usb2FifoEpTb is
    constant ALT_C                  : std_logic_vector(15 downto 0) := x"0001";
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
    
-   signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal epIb                     : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
    signal devStatus                : Usb2DevStatusType;
@@ -359,6 +359,8 @@ begin
       wait;
    end process P_TST;
 
+   epIb(0) <= cdcacmCtlEpIb;
+
    U_CORE : entity work.Usb2Core
    generic map (
       SIMULATION_G                 => true,
@@ -378,7 +380,6 @@ begin
 
       usb2Ep0ReqParam              => ep0ReqParam,
       usb2Ep0CtlExt                => ep0CtlExt,
-      usb2Ep0CtlEpIbExt            => cdcacmCtlEpIb,
 
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb

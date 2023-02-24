@@ -184,7 +184,7 @@ architecture sim of Usb2IsoTb is
    constant ALT_C                  : std_logic_vector(15 downto 0) := x"0000";
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
    
-   signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal epIb                     : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
    signal usb2Rx                   : Usb2RxType := USB2_RX_INIT_C;
@@ -547,7 +547,6 @@ report "SET_INTERFACE";
 
       usb2Ep0ReqParam              => open,
       usb2Ep0CtlExt                => open,
-      usb2Ep0CtlEpIbExt            => open,
 
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb

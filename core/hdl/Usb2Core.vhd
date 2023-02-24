@@ -68,8 +68,6 @@ entity Usb2Core is
       -- class-specific requests). See Usb2StdCtlEp.vhd for more comments.
       usb2Ep0ReqParam              : out   Usb2CtlReqParamType;
       usb2Ep0CtlExt                : in    Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
-      usb2Ep0CtlEpIbExt            : in    Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
-
       -- global device configuration (in most cases tied to a static value;
       -- should also match what the descriptors say)
       usb2HiSpeedEn                : in    std_logic          := '0';
@@ -80,7 +78,7 @@ entity Usb2Core is
       usb2SelfPowered              : in    std_logic          := '0';
 
       -- Endpoints are attached here (1 and up)
-      usb2EpIb                     : in    Usb2EndpPairIbArray(1 to USB2_APP_MAX_ENDPOINTS_F(DESCRIPTORS_G) - 1)
+      usb2EpIb                     : in    Usb2EndpPairIbArray(0 to USB2_APP_MAX_ENDPOINTS_F(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_IB_INIT_C );
       -- note EP0 output can be observed here; an external agent extending EP0 functionality
       -- needs to listen to usb2EpOb(0).
@@ -145,7 +143,7 @@ begin
 
    usb2Rx               <= usb2RxLoc;
    usb2EpOb             <= epOb;
-   epIb(1 to epIb'high) <= usb2EpIb;
+   epIb(1 to epIb'high) <= usb2EpIb(1 to usb2EpIb'high);
 
    P_COMB : process (
       devStatus,
@@ -334,7 +332,7 @@ begin
       param           => usb2Ep0ReqParam,
       pktHdr          => usb2RxLoc.pktHdr,
       ctlExt          => usb2Ep0CtlExt,
-      ctlEpExt        => usb2Ep0CtlEpIbExt,
+      ctlEpExt        => usb2EpIb(0),
 
       suspend         => suspend,
       hiSpeed         => isHiSpeed,

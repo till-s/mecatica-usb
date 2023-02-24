@@ -254,7 +254,7 @@ A number of generics controls the properties of the ULPI interface:
 
 </dd><dt>
 
-`usb2Ep0ReqParam`, `usb2Ep0CtlExt`, `usb2Ep0CtlEpIbExt`
+`usb2Ep0ReqParam`, `usb2Ep0CtlExt`, `usb2EpIb(0)`, `usb2EpOb(0)`
 
 </dt><dd>
 
@@ -305,6 +305,63 @@ A number of generics controls the properties of the ULPI interface:
 
 ### Endpoint Interface
 
+Endpoints in Mecatica Usb are grouped in *pairs* sharing the same endpoint
+address but supporting different directions (IN/OUT). It is possible that
+one direction remains unused (this would be indicated by a missing desriptor
+for the unused half of the pair).
+
+The signals used for communication with endpoint pairs are grouped into
+an *inbound* (signals originating at the endpoint and being read by
+the Usb2Core) port (`usb2EpIb`) and an *outbound* (`usb2EpOb`) port
+(signals originating in the Usb2Core and being read by the endpoints).
+
+`usb2EpIb` and `usb2EpOb` are *arrays* with each array element connecting
+to an endpoint pair. The array elements are of types `Usb2EndpPairIbType`
+and `Usb2EndpPairObType`, respectively.
+
+The signals communicated to/from the endpoints can be divided into three
+groups:
+
+ - configuration information (`config`). This record communicates information
+   about the currently active configuration and interface alt-setting (such as
+   the currently active 'maxPacketSize').
+ - data exchange and handshake (`mstOut`, `subInp`, `mstCtl`, `bFramedInp`,
+   `mstInp`, and `subOut`).
+ - *Halt-feature* and *STALL* support (`setHaltInp`, `clrHaltInp`, `setHaltOut`,
+   `clrHaltOut`, `stalledInp`, `stalledOut`).
+
+#### Configuration Information
+
+The `config` record conveys the currently active transfer-type and maximum
+packet size of an endpoint pair. This also includes information whether an
+endpoint is currently running. Usb interfaces may have multiple alt-settings
+and only endpoints which are part of the currently active alt-setting are
+running; others may have to be explicitly reset. E.g., the CDC ECM specification
+mandates (3.3) that when the host selects the first alt-setting (which must not
+have *any* endpoints) to "recover the network aspects of a device to known states".
+
+An endpoint shall detect if it is currently running by using the `epInpRunning()`
+and `epOutRunning()` functions.
+
+More details are explained in `Usb2Pkg.vhd`.
+
+#### Data Exchange
+
+Data exchange between endpoints and the `Usb2Core` is explained in the
+separate [document](doc/DataExchangeProtocol.md) and `Usb2Pkg.vhd`.
+
+Note that the `mstCtl` member is for internal use only and is not used
+by normal endpoints which only require
+
+ - `mstOut` - output: data and handshake for *OUT*-directed endpoints.
+ - `subInp` - output: handshake for *IN*-directed endpoints.
+ - `mstInp` - input: data and handshake for *IN*-directed endpoints.
+ - `subOut` - input: handshake for *OUT*-directed endpoints.
+ - `bFramedInp` - input: configuration signal; signals the type of framing
+   used by the endpoint. This is in most cases a static configuration-type
+   signal.
+
+
 ### Endpoint Zero Interface
 
 The endpoint zero interface consists of the signals
@@ -314,12 +371,12 @@ The endpoint zero interface consists of the signals
   - `usb2Ep0CtlExt` - input: signals to `EP0` whether an external agent is able to
     handle the currently active request. This port also communicates when the agent
     is done handling the request as well as error status information.
-  - `usb2Ep0CtlEpIbExt` - input: the external agent supplies data during the data phase
-    of a `IN` control request here.
-  - `usb2EpOb(0)` - output: the external agent may observe data during the data phase
-    or an `OUT` control request here.
+  - `usb2EpIb(0)` - input: the external agent supplies data and handshake signals
+    during the data phase of a control request here.
+  - `usb2EpOb(0)` - output: the external agent observes data and handshake signals
+    during the data phase of a control request here.
 
-The `usb2Ep0CtlEpIbExt`/`usbEpOb(0)` pair groups the standard in- and outbound
+The `usb2EpIb(0)`/`usbEpOb(0)` pair groups the standard in- and outbound
 endpoint signals. They follow the same protocol as ordinary endpoint pairs but are
 only used during the data phase of endpoint-zero control transactions when an external
 agent takes over handling such a transaction.
@@ -344,7 +401,7 @@ Note that the agent may take several clock cycles between 'seeing' `vld` and
 asserting `ack`. Once the request has been accepted the agent is responsible
 for handling an (optional) data phase which follows the protocol for endpoint
 data exchanged described in the previous section. The respective signals are
-bundled in `usb2Ep0CtlEpIbExt` and `usb2EpOb(0)`, respectively.
+bundled in `usb2EpIb(0)` and `usb2EpOb(0)`, respectively.
 
 If the data phase is involving an *IN* endpoint (read request) then the agent
 must monitor `usb2Ep0ReqParam.vld` and abort any transacion if this signal is

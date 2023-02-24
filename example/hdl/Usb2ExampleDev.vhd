@@ -309,7 +309,7 @@ architecture Impl of Usb2ExampleDev is
 
    signal DTR, RTS, lineBreak, DCD, DSR        : std_logic;
 
-   signal usb2EpIb                             : Usb2EndpPairIbArray(1 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
+   signal usb2EpIb                             : Usb2EndpPairIbArray(0 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
 
    -- note EP0 output can be observed here; an external agent extending EP0 functionality
    -- needs to listen to this.
@@ -416,7 +416,6 @@ begin
 
          usb2Ep0ReqParam              => usb2Ep0ReqParamIn,
          usb2Ep0CtlExt                => usb2Ep0CtlExt,
-         usb2Ep0CtlEpIbExt            => usb2Ep0CtlEpExt,
 
          usb2HiSpeedEn                => '1',
          usb2RemoteWake               => usb2RemoteWake,
@@ -503,6 +502,8 @@ begin
             end if;
          end if;
       end process P_SEL;
+
+      usb2EpIb(0) <= usb2Ep0CtlEpExt;
 
    end block B_EP0_MUX;
 

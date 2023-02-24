@@ -208,7 +208,7 @@ architecture sim of Usb2FifoEpFrmdTb is
       1 => ( hse => '1', pol => PING )
    );
    
-   signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal epIb                     : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
    signal devStatus                : Usb2DevStatusType;
@@ -580,7 +580,6 @@ begin
 
       usb2Ep0ReqParam              => ep0ReqParam,
       usb2Ep0CtlExt                => ep0CtlExt,
-      usb2Ep0CtlEpIbExt            => open,
 
       usb2HiSpeedEn                => hiSpeedEn,
 

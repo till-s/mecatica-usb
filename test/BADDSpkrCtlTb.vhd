@@ -139,11 +139,10 @@ architecture sim of BADDSpkrCtlTb is
 
    constant NUM_ENDPOINTS_C        : natural                      := USB2_APP_MAX_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
 
-   signal epIb                     : Usb2EndpPairIbArray(1 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal epIb                     : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
    signal usb2Rx                   : Usb2RxType := USB2_RX_INIT_C;
-   signal ep0Ib                    : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
    signal ep0ReqParam              : Usb2CtlReqParamType;
    signal ep0CtlExt                : Usb2CtlExtType;
 
@@ -354,7 +353,6 @@ begin
 
       usb2Ep0ReqParam              => ep0ReqParam,
       usb2Ep0CtlExt                => ep0CtlExt,
-      usb2Ep0CtlEpIbExt            => ep0Ib,
 
       usb2EpIb                     => epIb,
       usb2EpOb                     => epOb
@@ -373,7 +371,7 @@ begin
 
          usb2Ep0ReqParam           => ep0ReqParam,
          usb2Ep0CtlExt             => ep0CtlExt,
-         usb2Ep0ObExt              => ep0Ib,
+         usb2Ep0ObExt              => epIb(0),
          usb2Ep0IbExt              => epOb(0),
 
          volLeft                   => volLeft,
