@@ -13,7 +13,8 @@ full-speed USB-2 interface.
 
 A few generic function classes (CDC-ACM, CDC-ECM) are implemented which
 can be connected to the generic core IP. USB descriptors can be created
-using a python tool.
+using a python tool. Users may create their own endpoint implementations
+and attach these to the USB-2 core.
 
 An example design for the Digilent-ZYBO board is provided which instantiates
 the USB-2 core as well as some functions (including an example for isochronous
@@ -431,6 +432,97 @@ is found to be unsupported.
 Further information is available in the comments of `Usb2Pkg.vhd`.
 
 ### Descriptors
+
+Mecatica Usb uses a semi-static approach with regard to Usb descriptors.
+The `Usb2AppCfgPkg.vhd` package declares a constant `USB2_APP_DESCRIPTORS_C`
+which is a byte-array holding all descriptors. The contents of this constant
+are not directly used by the Usb2Core; however, it's size is used by the
+`Usb2DescPkg` to define a numerical data type (`Usb2DescIdxType`) which is 
+large enough to navigate the entire array.
+
+The `Usb2Core` expects the descriptors to be passed as a generic (`DESCRIPTORS_G`).
+The application is expected to set this to
+
+    DESCRIPTORS_G => USB2_APP_DESCRIPTORS_C
+
+The `Usb2DescPkg` also provides utility functions that can be used to navigate
+the descriptors in order to extract information for configuring details of
+the application via generics (the example application checks some capability bits
+in the CDC ACM functional descriptor sets certain generics based on the outcome).
+
+The `UsbCore` also offers the option to store the descriptors in block ram. This
+feature is enabled by setting
+
+    DESCRIPTOR_BRAM_G => true
+
+This may save some (minor amount of) LUTs when block ram is available. It also
+let's the application *patch/overwrite* descriptors at run-time via a dedicated
+port (this port is ignored when `DESCRIPTOR_BRAM_G = false`):
+
+ - `descRWClk` - input: clock for writing BRAM (may be asynchronous to the usb
+   clock.
+ - `descRWIb`  - input: command port
+   - `addr`: address
+   - `cen`: clock-enable; must be asserted together with the address to cause
+     a read or write operation. Read data is presented at `descRWOb` with one
+     cycle of latency.
+   - `wen`: write-enable; must be asserted together with `cen` to issue a write
+     operation. The write date is presented at `wdata`.
+ - `descRWOb`  - output: read-back data (1 cycle of latency).
+
+Modifying the descriptors has to be done with *great care* and only if you
+know exactly what you are doing! The layout/structure of the descriptors
+*must not* be changed. The use-case of this feature is tweaking special data
+such as serial-numbers or MAC-addresses etc. Consult the example application.
+
+#### Descriptor Layout
+
+Mecatica Usb expects the descriptors to follow a certain layout. When descriptors
+are generated using the python tool this layout is automatically observed.
+
+##### Simple Device
+
+A simple device supports no *DEVICE_QUALIFIER* descriptor. This could be a full-
+speed device. It is not clear (to me) from the specification if it is "legal" for
+a high-speed only device to forego a *DEVICE_QUALIFIER* descriptor. In any case,
+it seems to work under linux, YMMV.
+
+A simple device lists:
+
+ 1. The *DEVICE* descriptor
+ 2. A *CONFIGURATION* descriptor (followed by all *INTERFACE* and *ENDPOINT* descriptors
+    etc.). Optionally, more *CONFIGURATOIN*, *INTERFACE* and *ENDPOINT* descriptors may
+    follow.
+ 3. All string descriptors
+ 4. A special (non-Usb conformant) *SENTINEL* descriptor to mark the end of the
+    table.
+
+##### Dual-Speed Device
+
+A fully compliant high-speed capable device supports *DEVICE_QUALIFIER* and
+*OTHER_SPEED_CONFIGURATION* descriptors. Mecatica Usb expects these to be
+listed in a specific order as outlined below. Note that no *OTHER_SPEED_CONFIGURATION*
+descriptor is actually present but only ordinary *CONFIGURATION* descriptors.
+The core automatically patches the descriptor-type of *CONFIGURATION* descriptors
+of the currently inactive speed to be read as *OTHER_SPEED_CONFIGURATION*.
+
+  1. Full-speed *DEVICE* descriptor
+  2. Full-speed *DEVICE_QUALIFIER* descriptor (holding info about the high-speed
+     *DEVICE* descriptor).
+  3. Full-speed *CONFIGURATION* descriptor (followed by all *INTERFACE* and *ENDPOINT*
+     descriptors etc.). Optionally, more full-speed *CONFIGURATOIN*, *INTERFACE* and
+     *ENDPOINT* descriptors may follow.
+  4. A special (non-Usb conformant) *SENTINEL* descriptor to mark the end of the
+     full-speed section.
+  5. High-speed *DEVICE* descriptor
+  6. High-speed *DEVICE_QUALIFIER* descriptor (holding info about the full-speed
+     *DEVICE* descriptor).
+  7. High-speed *CONFIGURATION* descriptor (followed by all *INTERFACE* and *ENDPOINT*
+     descriptors etc.). Optionally, more high-speed *CONFIGURATOIN*, *INTERFACE* and
+     *ENDPOINT* descriptors may follow.
+  8. String descriptors. Note that these are shared among all other descriptors.
+  9. A special (non-Usb conformant) *SENTINEL* descriptor to mark the end of the
+     table.
 
 ### Constraints
 

@@ -10,7 +10,6 @@ use     ieee.math_real.all;
 
 use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
-use     work.Usb2DescPkg.all;
 
 -- Endpoint pair with FIFO buffers, e.g., for implementing a CDC-ACM
 -- endpoint.
