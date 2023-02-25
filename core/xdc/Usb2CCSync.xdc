@@ -8,10 +8,10 @@
 # (module name) in Vivado. (Also restrict its use to
 # 'implementation' in order to reduce warnings.)
 #
-# In case some synchronizers are optimized away we use '-quiet'
+# In case some synchronizers are optimized away; we could use '-quiet'
 # to avoid critical warnings.
 # Note that this is dangerous since any mistake might go unnoticed.
-# After any change to this file or the HDL code it is recommented
+# After any change to this file or the HDL code it is recommended
 # to take -quiet out and inspect the logs before putting it back in.
 
 set_false_path -to [get_pins -of_objects [get_cells {*ccSync_reg[0]} -filter ASYNC_REG] -filter {REF_PIN_NAME==D}]

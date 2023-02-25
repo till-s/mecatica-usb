@@ -20,17 +20,13 @@ An example design for the Digilent-ZYBO board is provided which instantiates
 the USB-2 core as well as some functions (including an example for isochronous
 transfers) is included.
 
-<details><summary><h2>
-What About USB-3
-</h2></summary>
+### What About USB-3
 
 To date, no Xilinx-FPGA family MGT supports the USB-3 standard; therefore,
 no effort has been made to support USB-3. However, for many applications
 USB-2 still provides attractive medium-speed connectivity for data transfer
 and/or management tasks and at the same time can supply power (USB-C) over
 a single cable.
-
-</details>
 
 ## License
 
@@ -364,13 +360,50 @@ separate [document](doc/DataExchangeProtocol.md) and `Usb2Pkg.vhd`.
 Note that the `mstCtl` member is for internal use only and is not used
 by normal endpoints which only require
 
- - `mstOut` - output: data and handshake for *OUT*-directed endpoints.
- - `subInp` - output: handshake for *IN*-directed endpoints.
- - `mstInp` - input: data and handshake for *IN*-directed endpoints.
- - `subOut` - input: handshake for *OUT*-directed endpoints.
- - `bFramedInp` - input: configuration signal; signals the type of framing
-   used by the endpoint. This is in most cases a static configuration-type
-   signal.
+<dl>
+<dt>
+
+`mstOut` - output
+
+</dt><dd>
+
+  Data and handshake for *OUT*-directed endpoints.
+
+</dd><dt>
+
+`subInp` - output
+
+</dt><dd>
+
+  Handshake for *IN*-directed endpoints.
+
+</dd><dt>
+
+`mstInp` - input
+
+</dt><dd>
+
+  Data and handshake for *IN*-directed endpoints.
+
+</dd><dt>
+
+`subOut` - input
+
+</dt><dd>
+
+  Handshake for *OUT*-directed endpoints.
+
+</dd><dt>
+
+`bFramedInp` - input
+
+</dt><dd>
+
+ Configuration signal; signals the type of framing used by the endpoint.
+ This is in most cases a static configuration-type signal.
+
+</dd>
+</dl>
 
 #### Halt Feature
 
@@ -378,14 +411,30 @@ Mecatica Usb supports the Usb *HALT* feature (host may "halt" endpoints
 via standard control requests, see 9.4.5 of the USB spec.). The respective
 signals are:
 
- - `stalledInp`, `stalledOut` - input: may be asserted by the endpoint to
-   signal an error condition which causes the endpoint's "halt"-bit to be
-   set. While this bit is set the core will reply with *STALL* acknowledge
-   messages to the host. The halt-bit remains set after the `stalled` input
-   is deasserted once the host issues a `CLEAR_FEATURE` request to the endpoint.
-   The host may also set the halt-bit itself by issuing a `SET_FEATURE` request.
- - `haltedInp`, `haltedOut` - output: signals whether the endpoint is currently
-   halted.
+<dl>
+<dt>
+
+`stalledInp`, `stalledOut` - input
+
+</dt><dd>
+
+  May be asserted by the endpoint to signal an error condition which causes
+  the endpoint's "halt"-bit to be set. While this bit is set the core will
+  reply with *STALL* acknowledge messages to the host. The halt-bit remains
+  set after the `stalled` input is deasserted once the host issues a
+  `CLEAR_FEATURE` request to the endpoint. The host may also set the halt-bit
+  itself by issuing a `SET_FEATURE` request.
+
+</dd><dt>
+
+`haltedInp`, `haltedOut` - output
+
+</dt><dd>
+
+  Signals whether the endpoint is currently halted.
+
+</dd>
+</dl>
 
 Consult the USB specification for more information about this feature.
 
@@ -396,15 +445,45 @@ endpoint zero.
 
 The endpoint zero interface consists of the signals
 
-  - `usb2Ep0ReqParam` - output; holds the information passed by the `SETUP` phase
-    of a control transaction.
-  - `usb2Ep0CtlExt` - input: signals to `EP0` whether an external agent is able to
-    handle the currently active request. This port also communicates when the agent
-    is done handling the request as well as error status information.
-  - `usb2EpIb(0)` - input: the external agent supplies data and handshake signals
-    during the data phase of a control request here.
-  - `usb2EpOb(0)` - output: the external agent observes data and handshake signals
-    during the data phase of a control request here.
+<dl>
+<dt>
+
+`usb2Ep0ReqParam` - output
+
+</dt><dd>
+
+  Holds the information passed by the `SETUP` phase of a control transaction.
+
+</dd><dt>
+
+`usb2Ep0CtlExt` - input
+
+</dt><dd>
+
+  Signals to `EP0` whether an external agent is able to handle the currently
+  active request. This port also communicates when the agent is done handling
+  the request as well as error status information.
+
+</dd><dt>
+
+`usb2EpIb(0)` - input
+
+</dt><dd>
+
+  The external agent supplies data and handshake signals during the data phase
+  of a control request here.
+
+</dd><dt>
+
+`usb2EpOb(0)` - output
+
+</dt><dd>
+
+  The external agent observes data and handshake signals during the data phase
+  of a control request here.
+
+</dd>
+</dl>
 
 The `usb2EpIb(0)`/`usbEpOb(0)` pair groups the standard in- and outbound
 endpoint signals. They follow the same protocol as ordinary endpoint pairs but are
@@ -453,15 +532,31 @@ are not directly used by the Usb2Core; however, it's size is used by the
 `Usb2DescPkg` to define a numerical data type (`Usb2DescIdxType`) which is 
 large enough to navigate the entire array.
 
-The `Usb2Core` expects the descriptors to be passed as a generic (`DESCRIPTORS_G`).
-The application is expected to set this to
-
-    DESCRIPTORS_G => USB2_APP_DESCRIPTORS_C
-
 The `Usb2DescPkg` also provides utility functions that can be used to navigate
 the descriptors in order to extract information for configuring details of
 the application via generics (the example application checks some capability bits
-in the CDC ACM functional descriptor sets certain generics based on the outcome).
+in the CDC ACM functional descriptor and sets certain generics based on the
+outcome).
+
+#### Generics
+
+<dl>
+<dt>
+
+`DESCRIPTORS_G`
+
+</dt><dd>
+
+  The `Usb2Core` expects the descriptors to be passed as a generic (`DESCRIPTORS_G`).
+  The application is expected to set this to
+
+    DESCRIPTORS_G => USB2_APP_DESCRIPTORS_C
+
+</dd><dt>
+
+`DESCRIPTORS_BRAM_G`
+
+</dt><dd>
 
 The `UsbCore` also offers the option to store the descriptors in block ram. This
 feature is enabled by setting
@@ -470,18 +565,80 @@ feature is enabled by setting
 
 This may save some (minor amount of) LUTs when block ram is available. It also
 let's the application *patch/overwrite* descriptors at run-time via a dedicated
-port (this port is ignored when `DESCRIPTOR_BRAM_G = false`):
+port( see below).
 
- - `descRWClk` - input: clock for writing BRAM (may be asynchronous to the usb
-   clock.
- - `descRWIb`  - input: command port
-   - `addr`: address
-   - `cen`: clock-enable; must be asserted together with the address to cause
-     a read or write operation. Read data is presented at `descRWOb` with one
-     cycle of latency.
-   - `wen`: write-enable; must be asserted together with `cen` to issue a write
-     operation. The write date is presented at `wdata`.
- - `descRWOb`  - output: read-back data (1 cycle of latency).
+</dd>
+</dl>
+
+#### Ports
+
+If `DESCRIPTORS_BRAM_G = true` then a dedicated port gives access to the
+descriptors (this port is ignored when `DESCRIPTOR_BRAM_G = false`):
+
+<dl>
+<dt>
+
+`descRWClk` - input
+
+</dt><dd>
+
+  Clock for writing BRAM (may be asynchronous to the usb clock.
+
+<dt>
+
+`descRWIb`  - input
+
+</dt><dd>
+
+  Command port
+
+  <dl><dt>
+
+  `addr`
+
+  </dt><dd>
+
+   Address
+
+  </dd><dt>
+
+  `cen`
+
+  </dt><dd>
+
+   Clock-enable; must be asserted together with the address to cause
+   a read or write operation. Read data is presented at `descRWOb` with one
+   cycle of latency.
+
+  </dd><dt>
+
+  `wen`
+
+  </dt><dd>
+
+   Write-enable; must be asserted together with `cen` to issue a write
+   operation.
+
+  </dd><dt>
+
+  `wdata`
+
+  </dt><dd>
+
+   The write date is presented at `wdata`.
+
+  </dd></dl>
+
+</dd><dt>
+
+`descRWOb`  - output
+
+</dt><dd>
+
+  Read-back data (1 cycle of latency).
+
+</dd>
+</dl>
 
 Modifying the descriptors has to be done with *great care* and only if you
 know exactly what you are doing! The layout/structure of the descriptors
@@ -537,9 +694,38 @@ of the currently inactive speed to be read as *OTHER_SPEED_CONFIGURATION*.
   9. A special (non-Usb conformant) *SENTINEL* descriptor to mark the end of the
      table.
 
-</details>
 
 ### Constraints
+
+#### ULPI-IO Timing
+
+Example files for constraining the ULPI I/O ports are provided for clock-input
+(`ulpi_clkinp_io_timing.xdc`) as well as clock-output (`ulpi_clkout_io_timing.xdc1)
+mode. These files are pretty generic and assume worst-case timing as per the
+ULPI spec. Additional files which are specialized for the USB3340 PHY device are
+also present. You will have to customize any of these files for your specific
+PHY and board delays.
+
+On low-end devices it may turn out to be not completely trivial to meet timing
+due to significant delays in the IO-buffers. The example design mitigates some
+of this by using a MMCM to generate a phase-shifted clock which compensates for
+some of the delay in the clock path.
+
+#### Synchronizer Constraints
+
+Designs which use the `ASYNC_G` feature of FIFO-based endpoints where the endpoint
+clock is asynchronous to the ULPI-clock should add the constraint files associated
+with the synchronizer structures to the design. It is *important* to set the
+`SCOPE_TO_REF` property for these files in the Xilinx tool (for other vendors similar
+steps may be required).
+
+ - `Usb2CCSync.cc`; set `SCOPE_TO_REF` to `Usb2CCSync` and restrict its use to
+   "implementation". This file defines a false-path for the clock-crossing signal.
+ - `Usb2MboxSync.xdc`; set `SCOPE_TO_REF` to `Usb2MboxSync` and restrict its use
+   to "implementation". This file defines the necessary false- and multicycle
+   paths for the data crossing the synchronizer.
+
+</details>
 
 ## USB Function Implementations
 
