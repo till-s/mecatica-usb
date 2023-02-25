@@ -1,2 +1,3 @@
 .Xil/
-Usb2CDCAcmExample/
+Usb2Example/
+hdl/AppCfgPkgBody.vhd
