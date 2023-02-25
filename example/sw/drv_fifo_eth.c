@@ -10,6 +10,8 @@
  *
  * Note that this file is released under the GPL to be
  * compatible with the linux kernel.
+ *
+ * https://www.gnu.org/licenses/gpl-3.0-standalone.html
  */
 
 /*

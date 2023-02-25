@@ -32,6 +32,9 @@ and/or management tasks and at the same time is capable of supplying power
 
 Mecatica Usb is released under the [European-Union Public
 License](https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12)
+*with the exception of* the [demo ethernet driver](./example/sw/drv_fifo_eth.c)
+which is released under the
+[GNU GPLv3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html).
 
 <details><summary><h2>
 Features
@@ -742,13 +745,13 @@ USB Function Implementations
 
 <details><summary><h2>
 Descriptor-Generating Tool
-</summary>
+</h2></summary>
 
 </details>
 
 <details><summary><h2>
 Example Design
-</summary>
+</h2></summary>
 
 ### Zynq Platform with Example Device
 
@@ -756,8 +759,41 @@ Example Design
 
 ### Device Functions
 
+### Building the Example Design
+
+#### Generate the Descriptors
+
+As a first step you must generate the VHDL package body which defines the
+Usb descriptors for the project.
+
+  1. chdir to the `example` subdirectory
+  2. run the python script providing a Usb product ID and optionally a
+     vendor id (by default the [0x1209](https://pid.codes) vendor ID is used).
+
+     You may use the [0x0001](https://pid.codes/1209/0001/) **_for private testing
+     only. Do not redistribute hardware/firmware using this ID!_**
+
+         py/genAppCfgPkgBody.py -p 0x0001
+
+#### Generate the Vivado Project
+
+A [tcl script](./example/tcl/Usb2Example.tcl) creates the Vivado project for
+the example design.
+
+  1. chdir to the `example` directory.
+  2. run vivado in batch mode using the script:
+
+         vivado -mode tcl -source tcl/Usb2Example.tcl -tclargs --ulpi-clk-mode-inp 0
+
+     this will create the project for the ULPI clock-output mode (which is also the
+     default).
+
+Once the project has been created you may start vivado on GUI mode, navigate to the
+project and open it. Proceed to synthesizing, implementing and eventually producing a
+bit-file which should be loaded on the target via JTAG or from linux on the Zynq
+target.
+
 ### Test Software
 
-### Building the Example Design
 
 </details>
