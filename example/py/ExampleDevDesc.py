@@ -48,7 +48,6 @@ def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iMACAddr
     epAddr_    += eps
 
     if not iMACAddr is None:
-      print(iMACAddr)
       ifs, eps = Usb2Desc.addBasicECM( c, ifcNumber_, epAddr_, iMACAddr = iMACAddr, hiSpeed = speed)
       ifcNumber_ += ifs
       epAddr_    += eps
