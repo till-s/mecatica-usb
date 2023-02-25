@@ -14,7 +14,7 @@ The basic handshake signals are
 
 </dt><dd>
 
-  Asserted by the data *source* when valid data is presented on the
+  Asserted by the data *source* when valid data are presented on the
   `data` and `usr` lines.
 
 </dd><dt>
@@ -33,7 +33,7 @@ The basic handshake signals are
 </dt><dd>
 
   Asserted by the data *sink* when it is ready to consume
-  data or the end-of-frame marker indicated by `don`.
+  data or the end-of-frame marker (indicated by `don`).
 
   Thus a data item is transferred during a cycle when
 
@@ -69,14 +69,18 @@ internal storage used for handling retransmission). Therefore,
 once an endpoint signals it has data (*IN* endpoint asserting `vld`)
 or is ready to receive data (*OUT* endpoint asserting `rdy`) it
 must be able to transfer an entire chunk of the maximal packet
-size supported by the endpoint or the remaining data of a frame.
+size supported by the endpoint or the remaining data of a frame
+(whichever is less).
 
 The core may throttle data by controlling `rdy` (*IN* direction)
 or `vld` (*OUT* direction), respectively, but the endpoint *may not*.
+Note, however, that *for non-ISO transactions* the core never throttles
+traffic in *OUT* direction because data are supplied from the internal
+packet buffer.
 
 Mecatica Usb provides a generic FIFO (`Usb2FifoEp.vhd`) for use by
-endpoints which does provide buffering as well as CDC and which offers
-a simpler interface.
+endpoints which does provide buffering as well as clock-domain
+crossing and which offers a simpler interface.
 
 ## Framing
 
@@ -119,8 +123,9 @@ However, the endpoint *must* signal that it is willing to accept
 a packet (`rdy = 1`) at the *start* of packet transmission. I.e.,
 the core will not store a packet into its buffer if the destination
 endpoint is not ready. Instead, the packet will be dropped resulting
-in a `NAK` handshake. In case of a high-speed endpoint the `rdy`
-state is polled even before attemping to send a 
+in a "NAK" handshake. In case of a high-speed endpoint the `rdy`
+state is polled (using the "PING" protocol) even before attemping
+to send a packet.
 
 ## Non-ISO Endpoint to Core Transfer (*IN* direction)
 
@@ -130,7 +135,7 @@ and framed transfers.
 ### Unframed Transfer
 
 Unframed transfers are simpler but do not support the framing
-mechanism defined by Usb (a sequence max-sized packets followed
+mechanism defined by Usb (a sequence of max-sized packets followed
 by a non-max packet). It can only be used if the host-side does
 not expect framing.
 
@@ -157,6 +162,8 @@ chunks of the maximum packet size. Note, however, that
    is transmitted.
  - the endpoint *must* deassert `vld` and assert `don` immediately
    after the last data item has been transferred.
+ - null (empty) packets are supported. They are sent by asserting
+   `don` without any preceding ("`vld`") data transfer.
 
 It is "legal" for an endpoint to throttle traffic if it deasserts
 `vld` *precisely* at boundaries of the maximum packet size.
@@ -209,6 +216,67 @@ fully optimized) algorithm:
 
         ((vld or don) and rdy) = '1'
 
+
+#### Illustration of a Transfer Delaying Further Packets
+
+This is a diagram of a single packet being transferred and
+the endpoint indicating that it cannot accept a further 
+back-to-back transfer.
+
+
+             ____________________
+    rdy:  __/                    \________
+                              _____________
+    vld:  ___________________/            
+           0^   1^   2^      3^  4^  5^
+            
+
+    0: endpoint signals rdy.
+    1: host issues an OUT transaction; Usb2Core accepts it
+       since rdy = 1.
+    2: core reads data into internal buffer.
+    3: checksum has been validated, core asserts vld and the
+       first item is transferred from the buffer to the endpoint.
+    4: endpoint deasserts rdy signalling that after receiving
+       the current packet there is no more space and a second
+       packet must be delayed (NYET -> PING).
+    5: current packet transmission from buffer to endpoint continues.
+    
+The host is done transferring the *OUT* packet around time 3 and
+because rdy is deasserted at time 4 (cycle following the first
+data beat) the core sends a "NYET" handshake which forces the host
+to return to the "PING" protocol. This results in throttled throughput.
+
+#### Illustration of a High-Throughput Transfer
+
+This is a diagram of a single packet being transferred and
+the endpoint indicating that it can accept a next transfer
+back-to-back.
+
+
+             _____________________________
+    rdy:  __/                             
+                              _____________
+    vld:  ___________________/            
+           0^   1^   2^      3^  4^  5^
+            
+
+    0: endpoint signals rdy.
+    1: host issues an OUT transaction; Usb2Core accepts it
+       since rdy = 1.
+    2: core reads data into internal buffer.
+    3: checksum has been validated, core asserts vld and the
+       first item is transferred from the buffer to the endpoint.
+    4: endpoint keeps rdy asserted signalling that after receiving
+       the current packet it can continue receiving.
+    5: current packet transmission from buffer to endpoint continues.
+       The host may send a next packet which will be added to the
+       buffer (while the first packet is being read out).
+
+The host may continue sending an *OUT* packets after time 4 because
+the endpoint indicated that it is capable of absorbing that second
+packet once it has successfully be entered into the internal buffer.
+ 
 ## Isochronous Endpoint to Core Transfer (*IN* direction)
 
 No buffering or retransmission is supported for isochronous transfers. However,
@@ -216,7 +284,7 @@ framed or unframed transfers are possible as outlined above (ISO transfers
 honor the `bFramedInp` signal).
 
 So-called high-bandwidth isochronous transfers use multiple packets per microframe
-need special attention because the USB spec. effectively requires that it is known
+and need special attention because the USB spec. effectively requires that it is known
 *in advance* how many packets per microframe are needed for every transfer.
 
 This means that a pure streaming interface is not possible for isochronous *IN*
@@ -224,11 +292,11 @@ transfers.
 
 The burden of keeping track of the number of packets per microframe is put on
 the user; the `Usb2Core` cannot handle this internally. The application *must* indicate
-to which of up to three "slots" a particular data item belongs by setting the
+to which of up to three "slots" a particular data item belongs by setting the bits
 
-    mstInp.usr = "10" -- first of three packets
-    mstInp.usr = "01" -- second of three or first of two packets
-    mstInp.usr = "00" -- third of three, second of two or single packet(s)
+    mstInp.usr = "0010" -- first of three packets
+    mstInp.usr = "0001" -- second of three or first of two packets
+    mstInp.usr = "0000" -- third of three, second of two or single packet(s)
 
 For "normal" iso transfers (only one packet per microframe) the `usr` bits can simply
 tied to zero.
@@ -251,9 +319,9 @@ A high-bandwidth endpoint also must check proper sequencing when multiple packet
 are expected in a microframe. Multiple packets received in a microframe have their
 `mstOut.usr` bits set as follows:
 
-    mstOut.usr = "00" -- first  ISO packet received in current microframe
-    mstOut.usr = "01" -- second ISO packet received in current microframe
-    mstOut.usr = "10" -- third  ISO packet received in current microframe
+    mstOut.usr = "0000" -- first  ISO packet received in current microframe
+    mstOut.usr = "0001" -- second ISO packet received in current microframe
+    mstOut.usr = "0010" -- third  ISO packet received in current microframe
 
 Note that the `subOut.rdy` flag is ignored for isochronous *OUT* transactions since
 the endpoint is always assumed to be ready for data.

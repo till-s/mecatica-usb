@@ -5,28 +5,28 @@ by Till Straumann, 2023.
 ## Introduction
 
 Mecatica Usb is a versatile and generic USB-2-device implementation in
-VHDL supporting an ULPI-standard interface (using an off-the shelf ULPI
-PHY chip).
+VHDL supporting an ULPI-standard interface (e.g., driving an off-the shelf
+ULPI PHY chip).
 
 The main use-case are FPGA applications which benefit from a high- or
 full-speed USB-2 interface.
 
 A few generic function classes (CDC-ACM, CDC-ECM) are implemented which
-can be connected to the generic core IP. USB descriptors can be created
-using a python tool. Users may create their own endpoint implementations
-and attach these to the USB-2 core.
+can be connected to the generic core IP. USB descriptors are generated
+easily with a python tool. Users may also create their own endpoint
+implementations and attach these to the USB-2 core.
 
-An example design for the Digilent-ZYBO board is provided which instantiates
-the USB-2 core as well as some functions (including an example for isochronous
-transfers) is included.
+An example design for the Digilent-ZYBO board is provided. This example
+design instantiates the USB-2 core as well as some functions (including
+an example demonstrating isochronous transfers) is included.
 
 ### What About USB-3
 
 To date, no Xilinx-FPGA family MGT supports the USB-3 standard; therefore,
 no effort has been made to support USB-3. However, for many applications
 USB-2 still provides attractive medium-speed connectivity for data transfer
-and/or management tasks and at the same time can supply power (USB-C) over
-a single cable.
+and/or management tasks and at the same time is capable of supplying power
+(USB-C) over a single cable.
 
 ## License
 
@@ -727,7 +727,9 @@ steps may be required).
 
 </details>
 
-## USB Function Implementations
+<details><summary><h2>
+USB Function Implementations
+</h2></summary>
 
 ### CDC ACM Function
 
@@ -735,9 +737,19 @@ steps may be required).
 
 ### BADD-Speaker Function
 
-## Descriptor-Generating Tool
+</details>
 
-## Example Design
+<details><summary><h2>
+Descriptor-Generating Tool
+</summary>
+
+</details>
+
+<details><summary><h2>
+Example Design
+</summary>
+
+</details>
 
 ### Zynq Platform with Example Device
 
@@ -748,3 +760,5 @@ steps may be required).
 ### Test Software
 
 ### Building the Example Design
+
+</details>
