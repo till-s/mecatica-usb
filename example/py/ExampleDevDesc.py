@@ -7,13 +7,13 @@
 
 import Usb2Desc
 
-def mkExampleDevDescriptors(ifcNumber=0, epAddr=1, iMACAddr = None, epPktSize=None, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False):
+def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iMACAddr = None, epPktSize=None, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False):
   remWake = True
   c  = Usb2Desc.Usb2DescContext()
   d  = c.Usb2DeviceDesc()
   d.bMaxPacketSize0( 64 )
-  d.idVendor( 0x0123 )
-  d.idProduct( 0xabcd )
+  d.idVendor( idVendor )
+  d.idProduct( idProduct )
   d.bcdDevice( 0x0100 )
   if not iProduct is None:
     d.iProduct( iProduct )

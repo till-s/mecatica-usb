@@ -246,7 +246,7 @@ class Usb2DescContext(list):
            else:
              eol  = ",\n"
       if not offNam is None:
-        print( "   -- {}\n".format( offNam ), file = f )
+        print( "   -- {}".format( offNam ), file = f )
       else:
         print(file = f)
 
