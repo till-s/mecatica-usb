@@ -594,6 +594,7 @@ begin
          when ISO_OUT =>
             epObLoc( to_integer( r.epIdx ) ).mstOut.vld <= usb2Rx.mst.vld;
             epObLoc( to_integer( r.epIdx ) ).mstOut.don <= usb2Rx.mst.don;
+            epObLoc( to_integer( r.epIdx ) ).mstOut.err <= usb2Rx.mst.err;
             if ( usb2Rx.mst.don = '1' ) then
                v.state := IDLE;
             end if;
