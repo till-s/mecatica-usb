@@ -20,7 +20,8 @@ import Usb2Desc
 import ExampleDevDesc
 
 # Hi-speed bulk endpoint supports pktSize=512
-iProduct="Till's Zynq ULPI Test Board"
+iProduct="Till's Mecatica USB Example Device"
+# MAC address is patched by the firmware using DeviceDNA
 iMACAddr="02DEADBEEF34"
 ctxt = ExampleDevDesc.mkExampleDevDescriptors(ifcNumber=0, epAddr=1, iMACAddr=iMACAddr, dualSpeed=True, iProduct=iProduct)
 

@@ -700,11 +700,12 @@ of the currently inactive speed to be read as *OTHER_SPEED_CONFIGURATION*.
 #### ULPI-IO Timing
 
 Example files for constraining the ULPI I/O ports are provided for clock-input
-(`ulpi_clkinp_io_timing.xdc`) as well as clock-output (`ulpi_clkout_io_timing.xdc1)
+(`ulpi_clkinp_io_timing.xdc`) as well as clock-output (`ulpi_clkout_io_timing.xdc1`)
 mode. These files are pretty generic and assume worst-case timing as per the
 ULPI spec. Additional files which are specialized for the USB3340 PHY device are
 also present. You will have to customize any of these files for your specific
 PHY and board delays.
+
 
 On low-end devices it may turn out to be not completely trivial to meet timing
 due to significant delays in the IO-buffers. The example design mitigates some
@@ -748,8 +749,6 @@ Descriptor-Generating Tool
 <details><summary><h2>
 Example Design
 </summary>
-
-</details>
 
 ### Zynq Platform with Example Device
 
