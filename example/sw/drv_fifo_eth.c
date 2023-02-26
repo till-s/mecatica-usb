@@ -384,6 +384,9 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 	ndev->dma        = (unsigned char) -1;
 	me->kworker_task = 0;
 
+	/* pick a random mac address */
+	eth_hw_addr_random( ndev );
+
 	netdev_dbg(ndev, "ex_fifo probe\n");
 
 	if ( (ndev->irq = platform_get_irq( pdev , 0 )) < 0 ) {
