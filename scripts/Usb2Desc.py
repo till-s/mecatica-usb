@@ -330,7 +330,8 @@ class Usb2DescContext(list):
         s = self.context.addString(s)
       return s
 
-    def len(self):
+    @property
+    def size(self):
       return len(self.cont)
 
     def className(self):
@@ -575,6 +576,7 @@ class Usb2DescContext(list):
       super().__init__(5, self.DSC_TYPE_CS_INTERFACE)
       self.bDescriptorSubtype( self.DSC_SUBTYPE_HEADER )
       self.bcdCDC(0x0120)
+
     @acc(3,2)
     def bcdCDC(self, v): return v
 
@@ -650,6 +652,73 @@ class Usb2DescContext(list):
         if re.match('^[0-9a-fA-F]{3}$', v) is None:
           raise RuntimeError("Invalid MAC address - must be 12 hex chars")
       return self.cvtString(v)
+
+  @factory
+  class Usb2UACDesc(Usb2Desc.clazz):
+
+    DSC_TYPE_CS_INTERFACE                                = 0x24
+    DSC_TYPE_CS_ENDPOINT                                 = 0x25
+
+    DSC_SUBTYPE_HEADER                                   = 0x01
+    DSC_SUBTYPE_INPUT_TERMINAL                           = 0x02
+    DSC_SUBTYPE_OUTPUT_TERMINAL                          = 0x03
+    DSC_SUBTYPE_MIXER_UNIT                               = 0x04
+    DSC_SUBTYPE_SELECTOR_UNIT                            = 0x05
+    DSC_SUBTYPE_FEATURE_UNIT                             = 0x06
+
+    DSC_SUBTYPE_CLOCK_SOURCE                             = 0x0A
+
+    DSC_CATEGORY_DESKTOP_SPEAKER                         = 0x01
+    DSC_CATEGORY_MICROPHONE                              = 0x03
+    DSC_CATEGORY_HEADSET                                 = 0x04
+    DSC_CATEGORY_OTHER                                   = 0xff
+
+    def __init__(self, length, typ):
+      super().__init__(length, typ)
+
+  @factory
+  class Usb2UACFuncHeaderDesc(Usb2UACDesc.clazz):
+    def __init__(self):
+      super().__init__(9, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_HEADER )
+      self.bcdADC(0x0200)
+
+    @acc(2)
+    def bDescriptorSubtype(self, v): return v
+
+    @acc(3,2)
+    def bcdADC(self, v): return v
+
+    @acc(5)
+    def bCategory(self, v): return v
+
+    @acc(6,2)
+    def wTotalLength(self, v): return v
+
+    @acc(8)
+    def bmControls(self, v): return v
+
+  @factory
+  class Usb2UACClockSourceDesc(Usb2UACDesc.clazz):
+    def __init__(self):
+      super().__init__(8, self.DSC_TYPE_INTERFACE)
+      self.bDescriptorSubtype( d.DSC_SUBTYPE_CLOCK_SOURCE )
+      self.iClockSource(0)
+
+    @acc(3)
+    def bClockId(self, v): return v
+
+    @acc(4)
+    def bmAttributes(self, v): return v
+
+    @acc(5)
+    def bmControls(self, v): return v
+
+    @acc(6)
+    def bAssocTerminal(self, v): return v
+
+    @acc(7)
+    def iClockSource(self, v): return v
 
 class SingleCfgDevice(Usb2DescContext):
   def __init__(self, idVendor, idDevice, remWake = False, bcdDevice = 0x0100):
@@ -872,7 +941,7 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
   # no endpoints (optional interrupt endpoint omitted)
 
   numIfcs += 1
- 
+
   # AS (audio-streaming interface)
   d = ctxt.Usb2InterfaceDesc()
   # zero-bandwidth altsetting 0
