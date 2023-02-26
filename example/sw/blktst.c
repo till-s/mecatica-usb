@@ -21,6 +21,8 @@
 #define CTRL_INTF_NUMBER 0
 #define DATA_INTF_NUMBER 1
 
+#define ID_VEND 0x1209
+#define ID_PROD 0x0001
 
 #define _STR_(x) # x
 #define _STR(x) _STR_(x)
@@ -57,7 +59,7 @@ uint16_t val, idx, len;
 
 static void usage(const char *nm, int lvl)
 {
-	printf("usage: %s [-l <bufsz>] [-w] [-h] %s\n", nm, (lvl > 0 ? "[-f <val>] [-1 <off>] [-H <len>]" : "") );
+	printf("usage: %s [-l <bufsz>] [-P <idProduct>] [-w] [-h] %s\n", nm, (lvl > 0 ? "[-f <val>] [-1 <off>] [-H <len>] [-V <idVendor>]" : "") );
     printf("Testing USB DCDAcm Example Using libusb\n");
     printf("  -h           : this message (repeated -h increases verbosity of help)\n");
     printf("  -l <bufsz>   : set buffer size (default = max)\n");
@@ -68,6 +70,7 @@ static void usage(const char *nm, int lvl)
     printf("  -w           : write to the USB device. \n");
     printf("                    high-speed default: %s = %u\n", _STR(TOTSZ_HS), TOTSZ_HS);
     printf("                    full-speed default: %s = %u\n", _STR(TOTSZ_FS), TOTSZ_FS);
+    printf("  -P<idProduct>: use product ID <idProduct> (default: 0x%04x)\n", ID_PROD);
     printf("  -t <len>     : total length to transfer (100MB for hi-Speed)\n");
     if ( lvl > 0 ) {
     printf("  -f <val>     : fill the buffer with <val> (default is a repeating\n");
@@ -78,6 +81,7 @@ static void usage(const char *nm, int lvl)
     printf("                 (For specialized testing/debugging.)\n");
     printf("  -H <len>     : fill the first <len> bytes with 0xff, the rest with 0x00\n");
     printf("                 (For specialized testing/debugging.)\n");
+    printf("  -V<idVendor> : use vendor ID <idVendor> (default: 0x%04x)\n", ID_VEND);
 	}
 }
 
@@ -103,6 +107,8 @@ int                                              fill = -1;
 int                                              oneo = -1;
 int                                              head = -1;
 int                                              wr   =  0;
+int                                              vid  = ID_VEND;
+int                                              pid  = ID_PROD;
 struct timespec                                  then, now;
 double                                           diff;
 int                                              help = -1;
@@ -111,7 +117,7 @@ unsigned long                                    tot, totl   = 0;
 unsigned long                                   *l_p;
 enum libusb_speed                                spd;
 
-	while ( (opt = getopt(argc, argv, "l:f:1:H:t:wh")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "l:f:1:H:t:whV:P:")) > 0 ) {
 		i_p = 0;
 		l_p = 0;
 		switch (opt)  {
@@ -121,6 +127,8 @@ enum libusb_speed                                spd;
 			case 'f':  i_p = &fill;   break;
 			case 'l':  i_p = &len;    break;
             case 't':  l_p = &totl;   break;
+            case 'V':  i_p = &vid ;   break;
+            case 'P':  i_p = &pid ;   break;
             case 'w':  wr  = 1;       break;
 			default:
 				fprintf(stderr, "Error: Unknown option -%c\n", opt);
@@ -183,7 +191,7 @@ enum libusb_speed                                spd;
 		goto bail;
 	}
 
-	devh = libusb_open_device_with_vid_pid( ctx, 0x0123, 0xabcd );
+	devh = libusb_open_device_with_vid_pid( ctx, vid, pid );
 	if ( ! devh ) {
 		fprintf(stderr, "libusb_open_device_with_vid_pid: not found\n");
 		goto bail;
