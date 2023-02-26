@@ -19,9 +19,10 @@ use     work.Usb2UtilPkg.all;
 
 entity Usb2PktProc is
    generic (
-      SIMULATION_G    : boolean  := false;
-      MARK_DEBUG_G    : boolean  := true;
-      NUM_ENDPOINTS_G : positive := 1
+      SIMULATION_G    : boolean       := false;
+      MARK_DEBUG_G    : boolean       := true;
+      NUM_ENDPOINTS_G : positive      := 1;
+      INP_TIMO_MS_G   : Usb2TimerType := Usb2TimerType( to_signed( 1000, Usb2TimerType'length ) )
    );
    port (
       clk             : in  std_logic;
@@ -89,7 +90,6 @@ architecture Impl of Usb2PktProc is
    --      HS_max       =  102            + (1        + 2        + 2)  = 107
    --      FS_min       =   80            + (10       + 4        + 2)  = 96
    --      FS_max       =   90            + ( 1       + 2        + 2)  = 95
-   -- adding our own 2 cycle latency we'd conclude a max time of 102 - 8 = 94 (HS) and kk
    --
    constant TIME_WAIT_ACK_C      : Usb2TimerType := simt(20,  96);
    -- receive (tok) - receive(data-pid)     ; USB2: HS: 92-102, FS: 80 - 90 since only receive-path
@@ -104,6 +104,8 @@ architecture Impl of Usb2PktProc is
 
    constant LD_BUFSZ_C           : natural   := 11;
    constant BUF_WIDTH_C          : natural   :=  9;
+
+   constant MILLI_SEC_C          : signed(16 downto 0) := to_signed( 60000-2, 17 );
 
    type StateType is (
       IDLE,
@@ -152,9 +154,22 @@ architecture Impl of Usb2PktProc is
       bufEndIdx       : unsigned(LD_BUFSZ_C - 1 downto 0);
       bufInpVld       : std_logic;
       bufInpPart      : std_logic;
+      bufInpEpIdx     : Usb2EndpIdxType;
       donFlg          : std_logic;
       nakDon          : std_logic;
       retries         : unsigned(1 downto 0);
+      -- prescaler to generate 1ms ticks
+      milliSec        : signed(16 downto 0);
+      -- we only support a single buffer for retry operations. If the buffer
+      -- is currently occupied by unacked IN data the engine waits for the host
+      -- to retry the unacked transaction (on the same endpoint) until it
+      -- can handle transactions directed to other endpoints. In the rare
+      -- case when three retries fail this could lead to a deadlock since
+      -- the buffer is never released. Use the 'retryTimeout' for this case:
+      -- if this timeout expires while bufInpVld or bufInpPart then we release
+      -- the buffer and mark the endpoint as 'dead' (acks STALL henceforth).
+      retryTimeout    : Usb2TimerType;
+      deadInp         : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -181,9 +196,13 @@ architecture Impl of Usb2PktProc is
       bufEndIdx       => (others => '0'),
       bufInpVld       => '0',
       bufInpPart      => '0',
+      bufInpEpIdx     => USB2_ENDP_ZERO_C,
       donFlg          => '0',
       nakDon          => '0',
-      retries         => (others => '0')
+      retries         => (others => '0'),
+      milliSec        => (others => '1'),
+      retryTimeout    => USB2_TIMER_EXPIRED_C,
+      deadInp         => (others => '0')
    );
 
    type BufReaderType is record
@@ -329,7 +348,7 @@ begin
       v                := r;
       v.prevDevState   := devStatus.state;
       ei               := epIb( to_integer( r.epIdx ) );
-      haltedInp        := (devStatus.haltedInp( to_integer( r.epIdx ) ) = '1');
+      haltedInp        := ( (devStatus.haltedInp( to_integer( r.epIdx ) ) or r.deadInp( to_integer( r.epIdx ) ) )  = '1');
       haltedOut        := (devStatus.haltedOut( to_integer( r.epIdx ) ) = '1');
       epIbDbg          <= ei;
 
@@ -347,8 +366,8 @@ begin
 
       for i in epObLoc'range loop
          epObLoc(i).subInp        <= USB2_STRM_SUB_INIT_C;
-         epObLoc(i).haltedInp     <= devStatus.haltedInp(i);
-         epObLoc(i).haltedOut     <= devStatus.haltedInp(i);
+         epObLoc(i).haltedInp     <= devStatus.haltedInp(i) or r.deadInp(i);
+         epObLoc(i).haltedOut     <= devStatus.haltedOut(i);
          epObLoc(i).config        <= epConfig(i);
 
          if ( epConfig( i ).transferTypeOut = USB2_TT_CONTROL_C ) then
@@ -425,13 +444,14 @@ begin
                   v.epIdx          := usb2TokenPktEndp( usb2Rx.pktHdr );
                   v.timer          := USB2_TIMER_EXPIRED_C;
                   ei               := epIb( to_integer( v.epIdx ) );
-                  haltedInp        := (devStatus.haltedInp( to_integer( v.epIdx ) ) = '1');
+                  haltedInp        := ( (devStatus.haltedInp( to_integer( v.epIdx ) ) or r.deadInp( to_integer( v.epIdx ) ) ) = '1');
                   haltedOut        := (devStatus.haltedOut( to_integer( v.epIdx ) ) = '1');
                   -- don't propagate RX RDY back to IN endpoint of they advertise
                   -- an unframed stream
                   v.nakDon         := ei.bFramedInp;
                   if ( USB2_PID_SPC_PING_C = usb2Rx.pktHdr.pid ) then
-                     if ( epIb( to_integer( v.epIdx ) ).subOut.rdy = '1' ) then
+                     -- cannot accept OUTbound data while the retry buffer is in use
+                     if ( (not r.bufInpVld and not r.bufInpPart and epIb( to_integer( v.epIdx ) ).subOut.rdy) = '1' ) then
                         v.pid      := USB2_PID_HSK_ACK_C;
                      else
                         v.pid      := USB2_PID_HSK_NAK_C;
@@ -478,7 +498,10 @@ begin
                         v.pid      := USB2_PID_HSK_STALL_C;
                         v.timer    := TIME_HSK_TX_C;
                         v.nxtState := HSK;
-                     elsif ( (ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' ) then
+                     elsif (    ( ( ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' )
+                             -- if buffer is currently in use we have to wait for retries to finish
+                             or ( ( ( r.bufInpVld or r.bufInpPart ) = '1' ) and ( r.bufInpEpIdx /= v.epIdx ) )
+                           )  then
                         v.pid      := USB2_PID_HSK_NAK_C;
                         v.timer    := TIME_HSK_TX_C;
                         v.nxtState := HSK;
@@ -529,9 +552,11 @@ begin
 --                   invalidateBuffer( v );
 --                   end if;
                   -- make sure there is nothing left in the write area
-                     invalidateBuffer( v );
                   end if;
                end if;
+            elsif ( usb2TimerExpired( r.retryTimeout ) and ( ( r.bufInpVld or r.bufInpPart ) = '1' ) ) then
+               v.deadInp( to_integer( r.bufInpEpIdx ) ) := '1';
+               invalidateBuffer( v );
             end if;
 
          when DATA_PID =>
@@ -564,8 +589,10 @@ begin
                      -- sequence mismatch; discard packet and ACK
                      v.pid   := USB2_PID_HSK_ACK_C;
                      v.state := DRAIN;
-                  elsif ( ei.subOut.rdy = '0' and USB2_PID_TOK_SETUP_C(3 downto 2) /= r.tok(3 downto 2)  ) then
-                     -- always ack setup packets
+                  elsif (     ( ( r.bufInpVld or r.bufInpPart or not ei.subOut.rdy ) = '1' )
+                          -- always ack setup packets
+                          and ( USB2_PID_TOK_SETUP_C(3 downto 2) /= r.tok(3 downto 2) )
+                        ) then
                      v.pid   := USB2_PID_HSK_NAK_C;
                      v.state := DRAIN;
                   else
@@ -682,9 +709,6 @@ begin
                   v.nxtState := HSK;
                   v.state    := WAIT_TX;
                end if;
-               -- if there was a good packet we have already advanced v.bufVldIdx
-               -- and invalidateBuffer() does no harm here
-               invalidateBuffer( v );
             end if;
 
          when DATA_INP =>
@@ -715,10 +739,12 @@ begin
 
             if ( ( ei.mstInp.vld and txDataSub.rdy and not (txDataSub.don and txDataSub.err) ) = '1' ) then
                -- store consumed data in buffer
-               v.bufRWIdx    := r.bufRWIdx + 1;
-               bufWrEna      <= '1';
-               v.dataCounter := r.dataCounter - 1;
-               v.bufInpPart  := '1';
+               v.bufRWIdx       := r.bufRWIdx + 1;
+               bufWrEna         <= '1';
+               v.dataCounter    := r.dataCounter - 1;
+               v.bufInpPart     := '1';
+               v.bufInpEpIdx    := r.epIdx;
+               v.retryTimeout   := INP_TIMO_MS_G;
                if ( r.dataCounter = 0 ) then
                   v.donFlg      := '1';
                   v.bufInpVld   := '1';
@@ -911,6 +937,15 @@ begin
          rin <= r;
       else
          rin <= v;
+      end if;
+
+      if ( r.milliSec( r.milliSec'left ) = '1' ) then
+         v.milliSec := MILLI_SEC_C; 
+         if ( not usb2TimerExpired( r.retryTimeout ) ) then
+            v.retryTimeout := r.retryTimeout - 1;
+         end if;
+      else
+         v.milliSec := r.milliSec - 1;
       end if;
 
       epObDbg <= epObLoc( to_integer( r.epIdx ) );
