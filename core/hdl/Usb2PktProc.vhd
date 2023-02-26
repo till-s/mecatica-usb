@@ -444,7 +444,7 @@ begin
                      v.timer       := TIME_DATA_TX_C;
                      v.state       := WAIT_TX;
                      if    ( epConfig( to_integer( v.epIdx ) ).transferTypeInp = USB2_TT_ISOCHRONOUS_C ) then
-                        if ( r.isoXactInp( to_integer( r.epIdx ) ) = "00" ) then
+                        if ( r.isoXactInp( to_integer( v.epIdx ) ) = "00" ) then
                            -- if the last transaction (r.ixoXactInp = "00") has already been sent then wait for the next
                            -- microframe!
                            v.state                               := r.state;
@@ -460,14 +460,14 @@ begin
                                  v.nakDon := '1';
                               end if;
                            end if;
-                           v.isoXactInp( to_integer( r.epIdx ) ) := "00";
+                           v.isoXactInp( to_integer( v.epIdx ) ) := "00";
                            if ( ei.mstInp.vld = '1' ) then
-                              if ( r.isoXactInp( to_integer( r.epIdx ) ) = "11" ) then
-                                 v.isoXactInp( to_integer( r.epIdx ) ) := unsigned( ei.mstInp.usr(1 downto 0) );
+                              if ( r.isoXactInp( to_integer( v.epIdx ) ) = "11" ) then
+                                 v.isoXactInp( to_integer( v.epIdx ) ) := unsigned( ei.mstInp.usr(1 downto 0) );
                               else
-                                 v.isoXactInp( to_integer( r.epIdx ) ) := r.isoXactInp( to_integer( r.epIdx ) ) - 1;
+                                 v.isoXactInp( to_integer( v.epIdx ) ) := r.isoXactInp( to_integer( v.epIdx ) ) - 1;
                               end if;
-                              case ( v.isoXactInp( to_integer( r.epIdx ) ) ) is
+                              case ( v.isoXactInp( to_integer( v.epIdx ) ) ) is
                                  when "01" => v.pid := USB2_PID_DAT_DATA1_C;
                                  when "10" => v.pid := USB2_PID_DAT_DATA2_C;
                                  when others =>
