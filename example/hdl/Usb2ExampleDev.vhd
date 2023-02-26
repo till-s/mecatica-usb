@@ -43,6 +43,9 @@ entity Usb2ExampleDev is
       -- CLKOUT2 is not currently used by could be employed to
       -- generate 200MHz for an IDELAY control module
       CLK2_DIV_G                         : positive := 6;
+      -- CLK3 generates the audio bit clock (if the audio
+      -- interface runs in subordinate mode
+      CLK3_DIV_G                         : positive := 100;
       -- CLKOUT1 is used to generate a phase-shifted clock that
       -- toggles the DDR which produces the ULPI clock. This phase
       -- shift helps with timing and *must* be at least slightly negative
@@ -167,6 +170,7 @@ entity Usb2ExampleDev is
       ecmFifoInpWen        : in    std_logic := '1';
 
       clk2Nb               : out   std_logic := '0';
+      clk3Nb               : out   std_logic := '0';
 
       i2sBCLK              : in    std_logic;
       i2sPBLRC             : in    std_logic;
@@ -833,6 +837,7 @@ begin
       constant REF_PERIOD_C    : real    := ite( ULPI_CLK_MODE_INP_G, SYS_CLK_PERIOD_NS_G, 16.667 );
       constant CLK0_DIV_C      : natural := ite( ULPI_CLK_MODE_INP_G, CLK0_DIV_G,          15     );
       constant CLK2_DIV_C      : natural := ite( ULPI_CLK_MODE_INP_G, CLK2_DIV_G,          15     );
+      constant CLK3_DIV_C      : natural := ite( ULPI_CLK_MODE_INP_G, CLK3_DIV_G,          75     );
       constant REF_CLK_DIV_C   : natural := ite( ULPI_CLK_MODE_INP_G, REF_CLK_DIV_G,        1     );
       -- phase must be a multiple of 45/CLK0_DIV_G
       constant CLKOUT0_PHASE_C : real    := ite( ULPI_CLK_MODE_INP_G, 0.00,                CLK0_OUT_PHASE_G);
@@ -873,7 +878,7 @@ begin
             -- CLKOUT0_DIVIDE - CLKOUT6_DIVIDE: Divide amount for each CLKOUT (1-128)
             CLKOUT1_DIVIDE => CLK0_DIV_C,
             CLKOUT2_DIVIDE => CLK2_DIV_C,
-            CLKOUT3_DIVIDE => CLK0_DIV_C,
+            CLKOUT3_DIVIDE => CLK3_DIV_C,
             CLKOUT4_DIVIDE => CLK0_DIV_C,
             CLKOUT5_DIVIDE => CLK0_DIV_C,
             CLKOUT6_DIVIDE => CLK0_DIV_C,
@@ -907,7 +912,7 @@ begin
             CLKOUT1B => open,   -- 1-bit output: Inverted CLKOUT1
             CLKOUT2 => clk2Nb,     -- 1-bit output: CLKOUT2
             CLKOUT2B => open,   -- 1-bit output: Inverted CLKOUT2
-            CLKOUT3 => open,     -- 1-bit output: CLKOUT3
+            CLKOUT3 => clk3Nb,     -- 1-bit output: CLKOUT3
             CLKOUT3B => open,   -- 1-bit output: Inverted CLKOUT3
             CLKOUT4 => open,     -- 1-bit output: CLKOUT4
             CLKOUT5 => open,     -- 1-bit output: CLKOUT5

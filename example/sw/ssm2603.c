@@ -73,7 +73,7 @@ uint8_t                    b0[2];
 
 static void usage(const char *nm)
 {
-	printf("usage: %s [-hDRMS] [-a <i2c_addr>] [-d <i2c-chardev>] {<reg>[=<val>] }\n", nm);
+	printf("usage: %s [-hDRMU2] [-a <i2c_addr>] [-d <i2c-chardev>] {<reg>[=<val>] }\n", nm);
 	printf("   -h        : this message\n");
 	printf("   -D        : dump SSM2603 register contents\n");
 	printf("   -R        : reset SM2603\n");
@@ -83,8 +83,9 @@ static void usage(const char *nm)
 	printf("               multiple <r>[=<v>] commands may be listed\n");
 	printf("   -M        : initialize for master mode (24bit, 48kHz,\n");
 	printf("               12.288MHz ref, I2S format).\n");
-	printf("   -S        : initialize for subordinate mode (24bit, 48kHz,\n");
-	printf("               12.000MHz/USB ref, I2S format).\n");
+	printf("   -U        : initialize for master mode (24bit, 48kHz,\n");
+	printf("               12.000MHz ref, I2S format).\n");
+	printf("   -2        : use 16-bit samples (24 by default) -- MUST MATCH FW Configuration\n");
 }
 
 struct rv {
@@ -94,35 +95,6 @@ struct rv {
 };
 
 #define Cmid (10.1E-6*1.2) /* Zybo + 20% */
-
-#define TACT ((long)round(Cmid * 25000/3.5))
-
-static struct rv cfgMst[] = {
-	{ r : 0x6, v : 0x052, t:        0 }, /* power essential parts            */
-	{ r : 0x0, v : 0x01f, t:        0 }, /* unmute + vol left                */
-	{ r : 0x1, v : 0x01f, t:        0 }, /* unmute + vol left                */
-	{ r : 0x2, v : 0x17f, t:        0 }, /* DAC vol (7f max in 1db steps)    */
-	{ r : 0x5, v : 0x000, t:        0 }, /* disable DAC mute                 */
-	{ r : 0x4, v : 0x012, t:        0 }, /* enable DAC to mixer              */
-    { r : 0x8, v : 0x000, t:        0 }, /* 48kHz (12.288MHz ref)            */
-    { r : 0x7, v : 0x04a, t:        0 }, /* MASTER MODE, 24-bit samples      */
-    { r : 0x9, v : 0x001, t:    -TACT }, /* activate                         */
-    { r : 0x6, v : 0x042, t:        0 }, /* power-on OUT                     */
-};
-
-static struct rv cfgSub[] = {
-	{ r : 0x6, v : 0x052, t:        0 }, /* power essential parts            */
-	{ r : 0x0, v : 0x01f, t:        0 }, /* unmute + vol left                */
-	{ r : 0x1, v : 0x01f, t:        0 }, /* unmute + vol left                */
-	{ r : 0x2, v : 0x17f, t:        0 }, /* DAC vol (7f max in 1db steps)    */
-	{ r : 0x5, v : 0x000, t:        0 }, /* disable DAC mute                 */
-	{ r : 0x4, v : 0x012, t:        0 }, /* enable DAC to mixer              */
-    { r : 0x8, v : 0x001, t:        0 }, /* 48kHz (12.000MHz/USB ref)        */
-    { r : 0x7, v : 0x00a, t:        0 }, /* SUBORD. MODE, 24-bit samples     */
-    { r : 0x9, v : 0x001, t:    -TACT }, /* activate                         */
-    { r : 0x6, v : 0x042, t:        0 }, /* power-on OUT                     */
-};
-
 
 static void u_sleep(unsigned long us)
 {
@@ -139,6 +111,43 @@ struct timespec zzz;
 			abort();
 		}
 	}
+}
+
+#define TACT ((long)round(Cmid * 25000/3.5))
+
+static int cfgMst(int fd, int i2ca, int smp24Bit, int usb)
+{
+int       i;
+int      r7v = 0x042 | ( smp24Bit ? 0x008 : 0x000 ); /* MASTER mode; 24/16 bit samples  */
+int      r8v = 0x000 | ( usb      ? 0x001 : 0x000 ); /* 48khz rate;  12.000 / 12.288MHz */
+
+
+struct rv cfg[] = {
+	{ r : 0x6, v : 0x052, t:        0 }, /* power essential parts            */
+	{ r : 0x0, v : 0x01f, t:        0 }, /* unmute + vol left                */
+	{ r : 0x1, v : 0x01f, t:        0 }, /* unmute + vol left                */
+	{ r : 0x2, v : 0x17f, t:        0 }, /* DAC vol (7f max in 1db steps)    */
+	{ r : 0x5, v : 0x000, t:        0 }, /* disable DAC mute                 */
+	{ r : 0x4, v : 0x012, t:        0 }, /* enable DAC to mixer              */
+    { r : 0x8, v :  r8v , t:        0 }, /* 48kHz (12.288MHz/12.000MHz ref)  */
+    { r : 0x7, v :  r7v , t:        0 }, /* MASTER MODE, 24/16-bit samples   */
+    { r : 0x9, v : 0x001, t:    -TACT }, /* activate                         */
+    { r : 0x6, v : 0x042, t:        0 }, /* power-on OUT                     */
+};
+
+	for ( i = 0; i < sizeof(cfg)/sizeof(cfg[0]); i++ ) {
+		if ( cfg[i].t < 0 ) {
+			u_sleep( -cfg[i].t );
+		}
+		if ( wr( fd, i2ca, cfg[i].r, cfg[i].v ) ) {
+			fprintf(stderr, "Error writing register %d; aborting config\n", i);
+			return -1;
+		}
+		if ( cfg[i].t > 0 ) {
+			u_sleep(  cfg[i].t );
+		}
+	}
+	return 0;
 }
 
 static int rst(int fd, int a)
@@ -162,21 +171,23 @@ int         rv   = 1;
 int         r, v, i;
 int         opt;
 int        *i_p;
-int         dump  = 0;
-int         doRst = 0;
-struct rv  *cfg   = 0;
-int         cfgl  = 0;
+int         dump      = 0;
+int         doRst     = 0;
+int         doCfg     = 0;
+int         smpl24Bit = 1;
+int         usbRate   = 1;
 
-	while ( (opt = getopt(argc, argv, "d:a:DhMSR")) >= 0 ) {
+	while ( (opt = getopt(argc, argv, "d:a:DhMUR2")) >= 0 ) {
 		i_p = 0;
 		switch ( opt ) {
-			case 'd': fnam  = optarg;      break;
-            case 'a': i_p   = &i2ca;       break;
-            case 'D': dump  =  1;          break;
-            case 'R': doRst =  1;          break;
-			case 'M': cfg   =  cfgMst; cfgl = sizeof(cfgMst)/sizeof(cfgMst[0]); break;
-			case 'S': cfg   =  cfgSub; cfgl = sizeof(cfgSub)/sizeof(cfgSub[0]); break;
-            case 'h': usage( argv[0] );    return 0;
+			case 'd': fnam  = optarg;                           break;
+            case 'a': i_p   = &i2ca;                            break;
+            case 'D': dump  =  1;                               break;
+            case 'R': doRst =  1;                               break;
+			case 'M': doCfg =  1; usbRate = 0;                  break;
+			case 'U': doCfg =  1; usbRate = 1;                  break;
+			case '2': smpl24Bit = 0;                            break;
+            case 'h': usage( argv[0] );                         return 0;
 		}
 		if ( i_p && 1 != sscanf( optarg, "%i", &i2ca ) ) {
 			fprintf(stderr, "Unable to parse argument to option '-%c'\n", opt);
@@ -189,23 +200,12 @@ int         cfgl  = 0;
 		goto bail;
 	}
 
-	if ( (cfg || doRst) && rst( fd, i2ca ) ) {
+	if ( (doCfg || doRst) && rst( fd, i2ca ) ) {
 		goto bail;
 	}
 
-	if ( cfg ) {
-		for ( i = 0; i < cfgl; i++ ) {
-			if ( cfg[i].t < 0 ) {
-				u_sleep( -cfg[i].t );
-			}
-			if ( wr( fd, i2ca, cfg[i].r, cfg[i].v ) ) {
-				fprintf(stderr, "Error writing register %d; aborting config\n", i);
-				goto bail;
-			}
-			if ( cfg[i].t > 0 ) {
-				u_sleep(  cfg[i].t );
-			}
-		}
+	if ( doCfg && cfgMst( fd, i2ca, smpl24Bit, usbRate ) ) {
+		goto bail;
 	}
 	
     for ( i = optind; i < argc; i++ ) {

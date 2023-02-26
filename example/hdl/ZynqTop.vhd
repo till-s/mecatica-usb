@@ -68,6 +68,7 @@ entity ZynqTop is
       i2c0SDA           : inout std_logic;
       i2c0SCL           : inout std_logic;
 
+      i2sMCLK           : out   std_logic;
       i2sBCLK           : in    std_logic;
       i2sPBLRC          : in    std_logic;
       i2sPBDAT          : out   std_logic;
@@ -97,6 +98,8 @@ architecture top_level of ZynqTop is
    constant CLK_MULT_F_C                 : real     := ite( USE_ETH_CLK_C, 48.0 , 12.0);
    constant CLK0_DIV_C                   : positive := ite( USE_ETH_CLK_C, 20   , 20  );
    constant CLK2_DIV_C                   : positive := ite( USE_ETH_CLK_C,  6   ,  6  );
+   -- generate 12.00 MHz for the sound chip
+   constant CLK3_DIV_C                   : positive := ite( USE_ETH_CLK_C,100   ,100  );
    constant REF_CLK_DIV_C                : positive := ite( USE_ETH_CLK_C,  5   ,  1  );
 
    signal axiReadMst                     : AxiReadMstType;
@@ -167,6 +170,9 @@ architecture top_level of ZynqTop is
 
    signal refClkNb                       : std_logic;
 
+   signal clk3Nb                         : std_logic;
+
+   signal i2sMCLKLoc                     : std_logic;
    signal i2sBCLKLoc                     : std_logic;
    signal i2sBlinkCnt                    : unsigned(24 downto 0) := (others => '0');
    signal i2sBlink                       : std_logic := '1';
@@ -179,6 +185,21 @@ architecture top_level of ZynqTop is
 begin
 
    B_BUF_BCLK : BUFG port map ( I => i2sBCLK, O => i2sBCLKLoc );
+   B_BUF_MCLK : BUFG port map ( I => clk3Nb,  O => i2sMCLKLoc );
+
+   U_DDR : ODDR
+      generic map (
+         DDR_CLK_EDGE => "SAME_EDGE"
+      )
+      port map (
+         C    => i2sMCLKLoc,
+         CE   => '1',
+         D1   => '1',
+         D2   => '0',
+         R    => '0',
+         S    => '0',
+         Q    => i2sMCLK
+      );
 
    P_BLNK : process ( i2sBCLKLoc ) is
    begin
@@ -427,6 +448,7 @@ begin
          CLK_MULT_F_G                     => CLK_MULT_F_C,
          CLK0_DIV_G                       => CLK0_DIV_C,
          CLK2_DIV_G                       => CLK2_DIV_C,
+         CLK3_DIV_G                       => CLK3_DIV_C,
          CLK1_INP_PHASE_G                 => -58.5,
          MARK_DEBUG_EP0_CTL_MUX_G         => MARK_DEBUG_EP0_CTL_MUX_G,
          MARK_DEBUG_ULPI_IO_G             => MARK_DEBUG_ULPI_IO_G,
@@ -485,6 +507,7 @@ begin
 
 
          clk2Nb               => open,
+         clk3Nb               => clk3Nb,
 
          i2sBCLK              => i2sBCLKLoc,
          i2sPBLRC             => i2sPBLRC,

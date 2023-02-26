@@ -66,6 +66,7 @@ set_property PACKAGE_PIN N18 [get_ports i2c0SCL]
 set_property IOSTANDARD LVCMOS33 [get_ports -regex {i2c[0-1]S..}]
 
 # I2S
+set_property PACKAGE_PIN T19 [get_ports i2sMCLK]
 set_property PACKAGE_PIN K18 [get_ports i2sBCLK]
 set_property PACKAGE_PIN L17 [get_ports i2sPBLRC]
 set_property PACKAGE_PIN M17 [get_ports i2sPBDAT]
