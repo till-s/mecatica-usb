@@ -7,13 +7,16 @@ endif
 XA:=arm
 CROSS:=$(addsuffix -linux-,$(XA))
 
-all: blktst zynq-demo modules
+all: blktst ssm2603 zynq-demo modules
 
 
 blktst: blktst.c
 	$(CC) -O2 -Wall -o $@ $< -lusb-1.0
 
 zynq-demo: zynq-demo.c
+	$(CROSS)$(CC) -O2 -Wall -o $@ $<
+
+ssm2603: ssm2603.c
 	$(CROSS)$(CC) -O2 -Wall -o $@ $<
 
 mod-objs := drv_fifo_eth.o
@@ -27,6 +30,6 @@ modclean:
 	make -C $(KERNELDIR) $(addprefix CROSS_COMPILE=,$(CROSS)) $(addprefix ARCH=,$(XA)) M=$(PWD) clean
 
 clean: modclean
-	$(RM) *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions blktst modules.order Module.symvers zynq-demo
+	$(RM) *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions blktst modules.order Module.symvers zynq-demo ssm2603
 
 .PHONY: clean modclean all modules
