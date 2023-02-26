@@ -42,10 +42,10 @@ Features
 
 The Usb2Core implements the following features:
 
- - Standard ULPI interface in Output- and Input-clock mode. Note, however,
+ - Standard ULPI interface in output- and input-clock mode. Note, however,
    that I have experienced [strange problems](./doc/PROBLEMS.md) when trying
-   to operate a `USB3340` in Input-clock mode. When I added a crystal to
-   the board and strapped the device for Output-clock mode these problems
+   to operate a `USB3340` in input-clock mode. When I added a crystal to
+   the board and strapped the device for output-clock mode these problems
    disappeared!
 
  - Optionally provides access to ULPI-PHY registers via dedicated port for
@@ -65,7 +65,7 @@ The Usb2Core implements the following features:
 
  - Descriptors are usually hard-coded into the application. Optionally, the
    descriptors can be stored in block-ram and tweaked by the application
-   (no structural changes must be performed; this is intended, e.g. for
+   (no structural changes must be performed!); this is intended, e.g. for
    tweaking an ethernet MAC address or other details.
 
  - Synchronous design; all signals are synchronous to the ULPI clock;
@@ -76,8 +76,8 @@ The Usb2Core implements the following features:
  - A tool written in Python is provided which makes assembling descriptors
    easy.
 
- - Example constraints for the ULPI interface (for clock-output and clock-
-   input modes).
+ - Example constraints for the ULPI interface (for output-clock and input-
+   clock modes).
 
 In addition to the `Usb2Core` a few standard functions which implement
 standard USB device classes are provided. Compliant host-OS drivers should
@@ -358,7 +358,8 @@ More details are explained in `Usb2Pkg.vhd`.
 #### Data Exchange
 
 Data exchange between endpoints and the `Usb2Core` is explained in the
-separate [document](doc/DataExchangeProtocol.md) and `Usb2Pkg.vhd`.
+[separate document](./doc/DataExchangeProtocol.md) and
+[`Usb2Pkg.vhd`](./core/hdl/Usb2Pkg.vhd).
 
 Note that the `mstCtl` member is for internal use only and is not used
 by normal endpoints which only require
@@ -702,8 +703,8 @@ of the currently inactive speed to be read as *OTHER_SPEED_CONFIGURATION*.
 
 #### ULPI-IO Timing
 
-Example files for constraining the ULPI I/O ports are provided for clock-input
-(`ulpi_clkinp_io_timing.xdc`) as well as clock-output (`ulpi_clkout_io_timing.xdc1`)
+Example files for constraining the ULPI I/O ports are provided for input-clock
+(`ulpi_clkinp_io_timing.xdc`) as well as output-clock (`ulpi_clkout_io_timing.xdc1`)
 mode. These files are pretty generic and assume worst-case timing as per the
 ULPI spec. Additional files which are specialized for the USB3340 PHY device are
 also present. You will have to customize any of these files for your specific
@@ -770,7 +771,7 @@ Usb descriptors for the project.
   2. run the python script providing a Usb product ID and optionally a
      vendor id (by default the [0x1209](https://pid.codes) vendor ID is used).
 
-     You may use the [0x0001](https://pid.codes/1209/0001/) **_for private testing
+     **_You may use the [0x0001](https://pid.codes/1209/0001/) for private testing
      only. Do not redistribute hardware/firmware using this ID!_**
 
          py/genAppCfgPkgBody.py -p 0x0001
@@ -785,10 +786,10 @@ the example design.
 
          vivado -mode tcl -source tcl/Usb2Example.tcl -tclargs --ulpi-clk-mode-inp 0
 
-     this will create the project for the ULPI clock-output mode (which is also the
+     this will create the project for the ULPI output-clock mode (which is also the
      default).
 
-Once the project has been created you may start vivado on GUI mode, navigate to the
+Once the project has been created you may start vivado in GUI mode, navigate to the
 project and open it. Proceed to synthesizing, implementing and eventually producing a
 bit-file which should be loaded on the target via JTAG or linux on the Zynq target.
 
@@ -823,7 +824,7 @@ initialization. It may be necessary to tweak permissions or to manually unbind
 the kernel driver (as root), YMMV.
 
 First you have to compile the `blktst.c` program (on the host system). You
-need a C-compiler and libusb-1.0 (with headers). The [`Makefile`](./sw/Makefile)
+need a C-compiler and libusb-1.0 (with headers). The [`Makefile`](./example/sw/Makefile)
 helps with this process:
 
   1. `chdir example/sw`
@@ -864,13 +865,13 @@ to an in-firmware networking IP. We don't have to burden the example design on t
 Zynq device with adding such an IP since there is a complete (software) networking
 stack available on the Zynq/ZYBO target (assuming you have linux installed there).
 
-There is a trivial [driver](./sw/drv_fifo_eth.c) available which talks to the
+There is a trivial [driver](./example/sw/drv_fifo_eth.c) available which talks to the
 ECM device's FIFO interface via AXI and presents an ethernet device *on the target
 linux system*. Note that this is a driver which must be cross-compiled and loaded
 on the *target*.
 
-Edit the [Makefile](./sw/Makefile) or add a `./sw/config-local.mk` file and
-define the path to the (target) kernel sources:
+Edit the [Makefile](./example/sw/Makefile) or add a `./example/sw/config-local.mk`
+file and define the path to the (target) kernel sources:
 
     KERNELDIR := /path/to/TARGET/kernel/source/top/
     CROSS_COMPILE := arm-linux-
