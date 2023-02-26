@@ -9,7 +9,7 @@ VHDL supporting an ULPI-standard interface (e.g., driving an off-the shelf
 ULPI PHY chip).
 
 The main use-case are FPGA applications which benefit from a high- or
-full-speed USB-2 interface.
+full-speed USB-2 interface (low-speed is ATM not supported).
 
 A few generic function classes (CDC-ACM, CDC-ECM) are implemented which
 can be connected to the generic core IP. USB descriptors are generated
@@ -90,7 +90,7 @@ support these functions out of the box (tested under linux).
      On the host this function can be accessed as an ordinary `tty` device.
      (Alternatively, the function may, e.g., be detached from the kernel
      driver and accessed directly using `libusb`.)
-   
+
  - CDC ECM function. This function presents a simple FIFO interface to the
    FPGA client firmware and is recognized as an ethernet device on the host.
    This allows host software to leverage the power of the network stack
@@ -99,7 +99,7 @@ support these functions out of the box (tested under linux).
  - BADD Speaker class audio function. This is mainly demonstrating the
    implementation of an isochronous endpoint pair. Audio played on the host
    (under linux: using the vanilla `snd-usb-audio` driver) is converted
-   into a `i2s` stream in the FPGA and forwarded to an audio-codec.  
+   into a `i2s` stream in the FPGA and forwarded to an audio-codec.
 
 The Mecatica Usb package also comes with an example design for the Digilent
 ZYBO (first version) development board which features a Zynq-XC7Z010 device.
@@ -229,7 +229,7 @@ A number of generics controls the properties of the ULPI interface:
 
   Interface to the ULPI PHY registers for specialized testing or debugging
   needs. Ordinary applications may ignore this interface (open); advanced
-  users must consult the source code for more information. 
+  users must consult the source code for more information.
 
 </dd><dt>
 
@@ -532,7 +532,7 @@ Mecatica Usb uses a semi-static approach with regard to Usb descriptors.
 The `Usb2AppCfgPkg.vhd` package declares a constant `USB2_APP_DESCRIPTORS_C`
 which is a byte-array holding all descriptors. The contents of this constant
 are not directly used by the Usb2Core; however, it's size is used by the
-`Usb2DescPkg` to define a numerical data type (`Usb2DescIdxType`) which is 
+`Usb2DescPkg` to define a numerical data type (`Usb2DescIdxType`) which is
 large enough to navigate the entire array.
 
 The `Usb2DescPkg` also provides utility functions that can be used to navigate
@@ -790,10 +790,111 @@ the example design.
 
 Once the project has been created you may start vivado on GUI mode, navigate to the
 project and open it. Proceed to synthesizing, implementing and eventually producing a
-bit-file which should be loaded on the target via JTAG or from linux on the Zynq
-target.
+bit-file which should be loaded on the target via JTAG or linux on the Zynq target.
 
 ### Test Software
 
+Once the firmware is loaded on the target and the PMOD extension board is connected
+to a host with a Usb cable the device should be detected by the host:
+
+    $ lsusb -s 1:9
+    Bus 001 Device 009: ID 1209:0001 Generic pid.codes Test PID
+
+
+#### Testing the ACM Device
+
+##### Terminal Loopback Mode
+
+The CDC ACM device should be automatically recognized by linux and bound to the
+`cdc-acm` kernel driver which should make a `/dev/ttyACM0` or similar device
+available. You can use e.g., `minicom` to test this device. As soon as the
+firmware detects the DTR modem control it enables "loopback" on the target
+which means that any characters typed into `minicom` will be echoed back.
+
+The "line break" feature is also supported. Type `<Ctrl-A> F` into minicom
+and you should see one of the LEDs on the ZYBO board blink.
+
+##### Throughput Test
+
+It is now time to see how much thoughput we can achieve. For this test we
+use the `sw/blktst.c` program which uses `libusb-1.0` to communicate with
+the device. The program attempts to unbind the `cdc-acm` kernel driver during
+initialization. It may be necessary to tweak permissions or to manually unbind
+the kernel driver (as root), YMMV.
+
+First you have to compile the `blktst.c` program (on the host system). You
+need a C-compiler and libusb-1.0 (with headers). The [`Makefile`](./sw/Makefile)
+helps with this process:
+
+  1. `chdir example/sw`
+  2. `make blktst`
+
+The `blktst` program puts the endpoint in firmware into "blast" mode. In this
+mode the endpoint discards all incoming data (after reading it) and it
+feeds the *OUT* endpoint with a counter value at the maximum rate (60MB/s in high-
+speed, 1.5MB/s in full-speed mode).
+
+`blktst` uses an ample amount of buffer space and schedules bulk-read
+(or bulk-write) operations in order to saturate the connection. It transfers
+data during several seconds and measures the achieved throughput.
+
+    $ ./blktst -P 0x0001
+    High-speed device.
+    Successfully transferred (reading) 104857600 bytes in  2.211 s (47.418 MB/s)
+
+(using the product ID you built the firmware with) exercises the *IN* endpoint.
+You may try the *OUT* (writing) direction:
+
+    $ ./blktst -P 0x0001 -w
+    High-speed device.
+    Successfully transferred (writing) 104857600 bytes in  2.286 s (45.874 MB/s)
+
+If `lsusb` lists the device but `blktst` is unable to find or open it then the
+most likely cause is lack of the necessary permission. Try running as root
+and/or add suitable udev rules (how to do that is beyond the scope of this
+document).
+
+#### Testing the ECM Device
+
+The ECM device is supported by the standard linux `cdc_ether` driver which presents
+an ethernet device on the host system and connects it to the host networking stack.
+
+In the firmware the ECM device presents a FIFO interface which could be connected
+to an in-firmware networking IP. We don't have to burden the example design on the
+Zynq device with adding such an IP since there is a complete (software) networking
+stack available on the Zynq/ZYBO target (assuming you have linux installed there).
+
+There is a trivial [driver](./sw/drv_fifo_eth.c) available which talks to the
+ECM device's FIFO interface via AXI and presents an ethernet device *on the target
+linux system*. Note that this is a driver which must be cross-compiled and loaded
+on the *target*.
+
+Edit the [Makefile](./sw/Makefile) or add a `./sw/config-local.mk` file and
+define the path to the (target) kernel sources:
+
+    KERNELDIR := /path/to/TARGET/kernel/source/top/
+    CROSS_COMPILE := arm-linux-
+
+if you cross-compiler uses a different prefix then modify the definition accordingly.
+You can now build the module:
+
+    make modules
+
+You then must load this module on the target and bind the driver
+to a suitable platform device which covers the address-range and interrupt
+used by the FIFO. Discussion the details of the necessary device-tree entries
+etc. is beyond the scope of this document but a snippet is provided here for
+illustration:
+
+    ps7-axisub2@43c02000 {
+        compatible = "usbExampleFifoEth";
+        reg = <0x430c02000 0x1000>;
+        interrupt-parent = <&intc>;
+        interrupts = <0 31 4>;
+    };
+
+Once you have successfully bound this driver you should be able to bring
+both interfaces (on the target and the host) up and after assigning IP addresses
+they should be able to communicate!
 
 </details>
