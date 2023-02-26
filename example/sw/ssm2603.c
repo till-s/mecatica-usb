@@ -81,8 +81,10 @@ static void usage(const char *nm)
 	printf("   -d <d>    : I2C driver char device\n");
 	printf("   <r>[=<v>] : read or write (with value <v>) register <r>\n");
 	printf("               multiple <r>[=<v>] commands may be listed\n");
-	printf("   -M        : initialize for master mode (16bit, 48kHz,\n");
+	printf("   -M        : initialize for master mode (24bit, 48kHz,\n");
 	printf("               12.288MHz ref, I2S format).\n");
+	printf("   -S        : initialize for subordinate mode (24bit, 48kHz,\n");
+	printf("               12.000MHz/USB ref, I2S format).\n");
 }
 
 struct rv {
@@ -103,10 +105,24 @@ static struct rv cfgMst[] = {
 	{ r : 0x5, v : 0x000, t:        0 }, /* disable DAC mute                 */
 	{ r : 0x4, v : 0x012, t:        0 }, /* enable DAC to mixer              */
     { r : 0x8, v : 0x000, t:        0 }, /* 48kHz (12.288MHz ref)            */
-    { r : 0x7, v : 0x042, t:        0 }, /* MASTER MODE, 16-bit samples      */
+    { r : 0x7, v : 0x04a, t:        0 }, /* MASTER MODE, 24-bit samples      */
     { r : 0x9, v : 0x001, t:    -TACT }, /* activate                         */
     { r : 0x6, v : 0x042, t:        0 }, /* power-on OUT                     */
 };
+
+static struct rv cfgSub[] = {
+	{ r : 0x6, v : 0x052, t:        0 }, /* power essential parts            */
+	{ r : 0x0, v : 0x01f, t:        0 }, /* unmute + vol left                */
+	{ r : 0x1, v : 0x01f, t:        0 }, /* unmute + vol left                */
+	{ r : 0x2, v : 0x17f, t:        0 }, /* DAC vol (7f max in 1db steps)    */
+	{ r : 0x5, v : 0x000, t:        0 }, /* disable DAC mute                 */
+	{ r : 0x4, v : 0x012, t:        0 }, /* enable DAC to mixer              */
+    { r : 0x8, v : 0x001, t:        0 }, /* 48kHz (12.000MHz/USB ref)        */
+    { r : 0x7, v : 0x00a, t:        0 }, /* SUBORD. MODE, 24-bit samples     */
+    { r : 0x9, v : 0x001, t:    -TACT }, /* activate                         */
+    { r : 0x6, v : 0x042, t:        0 }, /* power-on OUT                     */
+};
+
 
 static void u_sleep(unsigned long us)
 {
@@ -151,7 +167,7 @@ int         doRst = 0;
 struct rv  *cfg   = 0;
 int         cfgl  = 0;
 
-	while ( (opt = getopt(argc, argv, "d:a:DhMR")) >= 0 ) {
+	while ( (opt = getopt(argc, argv, "d:a:DhMSR")) >= 0 ) {
 		i_p = 0;
 		switch ( opt ) {
 			case 'd': fnam  = optarg;      break;
@@ -159,6 +175,7 @@ int         cfgl  = 0;
             case 'D': dump  =  1;          break;
             case 'R': doRst =  1;          break;
 			case 'M': cfg   =  cfgMst; cfgl = sizeof(cfgMst)/sizeof(cfgMst[0]); break;
+			case 'S': cfg   =  cfgSub; cfgl = sizeof(cfgSub)/sizeof(cfgSub[0]); break;
             case 'h': usage( argv[0] );    return 0;
 		}
 		if ( i_p && 1 != sscanf( optarg, "%i", &i2ca ) ) {

@@ -621,7 +621,7 @@ begin
       U_BADD : entity work.Usb2EpBADDSpkr
          generic map (
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_IFC_NUM_C),
-            SAMPLE_SIZE_G             => 2,
+            SAMPLE_SIZE_G             => 3,
             MARK_DEBUG_G              => MARK_DEBUG_SND_G,
             MARK_DEBUG_BCLK_G         => false
          )

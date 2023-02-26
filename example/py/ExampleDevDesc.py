@@ -43,7 +43,7 @@ def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iMACAddr
     ifcNumber_ += ifs
     epAddr_    += eps
 
-    ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = False, isAsync = True  )
+    ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True  )
     ifcNumber_ += ifs
     epAddr_    += eps
 

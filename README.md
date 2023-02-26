@@ -898,4 +898,60 @@ Once you have successfully bound this driver you should be able to bring
 both interfaces (on the target and the host) up and after assigning IP addresses
 they should be able to communicate!
 
+#### Testing the BADD Speaker Device
+
+The BADD Speaker device implements a simple audio device that follows the
+"Basic Audio Device Definition (v2) - Speaker Profile" and is supported by
+the standard linux `usb_snd_audio` driver.
+
+On the target the firmware converts the audio stream into a I2S signal
+which drives the SSM2603 audio codec chip on the ZYBO board. By default
+the firmware is configured for 16-bit stereo samples at 48kHz.
+
+Note that in order for using the unmodified firmware you must *modify the
+ZYBO board*:
+
+  - load X1 with a 12.288MHz crystal.
+  - load C46, C47.
+  - remove R129
+
+This allows the SSM2603 to operate in *master-mode* which produces much
+better sound quality than the default subordinate-mode. Since I had modified
+my ZYBO in the past I tested the USB device in master-mode exclusively.
+
+The subordinate mode *has not been tested* suffers from poor audio quality
+but does not require a hardware modification.
+
+#### Initialization via I2C
+
+The SSM2603 chip has to be initialized via i2c (not to be confused with
+i2s which transfers the sound samples). The demo design does not contain
+i2c firmware which means that
+
+  - i2c initialization is performed with the *target software* program
+    [`ssm2603`](./example/sw/ssm2603.c).
+  - adjusting the volume and muting is not supported. While the endpoint
+    provides the respective ports there is no i2c support to propagate
+    the volume adjustments to the ssm2603 via i2c.
+
+Build the `ssm2603` program (assuming you have a cross-compiler set up):
+
+    chdir example/sw
+    make ssm2603
+
+Then you must install this program on the target somehow and run it there
+to enable master mode (at 48kHz, 24-bit stereo). Note that the `i2d-dev`
+driver must be loaded.
+
+    # modprobe i2c-dev
+    # ssm2603 -M
+
+Again, master-mode requires a hardware modification on the ZYBO. Alternatively,
+if the demo design has been build for subordinate mode (untested):
+
+    # modprobe i2c-dev
+    # ssm2603 -S
+
+At this point you should be able to play audio from the host.
+
 </details>
