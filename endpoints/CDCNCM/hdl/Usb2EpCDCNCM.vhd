@@ -21,7 +21,7 @@ entity Usb2EpCDCNCM is
       ASYNC_G                    : boolean   := false;
       -- FIFO parameters (ld_fifo_depth are the width of the internal
       -- address pointers, i.e., ceil( log2( depth - 1 ) )
-      LD_FIFO_DEPTH_INP_G        : natural;
+      LD_RAM_DEPTH_INP_G         : natural;
       -- for max. throughput the OUT fifo must be big enough
       -- to hold at least two maximally sized packets.
       LD_RAM_DEPTH_OUT_G         : natural;
@@ -64,14 +64,14 @@ entity Usb2EpCDCNCM is
       --
       -- number of slots in the IN direction that need to be accumulated
       -- before USB is notified (improves throughput at the expense of latency)
-      fifoMinFillInp             : in  unsigned(LD_FIFO_DEPTH_INP_G - 1 downto 0) := (others => '0');
+      fifoMinFillInp             : in  unsigned(LD_RAM_DEPTH_INP_G - 2 downto 0) := (others => '0');
       -- if more then 'timeFillInp' clock cycles expire since the last
       -- item was written to the IN fifo the contents are passed to USB (even
       -- if 'minFillInp' has not been reached). Similary to termios'
       -- VMIN+VTIME.
       --  - All-ones waits indefinitely.
       --  - Time may be reduced while the timer is running.
-      fifoTimeFillInp            : in  unsigned(FIFO_TIMER_WIDTH_G - 1 downto 0)  := (others => '0');
+      fifoTimeFillInp            : in  unsigned(FIFO_TIMER_WIDTH_G - 2 downto 0)  := (others => '0');
 
       -- *******************************************************
       -- signals below here are in the epClk domain (if ASYNC_G)
@@ -88,15 +88,15 @@ entity Usb2EpCDCNCM is
       -- write-enable; data are *not* written while fifoFullInp is asserted.
       -- I.e., it is safe to hold fifoDataInp/fifoWenaInp steady until fifoFullInp
       -- is deasserted.
-      fifoDonInp                 : in  std_logic;
+      fifoLastInp                : in  std_logic;
       fifoWenaInp                : in  std_logic;
       fifoFullInp                : out std_logic;
       -- (approximate) fill level. The deassertion of fifoFullInp and the value of
       -- fifoFilledInp are delayed by several cycles of the slower clock if ASYNC_G.
-      fifoFilledInp              : out unsigned(LD_FIFO_DEPTH_INP_G downto 0);
+      fifoFilledInp              : out unsigned(LD_RAM_DEPTH_INP_G downto 0);
 
       fifoDataOut                : out Usb2ByteType;
-      fifoDataLst                : out std_logic;
+      fifoLastOut                : out std_logic;
       -- read-enable; data are *not* read while fifoEmptyOut is asserted.
       -- I.e., it is safe to hold fifoRenaOut steady until fifoEmptyOut
       -- is deasserted.
@@ -114,14 +114,16 @@ end entity Usb2EpCDCNCM;
 
 architecture Impl of Usb2EpCDCNCM is
 
+   signal epRstLoc                        : std_logic := '0';
+
 begin
 
    B_OUT : block is
 
       subtype RamIdxType is unsigned( LD_RAM_DEPTH_OUT_G downto 0);
 
-      constant NTH_OFF_LEN_C : RamIdxType := to_unsigned(10, RamIdxType'length );
-      constant NTH_OFF_NDP_C : RamIdxType := to_unsigned(12, RamIdxType'length );
+      constant NTH_OFF_LEN_C : RamIdxType := to_unsigned( 8, RamIdxType'length );
+      constant NTH_OFF_NDP_C : RamIdxType := to_unsigned(10, RamIdxType'length );
 
       constant NDP_OFF_SIG_C : RamIdxType := to_unsigned( 3, RamIdxType'length );
       constant NDP_OFF_NXT_C : RamIdxType := to_unsigned( 6, RamIdxType'length );
@@ -154,7 +156,7 @@ begin
          haveCrc        => false
       );
 
-      type WrStateType is ( HDR, LEN, FILL );
+      type WrStateType is ( HDR, LEN, FILL, WRITE_LEN_1, DONE );
 
       type WrRegType is record
          state          : WrStateType;
@@ -178,8 +180,10 @@ begin
       signal rInWr  : WrRegType := WR_REG_INIT_C;
 
       signal rdData : Usb2ByteType;
+      signal wrData : Usb2ByteType;
 
       signal rdAddr : RamIdxType;
+      signal wrAddr : RamIdxType;
 
       signal wrPtr  : RamIdxType := (others => '0');
       signal rdPtr  : RamIdxType := (others => '0');
@@ -189,15 +193,15 @@ begin
 
       function toRamIdxType(constant a, b : Usb2ByteType) return RamIdxType is
          variable v : RamIdxType;
+         constant x : unsigned(15 downto 0) := unsigned(a) & unsigned(b);
       begin
-         v(15 downto 8) := unsigned( a );
-         v( 7 downto 0) := unsigned( b );
+         v := resize( x, v'length );
          return v;
       end function toRamIdxType;
 
    begin
 
-      P_OUT_RD_COMB : process ( rRd, wrPtr, rdData, fifoRenaOut ) is
+      P_RD_COMB : process ( rRd, wrPtr, rdData, fifoRenaOut ) is
          variable v : RdRegType;
       begin
          v            := rRd;
@@ -259,6 +263,7 @@ begin
                   if ( v.rdOff = 0 ) then -- end of table
                      rdAddr   <= rRd.rdPtr + rRd.sdpOff + NDP_OFF_NXT_C;
                      v.rdOff  := rRd.sdpOff + NDP_OFF_NXT_C + 1;
+                     v.sdpIdx := NDP_OFF_PTR_C;
                      v.state  := READ_SDP;
                   else
                      rdAddr   <= rRd.rdPtr + rRd.sdpOff + rRd.sdpIdx;
@@ -281,6 +286,7 @@ begin
                   if ( v.dgramLen(v.dgramLen'left) = '1' ) then -- end of table
                      rdAddr   <= rRd.rdPtr + rRd.sdpOff + NDP_OFF_NXT_C;
                      v.rdOff  := rRd.sdpOff + NDP_OFF_NXT_C + 1;
+                     v.sdpIdx := NDP_OFF_PTR_C;
                      v.state  := READ_SDP;
                   else
                      v.state  := READ_DGRAM;
@@ -303,61 +309,88 @@ begin
          end case;
 
          fifoDataOut <= rdData(7 downto 0);
-         fifoDataLst <= v.dgramLen( v.dgramLen'left );
+         fifoLastOut <= v.dgramLen( v.dgramLen'left );
 
          rInRd <= v;
-      end process P_OUT_RD_COMB;
+      end process P_RD_COMB;
 
-      P_OUT_WR_COMB : process ( rWr, rdPtr, usb2DataEpIb ) is
+      P_WR_COMB : process ( rWr, rdPtr, usb2DataEpIb ) is
          variable wen : std_logic;
          variable rdy : std_logic;
          variable v   : WrRegType;
+         variable sz  : unsigned(15 downto 0);
       begin
          v       := rWr;
-         v.wrPtr := rWr.wrPtr + 1;
          wen     := usb2DataEpIb.mstOut.vld;
          rdy     := '1';
+
+         wrAddr  <= rWr.wrPtr;
+         wrData  <= usb2DataEpIb.mstOut.dat;
+
+         v.wrPtr := rWr.wrPtr + 1;
+
+         -- difference modulo RAM_DEPTH_G
+         sz      := resize( rWr.wrPtr, sz'length ) - resize( rWr.wrTail, sz'length );
+
          if ( v.wrPtr = rdPtr ) then
             -- full
             wen     := '0';
             rdy     := '0';
+         end if;
+
+         if ( wen = '0' ) then
             v.wrPtr := rWr.wrPtr;
          end if;
 
          case ( rWr.state ) is
             when HDR =>
                if ( wen = '1' ) then
+                  v.wrCnt                := rWr.wrCnt - 1;
                   if ( rWr.wrCnt( rWr.wrCnt'left ) = '1' ) then
                      v.state             := LEN;
                      v.wrCnt(7 downto 0) := unsigned( usb2DataEpIb.mstOut.dat );
-                  else
-                     v.wrCnt             := rWr.wrCnt - 1;
                   end if;
                end if;
 
             when LEN =>
                if ( wen = '1' ) then
-                  v.wrCnt(15 downto 8)   := unsigned( usb2DataEpIb.mstOut.dat );
-                  v.wrCnt                := v.wrCnt - NTH_OFF_LEN_C - 2;
-                  v.isFramed             := ( v.wrCnt( v.wrCnt'left ) = '1' );
-                  v.state                := FILL;
+                  v.wrCnt(v.wrCnt'high downto 8)   := resize( unsigned( usb2DataEpIb.mstOut.dat ), v.wrCnt'length - 8 );
+                  v.wrCnt                          := v.wrCnt - NTH_OFF_LEN_C - 2 - 1;
+                  v.isFramed                       := ( v.wrCnt( v.wrCnt'left ) = '1' );
+                  v.state                          := FILL;
                end if;
+
+            when WRITE_LEN_1 =>
+               wrAddr   <= rWr.wrTail + NTH_OFF_LEN_C + 1;
+               wrData   <= std_logic_vector(sz(15 downto 8));
+               wen      := '1';
+               v.state  := DONE;
+               -- suppress normal writing and accepting an item
+               v.wrPtr  := rWr.wrPtr;
+               rdy      := '0';
 
             when FILL =>
                if ( rWr.isFramed ) then
                   if ( ( usb2DataEpIb.mstOut.don and rdy ) = '1' ) then
-                     v.state  := HDR;
+                     -- store the block length for the read-side to pick up
+                     wrAddr   <= rWr.wrTail + NTH_OFF_LEN_C;
+                     wrData   <= std_logic_vector( sz(7 downto 0) );
+                     v.state  := WRITE_LEN_1;
+                     -- wrPtr is not advanced during this cycle
+                     -- because due to don = '1' -> vld = '0'
+                     wen      := '1';
                   end if;
                elsif ( wen = '1' ) then
                   v.wrCnt := rWr.wrCnt - 1;
                   if ( v.wrCnt( v.wrCnt'left ) = '1' ) then
-                     v.state := HDR;
+                     v.state := DONE;
                   end if;
                end if;
-               if ( v.state = HDR ) then
-                  v.wrCnt  := NTH_OFF_LEN_C - 1;
-                  v.wrTail := rWr.wrPtr;
-               end if;
+
+            when DONE =>
+               v.wrCnt  := NTH_OFF_LEN_C - 1;
+               v.wrTail := rWr.wrPtr;
+               v.state  := HDR;
 
          end case;
 
@@ -365,9 +398,53 @@ begin
          ramWen                  <= wen;
 
          rInWr                   <= v;
-      end process P_OUT_WR_COMB;
+      end process P_WR_COMB;
+
+      P_RD_SEQ : process ( epClk ) is
+      begin
+         if ( rising_edge( epClk ) ) then
+            if ( epRstLoc = '1' ) then
+               rRd <= RD_REG_INIT_C;
+            else
+               rRd <= rInRd;
+            end if;
+         end if;
+      end process P_RD_SEQ; 
+
+      P_WR_SEQ : process ( usb2Clk ) is
+      begin
+         if ( rising_edge( usb2Clk ) ) then
+            if ( usb2Rst = '1' ) then
+               rWr <= WR_REG_INIT_C;
+            else
+               rWr <= rInWr;
+            end if;
+         end if;
+      end process P_WR_SEQ; 
+
+      U_BRAM : entity work.Usb2Bram
+         generic map (
+            DATA_WIDTH_G => 8,
+            ADDR_WIDTH_G => LD_RAM_DEPTH_OUT_G
+         )
+         port map (
+            clka         => epClk,
+            ena          => ramRen,
+            addra        => rdAddr(LD_RAM_DEPTH_OUT_G - 1 downto 0),
+            rdata        => rdData,
+
+            clkb         => usb2Clk,
+            enb          => ramWen,
+            web          => ramWen,
+            addrb        => wrAddr(LD_RAM_DEPTH_OUT_G - 1 downto 0),
+            wdatb        => wrData
+         );
+
+      G_SYNC_RD : if ( not ASYNC_G ) generate
+        rdPtr    <= rRd.rdPtr;
+        wrPtr    <= rWr.wrTail;
+      end generate G_SYNC_RD;
 
    end block B_OUT;
-   
 
 end architecture Impl;

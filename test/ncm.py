@@ -2,6 +2,7 @@
 
 import sys
 import random
+import io
 
 class NTB16(object):
   def __init__(self):
@@ -20,7 +21,7 @@ class NTB16(object):
       o.lock()
     self.lst_.append(o)
 
-  def wrap(self):
+  def wrap(self, hasBlockLen = True):
     self.lck_ = True
     idx = 0
     # must word-align the first NDP16
@@ -39,7 +40,11 @@ class NTB16(object):
       x.setIdx( idx )
       idx += x.getLen()
     # set total length
-    self.lst_[0].wBlockLength = idx
+    if ( hasBlockLen ):
+      bl = idx
+    else:
+      bl = 0
+    self.lst_[0].wBlockLength = bl
     # fixup SDPs
     nxt = None
     for x in self.lst_:
@@ -52,15 +57,16 @@ class NTB16(object):
     for l in self.lst_:
       l.dump()
 
-  def vhdl(self, f=sys.stdout):
-    for x in self.lst_[0:-1]:
-      x.vhdl( f=f, m=0xff)
-    self.lst_[-1].vhdl( f = f )
+  def bitVec(self, f=sys.stdout):
+    for x in self.lst_:
+      x.bitVec( f=f, m=0xff)
+    # this is a 'don' (not LST) flag
+    print("100000000", file=f)
 
-  def vhdlDgram(self, f=sys.stdout, stripCRC = True):
+  def bitVecDgram(self, f=sys.stdout, stripCRC = True):
     for x in self.lst_:
       if isinstance(x, Dgram):
-        x.vhdl( f = f, stripCRC = stripCRC )
+        x.bitVec( f = f, stripCRC = stripCRC )
     
 class BitVec(list):
 
@@ -84,7 +90,7 @@ class BitVec(list):
   def get16LE(self, idx):
      return ((self[idx+1] & 0xff) << 8 ) | (self[idx] & 0xff)
 
-  def vhdl(self, f=sys.stdout, m = 0x1FF, stripCRC = False):
+  def bitVec(self, f=sys.stdout, m = 0x1FF, stripCRC = False):
     for x in self:
        print("{:09b}".format(x & m), file=f)
 
@@ -133,8 +139,8 @@ class BitVecHolder(object):
   def linkNDP(self, x):
     pass
 
-  def vhdl(self, f=sys.stdout, m=0x1ff, stripCRC=False):
-    self.bv_.vhdl( f = f, m = m, stripCRC = stripCRC )
+  def bitVec(self, f=sys.stdout, m=0x1ff, stripCRC=False):
+    self.bv_.bitVec( f = f, m = m, stripCRC = stripCRC )
 
 class Dgram(BitVecHolder):
   def __init__(self, ndp, l):
@@ -154,13 +160,13 @@ class Dgram(BitVecHolder):
         print(" (LST) ", end ='')
     print()
 
-  def vhdl(self, f = sys.stdout, m = 0x1ff, stripCRC=False):
+  def bitVec(self, f = sys.stdout, m = 0x1ff, stripCRC=False):
     if ( not stripCRC or not self.ndp_.hasCRC ):
-      super().vhdl( f = f, m = m, stripCRC = stripCRC )
+      super().bitVec( f = f, m = m, stripCRC = stripCRC )
     else:
       for x in self.bv_[0:-5]:
-        print("{:09b}".format(x & m), file=f)
-      print("{:09b}".format( self.bv_[-5] | 0x100, file = f ))
+        print("{:09b}".format(x & m), file = f)
+      print("{:09b}".format( self.bv_[-5] | 0x100 ), file = f )
 
 class NTH16(BitVecHolder):
   seq = 1
@@ -314,5 +320,34 @@ n.add(NDP16())
 n.add(ndpc)
 n.add(dg1)
 n.add(dg2)
-n.wrap()
+n.wrap(hasBlockLen = True)
 n.dump()
+
+n1=NTB16()
+ndp=NDP16()
+n1.add( Dgram(ndp, random.randbytes(7)) )
+n1.add( Dgram(ndp, random.randbytes(16)) )
+n1.add(ndp)
+n1.wrap(hasBlockLen = False)
+n1.dump()
+
+n2=NTB16()
+ndp=NDP16()
+n2.add(ndp)
+n2.add( Dgram(ndp, random.randbytes(31)) )
+ndp=NDP16(hasCRC=True)
+n2.add(ndp)
+n2.add( Dgram(ndp, random.randbytes(30)) )
+n2.wrap(hasBlockLen=True)
+n2.dump()
+
+with io.open("NCMOutTst.txt","w") as f:
+  n.bitVec(f = f)
+  n1.bitVec(f = f)
+  n1.bitVec(f = f)
+  n2.bitVec(f = f)
+with io.open("NCMOutCmp.txt","w") as f:
+  n.bitVecDgram(f = f)
+  n1.bitVecDgram(f = f)
+  n1.bitVecDgram(f = f)
+  n2.bitVecDgram(f = f)
