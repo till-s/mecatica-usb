@@ -315,10 +315,11 @@ begin
       end process P_RD_COMB;
 
       P_WR_COMB : process ( rWr, rdPtr, usb2DataEpIb ) is
-         variable wen : std_logic;
-         variable rdy : std_logic;
-         variable v   : WrRegType;
-         variable sz  : unsigned(15 downto 0);
+         variable wen    : std_logic;
+         variable rdy    : std_logic;
+         variable v      : WrRegType;
+         variable sz     : unsigned(15 downto 0);
+         constant FULL_C : RamIdxType := to_unsigned( 2**LD_RAM_DEPTH_OUT_G, RamIdxType'length );
       begin
          v       := rWr;
          wen     := usb2DataEpIb.mstOut.vld;
@@ -332,7 +333,7 @@ begin
          -- difference modulo RAM_DEPTH_G
          sz      := resize( rWr.wrPtr, sz'length ) - resize( rWr.wrTail, sz'length );
 
-         if ( v.wrPtr = rdPtr ) then
+         if ( rWr.wrPtr - rdPtr >= FULL_C ) then
             -- full
             wen     := '0';
             rdy     := '0';
@@ -389,6 +390,9 @@ begin
 
             when DONE =>
                v.wrCnt  := NTH_OFF_LEN_C - 1;
+               if ( wen = '1' ) then
+                  v.wrCnt := v.wrCnt - 1;
+               end if;
                v.wrTail := rWr.wrPtr;
                v.state  := HDR;
 

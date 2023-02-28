@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+# Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.
+# You may obtain a copy of the license at
+#   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+# This notice must not be removed.
+
 import sys
 import random
 import io
@@ -331,6 +336,15 @@ n1.add(ndp)
 n1.wrap(hasBlockLen = False)
 n1.dump()
 
+n1a=NTB16()
+ndp=NDP16()
+n1a.add( Dgram(ndp, random.randbytes(7)) )
+n1a.add( Dgram(ndp, random.randbytes(16)) )
+n1a.add(ndp)
+n1a.wrap(hasBlockLen = True)
+n1a.dump()
+
+
 n2=NTB16()
 ndp=NDP16()
 n2.add(ndp)
@@ -344,10 +358,10 @@ n2.dump()
 with io.open("NCMOutTst.txt","w") as f:
   n.bitVec(f = f)
   n1.bitVec(f = f)
-  n1.bitVec(f = f)
+  n1a.bitVec(f = f)
   n2.bitVec(f = f)
 with io.open("NCMOutCmp.txt","w") as f:
   n.bitVecDgram(f = f)
   n1.bitVecDgram(f = f)
-  n1.bitVecDgram(f = f)
+  n1a.bitVecDgram(f = f)
   n2.bitVecDgram(f = f)
