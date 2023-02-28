@@ -322,15 +322,17 @@ begin
          constant FULL_C : RamIdxType := to_unsigned( 2**LD_RAM_DEPTH_OUT_G, RamIdxType'length );
       begin
          v       := rWr;
+
+         -- by default we store an item
+         -- we revert that if necessary
          wen     := usb2DataEpIb.mstOut.vld;
          rdy     := '1';
-
          wrAddr  <= rWr.wrPtr;
          wrData  <= usb2DataEpIb.mstOut.dat;
-
          v.wrPtr := rWr.wrPtr + 1;
+         v.wrCnt := rWr.wrCnt - 1;
 
-         -- difference modulo RAM_DEPTH_G
+         -- size of the entire NTH
          sz      := resize( rWr.wrPtr, sz'length ) - resize( rWr.wrTail, sz'length );
 
          if ( rWr.wrPtr - rdPtr >= FULL_C ) then
@@ -341,12 +343,12 @@ begin
 
          if ( wen = '0' ) then
             v.wrPtr := rWr.wrPtr;
+            v.wrCnt := rWr.wrCnt;
          end if;
 
          case ( rWr.state ) is
             when HDR =>
                if ( wen = '1' ) then
-                  v.wrCnt                := rWr.wrCnt - 1;
                   if ( rWr.wrCnt( rWr.wrCnt'left ) = '1' ) then
                      v.state             := LEN;
                      v.wrCnt(7 downto 0) := unsigned( usb2DataEpIb.mstOut.dat );
@@ -355,10 +357,10 @@ begin
 
             when LEN =>
                if ( wen = '1' ) then
-                  v.wrCnt(v.wrCnt'high downto 8)   := resize( unsigned( usb2DataEpIb.mstOut.dat ), v.wrCnt'length - 8 );
-                  v.wrCnt                          := v.wrCnt - NTH_OFF_LEN_C - 2 - 1;
-                  v.isFramed                       := ( v.wrCnt( v.wrCnt'left ) = '1' );
-                  v.state                          := FILL;
+                  v.wrCnt    := resize( unsigned( usb2DataEpIb.mstOut.dat ) & rWr.wrCnt(7 downto 0), v.wrCnt'length );
+                  v.wrCnt    := v.wrCnt - NTH_OFF_LEN_C - 2 - 1;
+                  v.isFramed := ( v.wrCnt( v.wrCnt'left ) = '1' );
+                  v.state    := FILL;
                end if;
 
             when WRITE_LEN_1 =>
@@ -368,10 +370,12 @@ begin
                v.state  := DONE;
                -- suppress normal writing and accepting an item
                v.wrPtr  := rWr.wrPtr;
+               v.wrCnt  := NTH_OFF_LEN_C - 1;
                rdy      := '0';
 
             when FILL =>
                if ( rWr.isFramed ) then
+                  -- we dont' care about wrCnt here
                   if ( ( usb2DataEpIb.mstOut.don and rdy ) = '1' ) then
                      -- store the block length for the read-side to pick up
                      wrAddr   <= rWr.wrTail + NTH_OFF_LEN_C;
@@ -382,17 +386,13 @@ begin
                      wen      := '1';
                   end if;
                elsif ( wen = '1' ) then
-                  v.wrCnt := rWr.wrCnt - 1;
                   if ( v.wrCnt( v.wrCnt'left ) = '1' ) then
                      v.state := DONE;
+                     v.wrCnt := NTH_OFF_LEN_C - 1;
                   end if;
                end if;
 
             when DONE =>
-               v.wrCnt  := NTH_OFF_LEN_C - 1;
-               if ( wen = '1' ) then
-                  v.wrCnt := v.wrCnt - 1;
-               end if;
                v.wrTail := rWr.wrPtr;
                v.state  := HDR;
 
