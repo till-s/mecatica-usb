@@ -279,7 +279,15 @@ package Usb2Pkg is
       mstInp     => USB2_STRM_MST_INIT_C,
       subOut     => USB2_STRM_SUB_INIT_C
    );
- 
+
+   -- merge the in- and outbound EPs into a single pair
+   -- assume the OUT components of 'ib' and the IN components
+   -- of 'ob' are unused.
+   function usb2MergeEndpPairIb(
+      constant ib : in Usb2EndpPairIbType;
+      constant ob : in Usb2EndpPairIbType
+   ) return Usb2EndpPairIbType;
+
    -- signals traveling from bus -> EP
    type Usb2EndpPairObType is record
       mstOut     : Usb2StrmMstType;
@@ -685,5 +693,19 @@ package body Usb2Pkg is
       v(1 downto 0) := recipient;
       return v;
    end function USB2_MAKE_REQ_TYP_F;
+
+   function usb2MergeEndpPairIb(
+      constant ib : in Usb2EndpPairIbType;
+      constant ob : in Usb2EndpPairIbType
+   ) return Usb2EndpPairIbType is
+      variable r : Usb2EndpPairIbType;
+   begin
+      r.stalledInp := ib.stalledInp;
+      r.stalledOut := ob.stalledOut;
+      r.bFramedInp := ib.bFramedInp;
+      r.mstInp     := ib.mstInp;
+      r.subOut     := ob.subOut;
+      return r;
+   end function usb2MergeEndpPairIb;
 
 end package body Usb2Pkg;
