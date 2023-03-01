@@ -129,6 +129,7 @@ begin
       constant NDP_OFF_NXT_C : RamIdxType := to_unsigned( 6, RamIdxType'length );
       constant NDP_OFF_PTR_C : RamIdxType := to_unsigned( 8, RamIdxType'length );
 
+      constant RAM_SIZE_C    : RamIdxType := to_unsigned( 2**LD_RAM_DEPTH_OUT_G, RamIdxType'length );
 
       type RdStateType is ( IDLE, READ_SDP_SIG, READ_SDP, READ_DGRAM_IDX, READ_DGRAM_LEN, READ_NXT, READ_DGRAM );
 
@@ -164,6 +165,8 @@ begin
          wrTail         : RamIdxType;
          wrCnt          : RamIdxType;
          isFramed       : boolean;
+         rdy            : std_logic;
+         wasActive      : boolean;
       end record WrRegType;
 
       constant WR_REG_INIT_C : WrRegType := (
@@ -171,25 +174,32 @@ begin
          wrPtr          => (others => '0'),
          wrTail         => (others => '0'),
          wrCnt          => NTH_OFF_LEN_C - 1,
-         isFramed       => false
+         isFramed       => false,
+         rdy            => '0',
+         wasActive      => false
       );
 
-      signal rRd    : RdRegType := RD_REG_INIT_C;
-      signal rInRd  : RdRegType := RD_REG_INIT_C;
-      signal rWr    : WrRegType := WR_REG_INIT_C;
-      signal rInWr  : WrRegType := WR_REG_INIT_C;
+      signal rRd        : RdRegType := RD_REG_INIT_C;
+      signal rInRd      : RdRegType := RD_REG_INIT_C;
+      signal rWr        : WrRegType := WR_REG_INIT_C;
+      signal rInWr      : WrRegType := WR_REG_INIT_C;
 
-      signal rdData : Usb2ByteType;
-      signal wrData : Usb2ByteType;
+      signal rdData     : Usb2ByteType;
+      signal wrData     : Usb2ByteType;
 
-      signal rdAddr : RamIdxType;
-      signal wrAddr : RamIdxType;
+      signal rdAddr     : RamIdxType;
+      signal wrAddr     : RamIdxType;
 
-      signal wrPtr  : RamIdxType := (others => '0');
-      signal rdPtr  : RamIdxType := (others => '0');
+      signal wrPtr      : RamIdxType := (others => '0');
+      signal rdPtr      : RamIdxType := (others => '0');
 
-      signal ramRen : std_logic;
-      signal ramWen : std_logic;
+      signal ramRen     : std_logic;
+      signal ramWen     : std_logic;
+
+      signal onePktSz   : RamIdxType;
+      signal twoPktSz   : RamIdxType;
+      signal oneFits    : boolean;
+      signal twoFit     : boolean;
 
       function toRamIdxType(constant a, b : Usb2ByteType) return RamIdxType is
          variable v : RamIdxType;
@@ -314,36 +324,62 @@ begin
          rInRd <= v;
       end process P_RD_COMB;
 
-      P_WR_COMB : process ( rWr, rdPtr, usb2DataEpIb ) is
+      onePktSz <= resize( usb2DataEpIb.config.maxPktSizeOut, onePktSz'length );
+      twoPktSz <= shift_left( onePktSz, 1 );
+
+      oneFits <= ( RAM_SIZE_C - (rWr.wrPtr - rdPtr) >= onePktSz );
+      twoFit  <= ( RAM_SIZE_C - (rWr.wrPtr - rdPtr) >= twoPktSz );
+
+      -- We do flow control so that a max-packet always fits; thus, the ram
+      -- can never be over-filled (assuming the Usb2Core follows protocol).
+
+      -- Also: the core only starts sending (mstOut.vld) once we have signalled
+      -- 'rdy'. So they won't start 'on their own'!
+      --
+      --  1) wait until we can accommodate at least one packet
+      --  2) assert 'rdy'
+      --  3) during the first beat they are sending (vld or don) = '1'
+      --     check if we could accommodate a second packet:
+      --     deassert rdy if we don't have the necessary space.
+      --  4) if 'rdy' was deasserted wait for the current packet
+      --     to be sent, then goto 1)
+
+      P_WR_COMB : process ( rWr, rdPtr, oneFits, twoFit, usb2DataEpIb ) is
          variable wen    : std_logic;
-         variable rdy    : std_logic;
          variable v      : WrRegType;
          variable sz     : unsigned(15 downto 0);
-         constant FULL_C : RamIdxType := to_unsigned( 2**LD_RAM_DEPTH_OUT_G, RamIdxType'length );
+         variable active : boolean;
       begin
-         v       := rWr;
+         v           := rWr;
 
          -- by default we store an item
          -- we revert that if necessary
-         wen     := usb2DataEpIb.mstOut.vld;
-         rdy     := '1';
-         wrAddr  <= rWr.wrPtr;
-         wrData  <= usb2DataEpIb.mstOut.dat;
-         v.wrPtr := rWr.wrPtr + 1;
-         v.wrCnt := rWr.wrCnt - 1;
+         wen         := usb2DataEpIb.mstOut.vld;
+         wrAddr      <= rWr.wrPtr;
+         wrData      <= usb2DataEpIb.mstOut.dat;
 
-         -- size of the entire NTH
-         sz      := resize( rWr.wrPtr, sz'length ) - resize( rWr.wrTail, sz'length );
-
-         if ( rWr.wrPtr - rdPtr >= FULL_C ) then
-            -- full
-            wen     := '0';
-            rdy     := '0';
+         if ( wen = '1' ) then
+            v.wrPtr     := rWr.wrPtr + 1;
+            v.wrCnt     := rWr.wrCnt - 1;
          end if;
 
-         if ( wen = '0' ) then
-            v.wrPtr := rWr.wrPtr;
-            v.wrCnt := rWr.wrCnt;
+         -- size of the entire NTH
+         sz          := resize( rWr.wrPtr, sz'length ) - resize( rWr.wrTail, sz'length );
+
+         -- handshake
+         active      := ( ( usb2DataEpIb.mstOut.vld or usb2DataEpIb.mstOut.don ) = '1' );
+         v.wasActive := active;
+
+         if ( ( rWr.rdy = '0' ) and not active ) then
+            -- last transmission ended; check if we have space
+            if ( oneFits ) then
+               v.rdy := '1';
+            end if;
+         elsif ( active and not rWr.wasActive ) then
+            -- first beat of a new packet; check if we could handle two
+            if ( not twoFit ) then
+               v.rdy := '0';
+            end if;
          end if;
 
          case ( rWr.state ) is
@@ -368,15 +404,14 @@ begin
                wrData   <= std_logic_vector(sz(15 downto 8));
                wen      := '1';
                v.state  := DONE;
-               -- suppress normal writing and accepting an item
+               -- suppress normal writing
                v.wrPtr  := rWr.wrPtr;
                v.wrCnt  := NTH_OFF_LEN_C - 1;
-               rdy      := '0';
 
             when FILL =>
                if ( rWr.isFramed ) then
                   -- we dont' care about wrCnt here
-                  if ( ( usb2DataEpIb.mstOut.don and rdy ) = '1' ) then
+                  if ( usb2DataEpIb.mstOut.don = '1' ) then
                      -- store the block length for the read-side to pick up
                      wrAddr   <= rWr.wrTail + NTH_OFF_LEN_C;
                      wrData   <= std_logic_vector( sz(7 downto 0) );
@@ -384,6 +419,13 @@ begin
                      -- wrPtr is not advanced during this cycle
                      -- because due to don = '1' -> vld = '0'
                      wen      := '1';
+                     -- make sure we don't accept anything from the core;
+                     -- this probably could never happen because a packet
+                     -- just ended and I don't see how the USB could receive
+                     -- two packets back-to-back with no pause.
+                     -- In any case we'l re-evaluate the space during the
+                     -- next cycle and probably be back in business...
+                     v.rdy    := '0';
                   end if;
                elsif ( wen = '1' ) then
                   if ( v.wrCnt( v.wrCnt'left ) = '1' ) then
@@ -398,7 +440,7 @@ begin
 
          end case;
 
-         usb2DataEpOb.subOut.rdy <= rdy;
+         usb2DataEpOb.subOut.rdy <= rWr.rdy;
          ramWen                  <= wen;
 
          rInWr                   <= v;

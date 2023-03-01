@@ -303,6 +303,15 @@ begin
 
       datOut     <= fifoDou( datOut'range );
 
+      -- NOTE: writing to the FIFO without just based on 'mstOut.vld'
+      --       (without checking if we actually have 'rdy' asserted)
+      --       works because according to the EP protocol the core
+      --       waits for our 'rdy' before shipping data. And once
+      --       we flagged 'rdy' we must have space for an entire packet.
+      --       If there is no space for a second packet then we withdraw
+      --       'rdy' but keep writing to the FIFO until the end of the
+      --       packet.
+
       G_WITH_DON : if ( LD_MAX_FRAMES_OUT_G > 0 ) generate
       begin
          fifoDin <= usb2EpIb.mstOut.don & usb2EpIb.mstOut.dat;

@@ -22,6 +22,7 @@ end entity Usb2EpCDCNCMTb;
 architecture sim of Usb2EpCDCNCMTb is
 
    constant LD_DEPTH_C      : natural   := 7;
+   constant MAX_PKTSZ_OUT_C : natural   := 15;
 
    subtype  Slv9            is std_logic_vector(8 downto 0);
    type     Slv9Array       is array (natural range <>) of Slv9;
@@ -85,6 +86,9 @@ architecture sim of Usb2EpCDCNCMTb is
    signal   chopUsb2        : std_logic_vector( 10 downto 0 ) := ( 0 => '1', others => '0');
    signal   chopEp          : std_logic_vector( 10 downto 0 ) := ( 1 => '1', 7 => '1', others => '0');
 
+   signal   sent            : signed(15 downto 0) := (others => '0');
+   signal   canSend         : std_logic;
+
  begin
 
    P_CLK : process is
@@ -99,17 +103,35 @@ architecture sim of Usb2EpCDCNCMTb is
    epClk           <= usb2Clk;
 
    epOb.mstOut.dat <= tstVec(tstIdx)(7 downto 0);
-   epOb.mstOut.don <= tstVec(tstIdx)(8)     and chopUsb2(0);
-   epOb.mstOut.vld <= not tstVec(tstIdx)(8) and chopUsb2(0);
+   epOb.mstOut.don <= tstVec(tstIdx)(8)     and canSend and chopUsb2(0);
+   epOb.mstOut.vld <= not tstVec(tstIdx)(8) and canSend and chopUsb2(0);
+
+   -- must communicate our max packet size
+   epOb.config.maxPktSizeOut <= to_unsigned( MAX_PKTSZ_OUT_C, Usb2PktSizeType'length );
+
+   canSend         <= sent(sent'left);
 
    P_DRV : process ( usb2Clk ) is
    begin
       if ( rising_edge( usb2Clk ) ) then
+
 	     chopUsb2 <= (chopUsb2(0) xor chopUsb2(2)) & chopUsb2(chopUsb2'left downto 1);
-		 if ( ( (epOb.mstOut.vld or epOb.mstOut.don) and epIb.subOut.rdy ) = '1' ) then
-		    if ( tstIdx /= tstVec'high ) then
-			   tstIdx <= tstIdx + 1;
-			end if;
+
+         if ( canSend = '0' ) then
+            if ( epIb.subOut.rdy = '1' ) then
+               sent            <= - to_signed( MAX_PKTSZ_OUT_C, sent'length );
+            end if;
+         else
+            if ( (epOb.mstOut.vld or epOb.mstOut.don) = '1' ) then
+               sent <= sent + 1;
+               if ( epOb.mstOut.don = '1' ) then
+                  -- stop
+                  sent <= (others => '0');
+               end if;
+		       if ( tstIdx /= tstVec'high ) then
+			      tstIdx <= tstIdx + 1;
+               end if;
+            end if;
 		 end if;
       end if;
    end process P_DRV;
