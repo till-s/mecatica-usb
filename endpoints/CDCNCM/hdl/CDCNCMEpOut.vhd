@@ -14,6 +14,19 @@ use     ieee.numeric_std.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
 
+-- CDC-NCM Endpoint
+
+-- PACKET-SIZE NOTE: the OUT endpoint must be able handle the case when
+--                   the NTH does *not* contain a block length (block length == 0).
+--                   In this case the block is framed by the USB short-packet
+--                   mechanism. HOWEVER, (table 3-1, 3.2.1), if the block size
+--                   is and exact multiple of the maxPacketSize then *no* zero-
+--                   length packet shall be sent!
+--                   WE DO NOT HANDLE THIS CORNER CASE!! Thus, you must avoid
+--                   that this may happen by setting the max. block size
+--                   dwNtbOutMaxSize to a number that is not a multiple of
+--                   the max. packet size
+
 entity CDCNCMEpOut is
    generic (
       -- RAM parameters (ld_ram_depth are the width of the internal
@@ -162,7 +175,6 @@ begin
 
       rdAddr       <= rRd.rdPtr + rRd.rdOff;
       ramRen       <= '1';
-
       fifoEmptyOut <= '1';
 
       case ( rRd.state ) is

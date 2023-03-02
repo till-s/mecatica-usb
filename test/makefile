@@ -49,6 +49,7 @@ endif
 SRCS += OthSpeedCfgTb.vhd
 SRCS += Usb2EpCDCNCM.vhd
 SRCS += CDCNCMEpOut.vhd
+SRCS += CDCNCMEpInp.vhd
 SRCS += Usb2EpCDCNCMTb.vhd
 
 
@@ -127,7 +128,8 @@ I2SPlaybackTb_GHDLFLAGS=-fsynopsys
 I2SPlaybackTb.o: Usb2Core.o I2SPlayback.o
 
 CDCNCMEpOut.o: Usb2Bram.o
-Usb2EpCDCNCM.o: CDCNCMEpOut.o
+CDCNCMEpInp.o: Usb2Bram.o
+Usb2EpCDCNCM.o: CDCNCMEpOut.o CDCNCMEpInp.o
 Usb2EpCDCNCMTb.o: Usb2EpCDCNCM.o
 
 .PHONY: all build clean
