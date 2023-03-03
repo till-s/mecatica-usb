@@ -58,7 +58,7 @@ entity CDCNCMEpInp is
       ramRdPtrIb                 : in  unsigned(LD_RAM_DEPTH_G downto 0);
 
       -- NTB Parameters
-      maxNTBSize                 : in  unsigned(LD_RAM_DEPTH_G downto 0);
+      maxNTBSize                 : in  unsigned(LD_RAM_DEPTH_G downto 0) := to_unsigned( MAX_NTB_SIZE_G, LD_RAM_DEPTH_G + 1 );
       -- actual timeout is 1 'timeout + 1' EP clock cycles
       timeout                    : in  unsigned(EP_TIMER_WIDTH_G - 1 downto 0);
 
@@ -133,15 +133,16 @@ architecture Impl of CDCNCMEpInp is
    type RdRegType is record
       state          : RdStateType;
       rdPtr          : RamIdxType;
-      ndpIdx         : unsigned(15 downto 0);
+      nthAndPldLen   : unsigned(15 downto 0);
       seqNo          : unsigned(15 downto 0);
+      -- reserve 1 slot for terminating 0
       dgramPtrs      : U16Array( 0 to MAX_DGRAMS_G);
       dgramIdx       : integer range -1 to MAX_DGRAMS_G;
       lastPtr        : unsigned(15 downto 0);
-      cnt            : integer range -1 to NTH_SIZE_C - 1;
+      outReg         : unsigned(15 downto 0);
+      cnt            : integer range -1 to NDP_SIZE_C - 1;
       vld            : std_logic;
       idx            : unsigned(15 downto 0);
-      lst            : std_logic_vector(1 downto 0);
       hiByte         : boolean;
       sendLen        : boolean;
    end record RdRegType;
@@ -150,14 +151,14 @@ architecture Impl of CDCNCMEpInp is
       state          => IDLE,
       rdPtr          => (others => '0'),
       seqNo          => (others => '0'),
-      ndpIdx         => (others => '0'),
+      nthAndPldLen   => (others => '0'),
       dgramPtrs      => (others => (others => '0')),
       dgramIdx       => 0,
       lastPtr        => (others => '0'),
+      outReg         => (others => '0'),
       cnt            => 0,
       vld            => '0',
       idx            => (others => '0'),
-      lst            => (others => '0'),
       hiByte         => false,
       sendLen        => false
    );
@@ -198,8 +199,6 @@ architecture Impl of CDCNCMEpInp is
       v :=  mxSz;
       -- subtract NTH and NDP reserving extra bytes since we must dword align the NDP
       v := v - to_unsigned( NTH_SIZE_C + NDP_SIZE_C + NDP_ALGN_C - 1, v'length );
-      -- subtract 4 bytes per datagram
-      v := v - shift_left( to_unsigned( MAX_DGRAMS_G, v'length ), 2 );
       return v;
    end function maxPayload;
 
@@ -213,7 +212,8 @@ architecture Impl of CDCNCMEpInp is
    return unsigned is
       variable v : unsigned(15 downto 0);
    begin
-      v := x.ndpIdx  + NTH_SIZE_C + NDP_ALGN_C - 1;
+      -- d-word align
+      v := x.nthAndPldLen  + NDP_ALGN_C - 1;
       v(1 downto 0) := "00";
       return v;
    end function ndpIdx;
@@ -221,7 +221,7 @@ architecture Impl of CDCNCMEpInp is
    function blkSiz(constant x : RdRegType)
    return unsigned is
    begin
-      return x.ndpIdx + NDP_SIZE_C;
+      return ndpIdx( x ) + NDP_SIZE_C;
    end function blkSiz;
 
 begin
@@ -236,6 +236,7 @@ begin
 
    P_RD_COMB : process ( rRd, empty, rdData, usb2EpIb ) is
       variable v : RdRegType;
+      variable o : unsigned(15 downto 0);
    begin
       v                   := rRd;
 
@@ -248,6 +249,8 @@ begin
       usb2EpOb.mstInp.err <= '0';
       ramRen              <= '0';
 
+      o                   := (others => '0');
+
       case ( rRd.state ) is
          when IDLE =>
             ramRen <= '1';
@@ -255,25 +258,34 @@ begin
                v.rdPtr := rRd.rdPtr + 1;
                v.state := GETL1;
             end if;
-            v.dgramIdx := rRd.dgramPtrs'high;
-            v.idx      := (others => '0');
-            v.lst      := (others => '0');
+            v.dgramPtrs := (others => (others => '0'));
+            v.dgramIdx  := rRd.dgramPtrs'high;
+            -- pre-increment 'idx' by one; 
+            --  -> when 'lst' flag is detected idx points to the next datagram start
+            --  -> when we compare idx = sdpIdx we know 1 cycle in advance that the
+            --     end of the payload is reached (i.e., during the last payload cycle)
+            v.idx      := to_unsigned( 1, v.idx'length );
+            v.lastPtr  := to_unsigned( NTH_SIZE_C, v.lastPtr'length );
 
          when GETL1 =>
             ramRen  <= '1';
             -- get payload size (LSB)
-            v.ndpIdx( 7 downto 0) := unsigned( rdData( 7 downto 0 ) );
+            v.nthAndPldLen( 7 downto 0) := unsigned( rdData( 7 downto 0 ) );
             v.rdPtr := rRd.rdPtr + 1;
-            v.state := GETL1;
+            v.state := GETL2;
 
          when GETL2 =>
-            ramRen  <= '1';
+            -- stop reading
+            ramRen  <= '0';
             -- get payload size (MSB)
-            v.ndpIdx(15 downto 8) := unsigned( rdData( 7 downto 0 ) );
-            v.rdPtr := rRd.rdPtr    + 1;
-            v.cnt   := NTH_SIZE_C - 1;
+            v.nthAndPldLen(15 downto 8) := unsigned( rdData( 7 downto 0 ) );
+            v.nthAndPldLen              := v.nthAndPldLen + NTH_SIZE_C;
+            -- must append 2 bytes to the NTH to replace the block length
+            -- we already have popped off.
+            v.cnt   := NTH_SIZE_C - 1 + 2;
             v.vld   := '1';
             v.seqNo := rRd.seqNo  + 1;
+            v.state := NTH;
 
          when NTH =>
             if ( usb2EpIb.subInp.rdy = '1' ) then
@@ -283,48 +295,51 @@ begin
                   ramRen   <= '1';
                   v.rdPtr  := rRd.rdPtr + 1;
                   v.state  := PLD;
-                  -- align payload size to NDP index
-                  v.ndpIdx := ndpIdx( rRd );
                end if;
             end if;
             
             case ( rRd.cnt ) is
                -- signature
-               when 11     => usb2EpOb.mstInp.dat <= x"4E";
-               when 10     => usb2EpOb.mstInp.dat <= x"43";
-               when  9     => usb2EpOb.mstInp.dat <= x"4D";
-               when  8     => usb2EpOb.mstInp.dat <= x"48";
+               when 13     => usb2EpOb.mstInp.dat <= x"4E";
+               when 12     => usb2EpOb.mstInp.dat <= x"43";
+               when 11     => usb2EpOb.mstInp.dat <= x"4D";
+               when 10     => usb2EpOb.mstInp.dat <= x"48";
                -- header length
-               when  7     => usb2EpOb.mstInp.dat <= x"0C";
-               when  6     => usb2EpOb.mstInp.dat <= x"00";
+               when  9     => usb2EpOb.mstInp.dat <= x"0C";
+               when  8     => usb2EpOb.mstInp.dat <= x"00";
                -- sequence number
-               when  5     => usb2EpOb.mstInp.dat <= Usb2ByteType( rRd.seqNo(  7 downto 0 ) );
-               when  4     => usb2EpOb.mstInp.dat <= Usb2ByteType( rRd.seqNo( 15 downto 8 ) );
+               when  7     => usb2EpOb.mstInp.dat <= Usb2ByteType( rRd.seqNo(  7 downto 0 ) );
+               when  6     => usb2EpOb.mstInp.dat <= Usb2ByteType( rRd.seqNo( 15 downto 8 ) );
                -- block size
-               when  3     => usb2EpOb.mstInp.dat <= Usb2ByteType( blkSiz(rRd)(  7 downto 0 ) );
-               when  2     => usb2EpOb.mstInp.dat <= Usb2ByteType( blkSiz(rRd)( 15 downto 8 ) );
+               when  5     => usb2EpOb.mstInp.dat <= Usb2ByteType( blkSiz(rRd)(  7 downto 0 ) );
+               when  4     => usb2EpOb.mstInp.dat <= Usb2ByteType( blkSiz(rRd)( 15 downto 8 ) );
                -- NDP index 
-               when  1     => usb2EpOb.mstInp.dat <= Usb2ByteType( rRd.ndpIdx(  7 downto 0 ) );
-               when others => usb2EpOb.mstInp.dat <= Usb2ByteType( rRd.ndpIdx( 15 downto 8 ) );
-             
+               when  3     => usb2EpOb.mstInp.dat <= Usb2ByteType( ndpIdx(rRd)(  7 downto 0 ) );
+               when  2     => usb2EpOb.mstInp.dat <= Usb2ByteType( ndpIdx(rRd)( 15 downto 8 ) );
+               when others => -- dummy cycles to replace the 'length' and maintain the
+                              -- announced alignment
             end case;
 
          when PLD =>
             if ( usb2EpIb.subInp.rdy = '1' ) then
-               -- latch and delay the 'lst' flag
-               v.lst   := rRd.lst(rRd.lst'left - 1 downto 0) & rdData(8);
                ramRen  <= '1';
                v.rdPtr := rRd.rdPtr + 1;
                v.idx   := rRd.idx   + 1;
-               if ( rRd.ndpIdx = rRd.idx ) then
+               if ( rdData(8) = '1' ) then
+                  -- end of datagram; record datagram start position
+                  -- of the next one;
+                  v.dgramPtrs( rRd.dgramIdx ) := rRd.idx - rRd.lastPtr;
+                  v.lastPtr                   := rRd.idx;
+                  v.dgramIdx                  := rRd.dgramIdx - 1;
+               end if;
+               if ( rRd.nthAndPldLen = rRd.idx ) then
                   -- end of datagrams reached
                   ramRen     <= '0';
+                  v.rdPtr    := rRd.rdPtr;
                   v.state    := NDP_HDR;
-                  v.idx      := to_unsigned( NDH_SIZE_C, v.idx'length ) - 1;
-               elsif ( rRd.lst(0) = '1' ) then
-                  -- record datagram start position
-                  v.dgramPtrs( rRd.dgramIdx ) := rRd.idx;
-                  v.dgramIdx                  := rRd.dgramIdx - 1;
+                  v.cnt      := NDH_SIZE_C - 1;
+                  -- add alignment of the NDP
+                  v.cnt      := v.cnt + to_integer( unsigned( not rRd.nthAndPldLen(1 downto 0) ) + 1 );
                end if;
             end if;
 
@@ -334,7 +349,8 @@ begin
                if ( v.cnt < 0 ) then
                   v.state    := NDP_PTRS;
                   v.dgramIdx := rRd.dgramPtrs'high;
-                  v.lastPtr  := to_unsigned( NTH_SIZE_C, v.lastPtr'length ) + resize( HDR_SPACE_C, v.lastPtr'length );
+                  -- lastPtr record the head of the previous datagram (skipping the header space)
+                  v.lastPtr  := to_unsigned( NTH_SIZE_C, v.lastPtr'length );
                end if;
             end if;
             case ( rRd.cnt ) is
@@ -345,23 +361,36 @@ begin
                when  4     => usb2EpOb.mstInp.dat <= x"30";
                -- header length
                when  3     => usb2EpOb.mstInp.dat <= Usb2ByteType( to_unsigned( NDP_SIZE_C, Usb2ByteType'length ) );
-               when others => usb2EpOb.mstInp.dat <= x"00"; -- incudes next NDP pointer
+               when others => usb2EpOb.mstInp.dat <= x"00"; -- incudes next NDP pointer and alignment padding
             end case;
 
          when NDP_PTRS =>
+            if ( not rRd.sendLen ) then
+               -- if the current length readback is 0 then
+               -- we have a null entry; avoid adding headers etc.
+               o := rRd.dgramPtrs( rRd.dgramIdx );
+               if ( o /= 0 ) then
+                  o := rRd.lastPtr + HDR_SPACE_C;
+               end if;
+            else
+               o := rRd.outReg;
+            end if;
             if ( usb2EpIb.subInp.rdy = '1' ) then
                v.hiByte   := not rRd.hiByte;
                if ( rRd.hiByte ) then
                   v.sendLen := not rRd.sendLen;
                   if ( not rRd.sendLen ) then
-                     if ( rRd.dgramPtrs( rRd.dgramIdx ) /= 0 ) then
-                        -- save this index
-                        v.lastPtr                   := rRd.dgramPtrs( rRd.dgramIdx ) + resize( HDR_SPACE_C, v.lastPtr'length );
-                        v.dgramPtrs( rRd.dgramIdx ) := rRd.dgramPtrs( rRd.dgramIdx ) - rRd.lastPtr;
+                     -- save this index (only if valid, i.e., o /= 0)
+                     if ( o /= 0 ) then
+                        -- compute length of this datagram (w/o header space)
+                        v.outReg      := rRd.dgramPtrs( rRd.dgramIdx ) - HDR_SPACE_C;
+                        v.lastPtr     := o + v.outReg;
+                     else
+                        v.outReg      := (others => '0');
                      end if;
                   else
-                     v.dgramIdx                  := rRd.dgramIdx - 1;
-                     if ( v.dgramIdx < 0 ) then
+                     v.dgramIdx       := rRd.dgramIdx - 1;
+                     if ( rRd.dgramIdx = 0 ) then
                         v.state := IDLE;
                         v.vld   := '0';
                      end if;
@@ -369,9 +398,9 @@ begin
                end if;
             end if;
             if ( rRd.hiByte ) then
-               usb2EpOb.mstInp.dat <= Usb2ByteType( rRd.dgramPtrs( rRd.dgramIdx )(15 downto 8) );
+               usb2EpOb.mstInp.dat <= Usb2ByteType( o(15 downto 8) );
             else
-               usb2EpOb.mstInp.dat <= Usb2ByteType( rRd.dgramPtrs( rRd.dgramIdx )( 7 downto 0) );
+               usb2EpOb.mstInp.dat <= Usb2ByteType( o( 7 downto 0) );
             end if;
       end case;
 

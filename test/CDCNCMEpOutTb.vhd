@@ -16,10 +16,10 @@ use     std.textio.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
 
-entity Usb2EpCDCNCMTb is
-end entity Usb2EpCDCNCMTb;
+entity CDCNCMEpOutTb is
+end entity CDCNCMEpOutTb;
 
-architecture sim of Usb2EpCDCNCMTb is
+architecture sim of CDCNCMEpOutTb is
 
    constant LD_DEPTH_C      : natural   := 7;
    constant MAX_PKTSZ_OUT_C : natural   := 15;

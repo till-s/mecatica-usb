@@ -50,7 +50,8 @@ SRCS += OthSpeedCfgTb.vhd
 SRCS += Usb2EpCDCNCM.vhd
 SRCS += CDCNCMEpOut.vhd
 SRCS += CDCNCMEpInp.vhd
-SRCS += Usb2EpCDCNCMTb.vhd
+SRCS += CDCNCMEpInpTb.vhd
+SRCS += CDCNCMEpOutTb.vhd
 
 
 PROG+=UlpiIOTb
@@ -70,9 +71,12 @@ ifneq ($(VIVADO),)
 PROG+=I2SPlaybackTb
 endif
 PROG += OthSpeedCfgTb
-PROG += Usb2EpCDCNCMTb
+PROG += CDCNCMEpOutTb
+PROG += CDCNCMEpInpTb
 
-all: $(addsuffix @run,$(PROG))
+all: test
+
+test: $(addsuffix @run,$(PROG)) CDCNCMCheck
 	echo "All Tests PASSED"
 
 
@@ -130,9 +134,27 @@ I2SPlaybackTb.o: Usb2Core.o I2SPlayback.o
 CDCNCMEpOut.o: Usb2Bram.o
 CDCNCMEpInp.o: Usb2Bram.o
 Usb2EpCDCNCM.o: CDCNCMEpOut.o CDCNCMEpInp.o
-Usb2EpCDCNCMTb.o: Usb2EpCDCNCM.o
+CDCNCMEpOutTb.o: Usb2EpCDCNCM.o
+CDCNCMEpInpTb.o: CDCNCMEpInp.o
 
-.PHONY: all build clean
+CDCNCMEpOutTb: NCMOutTst.txt NCMOutCmp.txt
+CDCNCMEpInpTb: NCMInpTst.txt
+
+NCMInpTst.txt: NCMOutCmp.txt
+	cp $^ $@
+
+NCMOutTst.txt NCMOutCmp.txt:
+	./ncm.py -pNCM -o
+
+NCMInpCmp.txt: CDCNCMEpInpTb
+	./$^
+
+CDCNCMCheck: NCMInpCmp.txt
+	./ncm.py -i
+
+.PHONY: all build clean CDCNCMCheck
 
 clean:
 	$(RM) $(SRCS:%.vhd=%.o) work-*.cf ulpiiotb e~*.o $(PROG) dump.ghw
+	$(RM) NCMOutTst.txt NCMOutCmp.txt
+	$(RM) NCMInpTst.txt NCMInpCmp.txt

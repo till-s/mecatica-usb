@@ -8,14 +8,50 @@
 import sys
 import random
 import io
+import getopt
+
+# read a bitvec file
+def bv2l(nm):
+  rv = []
+  with io.open(nm) as f:
+    for l in f:
+      rv.append( int( l, 2 ) )
+  return rv
 
 class NTB16(object):
-  def __init__(self):
+  def __init__(self, l=None):
     self.lst_  = list()
     # Chain of NDPs
     self.tail_ = None
     self.lck_  = False
-    self.add( NTH16() )
+    if l is None:
+      self.add( NTH16() )
+    else:
+      nth = NTH16(l = l)
+      b   = nth.wNdpIndex
+      e   = nth.wBlockLength
+      self.add(nth)
+      while b != 0:
+        ndp = NDP16( l = l[b:e] )
+        self.add( ndp )
+        idx = 0
+        b   = ndp.wDatagramIndex(idx)
+        while ( b > 0 ):
+         self.add( Dgram( ndp=ndp, l = l[b: b + ndp.wDatagramSize(idx)] ) )
+         idx += 1
+         b = ndp.wDatagramIndex(idx)
+        b = ndp.wNextNdpIndex
+      self.lck_ = True
+
+  def getNTH(self):
+    return self.lst_[0]
+
+  def getDgrams(self):
+    rv = list()
+    for x in self.lst_:
+      if isinstance(x, Dgram):
+        rv.append(x)
+    return rv
 
   def add(self, o):
     if ( o in self.lst_ ):
@@ -72,7 +108,7 @@ class NTB16(object):
     for x in self.lst_:
       if isinstance(x, Dgram):
         x.bitVec( f = f, stripCRC = stripCRC )
-    
+
 class BitVec(list):
 
   def __init__(self, l):
@@ -173,19 +209,31 @@ class Dgram(BitVecHolder):
         print("{:09b}".format(x & m), file = f)
       print("{:09b}".format( self.bv_[-5] | 0x100 ), file = f )
 
+  def getContent(self):
+    return self.bv_
+
 class NTH16(BitVecHolder):
   seq = 1
-  def __init__(self):
-    l = list()
-    l.extend( [0x4E, 0x43, 0x4D, 0x48] )
-    l.extend( [ 0,0] ) # Header Length
-    l.extend( [ 0,0] ) # seq
-    l.extend( [ 0,0] ) # block length
-    l.extend( [ 0,0] ) # sdpOff
-    super().__init__( "NTH16", l )
-    self.wHeaderLength = 12
-    self.wSequence     = self.seq
-    self.seq          += 1
+  def __init__(self, l=None):
+    sig = [0x4E, 0x43, 0x4D, 0x48]
+    if l is None:
+      l = list()
+      l.extend( [0x4E, 0x43, 0x4D, 0x48] )
+      l.extend( [ 0,0] ) # Header Length
+      l.extend( [ 0,0] ) # seq
+      l.extend( [ 0,0] ) # block length
+      l.extend( [ 0,0] ) # sdpOff
+      super().__init__( "NTH16", l )
+      self.wHeaderLength = 12
+      self.wSequence     = self.seq
+      self.seq          += 1
+    else:
+      for i in range( len( sig ) ):
+        if l[i] != sig[i]:
+           raise RuntimeError("NTH16 Invalid signature")
+      super().__init__("NTH16", l)
+      if self.wHeaderLength != 12:
+         raise RuntimeError("NTH16: invalid header length")
 
   @property
   def wHeaderLength(self):
@@ -233,26 +281,37 @@ class NTH16(BitVecHolder):
   def linkNDP(self, x):
     self.wNdpIndex = x.getIdx()
 
-
 class NDP16(BitVecHolder):
 
   seq = 1
 
-  def __init__(self, hasCRC=False):
-    l = list()
-    l.extend( [0x4E, 0x43, 0x4D, 0x30] )
-    if (hasCRC):
-       l[3] |= 1
-    l.extend( [ 0,0] ) # Header Length
-    l.extend( [ 0,0] ) # Next NDP
-    l.extend( [ 0,0] ) # first PTR
-    l.extend( [ 0,0] ) # first LEN
-    l.extend( [ 0,0] ) # trailing zero index
-    l.extend( [ 0,0] ) # trailing zero length
-    super().__init__( "NDP16", l )
+  def __init__(self, hasCRC=False, l=None):
+    sig       = [0x4E, 0x43, 0x4D, 0x30]
     self.lck_ = False
     self.dgs_ = list()
-    self.setHeaderLength()
+    if l is None:
+      l = list()
+      l.extend( [0x4E, 0x43, 0x4D, 0x30] )
+      if (hasCRC):
+         l[3] |= 1
+      l.extend( [ 0,0] ) # Header Length
+      l.extend( [ 0,0] ) # Next NDP
+      l.extend( [ 0,0] ) # first PTR
+      l.extend( [ 0,0] ) # first LEN
+      l.extend( [ 0,0] ) # trailing zero index
+      l.extend( [ 0,0] ) # trailing zero length
+      super().__init__( "NDP16", l )
+      self.setHeaderLength()
+    else:
+      for i in range(3):
+        if ( sig[i] != l[i] ):
+          raise RuntimeError("NDP16: signature mismatch")
+      if   ( l[3] != 0x30 and  l[3] != 0x31 ):
+        raise RuntimeError("NDP16: signature mismatch")
+      hl = (l[5] << 8) + l[4]
+      if ( hl > 100 ):
+        raise RuntimeError("NDP16: unreasonable header length")
+      super().__init__( "NDP16", l[0:hl] )
 
   def lock(self):
     if ( self.lck_ ):
@@ -275,6 +334,12 @@ class NDP16(BitVecHolder):
   def wNextNdpIndex(self, v):
     self.bv_.set16LE(6, v)
 
+  def wDatagramIndex(self, n):
+    return self.bv_.get16LE( 8 + n*4 )
+
+  def wDatagramSize(self, n):
+    return self.bv_.get16LE( 8 + 2 + n*4 )
+
   def setHeaderLength(self):
     self.bv_.set16LE(4, self.getLen())
 
@@ -294,7 +359,10 @@ class NDP16(BitVecHolder):
       pos += 2
       self.bv_.set16LE( pos, dg.getLen() )
       pos += 2
-  
+
+  def getDatagrams(self):
+    return self.dgs_
+
   def dump(self):
     super().dump()
     print("  signature: {:c}{:c}{:c}{:c}".format( self.bv_[0], self.bv_[1], self.bv_[2], self.bv_[3] ))
@@ -313,55 +381,98 @@ class NDP16(BitVecHolder):
   def linkNDP(self, x):
     self.wNextNdpIndex = x.getIdx()
 
-n=NTB16()
-ndp=NDP16()
-ndpc=NDP16( hasCRC=True )
-dg0=Dgram(ndp, [1,2,4])
-dg1=Dgram(ndp, [8,6,7])
-dg2=Dgram(ndpc, [1])
-n.add(dg0)
-n.add(ndp)
-n.add(NDP16())
-n.add(ndpc)
-n.add(dg1)
-n.add(dg2)
-n.wrap(hasBlockLen = True)
-n.dump()
+def genVecs(pre):
 
-n1=NTB16()
-ndp=NDP16()
-n1.add( Dgram(ndp, random.randbytes(7)) )
-n1.add( Dgram(ndp, random.randbytes(16)) )
-n1.add(ndp)
-n1.wrap(hasBlockLen = False)
-n1.dump()
+  n=NTB16()
+  ndp=NDP16()
+  ndpc=NDP16( hasCRC=True )
+  dg0=Dgram(ndp, [1,2,4])
+  dg1=Dgram(ndp, [8,6,7])
+  dg2=Dgram(ndpc, [1])
+  n.add(dg0)
+  n.add(ndp)
+  n.add(NDP16())
+  n.add(ndpc)
+  n.add(dg1)
+  n.add(dg2)
+  n.wrap(hasBlockLen = True)
+  n.dump()
 
-n1a=NTB16()
-ndp=NDP16()
-n1a.add( Dgram(ndp, random.randbytes(7)) )
-n1a.add( Dgram(ndp, random.randbytes(16)) )
-n1a.add(ndp)
-n1a.wrap(hasBlockLen = True)
-n1a.dump()
+  n1=NTB16()
+  ndp=NDP16()
+  n1.add( Dgram(ndp, random.randbytes(7)) )
+  n1.add( Dgram(ndp, random.randbytes(16)) )
+  n1.add(ndp)
+  n1.wrap(hasBlockLen = False)
+  n1.dump()
+
+  n1a=NTB16()
+  ndp=NDP16()
+  n1a.add( Dgram(ndp, random.randbytes(7)) )
+  n1a.add( Dgram(ndp, random.randbytes(16)) )
+  n1a.add(ndp)
+  n1a.wrap(hasBlockLen = True)
+  n1a.dump()
 
 
-n2=NTB16()
-ndp=NDP16()
-n2.add(ndp)
-n2.add( Dgram(ndp, random.randbytes(31)) )
-ndp=NDP16(hasCRC=True)
-n2.add(ndp)
-n2.add( Dgram(ndp, random.randbytes(30)) )
-n2.wrap(hasBlockLen=True)
-n2.dump()
+  n2=NTB16()
+  ndp=NDP16()
+  n2.add(ndp)
+  n2.add( Dgram(ndp, random.randbytes(31)) )
+  ndp=NDP16(hasCRC=True)
+  n2.add(ndp)
+  n2.add( Dgram(ndp, random.randbytes(30)) )
+  n2.wrap(hasBlockLen=True)
+  n2.dump()
 
-with io.open("NCMOutTst.txt","w") as f:
-  n.bitVec(f = f)
-  n1.bitVec(f = f)
-  n1a.bitVec(f = f)
-  n2.bitVec(f = f)
-with io.open("NCMOutCmp.txt","w") as f:
-  n.bitVecDgram(f = f)
-  n1.bitVecDgram(f = f)
-  n1a.bitVecDgram(f = f)
-  n2.bitVecDgram(f = f)
+  with io.open(pre + "OutTst.txt","w") as f:
+    n.bitVec(f = f)
+    n1.bitVec(f = f)
+    n1a.bitVec(f = f)
+    n2.bitVec(f = f)
+  with io.open(pre + "OutCmp.txt","w") as f:
+    n.bitVecDgram(f = f)
+    n1.bitVecDgram(f = f)
+    n1a.bitVecDgram(f = f)
+    n2.bitVecDgram(f = f)
+
+def inpVerify(pre):
+  cmp  = bv2l( pre+"InpCmp.txt" )
+  b    = 0
+  ntbs = list()
+  dgs  = list()
+  while b < len(cmp):
+    ntb = NTB16( l = cmp[b:] )
+    ntbs.append(ntb)
+    for dg in ntb.getDgrams():
+      dgs.extend( dg.getContent() )
+    b  += ntb.getNTH().wBlockLength
+  tst = bv2l( pre+"InpTst.txt" )
+  if ( tst != dgs ):
+    for i in range(len(tst)):
+      if ( tst[i] != dgs[i] ):
+        mrk = "****<<<<<"
+      else:
+        mrk = ""
+      print("{:d}: {:02x}, {:02x} {}".format( i, tst[i], dgs[i], mrk ) )
+    raise RuntimeError("Verification mismatch")
+
+if __name__ == "__main__":
+
+  pre = "NCM"
+  gen = False
+  chk = False
+
+  ( opts, args ) = getopt.getopt(sys.argv[1:], "p:oi")
+  for opt in opts:
+    if   opt[0] in ("-p"):
+      pre = opt[1]
+    elif opt[0] in ("-o"):
+      gen = True
+    elif opt[0] in ("-i"):
+      chk = True
+
+  if ( gen ) :
+    genVecs( pre )
+  if ( chk ):
+    inpVerify( pre )
