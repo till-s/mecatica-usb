@@ -232,6 +232,8 @@ begin
    avail                  <= signed(RAM_SIZE_C - 1 - (rWr.wrPtr - ramRdPtrIb));
    full                   <= avail( avail'left );
 
+   -- read NTB from RAM and feed to usb2EpOb
+
    P_RD_COMB : process ( rRd, empty, rdData, usb2EpIb ) is
       variable v : RdRegType;
    begin
@@ -387,6 +389,51 @@ begin
          end if;
       end if;
    end process P_RD_SEQ; 
+
+   -- read stream from fifo interface and store in RAM prepending a 
+   -- 2-byte header to every datagram. This header is only required
+   -- for storing the entire payload length of the NTB. Since we
+   -- don't know how many datagrams will fit into one NTB we must
+   -- reserve the header space for every datagram even when it turns
+   -- out to be unused:
+   --
+   --
+   --
+   -- Here we see three datagrams (time starts at bottom) stored
+   -- into RAM. Each has a [...] header reserved. At time '**'
+   -- dat0, dat1 of the third dgram are already stored (dat2, dat3 not
+   -- yet). If we find at time '**' that the third datagram doesn't fit
+   -- and we dont' want to move ram contents around then we must
+   -- reserve at every packet boundary because every packet could
+   -- potentially be the first one of a new NTB
+   --
+   --      (dat3)
+   --      (dat2)
+   --       dat1   **   <= if, when 
+   --       dat0
+   --     [ .... ]  <--- will be the header of next NTB
+   --       dat1    <--------------- last byte of first NTB
+   --       dat0
+   --     [ .... ]
+   --       dat2
+   --       dat1
+   --       dat0
+   --     [ .... ] <------ first byte of first NTB
+   --
+   -- once it has been decided that dgrams 1 + 2 fit (but 3 does
+   -- not) the total length of 1 + 2 is stored in the header area
+   -- of the first NTB for the reader to pick up (it must compute
+   -- the index of the NDP and the total NTB length from this value)
+   -- The reader
+   --  1. fetches the payload length (dgrams 1 + 2) from the header
+   --  2. computes NDP index (align NTH + dgrams 1 + 2 to 4-byte
+   --     boundary) and NTB size ( = NDP index + NDP size)
+   --  3. reader streams NTH to endpoint
+   --  4. reader streams data (dgrams 1+2 including all the [dummy]
+   --     headers to the endpoint.
+   --  5. reader appends an aligned NDP; index pointers and dgram
+   --     lengths are computed by the reader using end-of-frame
+   --     markers (bit 8 in the fifo data) left by the writer.
 
    P_WR_COMB : process (
       rWr,
