@@ -32,7 +32,7 @@ SRCS+= Usb2FifoAsyncTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
 SRCS+= Usb2FifoEpFrmdTb.vhd
-SRCS+= CDCACMCtl.vhd
+SRCS+= Usb2EpCDCACMCtl.vhd
 SRCS+= UlpiLineState.vhd
 SRCS+= Usb2IsoTb.vhd
 SRCS+= UlpiIOBuf.vhd
@@ -48,10 +48,10 @@ SRCS += I2SPlaybackTb.vhd
 endif
 SRCS += OthSpeedCfgTb.vhd
 SRCS += Usb2EpCDCNCM.vhd
-SRCS += CDCNCMEpOut.vhd
-SRCS += CDCNCMEpInp.vhd
-SRCS += CDCNCMEpInpTb.vhd
-SRCS += CDCNCMEpOutTb.vhd
+SRCS += Usb2EpCDCNCMOut.vhd
+SRCS += Usb2EpCDCNCMInp.vhd
+SRCS += Usb2EpCDCNCMInpTb.vhd
+SRCS += Usb2EpCDCNCMOutTb.vhd
 
 
 PROG+=UlpiIOTb
@@ -71,12 +71,12 @@ ifneq ($(VIVADO),)
 PROG+=I2SPlaybackTb
 endif
 PROG += OthSpeedCfgTb
-PROG += CDCNCMEpOutTb
-PROG += CDCNCMEpInpTb
+PROG += Usb2EpCDCNCMOutTb
+PROG += Usb2EpCDCNCMInpTb
 
 all: test
 
-test: $(addsuffix @run,$(PROG)) CDCNCMCheck
+test: $(addsuffix @run,$(PROG)) Usb2EpCDCNCMCheck
 	echo "All Tests PASSED"
 
 
@@ -114,7 +114,7 @@ Usb2PktTx.o: UsbCrcTbl.o
 
 UlpiIOBufTb.o: UlpiIOBuf.o
 UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o
-Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o CDCACMCtl.o
+Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o Usb2EpCDCACMCtl.o
 Usb2FifoEpFrmdTb.o: Usb2Core.o Usb2FifoEp.o
 Usb2FifoTb.o: Usb2Fifo.o
 Usb2FifoFrmdTb.o: Usb2Fifo.o
@@ -131,14 +131,14 @@ I2SPlayback.o: Usb2CCSync.o
 I2SPlaybackTb_GHDLFLAGS=-fsynopsys
 I2SPlaybackTb.o: Usb2Core.o I2SPlayback.o
 
-CDCNCMEpOut.o: Usb2Bram.o
-CDCNCMEpInp.o: Usb2Bram.o
-Usb2EpCDCNCM.o: CDCNCMEpOut.o CDCNCMEpInp.o
-CDCNCMEpOutTb.o: Usb2EpCDCNCM.o
-CDCNCMEpInpTb.o: CDCNCMEpInp.o
+Usb2EpCDCNCMOut.o: Usb2Bram.o
+Usb2EpCDCNCMInp.o: Usb2Bram.o
+Usb2EpCDCNCM.o: Usb2EpCDCNCMOut.o Usb2EpCDCNCMInp.o
+Usb2EpCDCNCMOutTb.o: Usb2EpCDCNCM.o
+Usb2EpCDCNCMInpTb.o: Usb2EpCDCNCMInp.o
 
-CDCNCMEpOutTb: NCMOutTst.txt NCMOutCmp.txt
-CDCNCMEpInpTb: NCMInpTst.txt
+Usb2EpCDCNCMOutTb: NCMOutTst.txt NCMOutCmp.txt
+Usb2EpCDCNCMInpTb: NCMInpTst.txt
 
 NCMInpTst.txt: NCMOutCmp.txt
 	cp $^ $@
@@ -146,13 +146,13 @@ NCMInpTst.txt: NCMOutCmp.txt
 NCMOutTst.txt NCMOutCmp.txt:
 	./ncm.py -pNCM -o
 
-NCMInpCmp.txt: CDCNCMEpInpTb
+NCMInpCmp.txt: Usb2EpCDCNCMInpTb
 	./$^
 
-CDCNCMCheck: NCMInpCmp.txt
+Usb2EpCDCNCMCheck: NCMInpCmp.txt
 	./ncm.py -i
 
-.PHONY: all build clean CDCNCMCheck
+.PHONY: all build clean Usb2EpCDCNCMCheck
 
 clean:
 	$(RM) $(SRCS:%.vhd=%.o) work-*.cf ulpiiotb e~*.o $(PROG) dump.ghw

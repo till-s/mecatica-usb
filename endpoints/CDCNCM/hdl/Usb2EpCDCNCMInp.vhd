@@ -14,7 +14,7 @@ use     ieee.numeric_std.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
 
-entity CDCNCMEpInp is
+entity Usb2EpCDCNCMInp is
    generic (
       -- RAM parameters (ld_ram_depth are the width of the internal
       -- address pointers, i.e., ceil( log2( depth - 1 ) )
@@ -77,9 +77,9 @@ entity CDCNCMEpInp is
       -- actually available) < 0 means the fifo is full.
       fifoAvailInp               : out signed(LD_RAM_DEPTH_G downto 0)
    );
-end entity CDCNCMEpInp;
+end entity Usb2EpCDCNCMInp;
 
-architecture Impl of CDCNCMEpInp is
+architecture Impl of Usb2EpCDCNCMInp is
 
    subtype  RamIdxType   is unsigned( LD_RAM_DEPTH_G downto 0);
 

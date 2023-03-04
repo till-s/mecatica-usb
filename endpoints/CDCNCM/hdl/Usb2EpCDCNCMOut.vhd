@@ -27,7 +27,7 @@ use     work.Usb2Pkg.all;
 --                   dwNtbOutMaxSize to a number that is not a multiple of
 --                   the max. packet size
 
-entity CDCNCMEpOut is
+entity Usb2EpCDCNCMOut is
    generic (
       -- RAM parameters (ld_ram_depth are the width of the internal
       -- address pointers, i.e., ceil( log2( depth - 1 ) )
@@ -76,9 +76,9 @@ entity CDCNCMEpOut is
       fifoRenaOut                : in  std_logic;
       fifoEmptyOut               : out std_logic
    );
-end entity CDCNCMEpOut;
+end entity Usb2EpCDCNCMOut;
 
-architecture Impl of CDCNCMEpOut is
+architecture Impl of Usb2EpCDCNCMOut is
 
    subtype  RamIdxType   is unsigned( LD_RAM_DEPTH_G downto 0);
 

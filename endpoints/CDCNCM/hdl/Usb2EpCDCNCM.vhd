@@ -127,7 +127,7 @@ architecture Impl of Usb2EpCDCNCM is
 
 begin
 
-   U_EP_OUT : entity work.CDCNCMEpOut
+   U_EP_OUT : entity work.Usb2EpCDCNCMOut
       generic map (
          LD_RAM_DEPTH_G => LD_RAM_DEPTH_OUT_G
       )
