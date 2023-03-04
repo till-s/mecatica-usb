@@ -12,7 +12,7 @@ use     work.Usb2Pkg.all;
 -- Example for how to extend EP0 functionality.
 -- This module implements 'send-break' for CDC-ACM.
 
-entity CDCACMCtl is
+entity Usb2EpCDCACMCtl is
    generic (
       CTL_IFC_NUM_G   : natural;
       ASYNC_G         : boolean := false;
@@ -46,9 +46,9 @@ entity CDCACMCtl is
       DTR             : out std_logic := '0';
       RTS             : out std_logic := '0'
    );
-end entity CDCACMCtl;
+end entity Usb2EpCDCACMCtl;
 
-architecture Impl of CDCACMCtl is
+architecture Impl of Usb2EpCDCACMCtl is
 
    type StateType is (IDLE, SEND, RECV, DONE);
 

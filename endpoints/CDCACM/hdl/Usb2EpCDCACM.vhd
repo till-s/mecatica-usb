@@ -135,7 +135,7 @@ begin
 
    G_LINE_BREAK : if ( ENBL_LINE_BREAK_G or ENBL_LINE_STATE_G ) generate
    begin
-      U_BRK : entity work.CDCACMCtl
+      U_BRK : entity work.Usb2EpCDCACMCtl
          generic map (
             CTL_IFC_NUM_G               => CTL_IFC_NUM_G,
             ASYNC_G                     => ASYNC_G,
@@ -163,7 +163,7 @@ begin
    end generate G_LINE_BREAK;
 
    G_NOTIFY : if ( ENBL_LINE_STATE_G ) generate
-      U_NOTIFY : entity work.CDCACMNotify
+      U_NOTIFY : entity work.Usb2EpCDCACMNotify
          generic map (
             CTL_IFC_NUM_G               => CTL_IFC_NUM_G,
             ASYNC_G                     => ASYNC_G

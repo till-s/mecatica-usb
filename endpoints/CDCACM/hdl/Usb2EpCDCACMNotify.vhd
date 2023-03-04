@@ -14,7 +14,7 @@ use     ieee.numeric_std.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
 
-entity CDCACMNotify is
+entity Usb2EpCDCACMNotify is
    generic (
       CTL_IFC_NUM_G              : natural;
       ASYNC_G                    : boolean   := false;
@@ -50,9 +50,9 @@ entity CDCACMNotify is
 
    attribute MARK_DEBUG of usb2NotifyEpOb : signal is toStr( MARK_DEBUG_G );
 
-end entity CDCACMNotify;
+end entity Usb2EpCDCACMNotify;
 
-architecture Impl of CDCACMNotify is
+architecture Impl of Usb2EpCDCACMNotify is
 
    constant MAX_MSG_SIZE_C : natural                      := 8 + 2;
    constant MEND_MSG_C     : natural                      := MAX_MSG_SIZE_C - 1;
