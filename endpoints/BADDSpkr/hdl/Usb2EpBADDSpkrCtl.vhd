@@ -13,7 +13,7 @@ use     work.Usb2Pkg.all;
 -- This module implements the class-specific control endpoint requests for
 -- the UAC3 BADD speaker profile.
 
-entity BADDSpkrCtl is
+entity Usb2EpBADDSpkrCtl is
    generic (
       VOL_RNG_MIN_G   : integer range -32767 to 32767 := -32767; -- -128 + 1/156 db
       VOL_RNG_MAX_G   : integer range -32767 to 32767 := +32767; -- +128 - 1/156 db
@@ -36,9 +36,9 @@ entity BADDSpkrCtl is
       muteRight       : out std_logic;
       powerState      : out unsigned(1 downto 0)
    );
-end entity BADDSpkrCtl;
+end entity Usb2EpBADDSpkrCtl;
 
-architecture Impl of BADDSpkrCtl is
+architecture Impl of Usb2EpBADDSpkrCtl is
 
    type StateType is (IDLE, SEND_DAT, GET_PARAM, DONE);
 

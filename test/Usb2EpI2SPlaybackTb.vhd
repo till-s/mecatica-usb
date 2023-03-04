@@ -9,10 +9,10 @@ use     ieee.numeric_std.all;
 
 use     work.Usb2Pkg.all;
 
-entity I2SPlaybackTb is
-end entity I2SPlaybackTb;
+entity Usb2EpI2SPlaybackTb is
+end entity Usb2EpI2SPlaybackTb;
 
-architecture sim of I2SPlaybackTb is
+architecture sim of Usb2EpI2SPlaybackTb is
 
    constant SAMPLE_SIZE_C : natural   := 3;
    constant HI_SPEED_C    : boolean   := true;
@@ -256,7 +256,7 @@ begin
       end if;
    end process;
 
-   U_DUT : entity work.I2SPlayback
+   U_DUT : entity work.Usb2EpI2SPlayback
       generic map (
          SAMPLE_SIZE_G   => SAMPLE_SIZE_C,
          BITCLK_MULT_G   => BITCLK_MULT_C

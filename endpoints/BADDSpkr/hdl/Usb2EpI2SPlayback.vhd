@@ -18,7 +18,7 @@ use     ieee.math_real.all;
 use     work.Usb2Pkg.all;
 use     work.Usb2UtilPkg.all;
 
-entity I2SPlayback is
+entity Usb2EpI2SPlayback is
    generic (
       -- audio sample size in byte (per channel)
       SAMPLE_SIZE_G       : natural range 1 to 4 := 2;
@@ -54,9 +54,9 @@ entity I2SPlayback is
    attribute MARK_DEBUG of usb2EpOb : signal is MARK_DEBUG_C; 
    attribute MARK_DEBUG of usb2EpIb : signal is MARK_DEBUG_C; 
 
-end entity I2SPlayback;
+end entity Usb2EpI2SPlayback;
 
-architecture Impl of I2SPlayback is
+architecture Impl of Usb2EpI2SPlayback is
 
    constant BYTESpSMP_C            : natural := SAMPLE_SIZE_G * NUM_CHANNELS_G;
 

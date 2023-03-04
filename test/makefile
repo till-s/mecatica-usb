@@ -37,14 +37,14 @@ SRCS+= UlpiLineState.vhd
 SRCS+= Usb2IsoTb.vhd
 SRCS+= UlpiIOBuf.vhd
 SRCS+= UlpiIOBufTb.vhd
-SRCS+= BADDSpkrCtl.vhd
-SRCS+= BADDSpkrCtlTb.vhd
+SRCS+= Usb2EpBADDSpkrCtl.vhd
+SRCS+= Usb2EpBADDSpkrCtlTb.vhd
 SRCS+= Usb2CCSync.vhd
 SRCS+= Usb2MboxSync.vhd
 ifneq ($(VIVADO),)
 # this one needs unisim
-SRCS += I2SPlayback.vhd
-SRCS += I2SPlaybackTb.vhd
+SRCS += Usb2EpI2SPlayback.vhd
+SRCS += Usb2EpI2SPlaybackTb.vhd
 endif
 SRCS += OthSpeedCfgTb.vhd
 SRCS += Usb2EpCDCNCM.vhd
@@ -65,10 +65,10 @@ PROG+=Usb2FifoEpFrmdTb
 PROG+=Usb2HskTb
 PROG+=UlpiIOBufTb
 PROG+=Usb2IsoTb
-PROG+=BADDSpkrCtlTb
+PROG+=Usb2EpBADDSpkrCtlTb
 PROG+=Usb2FifoAsyncTb
 ifneq ($(VIVADO),)
-PROG+=I2SPlaybackTb
+PROG+=Usb2EpI2SPlaybackTb
 endif
 PROG += OthSpeedCfgTb
 PROG += Usb2EpCDCNCMOutTb
@@ -126,10 +126,10 @@ Usb2PktTxTb.o: Usb2PktTx.o UlpiIO.o
 UsbCrcTblTb.o: UsbCrcTbl.o
 OthSpeedCfgTb.o: Usb2Core.o
 
-BADDSpkrCtlTb.o: Usb2Core.o BADDSpkrCtl.o
-I2SPlayback.o: Usb2CCSync.o
-I2SPlaybackTb_GHDLFLAGS=-fsynopsys
-I2SPlaybackTb.o: Usb2Core.o I2SPlayback.o
+Usb2EpBADDSpkrCtlTb.o: Usb2Core.o Usb2EpBADDSpkrCtl.o
+Usb2EpI2SPlayback.o: Usb2CCSync.o
+Usb2EpI2SPlaybackTb_GHDLFLAGS=-fsynopsys
+Usb2EpI2SPlaybackTb.o: Usb2Core.o Usb2EpI2SPlayback.o
 
 Usb2EpCDCNCMOut.o: Usb2Bram.o
 Usb2EpCDCNCMInp.o: Usb2Bram.o
