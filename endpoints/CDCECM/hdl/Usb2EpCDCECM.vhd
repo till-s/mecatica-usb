@@ -110,83 +110,22 @@ entity Usb2EpCDCECM is
       carrier                    : in  std_logic := CARRIER_DFLT_G
    );
 
-   attribute MARK_DEBUG of usb2NotifyEpOb : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of packetFilter   : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG of carrier        : signal is toStr( MARK_DEBUG_G );
 
 end entity Usb2EpCDCECM;
 
 architecture Impl of Usb2EpCDCECM is
 
-   constant MAX_MSG_SIZE_C : natural := 8 + 8;
-
-   constant MEND_CONN_C    : natural := 7;
-   constant MEND_SPEED_C   : natural := 15;
-   constant MSZ_SPEED_C    : Usb2ByteType := Usb2ByteType( to_unsigned( 8, Usb2ByteType'length ) );
-
-   constant REQ_TYP_C      : Usb2ByteType := USB2_MAKE_REQ_TYP_F(
-                                                true,
-                                                USB2_REQ_TYP_TYPE_CLASS_C,
-                                                USB2_REQ_TYP_RECIPIENT_IFC_C
-                                             );
-
    constant IFC_NUM_C      : Usb2ByteType := Usb2ByteType( toUsb2InterfaceNumType( CTL_IFC_NUM_G ) );
-
-   function xtract(constant x : unsigned; constant i : in natural) return Usb2ByteType is
-   begin
-      return Usb2ByteType( x(8*i+7 downto 8*i) );
-   end function xtract;
-
-   type StateType is ( INIT, IDLE, SEND, DONE );
-
-   type RegType is record
-      state        : StateType;
-      carrier      : std_logic;
-      speedInp     : unsigned(31 downto 0);
-      speedOut     : unsigned(31 downto 0);
-      msgCarrier   : boolean;
-      idx          : natural range 0 to MAX_MSG_SIZE_C - 1;
-   end record RegType;
-
-   constant REG_INIT_C    : RegType := (
-      state        => INIT,
-      carrier      => CARRIER_DFLT_G,
-      speedInp     => to_unsigned(100000000, 32),
-      speedOut     => to_unsigned(100000000, 32),
-      msgCarrier   => true,
-      idx          => 0
-   );
-
-   signal r               : RegType   := REG_INIT_C;
-   signal rin             : RegType;
 
    signal cen             : std_logic := '0';
    signal usb2EpResetting : std_logic;
 
-   signal carrierLoc      : std_logic;
    signal epRstLoc        : std_logic;
-
-   attribute MARK_DEBUG   of r : signal is toStr( MARK_DEBUG_G );
 
 begin
 
    epRstOut <= epRstLoc;
-
-   G_ASYNC : if ( ASYNC_G ) generate
-      U_SYNC : entity work.Usb2CCSync
-         generic map (
-            INIT_G => CARRIER_DFLT_G
-         )
-         port map (
-            clk    => usb2Clk,
-            d      => carrier,
-            q      => carrierLoc
-         );
-   end generate G_ASYNC;
-
-   G_SYNC : if ( not ASYNC_G ) generate
-      carrierLoc <= carrier;
-   end generate G_SYNC;
 
    P_COMB_CTL  : process ( usb2Ep0ReqParam, usb2EpResetting ) is
    begin
@@ -219,141 +158,65 @@ begin
       end if;
    end process P_SEQ_CTL;
 
-   P_COMB_NOTE : process (r, carrierLoc, speedInp, speedOut, usb2NotifyEpIb ) is
-      variable v : RegType;
-   begin
+   U_NOTIFY : entity work.Usb2EpCDCEtherNotify
+      generic map (
+         CTL_IFC_NUM_G               => CTL_IFC_NUM_G,
+         ASYNC_G                     => ASYNC_G,
+         CARRIER_DFLT_G              => CARRIER_DFLT_G,
+         SEND_CARRIER_FIRST_G        => true,
+         MARK_DEBUG_G                => MARK_DEBUG_G
+      )
+      port map (
+         usb2Clk                     => usb2Clk,
+         usb2Rst                     => usb2EpResetting,
 
-      v               := r;
-      usb2NotifyEpOb  <= USB2_ENDP_PAIR_IB_INIT_C;
+         usb2NotifyEpIb              => usb2NotifyEpIb,
+         usb2NotifyEpOb              => usb2NotifyEpOb,
 
-      case ( r.state ) is
-         when INIT =>
-            v.state       := SEND; -- after reset always notify
-            v.carrier     := carrierLoc;
-            v.speedInp    := speedInp;
-            v.speedOut    := speedOut;
-            v.msgCarrier  := true;
+         speedInp                    => speedInp,
+         speedOut                    => speedOut,
 
-         when IDLE =>
-            if ( carrierLoc /= r.carrier ) then
-               v.carrier    := carrierLoc;
-               v.msgCarrier := true;
-               v.state      := SEND;
-            elsif ( ( speedInp /= r.speedInp ) or ( speedOut /= r.speedOut ) ) then
-               v.speedInp   := speedInp;
-               v.speedOut   := speedOut;
-               v.msgCarrier := false;
-               v.state      := SEND;
-            end if;
+         epClk                       => epClk,
+         epRst                       => epRstLoc,
 
-         when SEND =>
-            usb2NotifyEpOb.mstInp.don <= '0';
-            usb2NotifyEpOb.mstInp.vld <= '1';
-            usb2NotifyEpOb.mstInp.dat <= (others => '0');
+         carrier                     => carrier
+      );
 
-            if ( usb2NotifyEpIb.subinp.rdy = '1' ) then
-               if ( (r.msgCarrier and (r.idx = MEND_CONN_C) ) or (r.idx = MEND_SPEED_C) ) then
-                  v.state := DONE;
-               else
-                  v.idx := r.idx + 1;
-               end if;
-            end if;
+   U_FIFO   : entity work.Usb2FifoEp
+      generic map (
+         LD_FIFO_DEPTH_INP_G         => LD_FIFO_DEPTH_INP_G,
+         LD_FIFO_DEPTH_OUT_G         => LD_FIFO_DEPTH_OUT_G,
+         TIMER_WIDTH_G               => FIFO_TIMER_WIDTH_G,
+         OUT_REG_OUT_G               => FIFO_OUT_REG_OUT_G,
+         ASYNC_G                     => ASYNC_G,
+         LD_MAX_FRAMES_INP_G         => LD_FIFO_DEPTH_INP_G,
+         LD_MAX_FRAMES_OUT_G         => LD_FIFO_DEPTH_OUT_G
+      )
+      port map (
+         usb2Clk                     => usb2Clk,
+         usb2Rst                     => usb2Rst,
+         usb2RstOut                  => usb2EpResetting,
 
-            case ( r.idx ) is
-               when  0 => usb2NotifyEpOb.mstInp.dat <= REQ_TYP_C;
-               when  1 => if ( r.msgCarrier ) then
-                            usb2NotifyEpOb.mstInp.dat <= Usb2ByteType( USB2_NOT_CLS_CDC_NETWORK_CONNECTION_C );
-                         else
-                            usb2NotifyEpOb.mstInp.dat <= Usb2ByteType( USB2_NOT_CLS_CDC_SPEED_CHANGE_C );
-                         end if;
-               when  2 => if ( r.msgCarrier ) then
-                            usb2NotifyEpOb.mstInp.dat(0) <= r.carrier;
-                         else
-                            -- covered by default
-                         end if;
-               -- when 3 => covered by others
-               when  4 => usb2NotifyEpOb.mstInp.dat <= IFC_NUM_C;
-               -- when 5 => covered by others
-               when  6 => if ( not r.msgCarrier ) then
-                            usb2NotifyEpOb.mstInp.dat <= MSZ_SPEED_C;
-                         else
-                            -- covered by default
-                         end if;
-               -- when 7 => covered by others
-               when  8 => usb2NotifyEpOb.mstInp.dat <= xtract( r.speedInp, 0 );
-               when  9 => usb2NotifyEpOb.mstInp.dat <= xtract( r.speedInp, 1 );
-               when 10 => usb2NotifyEpOb.mstInp.dat <= xtract( r.speedInp, 2 );
-               when 11 => usb2NotifyEpOb.mstInp.dat <= xtract( r.speedInp, 3 );
-               when 12 => usb2NotifyEpOb.mstInp.dat <= xtract( r.speedOut, 0 );
-               when 13 => usb2NotifyEpOb.mstInp.dat <= xtract( r.speedOut, 1 );
-               when 14 => usb2NotifyEpOb.mstInp.dat <= xtract( r.speedOut, 2 );
-               when 15 => usb2NotifyEpOb.mstInp.dat <= xtract( r.speedOut, 3 );
-               when others =>  null;
-            end case;
+         usb2EpIb                    => usb2DataEpIb,
+         usb2EpOb                    => usb2DataEpOb,
 
-         when DONE =>
-            v.idx := 0;
-            usb2NotifyEpOb.mstInp.don <= '1';
-            usb2NotifyEpOb.mstInp.vld <= '0';
-            if ( usb2NotifyEpIb.subinp.rdy = '1' ) then
-               if ( r.msgCarrier ) then
-                  -- must send SPEED CHANGE (6.3.3) after ever connection state change
-                  v.msgCarrier := false;
-                  v.state      := SEND;
-               else
-                  v.state      := IDLE;
-               end if;
-            end if;
-      end case;
-      rin <= v;
-   end process P_COMB_NOTE;
+         minFillInp                  => fifoMinFillInp,
+         timeFillInp                 => fifoTimeFillInp,
+         
+         epClk                       => epClk,
+         epRstOut                    => epRstLoc,
 
-   P_SEQ_NOTE : process ( usb2Clk ) is
-   begin
-      if ( rising_edge( usb2Clk ) ) then
-         if ( ( usb2EpResetting or not epInpRunning( usb2NotifyEpIb ) ) = '1' ) then
-            r <= REG_INIT_C;
-         else
-            r <= rin;
-         end if;
-      end if;
-   end process P_SEQ_NOTE;
+         datInp                      => fifoDataInp,
+         donInp                      => fifoDonInp,
+         wenInp                      => fifoWenaInp,
+         filledInp                   => fifoFilledInp,
+         fullInp                     => fifoFullInp,
 
-   U_FIFO : entity work.Usb2FifoEp
-         generic map (
-            LD_FIFO_DEPTH_INP_G         => LD_FIFO_DEPTH_INP_G,
-            LD_FIFO_DEPTH_OUT_G         => LD_FIFO_DEPTH_OUT_G,
-            TIMER_WIDTH_G               => FIFO_TIMER_WIDTH_G,
-            OUT_REG_OUT_G               => FIFO_OUT_REG_OUT_G,
-            ASYNC_G                     => ASYNC_G,
-            LD_MAX_FRAMES_INP_G         => LD_FIFO_DEPTH_INP_G,
-            LD_MAX_FRAMES_OUT_G         => LD_FIFO_DEPTH_OUT_G
-         )
-         port map (
-            usb2Clk                     => usb2Clk,
-            usb2Rst                     => usb2Rst,
-            usb2RstOut                  => usb2EpResetting,
-
-            usb2EpIb                    => usb2DataEpIb,
-            usb2EpOb                    => usb2DataEpOb,
-
-            minFillInp                  => fifoMinFillInp,
-            timeFillInp                 => fifoTimeFillInp,
-            
-            epClk                       => epClk,
-            epRstOut                    => epRstLoc,
-
-            datInp                      => fifoDataInp,
-            donInp                      => fifoDonInp,
-            wenInp                      => fifoWenaInp,
-            filledInp                   => fifoFilledInp,
-            fullInp                     => fifoFullInp,
-
-            datOut                      => fifoDataOut,
-            donOut                      => fifoDonOut,
-            renOut                      => fifoRenaOut,
-            filledOut                   => fifoFilledOut,
-            framesOut                   => fifoFramesOut,
-            emptyOut                    => fifoEmptyOut
-         );
+         datOut                      => fifoDataOut,
+         donOut                      => fifoDonOut,
+         renOut                      => fifoRenaOut,
+         filledOut                   => fifoFilledOut,
+         framesOut                   => fifoFramesOut,
+         emptyOut                    => fifoEmptyOut
+      );
 end architecture Impl;
