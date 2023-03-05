@@ -7,7 +7,10 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
+use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
+use     work.Usb2EpGenericCtlPkg.all;
+
 
 -- Example for how to extend EP0 functionality.
 -- This module implements 'send-break' for CDC-ACM.
@@ -50,156 +53,122 @@ end entity Usb2EpCDCACMCtl;
 
 architecture Impl of Usb2EpCDCACMCtl is
 
-   type StateType is (IDLE, SEND, RECV, DONE);
+   constant LCODING_SZ_C                      : natural := 7;
 
-   constant LCODING_SZ_C  : natural := 7;
+   constant CTL_IFC_NUM_C                     : Usb2InterfaceNumType := toUsb2InterfaceNumType( CTL_IFC_NUM_G );
 
-   constant CTL_IFC_NUM_C : Usb2InterfaceNumType := toUsb2InterfaceNumType( CTL_IFC_NUM_G );
+   constant REQS_BREAK_C                      : Usb2EpGenericReqDefArray := (
+      0 => (
+      dev2Host  => '0',
+      request   => USB2_REQ_CLS_CDC_SEND_BREAK_C,
+      dataSize  => 0
+      )
+   );
+
+   constant REQS_LINE_C                       : Usb2EpGenericReqDefArray := (
+      (
+      dev2Host  => '0',
+      request   => USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE_C,
+      dataSize  => 0
+      ),
+      (
+      dev2Host  => '0',
+      request   => USB2_REQ_CLS_CDC_SET_LINE_CODING_C,
+      dataSize  => LCODING_SZ_C
+      ),
+      (
+      dev2Host  => '1',
+      request   => USB2_REQ_CLS_CDC_GET_LINE_CODING_C,
+      dataSize  => LCODING_SZ_C
+      )
+   );
+
+   constant HANDLE_REQUESTS_C : Usb2EpGenericReqDefArray := concat( ite( SUPPORT_BREAK_G, REQS_BREAK_C ), ite( SUPPORT_LINE_G, REQS_LINE_C ) );
 
    type RegType is record
-      state     : stateType;
       timer     : unsigned(16 downto 0);
-      ctlExt    : Usb2CtlExtType;
       indef     : boolean;
       DTR       : std_logic;
       RTS       : std_logic;
       buf       : Usb2ByteArray(0 to LCODING_SZ_C - 1);
-      idx       : unsigned(3 downto 0);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
-      state    => IDLE,
       timer    => (others => '0'),
-      ctlExt   => USB2_CTL_EXT_INIT_C,
       indef    => false,
       DTR      => '0',
       RTS      => '0',
-      buf      => (others => (others => '0')),
-      idx      => (others => '1')
+      buf      => (others => (others => '0'))
    );
 
-   signal r    : RegType := REG_INIT_C;
-   signal rin  : RegType;
+   signal r          : RegType := REG_INIT_C;
+   signal rin        : RegType;
 
-   signal ob   : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
-
-   signal din  : std_logic_vector(2 downto 0) := (others => '0');
-   signal dou  : std_logic_vector(din'range);
-
-   function accept(constant x: Usb2CtlReqParamType)
-   return boolean is
-   begin
-      if ( x.reqType /= USB2_REQ_TYP_TYPE_CLASS_C or not usb2CtlReqDstInterface( x, CTL_IFC_NUM_G ) ) then
-         return false;
-      end if;
-      return true;
-   end function accept;
+   signal ctlReqVld  : std_logic_vector( HANDLE_REQUESTS_C'range );
+   signal ctlReqAck  : std_logic := '0';
+   signal ctlReqErr  : std_logic := '1';
+   signal parmsOb    : Usb2ByteArray( 0 to LCODING_SZ_C - 1 );
 
 begin
 
-   P_COMB : process ( r, usb2Ep0ReqParam, usb2Ep0IbExt, usb2SOF ) is
+   -- assume at least one of SUPPORT_BREAK_G or SUPPORT_LINE_G is enabled
+   U_CTL : entity work.Usb2EpGenericCtl
+      generic map (
+         CTL_IFC_NUM_G           => CTL_IFC_NUM_G,
+         HANDLE_REQUESTS_G       => HANDLE_REQUESTS_C
+      )
+      port map (
+         usb2Clk                 => usb2Clk,
+         usb2Rst                 => usb2Rst,
+
+         usb2CtlReqParam         => usb2Ep0ReqParam,
+         usb2CtlExt              => usb2Ep0CtlExt,
+
+         usb2EpIb                => usb2Ep0IbExt,
+         usb2EpOb                => usb2Ep0ObExt,
+
+         ctlReqVld               => ctlReqVld,
+         ctlReqAck               => ctlReqAck,
+         ctlReqErr               => ctlReqErr,
+
+         paramIb                 => r.buf,
+         paramOb                 => parmsOb
+      );
+
+   P_COMB : process ( r, usb2Ep0ReqParam, ctlReqVld, parmsOb, usb2SOF ) is
       variable v : RegType;
    begin
       v := r;
 
-      -- reset flags
-      v.ctlExt.ack     := '0';
-      v.ctlExt.err     := '0';
-      v.ctlExt.don     := '0';
-      ob               <= USB2_ENDP_PAIR_IB_INIT_C;
-      if ( r.idx(r.idx'left) = '1' ) then
-         ob.mstInp.dat    <= (others => 'X');
-      else
-         ob.mstInp.dat    <= r.buf( to_integer( r.idx(2 downto 0) ) );
-      end if;
+      ctlReqAck <= '1';
+      ctlReqErr <= '1';
 
       if ( usb2SOF and ( r.timer(r.timer'left) = '1' ) and not r.indef ) then
          v.timer := r.timer - 1;
       end if;
 
-      case ( r.state ) is
-         when IDLE =>
-            if ( usb2Ep0ReqParam.vld = '1' ) then
-               v.ctlExt.ack := '1';
-               v.ctlExt.err := '1';
-               v.ctlExt.don := '1';
-               v.state      := DONE;
-               if ( accept(usb2Ep0ReqParam) ) then
-                  case ( usb2Ep0ReqParam.request ) is
-                     when USB2_REQ_CLS_CDC_SEND_BREAK_C =>
-                        if ( SUPPORT_BREAK_G and not usb2Ep0ReqParam.dev2Host ) then
-                           v.ctlExt.err         := '0';
-                           v.timer(15 downto 0) := unsigned(usb2Ep0ReqParam.value);
-                           v.timer(16)          := '1';
-                           if    ( usb2Ep0ReqParam.value = x"0000" ) then
-                              v.indef     := false;
-                              v.timer(16) := '0';
-                           elsif ( usb2Ep0ReqParam.value = x"ffff" ) then
-                              v.indef     := true;
-                           end if;
-                        end if;
-                     when USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE_C =>
-                        if ( SUPPORT_LINE_G and not usb2Ep0ReqParam.dev2Host ) then
-                           v.ctlExt.err         := '0';
-                           v.DTR                := usb2Ep0ReqParam.value(0);
-                           v.RTS                := usb2Ep0ReqParam.value(1);
-                        end if;
-                     when USB2_REQ_CLS_CDC_SET_LINE_CODING_C =>
-                        if ( SUPPORT_LINE_G and not usb2Ep0ReqParam.dev2Host ) then
-                           v.ctlExt.err := '0';
-                           v.ctlExt.don := '0';
-                           v.idx        := to_unsigned( LCODING_SZ_C - 1, v.idx'length );
-                           v.state      := RECV;
-                        end if;
-                     when USB2_REQ_CLS_CDC_GET_LINE_CODING_C =>
-                        if ( SUPPORT_LINE_G and     usb2Ep0ReqParam.dev2Host ) then
-                           v.ctlExt.err := '0';
-                           v.ctlExt.don := '0';
-                           v.idx        := to_unsigned( LCODING_SZ_C - 1, v.idx'length );
-                           v.state      := SEND;
-                        end if;
-                     when others =>
-                  end case;
-               end if;
-            end if;
-
-         when SEND =>
-            ob.mstInp.vld <= not r.idx( r.idx'left );
-            ob.mstInp.don <=     r.idx( r.idx'left );
-            if ( usb2Ep0IbExt.subInp.rdy = '1' ) then
-               if ( r.idx( r.idx'left ) = '0' ) then
-                  v.idx := r.idx - 1;
-               else
-                  -- done
-                  v.ctlExt.ack := '1';
-                  v.ctlExt.don := '1';
-                  v.state      := DONE;
-               end if;
-            end if;
-
-         when RECV =>
-            ob.subOut.rdy <= '1';
-            if ( usb2Ep0IbExt.mstOut.vld = '1' ) then
-               if ( r.idx( r.idx'left ) = '0' ) then
-                  v.buf( to_integer( r.idx(2 downto 0) ) ) := usb2Ep0IbExt.mstOut.dat;
-                  v.idx                                    := r.idx - 1;
-               end if;
-            end if;
-            if ( usb2Ep0IbExt.mstOut.don = '1' ) then
-               v.ctlExt.ack := '1';
-               v.ctlExt.don := '1';
-               v.state      := DONE;
-            end if;
-
-         when DONE => -- flags are asserted during this cycle
-            v.state := IDLE;
-      end case;
-
-      -- vld is de-asserted when the host decides
-      -- to do a 'short read', i.e, not to consume all
-      -- available data.
-      if ( usb2Ep0ReqParam.vld = '0' ) then
-         v.state := IDLE;
+      if ( selected( ctlReqVld, USB2_REQ_CLS_CDC_SEND_BREAK_C, HANDLE_REQUESTS_C ) ) then
+         v.timer(15 downto 0) := unsigned(usb2Ep0ReqParam.value);
+         v.timer(16)          := '1';
+         if    ( usb2Ep0ReqParam.value = x"0000" ) then
+            v.indef     := false;
+            v.timer(16) := '0';
+         elsif ( usb2Ep0ReqParam.value = x"ffff" ) then
+            v.indef     := true;
+         end if;
+         ctlReqErr      <= '0';
+      end if;
+      if ( selected( ctlReqVld, USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE_C, HANDLE_REQUESTS_C ) ) then
+         v.DTR          := usb2Ep0ReqParam.value(0);
+         v.RTS          := usb2Ep0ReqParam.value(1);
+         ctlReqErr      <= '0';
+      end if;
+      if ( selected( ctlReqVld, USB2_REQ_CLS_CDC_SET_LINE_CODING_C, HANDLE_REQUESTS_C ) ) then
+         v.buf          := parmsOb;
+         ctlReqErr      <= '0';
+      end if;
+      if ( selected( ctlReqVld, USB2_REQ_CLS_CDC_GET_LINE_CODING_C, HANDLE_REQUESTS_C ) ) then
+         ctlReqErr      <= '0';
       end if;
 
       rin <= v;
@@ -216,7 +185,6 @@ begin
       end if;
    end process P_SEQ;
 
-   usb2Ep0CtlExt <= r.ctlExt;
 
    G_BREAK_SUP : if ( SUPPORT_BREAK_G ) generate
 
@@ -239,7 +207,7 @@ begin
       function toUnsigned(constant x : Usb2ByteArray) return unsigned is
          variable v : unsigned(8*x'length - 1 downto 0) := (others => '0');
       begin
-         for i in x'range loop
+         for i in x'high downto x'low loop
             v := resize( v & unsigned(x(i)), v'length );
          end loop;
          return v;
@@ -266,11 +234,10 @@ begin
          RTS  <= r.RTS;
       end generate G_MDM_SYNC;
 
-      rate          <= toUnsigned( r.buf(3 to 6) );
-      stopBits      <= unsigned( r.buf(2)(stopBits'range) );
-      parity        <= unsigned( r.buf(1)(parity'range)   );
-      dataBits      <= unsigned( r.buf(0)(dataBits'range) );
-      usb2Ep0ObExt  <= ob;
+      rate          <= toUnsigned( r.buf(0 to 3) );
+      stopBits      <= unsigned( r.buf(4)(stopBits'range) );
+      parity        <= unsigned( r.buf(5)(parity'range)   );
+      dataBits      <= unsigned( r.buf(6)(dataBits'range) );
    end generate G_LINE_SUP;
 
 end architecture Impl;

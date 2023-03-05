@@ -115,6 +115,8 @@ Usb2PktTx.o: UsbCrcTbl.o
 UlpiIOBufTb.o: UlpiIOBuf.o
 UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o
 Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o Usb2EpCDCACMCtl.o
+Usb2EpCDCACMCtl.o: Usb2EpGenericCtlPkg.o Usb2EpGenericCtl.o
+Usb2EpGenericCtl.o: Usb2EpGenericCtlPkg.o
 Usb2FifoEpFrmdTb.o: Usb2Core.o Usb2FifoEp.o
 Usb2FifoTb.o: Usb2Fifo.o
 Usb2FifoFrmdTb.o: Usb2Fifo.o
