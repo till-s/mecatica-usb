@@ -24,15 +24,15 @@ entity Usb2EpCDCNCM is
       -- NTB size)
       TIMEOUT_INP_TICKS_G        : unsigned  := "";
       -- FIFO parameters (ld_fifo_depth are the width of the internal
-      -- address pointers, i.e., ceil( log2( depth - 1 ) )
-      LD_RAM_DEPTH_INP_G         : natural range 12 to 1000;
+      -- address pointers, i.e., ceil( log2( depth - 1 ) ))
+      LD_RAM_DEPTH_INP_G         : natural;
       -- max. # of datagrams in IN  direction (0 = auto-sized based on RAM_DEPTH)
       MAX_NTB_SIZE_INP_G         : natural   := 0;
       --- number of datagrams (0 = auto selection based on NTB_SIZE)
       MAX_DGRAMS_INP_G           : natural   := 0;
       -- for max. throughput the OUT fifo must be big enough
       -- to hold at least two maximally sized packets.
-      LD_RAM_DEPTH_OUT_G         : natural range 12 to 1000;
+      LD_RAM_DEPTH_OUT_G         : natural;
       -- max. NTB size *must not* be a multiple of the max. packet
       -- size (0: auto-selection based on ram depth)
       MAX_NTB_SIZE_OUT_G         : natural   := 0;
@@ -49,7 +49,7 @@ entity Usb2EpCDCNCM is
    port (
       usb2Clk                    : in  std_logic;
       usb2Rst                    : in  std_logic;
-      usb2RstOut                 : out std_logic;
+      usb2EpRstOut               : out std_logic;
 
       -- ********************************************
       -- signals below here are in the usb2Clk domain
@@ -164,7 +164,8 @@ architecture Impl of Usb2EpCDCNCM is
    constant TIMEOUT_INP_TICKS_C           : unsigned           := TIMEOUT_INP_TICKS_F;
 
    signal epRstLoc                        : std_logic          := '0';
-   signal usb2RstLoc                      : std_logic          := '0';
+   signal usb2EpRstLoc                    : std_logic          := '0';
+   signal usb2EpRst                       : std_logic;
 
    signal epOut                           : usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
    signal epInp                           : usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
@@ -179,10 +180,12 @@ architecture Impl of Usb2EpCDCNCM is
    signal epRamWrPtrInp                   : unsigned(LD_RAM_DEPTH_INP_G downto 0);
    signal epRamRdPtrInp                   : unsigned(LD_RAM_DEPTH_INP_G downto 0);
 
-   signal usb2MaxNTBSizeInp               : unsigned(LD_RAM_DEPTH_INP_G downto 0);
+   signal usb2MaxNTBSizeInp               : unsigned(31                 downto 0);
    signal epMaxNTBSizeInp                 : unsigned(LD_RAM_DEPTH_INP_G downto 0);
 
 begin
+
+   usb2EpRst <= usb2Rst or not epInpRunning( usb2DataEpIb ) or not epOutRunning( usb2DataEpIb );
 
    U_EP_CTL : entity work.Usb2EpCDCNCMCtl
       generic map (
@@ -240,7 +243,7 @@ begin
       )
       port map (
          usb2Clk                   => usb2Clk,
-         usb2Rst                   => usb2Rst,
+         usb2Rst                   => usb2EpRst,
 
          usb2EpIb                  => usb2DataEpIb,
          usb2EpOb                  => epInp,
@@ -272,7 +275,7 @@ begin
       )
       port map (
          usb2Clk                   => usb2Clk,
-         usb2Rst                   => usb2Rst,
+         usb2Rst                   => usb2EpRst,
 
          usb2EpIb                  => usb2DataEpIb,
          usb2EpOb                  => epOut,
@@ -294,23 +297,24 @@ begin
 
    usb2DataEpOb <= usb2MergeEndpPairIb( epInp, epOut );
    epRstOut     <= epRstLoc;
-   usb2RstOut   <= usb2RstLoc;
+   usb2EpRstOut <= usb2EpRstLoc;
 
    G_SYNC : if ( not ASYNC_G ) generate
       usb2RamRdPtrOut <= epRamRdPtrOut;
       epRamWrPtrOut   <= usb2RamWrPtrOut;
-      epMaxNTBSizeInp <= usb2MaxNTBSizeInp;
+      epRamRdPtrInp   <= usb2RamRdPtrInp;
+      usb2RamWrPtrInp <= epRamWrPtrInp;
+      epMaxNTBSizeInp <= usb2MaxNTBSizeInp(epMaxNTBSizeInp'range);
       epRstLoc        <= usb2Rst;
-      usb2RstLoc      <= usb2Rst;
+      usb2EpRstLoc    <= usb2EpRst;
    end generate G_SYNC;
 
    G_ASYNC : if ( ASYNC_G ) generate
 
-      constant A2B_L : natural := 2 + usb2MaxNTBSizeInp'length + usb2RamRdPtrInp'length + usb2RamWrPtrOut'length;
+      constant A2B_L : natural := 2 + epMaxNTBSizeInp'length + usb2RamRdPtrInp'length + usb2RamWrPtrOut'length;
       constant B2A_L : natural := 2 + usb2RamWrPtrInp'length + usb2RamRdPtrOut'length;
 
       signal resettingA     : std_logic := '1'; -- signal initial reset
-      signal resettingB     : std_logic := '1'; -- signal initial reset
 
       signal rstARtn        : std_logic; -- rst A full round trip
       signal rstASeenAtB    : std_logic;
@@ -322,7 +326,7 @@ begin
 
    begin
 
-      dinA2B <= slv( usb2MaxNTBSizeInp ) & slv( usb2RamRdPtrInp ) & slv( usb2RamWrPtrOut ) & resettingA;
+      dinA2B <= slv( usb2MaxNTBSizeInp(epMaxNTBSizeInp'range) ) & slv( usb2RamRdPtrInp ) & slv( usb2RamWrPtrOut ) & resettingA;
       dinB2A <= slv( epRamWrPtrInp ) & slv( epRamRdPtrOut ) & rstASeenAtB;
 
       P_ASSIGN : process ( douA2B, douB2A ) is
@@ -351,7 +355,7 @@ begin
       P_RESET : process ( usb2Clk ) is
       begin
          if ( rising_edge( usb2Clk ) ) then
-            if ( usb2Rst = '1' ) then
+            if ( usb2EpRst = '1' ) then
                resettingA <= '1';
             elsif ( rstARtn = '1' ) then
                -- reset has done one round-trip
@@ -360,8 +364,8 @@ begin
          end if;
       end process P_RESET;
 
-      epRstLoc   <= rstASeenAtB;
-      usb2RstLoc <= usb2Rst or resettingA;
+      epRstLoc     <= rstASeenAtB;
+      usb2EpRstLoc <= usb2EpRst or resettingA;
 
       U_CC_SYNC : entity work.Usb2MboxSync
          generic map (

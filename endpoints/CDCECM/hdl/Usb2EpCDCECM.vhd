@@ -119,22 +119,23 @@ architecture Impl of Usb2EpCDCECM is
    constant IFC_NUM_C      : Usb2ByteType := Usb2ByteType( toUsb2InterfaceNumType( CTL_IFC_NUM_G ) );
 
    signal cen             : std_logic := '0';
-   signal usb2EpResetting : std_logic;
+   signal usb2EpRst       : std_logic;
 
    signal epRstLoc        : std_logic;
 
 begin
 
-   epRstOut <= epRstLoc;
+   epRstOut  <= epRstLoc;
 
-   P_COMB_CTL  : process ( usb2Ep0ReqParam, usb2EpResetting ) is
+   usb2EpRst <= usb2Rst or not epInpRunning( usb2DataEpIb ) or not epOutRunning( usb2DataEpIb );
+
+   P_COMB_CTL  : process ( usb2Ep0ReqParam ) is
    begin
 
       usb2Ep0CtlExt <= USB2_CTL_EXT_NAK_C;
       cen           <= '0';
 
-      if (     usb2EpResetting = '0'
-           and usb2Ep0ReqParam.vld = '1'
+      if (     usb2Ep0ReqParam.vld = '1'
            and not usb2Ep0ReqParam.dev2Host
            and usb2Ep0ReqParam.reqType = USB2_REQ_TYP_TYPE_CLASS_C
            and usb2CtlReqDstInterface( usb2Ep0ReqParam, CTL_IFC_NUM_G )
@@ -150,7 +151,7 @@ begin
    P_SEQ_CTL : process ( usb2Clk ) is
    begin
       if ( rising_edge( usb2Clk ) ) then
-         if ( usb2EpResetting = '1' ) then
+         if ( usb2Rst = '1' ) then
             packetFilter <= (others => '0');
          elsif ( cen = '1' ) then
             packetFilter <= usb2Ep0ReqParam.value( packetFilter'range );
@@ -168,7 +169,7 @@ begin
       )
       port map (
          usb2Clk                     => usb2Clk,
-         usb2Rst                     => usb2EpResetting,
+         usb2Rst                     => usb2Rst,
 
          usb2NotifyEpIb              => usb2NotifyEpIb,
          usb2NotifyEpOb              => usb2NotifyEpOb,
@@ -194,8 +195,8 @@ begin
       )
       port map (
          usb2Clk                     => usb2Clk,
-         usb2Rst                     => usb2Rst,
-         usb2RstOut                  => usb2EpResetting,
+         usb2Rst                     => usb2EpRst,
+         usb2RstOut                  => open,
 
          usb2EpIb                    => usb2DataEpIb,
          usb2EpOb                    => usb2DataEpOb,
