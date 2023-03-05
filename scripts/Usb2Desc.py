@@ -299,12 +299,14 @@ class Usb2DescContext(list):
 
     DSC_CDC_SUBCLASS_ACM               = 0x02
     DSC_CDC_SUBCLASS_ECM               = 0x06
+    DSC_CDC_SUBCLASS_NCM               = 0x0D
 
     DSC_CDC_PROTOCOL_NONE              = 0x00
 
     DSC_IFC_CLASS_DAT                  = 0x0A
     DSC_DAT_SUBCLASS_NONE              = 0x00
     DSC_DAT_PROTOCOL_NONE              = 0x00
+    DSC_DAT_PROTOCOL_NCM               = 0x01
 
     def __init__(self, length, typ):
       super().__init__()
@@ -563,6 +565,7 @@ class Usb2DescContext(list):
     DSC_SUBTYPE_UNION                                    = 0x06
     DSC_SUBTYPE_ABSTRACT_CONTROL_MANAGEMENT              = 0x02
     DSC_SUBTYPE_ETHERNET_NETWORKING                      = 0x0F
+    DSC_SUBTYPE_NCM                                      = 0x1A
 
     def __init__(self, length, typ):
       super().__init__(length, typ)
@@ -653,6 +656,25 @@ class Usb2DescContext(list):
           raise RuntimeError("Invalid MAC address - must be 12 hex chars")
       return self.cvtString(v)
 
+  @factory
+  class Usb2CDCFuncNCMDesc(Usb2CDCDesc.clazz):
+
+    DSC_NCM_SUP_NET_ADDRESS = 0x02
+
+    def __init__(self):
+      super().__init__( 6, self.DSC_TYPE_CS_INTERFACE )
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_NCM )
+      self.bcdNcmVersion( 0x0100 )
+      self.bmNetworkCapabilities( 0x00 )
+
+    @acc(3,2)
+    def bcdNcmVersion(self, v): return v
+
+    @acc(5)
+    def bmNetworkCapabilities(self, v): return v
+      
+
+ 
   @factory
   class Usb2UACDesc(Usb2Desc.clazz):
 
@@ -800,10 +822,18 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
   numEPPs += 1
   numIfcs += 1
 
-  # interface 1
+  # interface 1 - alt 0
   d = ctxt.Usb2InterfaceDesc()
   d.bInterfaceNumber( ifcNumber + 1 )
   d.bAlternateSetting(0)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
+  d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
+  d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
+
+  # interface 1 - alt 1
+  d = ctxt.Usb2InterfaceDesc()
+  d.bInterfaceNumber( ifcNumber + 1 )
+  d.bAlternateSetting(1)
   d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
   d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
   d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
@@ -826,6 +856,94 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
   numIfcs += 1
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
+
+def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True):
+  numIfcs = 0
+  numEPPs = 0
+  if epPktSize is None:
+    if ( hiSpeed ):
+      epPktSize = 512
+    else:
+      epPktSize = 64
+  d = ctxt.Usb2InterfaceAssociationDesc()
+  d.bFirstInterface( ifcNumber )
+  d.bInterfaceCount( 2 )
+  d.bFunctionClass( d.DSC_IFC_CLASS_CDC )
+  d.bFunctionSubClass( d.DSC_CDC_SUBCLASS_NCM )
+  d.bFunctionProtocol( d.DSC_CDC_PROTOCOL_NONE )
+
+  # interface 0
+  d = ctxt.Usb2InterfaceDesc()
+  d.bInterfaceNumber( ifcNumber )
+  d.bAlternateSetting(0)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_CDC )
+  d.bInterfaceSubClass( d.DSC_CDC_SUBCLASS_NCM )
+  d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
+
+  # functional descriptors; header
+  d = ctxt.Usb2CDCFuncHeaderDesc()
+
+  # functional descriptors; union
+  d = ctxt.Usb2CDCFuncUnionDesc( numSubordinateInterfaces = 1 )
+  d.bControlInterface( ifcNumber + 0 )
+  d.bSubordinateInterface( 0, ifcNumber + 1 )
+
+  # functional descriptors; ethernet
+  d = ctxt.Usb2CDCFuncEthernetDesc()
+  d.iMACAddress( iMACAddr )
+
+  # functional descriptors; NCM
+  d = ctxt.Usb2CDCFuncNCMDesc()
+
+  # endpoint 2, IRQ IN
+  d = ctxt.Usb2EndpointDesc()
+  d.bEndpointAddress( d.ENDPOINT_IN | (epAddr + 1) )
+  d.bmAttributes( d.ENDPOINT_TT_INTERRUPT )
+  d.wMaxPacketSize( 16 )
+
+  if ( hiSpeed ):
+    d.bInterval(8) # (2**(interval - 1) microframes; 16 is max.
+  else:
+    d.bInterval(16) #ms
+
+  numEPPs += 1
+  numIfcs += 1
+
+  # interface 1 - alt 0
+  d = ctxt.Usb2InterfaceDesc()
+  d.bInterfaceNumber( ifcNumber + 1 )
+  d.bAlternateSetting(0)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
+  d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
+  d.bInterfaceProtocol( d.DSC_DAT_PROTOCOL_NCM )
+
+  # interface 1 - alt 1
+  d = ctxt.Usb2InterfaceDesc()
+  d.bInterfaceNumber( ifcNumber + 1 )
+  d.bAlternateSetting(1)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
+  d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
+  d.bInterfaceProtocol( d.DSC_DAT_PROTOCOL_NCM )
+
+  # endpoint 1, BULK IN
+  d = ctxt.Usb2EndpointDesc()
+  d.bEndpointAddress( d.ENDPOINT_IN | epAddr )
+  d.bmAttributes( d.ENDPOINT_TT_BULK )
+  d.wMaxPacketSize(epPktSize)
+  d.bInterval(0)
+
+  # endpoint 1, BULK OUT
+  d = ctxt.Usb2EndpointDesc()
+  d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
+  d.bmAttributes( d.ENDPOINT_TT_BULK )
+  d.wMaxPacketSize(epPktSize)
+  d.bInterval(0)
+
+  numEPPs += 1
+  numIfcs += 1
+  # return number of interfaces and endpoint pairs used
+  return numIfcs, numEPPs
+
 
 # epPktSize None selects the max. allowed for the selected speed
 # ifcNum defines the index of the first of two interfaces used by
