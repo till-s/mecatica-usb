@@ -82,7 +82,7 @@ struct drv_info {
     spinlock_t               lock;
     unsigned                 txFifoSize;
     unsigned                 rxFifoSize;
-	int                      rwType;
+	int                      fwType;
 };
 
 /* Fwd declarations */
@@ -180,7 +180,7 @@ txSpaceAvailable(struct drv_info *me)
 	if ( FW_ECM == me->fwType ) {
 		return me->txFifoSize - ( ioread32( me->base + INP_FIFO_FILL_REG ) & 0xffff );
 	} else {
-		return (i16)(ioread32( me->base + INP_FIFO_FILL_REG ) & 0xffff);
+		return (s16)(ioread32( me->base + INP_FIFO_FILL_REG ) & 0xffff);
 	}
 }
 
