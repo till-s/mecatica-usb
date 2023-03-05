@@ -52,6 +52,10 @@ def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iMACAddr
       ifcNumber_ += ifs
       epAddr_    += eps
 
+      ifs, eps = Usb2Desc.addBasicNCM( c, ifcNumber_, epAddr_, iMACAddr = iMACAddr, hiSpeed = speed )
+      ifcNumber_ += ifs
+      epAddr_    += eps
+
     if i < len(speeds) - 1:
       # separate multiple (speed) device descriptors by a sentinel
       c.Usb2SentinelDesc()

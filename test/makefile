@@ -47,8 +47,11 @@ SRCS += Usb2EpI2SPlayback.vhd
 SRCS += Usb2EpI2SPlaybackTb.vhd
 endif
 SRCS += OthSpeedCfgTb.vhd
+SRCS += Usb2EpCDCEtherNotify.vhd
+SRCS += Usb2EpGenericCtl.vhd
 SRCS += Usb2EpCDCNCM.vhd
 SRCS += Usb2EpCDCNCMOut.vhd
+SRCS += Usb2EpCDCNCMCtl.vhd
 SRCS += Usb2EpCDCNCMInp.vhd
 SRCS += Usb2EpCDCNCMInpTb.vhd
 SRCS += Usb2EpCDCNCMOutTb.vhd
@@ -100,6 +103,7 @@ $(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o Usb2PrivPkg.o U
 Usb2DescPkg.o: Usb2AppCfgPkg.o Usb2UtilPkg.o
 Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
 Usb2TstPkg.o Usb2PrivPkg.o: Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o
+Usb2EpGenericCtlPkg.o: Usb2Pkg.o Usb2UtilPkg.o
 
 $(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
 
@@ -133,9 +137,10 @@ Usb2EpI2SPlayback.o: Usb2CCSync.o
 Usb2EpI2SPlaybackTb_GHDLFLAGS=-fsynopsys
 Usb2EpI2SPlaybackTb.o: Usb2Core.o Usb2EpI2SPlayback.o
 
+Usb2EPCDCNCMCtl.o: Usb2EpGenericCtl.o
 Usb2EpCDCNCMOut.o: Usb2Bram.o
 Usb2EpCDCNCMInp.o: Usb2Bram.o
-Usb2EpCDCNCM.o: Usb2EpCDCNCMOut.o Usb2EpCDCNCMInp.o
+Usb2EpCDCNCM.o: Usb2EpCDCNCMOut.o Usb2EpCDCNCMInp.o Usb2EpCDCNCMCtl.o Usb2EpCDCEtherNotify.o
 Usb2EpCDCNCMOutTb.o: Usb2EpCDCNCM.o
 Usb2EpCDCNCMInpTb.o: Usb2EpCDCNCMInp.o
 

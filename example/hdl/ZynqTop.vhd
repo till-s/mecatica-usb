@@ -132,10 +132,10 @@ architecture top_level of ZynqTop is
    signal axiClk                         : std_logic;
    signal axiRst                         : std_logic;
 
-   signal roRegs                         : RegArray(0 to 1, 0 to 7) := ((others => (others => '0')), (others => (others => '0')));
+   signal roRegs                         : RegArray(0 to 2, 0 to 7) := (others => (others => (others => '0')));
 
-   signal roRegsDev                      : RegArray(0 to 1, 0 to 1);
-   signal rwRegsDev                      : RegArray(0 to 1, 0 to 1);
+   signal roRegsDev                      : RegArray(0 to 2, 0 to 1);
+   signal rwRegsDev                      : RegArray(0 to 2, 0 to 1);
 
    signal acmFifoOutDat                  : Usb2ByteType;
    signal acmFifoOutEmpty                : std_logic;
@@ -157,7 +157,20 @@ architecture top_level of ZynqTop is
    signal ecmFifoInpWen                  : std_logic;
    signal ecmFifoInpFill                 : unsigned(15 downto 0);
 
+   signal ncmFifoOutDat                  : Usb2ByteType;
+   signal ncmFifoOutLast                 : std_logic;
+   signal ncmFifoOutEmpty                : std_logic;
+   signal ncmFifoOutRen                  : std_logic;
 
+   signal ncmFifoInpDat                  : Usb2ByteType;
+   signal ncmFifoInpLast                 : std_logic;
+   signal ncmFifoInpFull                 : std_logic;
+   signal ncmFifoInpBusy                 : std_logic;
+   signal ncmFifoInpWen                  : std_logic;
+   signal ncmFifoInpAvail                : signed(15 downto 0);
+
+
+ 
    -- USB3340 requires reset to be asserted for min. 1us; UlpiLineState subsequently waits until DIR is deasserted
    signal ulpiRstCnt                     : unsigned(7 downto 0) := (others => '1');
 
@@ -181,6 +194,11 @@ architecture top_level of ZynqTop is
    signal ecmIrqEnbl                     : std_logic_vector(1 downto 0) := (others => '0');
    signal ecmIrqStat                     : std_logic_vector(1 downto 0) := (others => '0');
    signal ecmIrqPend                     : std_logic_vector(1 downto 0) := (others => '0');
+   signal ncmIrq                         : std_logic := '0';
+   signal ncmIrqEnbl                     : std_logic_vector(1 downto 0) := (others => '0');
+   signal ncmIrqStat                     : std_logic_vector(1 downto 0) := (others => '0');
+   signal ncmIrqPend                     : std_logic_vector(1 downto 0) := (others => '0');
+
 
 begin
 
@@ -408,11 +426,13 @@ begin
          rsub        :  AxiReadSubType;
          wsub        :  AxiWriteSubType;
          req         :  UlpiRegReqType;
-         rwRegs      :  RegArray(0 to 1, 0 to 7);
+         rwRegs      :  RegArray(0 to 2, 0 to 7);
          acmFifoWen  :  std_logic;
          acmFifoRen  :  std_logic;
          ecmFifoWen  :  std_logic;
          ecmFifoRen  :  std_logic;
+         ncmFifoWen  :  std_logic;
+         ncmFifoRen  :  std_logic;
          lineBreak   :  std_logic;
       end record RegType;
       constant REG_INIT_C : RegType := (
@@ -420,11 +440,13 @@ begin
          rsub        => AXI_READ_SUB_INIT_C,
          wsub        => AXI_WRITE_SUB_INIT_C,
          req         => ULPI_REG_REQ_INIT_C,
-         rwRegs      => ((others => (others => '0')), (others => (others => '0'))),
+         rwRegs      => (others => (others => (others => '0'))),
          acmFifoWen  => '0',
          acmFifoRen  => '0',
          ecmFifoWen  => '0',
          ecmFifoRen  => '0',
+         ncmFifoWen  => '0',
+         ncmFifoRen  => '0',
          lineBreak   => '0'
       );
       signal r       : RegType := REG_INIT_C;
@@ -505,6 +527,18 @@ begin
          ecmFifoInpFill       => ecmFifoInpFill,
          ecmFifoInpWen        => ecmFifoInpWen,
 
+         ncmFifoOutDat        => ncmFifoOutDat,
+         ncmFifoOutLast       => ncmFifoOutLast,
+         ncmFifoOutEmpty      => ncmFifoOutEmpty,
+         ncmFifoOutRen        => ncmFifoOutRen,
+
+         ncmFifoInpDat        => ncmFifoInpDat,
+         ncmFifoInpLast       => ncmFifoInpFull,
+         ncmFifoInpFull       => ncmFifoInpFull,
+         ncmFifoInpBusy       => ncmFifoInpBusy,
+         ncmFifoInpWen        => ncmFifoInpWen,
+         ncmFifoInpAvail      => ncmFifoInpAvail,
+
 
          clk2Nb               => open,
          clk3Nb               => clk3Nb,
@@ -521,6 +555,7 @@ begin
       acmIrq        <= not acmFifoOutEmpty or acmLineBreak;
 
       ecmIrqPend    <= ecmIrqEnbl and ecmIrqStat;
+      ncmIrqPend    <= ncmIrqEnbl and ncmIrqStat;
 
       P_ECM_IRQ : process ( ecmIrqPend, ecmFifoInpFill, ecmFifoOutFrms ) is
          variable v : std_logic;
@@ -543,7 +578,29 @@ begin
          ecmIrq <= v;
       end process P_ECM_IRQ;
 
-      cpuIrqs       <= ( 1 => acmIrq, 2 => ecmIrq, others => '0' );
+      P_NCM_IRQ : process ( ncmIrqPend, ncmFifoInpAvail, ncmFifoOutEmpty ) is
+         variable v : std_logic;
+      begin
+         v := '0';
+         for i in ncmIrqPend'range loop
+            v := v or ncmIrqPend(i);
+         end loop;
+
+         ncmIrqStat <= (others => '0');
+
+         if ( ncmFifoInpAvail > 1600 ) then
+            ncmIrqStat(1) <= '1';
+         end if;
+
+         if ( ncmFifoOutEmpty = '0' ) then
+            ncmIrqStat(0) <= '1';
+         end if;
+
+         ncmIrq <= v;
+      end process P_NCM_IRQ;
+
+
+      cpuIrqs       <= ( 1 => acmIrq, 2 => ecmIrq, 3 => ncmIrq, others => '0' );
 
       P_COMB : process (
          r,
@@ -554,11 +611,19 @@ begin
          acmFifoOutEmpty,
          acmFifoInpFull,
          acmFifoOutDat,
+
          ecmFifoOutEmpty,
          ecmFifoInpFull,
          ecmFifoOutDat,
          ecmFifoOutDon,
-         acmLineBreak
+
+         acmLineBreak,
+
+         ncmFifoOutEmpty,
+         ncmFifoInpFull,
+         ncmFifoInpBusy,
+         ncmFifoOutDat,
+         ncmFifoOutLast
       ) is
          variable v : RegType;
       begin
@@ -572,6 +637,8 @@ begin
          v.acmFifoWen   := '0';
          v.ecmFifoRen   := '0';
          v.ecmFifoWen   := '0';
+         v.ncmFifoRen   := '0';
+         v.ncmFifoWen   := '0';
          if ( acmLineBreak = '1' ) then
             v.lineBreak := '1';
          end if;
@@ -634,6 +701,27 @@ begin
                               v.rsub.rdata(           8) := ecmFifoOutEmpty;
                               v.rsub.rdata( 7 downto  0) := ecmFifoOutDat;
                               v.ecmFifoRen               := not ecmFifoOutEmpty;
+                              v.rsub.rresp               := "00";
+                           end case;
+                        when x"3" =>
+                           case ( axilReadMst.araddr( 7 downto 6 ) ) is
+                           when "00" =>
+                           when "01" =>
+                              if ( unsigned(axilReadMst.araddr(5 downto 2)) < roRegs'length(2) ) then
+                                 v.rsub.rdata := roRegs(2, to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
+                                 v.rsub.rresp := "00";
+                              end if;
+                           when "10" =>
+                              if ( unsigned(axilReadMst.araddr(5 downto 2)) < r.rwRegs'length(2) ) then
+                                 v.rsub.rdata := r.rwRegs(2, to_integer(unsigned(axilReadMst.araddr(5 downto 2))) );
+                                 v.rsub.rresp := "00";
+                              end if;
+                           when others =>
+                              v.rsub.rdata(31 downto 10) := ( others => '0');
+                              v.rsub.rdata(           9) := ncmFifoOutLast;
+                              v.rsub.rdata(           8) := ncmFifoOutEmpty;
+                              v.rsub.rdata( 7 downto  0) := ncmFifoOutDat;
+                              v.ncmFifoRen               := not ncmFifoOutEmpty;
                               v.rsub.rresp               := "00";
                            end case;
                         when others =>
@@ -706,6 +794,30 @@ begin
                                  v.wsub.bresp := ecmFifoInpFull & '0';
                               end if;
                            end case;
+                        when x"3" =>
+                           case ( axilWriteMst.awaddr( 7 downto 6 ) ) is
+                           when "10" =>
+                              if ( unsigned(axilWriteMst.awaddr(5 downto 2)) < r.rwRegs'length(2) ) then
+                                 for i in axilWriteMst.wstrb'range loop
+                                    if ( axilWriteMst.wstrb(i) = '1' ) then
+                                        v.rwRegs(2, to_integer(unsigned(axilWriteMst.awaddr(5 downto 2))) )(8*i+7 downto 8*i) := axilWriteMst.wdata(8*i + 7 downto 8*i);
+                                    end if;
+                                 end loop;
+                                 v.wsub.bresp := "00";
+                              end if;
+                           when others =>
+                              if ( axilWriteMst.wstrb(0) = '1' ) then
+                                 if ( ncmFifoInpBusy = '1' ) then
+                                    v.wsub.awready := '0';
+                                    v.wsub.wready  := '0';
+                                    v.wsub.bvalid  := '0';
+                                    v.state        := r.state;
+                                 else
+                                    v.ncmFifoWen   := not ncmFifoInpFull;
+                                    v.wsub.bresp   := ecmFifoInpFull & '0';
+                                 end if;
+                              end if;
+                           end case;
                         when others =>
                      end case;
                   end if;
@@ -756,19 +868,23 @@ begin
       ecmFifoInpWen  <= r.ecmFifoWen;
       ecmFifoOutRen  <= r.ecmFifoRen;
 
+      ncmFifoInpWen  <= r.ncmFifoWen;
+      ncmFifoOutRen  <= r.ncmFifoRen;
+
       axilReadSub    <= r.rsub;
       axilWriteSub   <= r.wsub;
       regReq         <= r.req;
 
-      P_RO_REGS : process ( r, roRegsDev, ecmIrqStat ) is
+      P_RO_REGS : process ( r, roRegsDev, ecmIrqStat, ncmIrqStat ) is
       begin
-         roRegs <= ( (others => (others => '0')), (others => (others => '0')) );
+         roRegs <= ( others => (others => (others => '0')));
          for i in roRegsDev'range(1) loop
             for j in roRegsDev'range(2) loop
                roRegs( i, j ) <= roRegsDev( i, j );
             end loop;
          end loop;
          roRegs( 1, 4 )(ecmIrqStat'range) <= ecmIrqStat;
+         roRegs( 2, 4 )(ncmIrqStat'range) <= ncmIrqStat;
 
          for i in rwRegsDev'range(1) loop
             for j in rwRegsDev'range(2) loop
@@ -778,6 +894,7 @@ begin
       end process P_RO_REGS;
 
       ecmIrqEnbl <= r.rwRegs( 1, 4 )(ecmIrqEnbl'range);
+      ncmIrqEnbl <= r.rwRegs( 2, 4 )(ncmIrqEnbl'range);
 
    end block B_AXI_REGS;
 

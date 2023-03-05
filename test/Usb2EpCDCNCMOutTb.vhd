@@ -106,6 +106,10 @@ architecture sim of Usb2EpCDCNCMOutTb is
    epOb.mstOut.don <= tstVec(tstIdx)(8)     and canSend and chopUsb2(0);
    epOb.mstOut.vld <= not tstVec(tstIdx)(8) and canSend and chopUsb2(0);
 
+   -- fake epInpRunning/epOutRunning
+   epOb.config.maxPktSizeInp <= to_unsigned(64, Usb2PktSizeType'length);
+   epOb.config.maxPktSizeInp <= to_unsigned(64, Usb2PktSizeType'length);
+
    -- must communicate our max packet size
    epOb.config.maxPktSizeOut <= to_unsigned( MAX_PKTSZ_OUT_C, Usb2PktSizeType'length );
 
@@ -162,7 +166,9 @@ architecture sim of Usb2EpCDCNCMOutTb is
          CTL_IFC_NUM_G           => 1,
          ASYNC_G                 => false,
          LD_RAM_DEPTH_INP_G      => LD_DEPTH_C,
-         LD_RAM_DEPTH_OUT_G      => LD_DEPTH_C
+         MAX_DGRAMS_INP_G        => 2,
+         LD_RAM_DEPTH_OUT_G      => LD_DEPTH_C,
+         MAX_DGRAMS_OUT_G        => 2
       )
       port map (
          usb2Clk                 => usb2Clk,

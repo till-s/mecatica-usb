@@ -70,6 +70,9 @@ MODULE_ALIAS("platform:exFifoEth");
 #define RX_FIFO_IRQ  (1<<0)
 #define TX_FIFO_IRQ  (1<<1)
 
+#define FW_ECM   1
+#define FW_NCM   2
+
 struct drv_info {
 	struct net_device       *ndev;
 	void __iomem            *base;
@@ -79,6 +82,7 @@ struct drv_info {
     spinlock_t               lock;
     unsigned                 txFifoSize;
     unsigned                 rxFifoSize;
+	int                      rwType;
 };
 
 /* Fwd declarations */
@@ -143,6 +147,12 @@ txFifoSize(struct drv_info *me)
 	return 1 << ( ( ioread32( me->base + INP_FIFO_FILL_REG ) >> 28 ) & 0xf );
 }
 
+static int
+fwType(struct drv_info *me)
+{
+	return ( ( ioread32( me->base + INP_FIFO_FILL_REG ) >> 21 ) & 0x7 );
+}
+
 static unsigned
 rxFifoSize(struct drv_info *me)
 {
@@ -167,7 +177,11 @@ rxBytesAvailable(struct drv_info *me)
 static int
 txSpaceAvailable(struct drv_info *me)
 {
-	return me->txFifoSize - ( ioread32( me->base + INP_FIFO_FILL_REG ) & 0xffff );
+	if ( FW_ECM == me->fwType ) {
+		return me->txFifoSize - ( ioread32( me->base + INP_FIFO_FILL_REG ) & 0xffff );
+	} else {
+		return (i16)(ioread32( me->base + INP_FIFO_FILL_REG ) & 0xffff);
+	}
 }
 
 static inline u32
@@ -191,12 +205,24 @@ txFifoPush(struct drv_info *me, struct sk_buff *skb)
 {
 int  i;
 u8  *p = (u8*)skb->data;
-	for ( i = 0; i < skb->len; i++ ) {
-		iowrite32( (u32)(*p), me->base + FIFO_REG );
-		p++;
+	if ( FW_NCM == me->fwType ) {
+		if ( skb->len == 0 ) {
+			return;
+		}
+		for ( i = 0; i < skb->len - 1 ; i++ ) {
+			iowrite32( (u32)(*p), me->base + FIFO_REG );
+			p++;
+		}
+		/* EOP marker */
+		iowrite32( (u32)TX_FIFO_EOP | (u32)(*p), me->base + FIFO_REG );
+	} else {
+		for ( i = 0; i < skb->len - ( FW_NCM == me->fwType ? 1 : 0 ) ; i++ ) {
+			iowrite32( (u32)(*p), me->base + FIFO_REG );
+			p++;
+		}
+		/* EOP marker */
+		iowrite32( (u32)TX_FIFO_EOP, me->base + FIFO_REG );
 	}
-	/* EOP marker */
-	iowrite32( (u32)TX_FIFO_EOP, me->base + FIFO_REG );
 }
 
 static int
@@ -230,14 +256,14 @@ static netdev_tx_t
 ndev_hard_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct drv_info     *me = netdev_priv( ndev );
-	unsigned             avail;
+	int                  avail;
 
 
 	avail = txSpaceAvailable( me );
 	netdev_dbg(ndev, "ex_fifo hard_start_xmit entering (space %d).\n", avail);
 
-	/* need 1 slot for the EOP marker */
-	if ( unlikely( skb->len + 1 ) > avail ) {
+	/* need 1 slot for the EOP marker (ECM) */
+	if ( unlikely( skb->len + (FW_ECM == me->fwType ? 1 : 0) ) > avail ) {
 		ndev->stats.tx_errors++;
 		ndev->stats.tx_dropped++;
 		dev_kfree_skb_any( skb );
@@ -324,13 +350,18 @@ static void rx_work_fn(struct kthread_work *w)
 			}
 		} else {
 			p = skb->data;
-			for ( i = 0; i < len; i++ ) {
+			i = 0;
+			while ( i < len ) {
 				d = rxFifoPop( me );
+				*p = (u8)(d & 0xff);
+				i++;
+				p++;
 				if ( !! (d & RX_FIFO_EOP)  ) {
+					if ( FW_ECM == me->fwType ) {
+						i--;
+					}
 					break;
 				}
-				*p = (u8)(d & 0xff);
-				p++;
 			}
 			if ( i < len ) {
 				len = i;
@@ -403,6 +434,12 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 	}
 
 	me->base = addr;
+
+    me->fwType = fwType( me );
+	if ( ( FW_ECM != me->fwType ) && ( FW_NCM != me->fwType ) ) {
+		netdev_err(ndev, "ex_fifo unknown firmware: 0x%x\n", me->fwType );
+		goto bail;
+	}
 
 	disable_irqs( me, (RX_FIFO_IRQ | TX_FIFO_IRQ) );
 
