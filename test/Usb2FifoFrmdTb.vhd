@@ -23,6 +23,7 @@ architecture Sim of Usb2FifoFrmdTb is
    signal ren        : std_logic  := '0';
    signal empty      : std_logic  := '0';
    signal full       : std_logic  := '0';
+   signal busy       : std_logic  := '0';
    signal din        : unsigned(7 downto 0)         := (others => '0');
    signal cmp        : unsigned(7 downto 0)         := (others => '0');
    signal dou        : std_logic_vector(7 downto 0);
@@ -51,6 +52,7 @@ begin
          don          => don,
          wen          => wen,
          full         => full,
+         busy         => busy,
          wrFilled     => open,
          
          rdClk        => clk,
@@ -69,7 +71,7 @@ begin
    P_DIN : process (clk) is
    begin
       if ( rising_edge( clk ) ) then
-         if ( (not full and not don and wen) = '1' ) then
+         if ( (not full and not busy and not don and wen) = '1' ) then
             din <= din + 1;
          end if;
       end if;
@@ -113,7 +115,7 @@ begin
       assert full = '0' report "unexpected full" severity failure;
       don <= '0';
       tick;
-      assert full = '1' report "unexpected not full" severity failure;
+      assert (not full and busy) = '1' report "unexpected not full" severity failure;
       tick;
       assert full = '0' report "unexpected full" severity failure;
       tick;

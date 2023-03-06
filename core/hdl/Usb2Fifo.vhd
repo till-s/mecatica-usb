@@ -42,6 +42,10 @@ entity Usb2Fifo is
       don          : in  std_logic := '0';
       wen          : in  std_logic;
       full         : out std_logic;
+      -- in FRAMED_G mode the fifo may be busy for a few cycles
+      -- (when writing the header); writing must be held off.
+      -- (busy is always transient, full depends on the reader)
+      busy         : out std_logic;
       -- fill level as seen by the write clock
       wrFilled     : out unsigned(LD_DEPTH_G downto 0);
 
@@ -158,6 +162,7 @@ architecture Impl of Usb2Fifo is
 
    signal fifoEmpty         : std_logic;
    signal fifoFull          : std_logic;
+   signal fifoBusy          : std_logic;
    signal fifoWen           : std_logic;
    signal fifoDin           : std_logic_vector(DWIDTH_C - 1 downto 0);
    signal fifoDou           : std_logic_vector(DWIDTH_C - 1 downto 0);
@@ -295,7 +300,8 @@ begin
    -- in H2 state when the second part of the header is written we cannot
    -- accept data; when 'don' is asserted (first part of header being written)
    -- input data are ignored anyways.
-   fifoFull   <= isFull( rWr, rdPtrOut ) or wrRstLoc or toSl( rWr.state = H2 );
+   fifoBusy   <= toSl( rWr.state = H2 );
+   fifoFull   <= isFull( rWr, rdPtrOut ) or wrRstLoc;
    fifoEmpty  <= not rRd.vld(0) or rinRd.delayRd or rdRstLoc;
 
    advanceReg <= not rRd.vld(0) or (ren and not rinRd.delayRd);
@@ -468,6 +474,7 @@ begin
    dou      <= fifoDou(dou'range);
    empty    <= fifoEmpty;
    full     <= fifoFull;
+   busy     <= fifoBusy;
    rdFilled <= occupied( rRd, wrPtrOut );
    wrFilled <= occupied( rWr, rdPtrOut );
    wrRstOut <= wrRstLoc;
