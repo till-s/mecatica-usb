@@ -217,23 +217,25 @@ begin
          -- if they use a 'lst' flag then we delay it for one
          -- cycle converting it to a 'don' flag as understood
          -- by the EP.
-         G_LST_FLG : if ( DON_IS_LAST_G ) generate
+         G_LSTFLG : if ( DON_IS_LAST_G ) generate
          begin
             mstInpDon <= donDly;
 
             P_DLY : process ( usb2Clk ) is
             begin
-               if ( usb2RstLoc = '1' ) then
-                  donDly <= '0';
-               else
-                  if ( ( usb2EpIb.subInp.rdy and donDly ) = '1' ) then
+               if ( rising_edge( usb2Clk ) ) then
+                  if ( usb2RstLoc = '1' ) then
                      donDly <= '0';
-                  elsif ( fifoRen = '1' ) then
-                     donDly <= fifoDou( datInp'length );
+                  else
+                     if ( ( usb2EpIb.subInp.rdy and donDly ) = '1' ) then
+                        donDly <= '0';
+                     elsif ( fifoRen = '1' ) then
+                        donDly <= fifoDou( datInp'length );
+                     end if;
                   end if;
                end if;
             end process P_DLY;
-         end generate G_LST_FLG;
+         end generate G_LSTFLG;
 
          -- maintain frame counters
          P_WR_FRAMES : process ( epClk ) is
@@ -261,7 +263,7 @@ begin
                if ( usb2RstLoc = '1' ) then
                   numFramesOut <= (others => '0');
                else
-                  if ( ( fifoRen and mstInpDon ) = '1' ) then
+                  if ( ( fifoRen and fifoDou( datInp'length ) ) = '1' ) then
                      numFramesOut <= numFramesOut + 1;
                   end if;
                end if;

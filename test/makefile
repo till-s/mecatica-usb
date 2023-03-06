@@ -79,7 +79,7 @@ PROG += Usb2EpCDCNCMInpTb
 
 all: test
 
-test: $(addsuffix @run,$(PROG)) Usb2EpCDCNCMCheck
+test: $(addsuffix @run,$(PROG)) Usb2EpCDCNCMCheck Usb2FifoEpFrmdLstTb
 	echo "All Tests PASSED"
 
 
@@ -159,7 +159,11 @@ NCMInpCmp.txt: Usb2EpCDCNCMInpTb
 Usb2EpCDCNCMCheck: NCMInpCmp.txt
 	./ncm.py -i
 
-.PHONY: all build clean Usb2EpCDCNCMCheck
+.PHONY: all build clean Usb2EpCDCNCMCheck Usb2FifoEpFrmdLstTb
+
+Usb2FifoEpFrmdLstTb: Usb2FifoEpFrmdTb@run
+Usb2FifoEpFrmdLstTb: Usb2FifoEpFrmdTb_RUNFLAGS=-gDON_IS_LAST_G=true
+	
 
 clean:
 	$(RM) $(SRCS:%.vhd=%.o) work-*.cf ulpiiotb e~*.o $(PROG) dump.ghw

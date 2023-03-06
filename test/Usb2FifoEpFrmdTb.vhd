@@ -159,12 +159,16 @@ use     work.Usb2DescPkg.all;
 use     work.FifoEpFrmdTstParmPkg.all;
 
 entity Usb2FifoEpFrmdTb is
+   generic (DON_IS_LAST_G:boolean := false);
 end entity Usb2FifoEpFrmdTb;
 
 architecture sim of Usb2FifoEpFrmdTb is
 
    constant TST_EP_IDX_C           : natural := 1;
    constant TST_EP_C               : Usb2EndpIdxType := to_unsigned(TST_EP_IDX_C,Usb2EndpIdxType'length);
+
+   -- don or last?
+   constant DNL_C                  : boolean := not DON_IS_LAST_G;
 
    constant DEV_ADDR_C             : Usb2DevAddrType := Usb2DevAddrType( to_unsigned(66, Usb2DevAddrType'length) );
 
@@ -327,6 +331,7 @@ architecture sim of Usb2FifoEpFrmdTb is
       constant tstDon : in    boolean := false
    ) is
       variable d0  : Usb2ByteType;
+      variable dn  : std_logic;
    begin
       -- not supported ATM
       assert not (tstDon and len = 0) report "cannot send NUL packet as last" severity failure;
@@ -342,10 +347,16 @@ architecture sim of Usb2FifoEpFrmdTb is
          end if;
          fifoSend(fio, d0);
          for i in 0 to len - 1 loop
-            fifoSend(fio, d2(i));
+            dn := '0';
+            if ( not DNL_C and ( i = (len - 1) ) ) then
+               dn := '1';
+            end if;
+            fifoSend(fio, d2(i), don => dn );
          end loop;
       end if;
-      fifoSend(fio, x"00", don => '1');
+      if ( DNL_C ) then
+         fifoSend(fio, x"00", don => '1');
+      end if;
       epTick;
    end procedure fifoSendD2;
 
@@ -411,11 +422,15 @@ begin
             pol       := speedCfg(l).pol;
             ulpiClkTick;
 
-            sendD2( ulpiTstOb, frmsSentOut, 3,  nxtNul => true,  rtrPol => pol );
+            sendD2( ulpiTstOb, frmsSentOut, 3,  nxtNul => DNL_C, rtrPol => pol );
+            if ( DNL_C ) then
             sendD2( ulpiTstOb, frmsSentOut, 0,  nxtNul => false, rtrPol => pol );
+            end if;
             sendD2( ulpiTstOb, frmsSentOut, 7,  nxtNul => false, rtrPol => pol );
-            sendD2( ulpiTstOb, frmsSentOut, 15, nxtNul => true,  rtrPol => pol );
+            sendD2( ulpiTstOb, frmsSentOut, 15, nxtNul => DNL_C, rtrPol => pol );
+            if ( DNL_C ) then
             sendD2( ulpiTstOb, frmsSentOut, 0,  nxtNul => false, rtrPol => pol );
+            end if;
             sendD2( ulpiTstOb, frmsSentOut, 6,  nxtNul => false, rtrPol => pol, tstDon => true );
 
             while tstTglOut = epTglOut loop
@@ -454,7 +469,7 @@ begin
 
          -- for the INP direction there is no PING to be tested...
          ulpiTstRecvDat( ulpiTstOb, eda, edal, EP1, DEV_ADDR_C, rak => -1 );
-         assert (nextNulInp = '1') = (edal = 0) report "Unexpected NUL or expected NUL but received data" severity failure;
+         assert (nextNulInp = '1') = (edal = 0) report "Unexpected NUL or expected NUL but received data" & std_logic'image(nextNulInp) & " "&integer'image(edal) severity failure;
          if ( edal > 0 ) then
             assert getLen(eda(0)) = edal report "Unexpected length received " & integer'image(edal) severity failure;
             for i in 1 to edal - 1 loop
@@ -490,7 +505,7 @@ begin
    P_END : process is
    begin
       wait until ( usb2Don );
-      report "TEST PASSED";
+      report "TEST PASSED (DON_IS_LAST_G : " & boolean'image(DON_IS_LAST_G) & ")";
       ulpiTstRun <= false;
       epRun      <= false;
       wait;
@@ -499,12 +514,18 @@ begin
    P_EP_1_RD  : process ( epCLk ) is
       variable d0     : Usb2ByteType := (others => '0');
       variable expLen : natural := 0;
+      variable x      : natural;
    begin
       if ( rising_edge( epClk ) ) then
          fifoRenOut <= '1';
          if ( ( not fifoEmptyOut and fifoRenOut ) = '1' and epRun ) then
             if ( fifoDonOut = '1' ) then
-               assert fifoRdIdx = expLen report "Packet length mismatch" severity failure;
+               x := 0;
+               if ( not DNL_C ) then
+                 x := 1;
+                 assert d2(fifoRdIdx - 1) = fifoDatOut report "Data mismatch " severity failure;
+               end if;
+               assert fifoRdIdx + x = expLen report "Packet length mismatch" severity failure;
                fifoRdIdx <= 0;
                if ( fifoRdIdx = 0 ) then
                   assert (nextNulOut = '1') report "Expected a NULL packet" severity failure;
@@ -540,11 +561,15 @@ begin
          epTick;
       end loop;
       fifoSendD2( fifoInp, frmsSentInp, 3 );
-      fifoSendD2( fifoInp, frmsSentInp, 3,  nxtNul => true );
-      fifoSendD2( fifoInp, frmsSentInp, 0 );
+      fifoSendD2( fifoInp, frmsSentInp, 3,  nxtNul => DNL_C );
+      if ( DNL_C ) then
+         fifoSendD2( fifoInp, frmsSentInp, 0 );
+      end if;
       fifoSendD2( fifoInp, frmsSentInp, 7 );
-      fifoSendD2( fifoInp, frmsSentInp, 15, nxtNul => true );
-      fifoSendD2( fifoInp, frmsSentInp, 0 );
+      fifoSendD2( fifoInp, frmsSentInp, 15, nxtNul => DNL_C );
+      if ( DNL_C ) then
+         fifoSendD2( fifoInp, frmsSentInp, 0 );
+      end if;
       fifoSendD2( fifoInp, frmsSentInp, 6, tstDon => true );
 
       while ( epTglInp = tstTglInp ) loop
@@ -601,7 +626,8 @@ begin
          OUT_REG_OUT_G             => true,
          ASYNC_G                   => true,
          LD_MAX_FRAMES_INP_G       => 10,
-         LD_MAX_FRAMES_OUT_G       => 10
+         LD_MAX_FRAMES_OUT_G       => 10,
+         DON_IS_LAST_G             => not DNL_C
       )
       port map (
          usb2Clk                   => ulpiTstClk,
