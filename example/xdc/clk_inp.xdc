@@ -15,3 +15,9 @@ create_generated_clock -name ulpiClk -source [get_pins -hier *G_CLKDDR.U_DDR/Q] 
 
 set_multicycle_path -from [get_clocks ulpiClk] 2
 
+# The ulpiDir -> ulpiDat[x] combinatorial path (which switches the output drivers
+# off) does not use the delayed clock; must relax the hold timing.
+# It would be desirable to not use a multicycle path at all for this combinatorial
+# path but on the low-end device we must allow 2 cycles for turn-around which
+# is in-principle OK but may result in a bit of driver fighting.
+set_multicycle_path -hold -from [get_clocks ulpiClk] -to [get_clocks ulpiClk] 1

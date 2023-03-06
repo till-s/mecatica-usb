@@ -48,7 +48,7 @@ set_output_delay -clock ulpiClk -max -add_delay 3.150 [all_fanout -flat -endpoin
 #metastability when the turn-around cycle is latched. However, on slower
 #devices at least, this does not seem possible. 2-cycles is a must!
 #     = 16.667 
-set_max_delay -datapath_only -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]] 33.333
+set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]] 33.333
 # set_min_delay does not accept -datapath_only; furthermore set_max_delay -datapath_only marks
 # a false-path for hold check (c.f. set_max_delay -help)
 #set_min_delay  0.0 -datapath_only -from [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/dir_r_reg/D}]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]]

@@ -8,12 +8,9 @@
 # (module name) in Vivado. (Also restrict its use to
 # 'implementation' in order to reduce warnings.)
 #
+set_max_delay -datapath_only -from [get_clocks -of_objects [get_ports clkB ]]  -through [get_pins -of_objects [get_cells B_Usb2MboxSync.b2aData_reg*] -filter {REF_PIN_NAME==Q}] [get_property PERIOD [get_clocks -of_objects [get_ports clkA]]]
+#set_max_delay -datapath_only -from [get_clocks -of_objects [get_ports clkB ]] -to [get_clocks -of_objects [get_ports clkA]] -through [get_pins -of_objects [get_cells B_Usb2MboxSync.b2aData_reg*] -filter {REF_PIN_NAME==Q}] [get_property PERIOD [get_clocks -of_objects [get_ports clkA]]]
 
-set_multicycle_path -through [get_pins -of_objects [get_cells {B_Usb2MboxSync.a2bData_reg*}] -filter {REF_PIN_NAME==Q}] -setup -end 2
-
-set_false_path -hold -through [get_pins -of_objects [get_cells {B_Usb2MboxSync.a2bData_reg*}] -filter {REF_PIN_NAME==Q}]
-
-set_multicycle_path -through [get_pins -of_objects [get_cells {B_Usb2MboxSync.b2aData_reg*}] -filter {REF_PIN_NAME==Q}] -setup -end 2
-
-set_false_path -hold -through [get_pins -of_objects [get_cells {B_Usb2MboxSync.b2aData_reg*}] -filter {REF_PIN_NAME==Q}]
+set_max_delay -datapath_only -from [get_clocks -of_objects [get_ports clkA]]  -through [get_pins -of_objects [get_cells B_Usb2MboxSync.a2bData_reg*] -filter {REF_PIN_NAME==Q}] [get_property PERIOD [get_clocks -of_objects [get_ports clkB]]]
+#set_max_delay -datapath_only -from [get_clocks -of_objects [get_ports clkA]] -to [get_clocks -of_objects [get_ports clkB]] -through [get_pins -of_objects [get_cells B_Usb2MboxSync.a2bData_reg*] -filter {REF_PIN_NAME==Q}] [get_property PERIOD [get_clocks -of_objects [get_ports clkB]]]
 
