@@ -41,7 +41,17 @@ entity Usb2FifoEp is
       -- This is the number of bits required to hold the max number of frames
       -- floor( log2( maxN ) ) + 1
       LD_MAX_FRAMES_INP_G          : natural  := 0;
-      LD_MAX_FRAMES_OUT_G          : natural  := 0
+      LD_MAX_FRAMES_OUT_G          : natural  := 0;
+      -- if the 'DON_IS_LAST_G' feature is enabled then 'don' becomes a 'last'
+      -- flag which indicates the last (*valid*) data item of a frame.
+      -- Zero-length frames are not possible in this mode:
+      --    'don is done'   data     'don is last'
+      --          0          01           0
+      --          0          02           0
+      --          0          03           1
+      --          1          UU
+      --          1          UU <ZLP>         <- ZLP not possible
+      DON_IS_LAST_G                : boolean  := false
    );
    port (
       usb2Clk                      : in  std_logic;
@@ -174,6 +184,7 @@ begin
       signal haveAFrame   : std_logic := '1';
       signal usb2RstLoc   : std_logic;
       signal epRunning    : std_logic;
+      signal donDly       : std_logic := '0';
    begin
 
       epRunning  <= epInpRunning( usb2EpIb );
@@ -186,17 +197,43 @@ begin
 
       -- only freeze user-access in halted state; EP interaction with the packet
       -- engine proceeds
-      fifoRen             <= usb2EpIb.subInp.rdy and haveAFrame and not fifoEmpty;
+      fifoRen             <= usb2EpIb.subInp.rdy and haveAFrame and not fifoEmpty and not donDly;
       mstInpDat           <= fifoDou( mstInpDat'range );
 
       -- EP clock domain
       fullInp             <= fifoFull or haltedInpEpClk;
       fifoWen             <= wenInp and not haltedInpEpClk and not fifoFull;
 
-      G_WITH_DON : if ( LD_MAX_FRAMES_INP_G > 0 ) generate
+      G_FRAMED : if ( LD_MAX_FRAMES_INP_G > 0 ) generate
          fifoDin    <= donInp & datInp;
-         mstInpDon  <= fifoDou( datInp'length ) and not fifoEmpty;
          bFramedInp <= '0'; -- support framing
+
+
+         G_DONFLG : if ( not DON_IS_LAST_G ) generate
+            mstInpDon  <= fifoDou( datInp'length ) and not fifoEmpty;
+            donDly     <= '0';
+         end generate G_DONFLG;
+
+         -- if they use a 'lst' flag then we delay it for one
+         -- cycle converting it to a 'don' flag as understood
+         -- by the EP.
+         G_LST_FLG : if ( DON_IS_LAST_G ) generate
+         begin
+            mstInpDon <= donDly;
+
+            P_DLY : process ( usb2Clk ) is
+            begin
+               if ( usb2RstLoc = '1' ) then
+                  donDly <= '0';
+               else
+                  if ( ( usb2EpIb.subInp.rdy and donDly ) = '1' ) then
+                     donDly <= '0';
+                  elsif ( fifoRen = '1' ) then
+                     donDly <= fifoDou( datInp'length );
+                  end if;
+               end if;
+            end process P_DLY;
+         end generate G_LST_FLG;
 
          -- maintain frame counters
          P_WR_FRAMES : process ( epClk ) is
@@ -231,14 +268,14 @@ begin
             end if;
          end process P_RD_FRAMES;
 
-      end generate G_WITH_DON;
+      end generate G_FRAMED;
 
-      G_NO_DON : if ( LD_MAX_FRAMES_INP_G = 0 ) generate
+      G_UNFRAMED : if ( LD_MAX_FRAMES_INP_G = 0 ) generate
          fifoDin    <= datInp;
          mstInpDon  <= '0'; -- no framing
          bFramedInp <= '1'; -- no framing
          haveAFrame <= '1';
-      end generate G_NO_DON;
+      end generate G_UNFRAMED;
 
       U_FIFO : entity work.Usb2Fifo
          generic map (
@@ -312,10 +349,34 @@ begin
       --       'rdy' but keep writing to the FIFO until the end of the
       --       packet.
 
-      G_WITH_DON : if ( LD_MAX_FRAMES_OUT_G > 0 ) generate
+      G_FRAMED : if ( LD_MAX_FRAMES_OUT_G > 0 ) generate
+         signal fifoLst      : std_logic    := '1';
       begin
-         fifoDin <= usb2EpIb.mstOut.don & usb2EpIb.mstOut.dat;
-         fifoWen <= (usb2EpIb.mstOut.vld or usb2EpIb.mstOut.don) and not fifoFull;
+
+         G_DONFLG : if ( not DON_IS_LAST_G ) generate
+            fifoDin <= usb2EpIb.mstOut.don & usb2EpIb.mstOut.dat;
+            fifoLst <= '0';
+         end generate G_DONFLG;
+
+         G_LSTFLG : if ( DON_IS_LAST_G ) generate
+            signal fifoDly : Usb2ByteType := (others => '0');
+         begin
+            P_DLY : process ( usb2Clk ) is
+            begin
+               if ( rising_edge( usb2Clk ) ) then
+                  if    ( usb2RstLoc = '1' ) then
+                     fifoLst <= '1';
+                  elsif ( (usb2EpIb.mstOut.vld or usb2EpIb.mstOut.don) = '1' ) then
+                     fifoDly <= usb2EpIb.mstOut.dat;
+                     fifoLst <= usb2EpIb.mstOut.don;
+                  end if;
+               end if;
+            end process P_DLY;
+
+            fifoDin <= usb2EpIb.mstOut.don & fifoDly;
+         end generate G_LSTFLG;
+
+         fifoWen <= (usb2EpIb.mstOut.vld or usb2EpIb.mstOut.don) and not fifoFull and not fifoLst;
          fifoDon <= fifoDou( datOut'length );
          donOut  <= fifoDon;
 
@@ -351,12 +412,12 @@ begin
             end if;
          end process P_RD_FRAMES;
 
-      end generate G_WITH_DON;
+      end generate G_FRAMED;
 
-      G_NO_DON : if ( LD_MAX_FRAMES_OUT_G = 0 ) generate
+      G_UNFRAMED : if ( LD_MAX_FRAMES_OUT_G = 0 ) generate
          fifoDin <= usb2EpIb.mstOut.dat;
          fifoWen <= usb2EpIb.mstOut.vld and not fifoFull;
-      end generate G_NO_DON;
+      end generate G_UNFRAMED;
 
       P_SEQ : process ( usb2Clk ) is
       begin
