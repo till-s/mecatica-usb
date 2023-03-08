@@ -51,6 +51,8 @@ typedef struct ExampleDev {
 #define ACM_FIFO_BASE    0x000000c0
 
 #define ACM_FIFO_CTRL    0x00000000
+#define ACM_FIFO_CTRL1   0x00000004
+
 /* Disable loopback/blast mode (by default traffic is
  * looped back in firmware or dumped, depending on the
  * DTR control line). This bit let's the AXI interface
@@ -62,6 +64,7 @@ typedef struct ExampleDev {
  */
 #define ACM_FIFO_CTRL_MINFILL_MSK  0x7ff
 
+#define ACM_FIFO_CTRL_CARRIER   0x80000000
 /*
  * Timer (in 60Mhz cycles); fifo is sent to USB
  * if no new data have been written in this time
@@ -71,6 +74,10 @@ typedef struct ExampleDev {
 
 #define FIFO_EMPTY (1<<8)
 #define LINE_BREAK (1<<9)
+
+#define RX_IRQ           0x00000001
+#define IRQ_STAT_REG     0x00000010
+#define IRQ_ENBL_REG     0x00000010
 
 static inline uint8_t
 read_ulpi_reg(ExampleDev *pdev, unsigned reg)
@@ -114,12 +121,30 @@ uint32_t v = (uint32_t)val;
 static int
 irqEnable(ExampleDev *pdev)
 {
-uint32_t val = 1;
+uint32_t val;
+
+	val = read_ctrl_reg( pdev, IRQ_ENBL_REG );
+	val |= RX_IRQ;
+	write_ctrl_reg( pdev, IRQ_ENBL_REG, val );
+
+	val = 1;
 	if ( write( pdev->fd, &val, sizeof(val) ) != sizeof(val) ) {
 		perror("writing to UIO device");
 		return -1;
 	}
 	return 0;
+}
+
+static inline void
+set_acm_carrier(ExampleDev *pdev, int carrier)
+{
+uint32_t val = read_ctrl_reg( pdev, ACM_FIFO_CTRL );
+	if ( carrier ) {
+		val |= ACM_FIFO_CTRL_CARRIER;
+	} else {
+		val &= ~ACM_FIFO_CTRL_CARRIER;
+	}
+	write_ctrl_reg( pdev, ACM_FIFO_CTRL, val );
 }
 
 static int
@@ -195,7 +220,7 @@ devClose(ExampleDev *pdev)
 static void
 usage(const char *nm)
 {
-	printf("usage: %s [-d <uio-device>] [-hI] [-F<mode>]\n", nm);
+	printf("usage: %s [-d <uio-device>] [-hI] [-F<mode>] [-C <1/0>]\n", nm);
 	printf("  Simple program to access features of the USB2Example\n");
 	printf("  design on the *target* Zynq system.\n");
 	printf("  The idea is that you have a host connected to USB\n");
@@ -205,10 +230,12 @@ usage(const char *nm)
 	printf("\n");
 	printf("Options:\n");
 	printf("  -h                : Print this message\n");
+	printf("  -d <uio-device>   : Device to use\n");
 	printf("  -I                : Print ULPI PHY vendor ID\n");
+	printf("  -C <1/0>          : Set carrier flag (acm DCD)\n");
 	printf("  -F <mode>         : Read from the ACM endpoint FIFO\n");
 	printf("                      and dump to stdout. The <mode> may\n");
-	printf("                      be 'ascii' or 'hex'. 'ascii' is most\n");
+	printf("                      be '1' (ascii) or '2' (hex). 'ascii' is most\n");
 	printf("                      convenient if the host has a terminal\n");
 	printf("                      connected to the USB ACM device.\n");
 	printf("                      Reading continues until a line break\n");
@@ -230,13 +257,16 @@ int           opt, i;
 uint32_t      got;
 int          *i_p;
 int           lineBreak;
+int           carr      = 0;
 
-	while ( ( opt = getopt( argc, argv, "hF:I" ) ) > 0 ) {
+	while ( ( opt = getopt( argc, argv, "hF:Id:C:" ) ) > 0 ) {
 		i_p = 0;
 		switch ( opt ) {
 			case 'h': usage(argv[0]);         return 0;
 			case 'F': i_p = &dumpFifo;        break;
+            case 'd': fname = optarg;         break;
 			case 'I': dumpPhyId = 1;          break;
+			case 'C': i_p = &carr;            break;
 			default:
 				fprintf(stderr, "Unsupported option -%c\n", opt);
 				goto bail;
@@ -249,6 +279,10 @@ int           lineBreak;
 
 	if ( ! (pdev = devOpen( fname ) ) ) {
 		goto bail;
+	}
+
+	if ( carr ) {
+		set_acm_carrier( pdev, 1 );
 	}
 
 	if ( dumpPhyId ) {
@@ -295,6 +329,10 @@ int           lineBreak;
 		val = read_ctrl_reg( pdev, ACM_FIFO_CTRL );
 		val &= ~ACM_FIFO_CTRL_INTL_DIS;
 		write_ctrl_reg( pdev, ACM_FIFO_CTRL, val );
+	}
+
+	if ( -1 != carr ) {
+		set_acm_carrier( pdev, 0 );
 	}
 
 	rv = 0;
