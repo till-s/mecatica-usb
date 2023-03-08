@@ -69,9 +69,11 @@ MODULE_ALIAS("platform:exFifoEth");
 
 #define RX_FIFO_IRQ  (1<<0)
 #define TX_FIFO_IRQ  (1<<1)
+#define RST_CHG_IRQ  (1<<2)
+#define RST_STAT     (1<<16)
 
-#define FW_ECM   1
-#define FW_NCM   2
+#define FW_ECM   2
+#define FW_NCM   3
 
 struct drv_info {
 	struct net_device       *ndev;
@@ -105,7 +107,7 @@ disable_irqs(struct drv_info *me, u32 msk)
 {
 unsigned long flags;
 u32           val;
-	msk &= (RX_FIFO_IRQ | TX_FIFO_IRQ);
+	msk &= (RX_FIFO_IRQ | TX_FIFO_IRQ | RST_CHG_IRQ);
 	spin_lock_irqsave( &me->lock, flags );
 		val = ioread32( me->base + IRQ_ENBL_REG );
 		val &= ~msk;
@@ -118,7 +120,7 @@ enable_irqs(struct drv_info *me, u32 msk)
 {
 unsigned long flags;
 u32           val;
-	msk &= (RX_FIFO_IRQ | TX_FIFO_IRQ);
+	msk &= (RX_FIFO_IRQ | TX_FIFO_IRQ | RST_CHG_IRQ);
 	spin_lock_irqsave( &me->lock, flags );
 		val = ioread32( me->base + IRQ_ENBL_REG );
 		val |= msk;
@@ -222,9 +224,10 @@ ndev_open(struct net_device *ndev)
 {
 	struct drv_info     *me = netdev_priv( ndev );
 
-	enable_irqs( me, RX_FIFO_IRQ | TX_FIFO_IRQ );
+	enable_irqs( me, RX_FIFO_IRQ | TX_FIFO_IRQ | RST_CHG_IRQ );
 
 	netif_start_queue( ndev );
+	netif_carrier_on( ndev );
 	set_carrier( me, 1 );
 	return 0;
 }
@@ -233,6 +236,8 @@ static int
 ndev_close(struct net_device *ndev)
 {
 	struct drv_info     *me = netdev_priv( ndev );
+
+	disable_irqs( me, RX_FIFO_IRQ | TX_FIFO_IRQ | RST_CHG_IRQ );
 
 	set_carrier( me, 0 );
 
@@ -306,6 +311,17 @@ static irqreturn_t ex_fifo_eth_drv_irq(int irq, void *closure)
 	if ( (pend & TX_FIFO_IRQ) ) {
 		netif_wake_queue( ndev );
 		rval  = IRQ_HANDLED;
+	}
+
+	if ( (pend & RST_CHG_IRQ) ) {
+		if ( (pend & RST_STAT) ) {
+			netif_carrier_off( ndev );
+			set_carrier( me, 0 );
+		} else {
+			netif_carrier_on( ndev );
+			set_carrier( me, 1 );
+		}
+		iowrite32( RST_CHG_IRQ, me->base + IRQ_STAT_REG );
 	}
 
 	return rval;
@@ -492,7 +508,7 @@ static int ex_fifo_eth_drv_remove(struct platform_device *pdev)
 	struct drv_info   *me   = netdev_priv( ndev );
 	struct resource   *res  = 0;
 
-	disable_irqs( me, RX_FIFO_IRQ | TX_FIFO_IRQ );
+	disable_irqs( me, RX_FIFO_IRQ | TX_FIFO_IRQ | RST_CHG_IRQ );
 	kthread_stop( me->kworker_task );
 
 	unregister_netdev( ndev );

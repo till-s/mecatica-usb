@@ -97,24 +97,25 @@ entity Usb2ExampleDev is
       -- control vector
       -- CDC-ACM
       -- iRegs(0,0)(10 downto 0)  : min. fill level of the IN fifo until data are sent to USB
-      -- iRegs(0,0)(25)           : DSR
-      -- iRegs(0,0)(26)           : DCD
-
+      -- iRegs(0,0)(26)           : DSR
+      -- iRegs(0,0)(27)           : USB remote wakeup
       -- iRegs(0,0)(28)           : enable 'local' mode when the ACM is controlled from AXI.
       -- iRegs(0,0)(29)           : assert forced ULPI STP (useful to bring the PHY to reason if it holds DIR)
       -- iRegs(0,0)(30)           : mask/disable IN/OUT fifo's write/read enable when set.
-      -- iRegs(0,0)(31)           : USB remote wakeup
-
+      -- iRegs(0,0)(31)           : DCD
       -- iRegs(0,1)               : IN fifo fill timer (in ulpi CLK cycles)
       --                            fill-level and fill-timer work like termios VMIN/VTIME
       -- CDC-ECM
       -- iRegs(1,0)(10 downto 0)  : min. fill level of the IN fifo until data are sent to USB
       -- iRegs(1,0)(31)           : carrier indicator
       -- iRegs(1,1)               : IN fifo fill timer (in ulpi CLK cycles)
+      -- CDC-NCM
+      -- iRegs(2,0)(31)           : carrier indicator
       iRegs                : in    RegArray(0 to 2, 0 to 1);
       -- status vector
       -- CDC-ACM
       -- oRegs(0,0)(15 downto  0) : IN  fifo fill level
+      -- oRegs(0,0)(23 downto 21) : device type "001"
       -- oRegs(0,0)(27 downto 24) : ld of OUT fifo size
       -- oRegs(0,0)(31 downto 28) : ld of IN  fifo size
 
@@ -125,12 +126,17 @@ entity Usb2ExampleDev is
       -- CDC-ECM
       -- oRegs(1,0)(15 downto  0) : IN fifo fill level
       -- oRegs(1,0)(20 downto 16) : packet filter flags
+      -- oRegs(1,0)(23 downto 21) : device type "010"
       -- oRegs(1,0)(27 downto 24) : ld of OUT fifo size
       -- oRegs(1,0)(31 downto 28) : ld of IN  fifo size
       -- oRegs(1,1)(15 downto  0) : OUT fifo fill level
       -- oRegs(1,1)(31 downto 16) : OUT fifo # of frames
       -- CDC-NCM
       -- oRegs(2,0)(15 downto  0) : IN fifo fill level
+      -- oRegs(2,0)(23 downto 21) : device type "011"
+      -- oRegs(2,0)(27 downto 24) : ld of OUT fifo size
+      -- oRegs(2,0)(31 downto 28) : ld of IN  fifo size
+      -- oRegs(2,1)(          16) : OUT fifo not empty
       oRegs                : out   RegArray(0 to 2, 0 to 1);
 
       regReq               : in    UlpiRegReqType;
@@ -142,10 +148,11 @@ entity Usb2ExampleDev is
       acmFifoOutRen        : in    std_logic := '1';
 
       acmFifoInpDat        : in    Usb2ByteType := (others => '0');
-      ecmFifoInpDon        : in    std_logic;
       acmFifoInpFull       : out   std_logic;
       acmFifoInpFill       : out   unsigned(15 downto 0);
       acmFifoInpWen        : in    std_logic := '1';
+
+      acmFifoRstOut        : out   std_logic;
 
       acmLineBreak         : out   std_logic := '0';
       acmDTR               : out   std_logic := '0';
@@ -160,16 +167,19 @@ entity Usb2ExampleDev is
       baddPowerState       : out unsigned(1 downto 0) := (others => '0');
 
       ecmFifoOutDat        : out   Usb2ByteType;
-      ecmFifoOutDon        : out   std_logic;
+      ecmFifoOutLast       : out   std_logic;
       ecmFifoOutEmpty      : out   std_logic;
       ecmFifoOutFill       : out   unsigned(15 downto 0);
       ecmFifoOutFrms       : out   unsigned(15 downto 0);
       ecmFifoOutRen        : in    std_logic := '1';
 
       ecmFifoInpDat        : in    Usb2ByteType := (others => '0');
+      ecmFifoInpLast       : in    std_logic;
       ecmFifoInpFull       : out   std_logic;
       ecmFifoInpFill       : out   unsigned(15 downto 0);
       ecmFifoInpWen        : in    std_logic := '0';
+
+      ecmFifoRstOut        : out   std_logic;
 
       ncmFifoOutDat        : out   Usb2ByteType := (others => '0');
       ncmFifoOutLast       : out   std_logic := '0';
@@ -183,6 +193,7 @@ entity Usb2ExampleDev is
       ncmFifoInpAvail      : out   signed(15 downto 0) := (others => '0');
       ncmFifoInpWen        : in    std_logic := '0';
 
+      ncmFifoRstOut        : out   std_logic;
 
       clk2Nb               : out   std_logic := '0';
       clk3Nb               : out   std_logic := '0';
@@ -194,7 +205,12 @@ entity Usb2ExampleDev is
 end entity Usb2ExampleDev;
 
 architecture Impl of Usb2ExampleDev is
+
    attribute MARK_DEBUG                        : string;
+
+   constant  FW_ACM_C                          : std_logic_vector(2 downto 0) := "001";
+   constant  FW_ECM_C                          : std_logic_vector(2 downto 0) := "010";
+   constant  FW_NCM_C                          : std_logic_vector(2 downto 0) := "011";
 
    function acmCapabilities return Usb2ByteType is
       variable i                     : integer;
@@ -377,7 +393,8 @@ begin
 
       oRegs(0,0)(31 downto 28)           <= std_logic_vector(to_unsigned(LD_ACM_FIFO_DEPTH_INP_C, 4));
       oRegs(0,0)(27 downto 24)           <= std_logic_vector(to_unsigned(LD_ACM_FIFO_DEPTH_OUT_C, 4));
-      oRegs(0,0)(23 downto 16)           <= (others => '0');
+      oRegs(0,0)(23 downto 21)           <= FW_ACM_C;
+      oRegs(0,0)(20 downto 16)           <= (others => '0');
       oRegs(0,0)(15 downto  0)           <= std_logic_vector(resize(acmFifoFilledInp, 16));
 
       oRegs(0,1)(15 downto  0)           <= std_logic_vector(resize(acmFifoFilledOut, 16));
@@ -387,7 +404,7 @@ begin
 
       oRegs(1,0)(31 downto 28)           <= std_logic_vector(to_unsigned(LD_ECM_FIFO_DEPTH_INP_C, 4));
       oRegs(1,0)(27 downto 24)           <= std_logic_vector(to_unsigned(LD_ECM_FIFO_DEPTH_OUT_C, 4));
-      oRegs(1,0)(23 downto 21)           <= (others => '0');
+      oRegs(1,0)(23 downto 21)           <= FW_ECM_C;
       oRegs(1,0)(20 downto 16)           <= ecmPacketFilter;
       oRegs(1,0)(15 downto  0)           <= std_logic_vector(resize(ecmFifoFilledInp, 16));
 
@@ -396,9 +413,12 @@ begin
 
       oRegs(2,0)(31 downto 28)           <= std_logic_vector(to_unsigned(LD_NCM_RAM_DEPTH_INP_C, 4));
       oRegs(2,0)(27 downto 24)           <= std_logic_vector(to_unsigned(LD_NCM_RAM_DEPTH_OUT_C, 4));
-      oRegs(2,0)(23 downto 17)           <= (others => '0');
-      oRegs(2,0)(          16)           <= not ncmFifoEmptyOut;
+      oRegs(2,0)(23 downto 21)           <= FW_NCM_C;
+      oRegs(2,0)(20 downto 16)           <= (others => '0');
       oRegs(2,0)(15 downto  0)           <= std_logic_vector(resize(ncmFifoAvailInp, 16));
+      oRegs(2,1)(31 downto 17)           <= (others => '0');
+      oRegs(2,1)(          16)           <= not ncmFifoEmptyOut;
+      oRegs(2,1)(15 downto  0)           <= (others => '0');
    end process P_RG;
 
 
@@ -407,13 +427,12 @@ begin
    acmLineBreak    <= lineBreak;
    acmFifoMinFill  <= unsigned(iRegs(0,0)(acmFifoMinFill'range));
    acmFifoTimer    <= unsigned(iRegs(0,1)(acmFifoTimer'range));
-   ulpiForceStp    <= iRegs(0,0)(29);
-   usb2RemoteWake  <= iRegs(0,0)(31);
+   DCD             <= iRegs(0,0)(31);
    acmFifoDisable  <= iRegs(0,0)(30);
-
-   DCD             <= iRegs(0,0)(26);
-   DSR             <= iRegs(0,0)(25);
+   ulpiForceStp    <= iRegs(0,0)(29);
    acmFifoLocal    <= iRegs(0,0)(28);
+   usb2RemoteWake  <= iRegs(0,0)(27);
+   DSR             <= iRegs(0,0)(26);
 
    acmFifoLoopback <= DTR;
    acmFifoBlast    <= not acmFifoLoopback;
@@ -587,7 +606,7 @@ begin
             fifoTimeFillInp            => acmFifoTimer,
 
             epClk                      => ulpiClkLoc,
-            epRstOut                   => open,
+            epRstOut                   => acmFifoRstOut,
 
             -- FIFO Interface
 
@@ -844,16 +863,16 @@ begin
             packetFilter               => ecmPacketFilter,
 
             epClk                      => ulpiClkLoc,
-            epRstOut                   => open,
+            epRstOut                   => ecmFifoRstOut,
 
             -- FIFO Interface
             fifoDataInp                => ecmFifoInpDat,
-            fifoDonInp                 => ecmFifoInpDon,
+            fifoLastInp                => ecmFifoInpLast,
             fifoWenaInp                => ecmFifoInpWen,
             fifoFullInp                => ecmFifoInpFull,
             fifoFilledInp              => ecmFifoFilledInp,
             fifoDataOut                => ecmFifoOutDat,
-            fifoDonOut                 => ecmFifoOutDon,
+            fifoLastOut                => ecmFifoOutLast,
             fifoRenaOut                => ecmFifoOutRen,
             fifoEmptyOut               => ecmFifoOutEmpty,
             fifoFilledOut              => ecmFifoFilledOut,
@@ -905,7 +924,7 @@ begin
             macAddress                 => open,
 
             epClk                      => ulpiClkLoc,
-            epRstOut                   => open,
+            epRstOut                   => ncmFifoRstOut,
 
             -- FIFO Interface
             fifoDataInp                => ncmFifoInpDat,

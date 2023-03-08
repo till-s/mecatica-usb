@@ -144,31 +144,42 @@ architecture top_level of ZynqTop is
    signal acmFifoInpFull                 : std_logic;
    signal acmFifoInpWen                  : std_logic;
 
+   signal acmFifoRst                     : std_logic;
+   signal acmFifoRstLst                  : std_logic := '0';
+   signal acmFifoRstChg                  : std_logic := '0';
+
    signal ecmFifoOutDat                  : Usb2ByteType;
-   signal ecmFifoOutDon                  : std_logic;
+   signal ecmFifoOutLst                  : std_logic;
    signal ecmFifoOutEmpty                : std_logic;
    signal ecmFifoOutRen                  : std_logic;
    signal ecmFifoOutFill                 : unsigned(15 downto 0);
    signal ecmFifoOutFrms                 : unsigned(15 downto 0);
 
    signal ecmFifoInpDat                  : Usb2ByteType;
-   signal ecmFifoInpDon                  : std_logic;
+   signal ecmFifoInpLst                  : std_logic;
    signal ecmFifoInpFull                 : std_logic;
    signal ecmFifoInpWen                  : std_logic;
    signal ecmFifoInpFill                 : unsigned(15 downto 0);
+
+   signal ecmFifoRst                     : std_logic;
+   signal ecmFifoRstLst                  : std_logic := '0';
+   signal ecmFifoRstChg                  : std_logic := '0';
 
    signal ncmFifoOutDat                  : Usb2ByteType;
    signal ncmFifoOutLast                 : std_logic;
    signal ncmFifoOutEmpty                : std_logic;
    signal ncmFifoOutRen                  : std_logic;
+   signal ncmFifoRstLst                  : std_logic := '0';
+   signal ncmFifoRstChg                  : std_logic := '0';
 
    signal ncmFifoInpDat                  : Usb2ByteType;
-   signal ncmFifoInpLast                 : std_logic;
+   signal ncmFifoInpLst                  : std_logic;
    signal ncmFifoInpFull                 : std_logic;
    signal ncmFifoInpBusy                 : std_logic;
    signal ncmFifoInpWen                  : std_logic;
    signal ncmFifoInpAvail                : signed(15 downto 0);
 
+   signal ncmFifoRst                     : std_logic;
 
  
    -- USB3340 requires reset to be asserted for min. 1us; UlpiLineState subsequently waits until DIR is deasserted
@@ -191,13 +202,16 @@ architecture top_level of ZynqTop is
    signal i2sBlink                       : std_logic := '1';
    signal acmIrq                         : std_logic := '0';
    signal ecmIrq                         : std_logic := '0';
-   signal ecmIrqEnbl                     : std_logic_vector(1 downto 0) := (others => '0');
-   signal ecmIrqStat                     : std_logic_vector(1 downto 0) := (others => '0');
-   signal ecmIrqPend                     : std_logic_vector(1 downto 0) := (others => '0');
    signal ncmIrq                         : std_logic := '0';
-   signal ncmIrqEnbl                     : std_logic_vector(1 downto 0) := (others => '0');
-   signal ncmIrqStat                     : std_logic_vector(1 downto 0) := (others => '0');
-   signal ncmIrqPend                     : std_logic_vector(1 downto 0) := (others => '0');
+   signal acmIrqEnbl                     : std_logic_vector(2 downto 0) := (others => '0');
+   signal acmIrqStat                     : std_logic_vector(2 downto 0) := (others => '0');
+   signal acmIrqPend                     : std_logic_vector(2 downto 0) := (others => '0');
+   signal ecmIrqEnbl                     : std_logic_vector(2 downto 0) := (others => '0');
+   signal ecmIrqStat                     : std_logic_vector(2 downto 0) := (others => '0');
+   signal ecmIrqPend                     : std_logic_vector(2 downto 0) := (others => '0');
+   signal ncmIrqEnbl                     : std_logic_vector(2 downto 0) := (others => '0');
+   signal ncmIrqStat                     : std_logic_vector(2 downto 0) := (others => '0');
+   signal ncmIrqPend                     : std_logic_vector(2 downto 0) := (others => '0');
 
 
 begin
@@ -433,6 +447,8 @@ begin
          ecmFifoRen  :  std_logic;
          ncmFifoWen  :  std_logic;
          ncmFifoRen  :  std_logic;
+         rstLst      :  std_logic_vector(2 downto 0);
+         rstChg      :  std_logic_vector(2 downto 0);
          lineBreak   :  std_logic;
       end record RegType;
       constant REG_INIT_C : RegType := (
@@ -447,11 +463,17 @@ begin
          ecmFifoRen  => '0',
          ncmFifoWen  => '0',
          ncmFifoRen  => '0',
+         rstLst      => (others => '0'),
+         rstChg      => (others => '0'),
          lineBreak   => '0'
       );
       signal r       : RegType := REG_INIT_C;
       signal rin     : RegType;
    begin
+
+   acmFifoRstChg <= r.rstChg(0);
+   ecmFifoRstChg <= r.rstChg(1);
+   ncmFifoRstChg <= r.rstChg(2);
 
    G_EXT_RST : if ( ULPI_CLK_MODE_INP_G /= 0 ) generate
       ulpiRstb <= not ulpiRst; -- RSTb
@@ -512,20 +534,24 @@ begin
          acmFifoInpFill       => open,
          acmFifoInpWen        => acmFifoInpWen,
 
+         acmFifoRstOut        => acmFifoRst,
+
          acmLineBreak         => acmLineBreak,
 
          ecmFifoOutDat        => ecmFifoOutDat,
-         ecmFifoOutDon        => ecmFifoOutDon,
+         ecmFifoOutLast       => ecmFifoOutLst,
          ecmFifoOutEmpty      => ecmFifoOutEmpty,
          ecmFifoOutFill       => ecmFifoOutFill,
          ecmFifoOutFrms       => ecmFifoOutFrms,
          ecmFifoOutRen        => ecmFifoOutRen,
 
          ecmFifoInpDat        => ecmFifoInpDat,
-         ecmFifoInpDon        => ecmFifoInpDon,
+         ecmFifoInpLast       => ecmFifoInpLst,
          ecmFifoInpFull       => ecmFifoInpFull,
          ecmFifoInpFill       => ecmFifoInpFill,
          ecmFifoInpWen        => ecmFifoInpWen,
+
+         ecmFifoRstOut        => ecmFifoRst,
 
          ncmFifoOutDat        => ncmFifoOutDat,
          ncmFifoOutLast       => ncmFifoOutLast,
@@ -533,12 +559,13 @@ begin
          ncmFifoOutRen        => ncmFifoOutRen,
 
          ncmFifoInpDat        => ncmFifoInpDat,
-         ncmFifoInpLast       => ncmFifoInpFull,
+         ncmFifoInpLast       => ncmFifoInpLst,
          ncmFifoInpFull       => ncmFifoInpFull,
          ncmFifoInpBusy       => ncmFifoInpBusy,
          ncmFifoInpWen        => ncmFifoInpWen,
          ncmFifoInpAvail      => ncmFifoInpAvail,
 
+         ncmFifoRstOut        => ncmFifoRst,
 
          clk2Nb               => open,
          clk3Nb               => clk3Nb,
@@ -550,14 +577,31 @@ begin
 
       acmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
       ecmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
-      ecmFifoInpDon <= axilWriteMst.wdata(9);
+      ecmFifoInpLst <= axilWriteMst.wdata(9);
 
-      acmIrq        <= not acmFifoOutEmpty or acmLineBreak;
+      ncmFifoInpDat <= axilWriteMst.wdata(7 downto 0);
+      ncmFifoInpLst <= axilWriteMst.wdata(9);
 
+      acmIrqPend    <= acmIrqEnbl and acmIrqStat;
       ecmIrqPend    <= ecmIrqEnbl and ecmIrqStat;
       ncmIrqPend    <= ncmIrqEnbl and ncmIrqStat;
 
-      P_ECM_IRQ : process ( ecmIrqPend, ecmFifoInpFill, ecmFifoOutFrms ) is
+      P_ACM_IRQ : process ( acmIrqPend, acmLineBreak, acmFifoOutEmpty, acmFifoRstChg ) is
+         variable v : std_logic;
+      begin
+         v := '0';
+         for i in acmIrqPend'range loop
+            v := v or acmIrqPend(i);
+         end loop;
+
+         acmIrqStat    <= (others => '0');
+         acmIrqStat(0) <= not acmFifoOutEmpty or acmLineBreak;
+         acmIrqStat(2) <= acmFifoRstChg;
+
+         acmIrq        <= v;
+      end process P_ACM_IRQ;
+
+      P_ECM_IRQ : process ( ecmIrqPend, ecmFifoInpFill, ecmFifoOutFrms, ecmFifoRstChg ) is
          variable v : std_logic;
       begin
          v := '0';
@@ -565,7 +609,9 @@ begin
             v := v or ecmIrqPend(i);
          end loop;
 
-         ecmIrqStat <= (others => '0');
+         ecmIrqStat    <= (others => '0');
+
+         ecmIrqStat(2) <= ecmFifoRstChg;
 
          if ( ecmFifoInpFill < 100 ) then
             ecmIrqStat(1) <= '1';
@@ -578,7 +624,7 @@ begin
          ecmIrq <= v;
       end process P_ECM_IRQ;
 
-      P_NCM_IRQ : process ( ncmIrqPend, ncmFifoInpAvail, ncmFifoOutEmpty ) is
+      P_NCM_IRQ : process ( ncmIrqPend, ncmFifoInpAvail, ncmFifoOutEmpty, ncmFifoRstChg ) is
          variable v : std_logic;
       begin
          v := '0';
@@ -586,7 +632,9 @@ begin
             v := v or ncmIrqPend(i);
          end loop;
 
-         ncmIrqStat <= (others => '0');
+         ncmIrqStat    <= (others => '0');
+
+         ncmIrqStat(2) <= ncmFifoRstChg;
 
          if ( ncmFifoInpAvail > 1600 ) then
             ncmIrqStat(1) <= '1';
@@ -611,11 +659,15 @@ begin
          acmFifoOutEmpty,
          acmFifoInpFull,
          acmFifoOutDat,
+         acmFifoRst,
+         acmFifoRstLst,
 
          ecmFifoOutEmpty,
          ecmFifoInpFull,
          ecmFifoOutDat,
-         ecmFifoOutDon,
+         ecmFifoOutLst,
+         ecmFifoRst,
+         ecmFifoRstLst,
 
          acmLineBreak,
 
@@ -623,9 +675,11 @@ begin
          ncmFifoInpFull,
          ncmFifoInpBusy,
          ncmFifoOutDat,
-         ncmFifoOutLast
+         ncmFifoOutLast,
+         ncmFifoRst,
+         ncmFifoRstLst
       ) is
-         variable v : RegType;
+         variable v     : RegType;
       begin
          v := r;
 
@@ -642,6 +696,8 @@ begin
          if ( acmLineBreak = '1' ) then
             v.lineBreak := '1';
          end if;
+
+         v.rstLst       := ( ncmFifoRst & ecmFifoRst & acmFifoRst );
 
          case ( r.state ) is
             when IDLE =>
@@ -697,7 +753,7 @@ begin
                               end if;
                            when others =>
                               v.rsub.rdata(31 downto 10) := ( others => '0');
-                              v.rsub.rdata(           9) := ecmFifoOutDon;
+                              v.rsub.rdata(           9) := ecmFifoOutLst;
                               v.rsub.rdata(           8) := ecmFifoOutEmpty;
                               v.rsub.rdata( 7 downto  0) := ecmFifoOutDat;
                               v.ecmFifoRen               := not ecmFifoOutEmpty;
@@ -762,6 +818,16 @@ begin
                                     v.state       := DON;
                                  end if;
                               end if;
+                           when "01" =>
+                              -- clear edge-triggered interrupts
+                              if ( unsigned(axilWriteMst.awaddr(5 downto 2)) = "0100" ) then
+                                 if ( axilWriteMst.wstrb(0) = '1' ) then
+                                    if ( axilWriteMst.wdata(2) = '1' ) then
+                                       v.rstChg(0) := '0';
+                                    end if;
+                                 end if;
+                                 v.wsub.bresp := "00";
+                              end if;
                            when "10" =>
                               if ( unsigned(axilWriteMst.awaddr(5 downto 2)) < r.rwRegs'length(2) ) then
                                  for i in axilWriteMst.wstrb'range loop
@@ -779,6 +845,16 @@ begin
                            end case;
                         when x"2" =>
                            case ( axilWriteMst.awaddr( 7 downto 6 ) ) is
+                           when "01" =>
+                              -- clear edge-triggered interrupts
+                              if ( unsigned(axilWriteMst.awaddr(5 downto 2)) = "0100" ) then
+                                 if ( axilWriteMst.wstrb(0) = '1' ) then
+                                    if ( axilWriteMst.wdata(2) = '1' ) then
+                                       v.rstChg(1) := '0';
+                                    end if;
+                                 end if;
+                                 v.wsub.bresp := "00";
+                              end if;
                            when "10" =>
                               if ( unsigned(axilWriteMst.awaddr(5 downto 2)) < r.rwRegs'length(2) ) then
                                  for i in axilWriteMst.wstrb'range loop
@@ -796,6 +872,16 @@ begin
                            end case;
                         when x"3" =>
                            case ( axilWriteMst.awaddr( 7 downto 6 ) ) is
+                           when "01" =>
+                              -- clear edge-triggered interrupts
+                              if ( unsigned(axilWriteMst.awaddr(5 downto 2)) = "0100" ) then
+                                 if ( axilWriteMst.wstrb(0) = '1' ) then
+                                    if ( axilWriteMst.wdata(2) = '1' ) then
+                                       v.rstChg(2) := '0';
+                                    end if;
+                                 end if;
+                                 v.wsub.bresp := "00";
+                              end if;
                            when "10" =>
                               if ( unsigned(axilWriteMst.awaddr(5 downto 2)) < r.rwRegs'length(2) ) then
                                  for i in axilWriteMst.wstrb'range loop
@@ -848,6 +934,8 @@ begin
                end if;
          end case;
 
+         v.rstChg := v.rstChg or ( r.rstLst xor v.rstLst );
+
          rin <= v;
       end process P_COMB;
 
@@ -875,7 +963,16 @@ begin
       axilWriteSub   <= r.wsub;
       regReq         <= r.req;
 
-      P_RO_REGS : process ( r, roRegsDev, ecmIrqStat, ncmIrqStat ) is
+      P_RO_REGS : process (
+         r,
+         roRegsDev,
+         acmIrqStat,
+         ecmIrqStat,
+         ncmIrqStat,
+         acmFifoRst,
+         ecmFifoRst,
+         ncmFifoRst
+      ) is
       begin
          roRegs <= ( others => (others => (others => '0')));
          for i in roRegsDev'range(1) loop
@@ -883,8 +980,12 @@ begin
                roRegs( i, j ) <= roRegsDev( i, j );
             end loop;
          end loop;
+         roRegs( 0, 4 )(ecmIrqStat'range) <= acmIrqStat;
+         roRegs( 0, 4 )(16)               <= acmFifoRst;
          roRegs( 1, 4 )(ecmIrqStat'range) <= ecmIrqStat;
+         roRegs( 1, 4 )(16)               <= ecmFifoRst;
          roRegs( 2, 4 )(ncmIrqStat'range) <= ncmIrqStat;
+         roRegs( 2, 4 )(16)               <= ncmFifoRst;
 
          for i in rwRegsDev'range(1) loop
             for j in rwRegsDev'range(2) loop
