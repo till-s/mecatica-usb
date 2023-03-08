@@ -378,6 +378,7 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 	struct resource   *res  = 0;
 	void   __iomem    *addr = 0;
 	int                rval = -ENODEV;
+	int                irq  = -1;
 	struct drv_info   *me;
 
 	if ( ! (res = platform_get_resource( pdev, IORESOURCE_MEM, 0 )) ) {
@@ -397,7 +398,8 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 
 	SET_NETDEV_DEV( ndev, &pdev->dev );
 	me = netdev_priv( ndev );
-	me->ndev = ndev;
+	me->ndev  = ndev;
+	ndev->irq = -1;
 
 	ndev->netdev_ops = &my_ndev_ops;
 	ndev->dma        = (unsigned char) -1;
@@ -408,8 +410,8 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 
 	netdev_dbg(ndev, "ex_fifo probe\n");
 
-	if ( (ndev->irq = platform_get_irq( pdev , 0 )) < 0 ) {
-		rval = ndev->irq;
+	if ( (irq = platform_get_irq( pdev , 0 )) < 0 ) {
+		rval = irq;
 		netdev_dbg(ndev, "ex_fifo probe\n");
 		goto bail;
 	}
@@ -429,12 +431,13 @@ static int ex_fifo_eth_drv_probe(struct platform_device *pdev)
 		goto bail;
 	}
 
-	disable_irqs( me, (RX_FIFO_IRQ | TX_FIFO_IRQ) );
+	disable_irqs( me, (RX_FIFO_IRQ | TX_FIFO_IRQ | RST_CHG_IRQ) );
 
-	if ( ( rval = request_irq( ndev->irq, ex_fifo_eth_drv_irq, IRQF_SHARED, ndev->name, ndev ) ) ) {
+	if ( ( rval = request_irq( irq, ex_fifo_eth_drv_irq, IRQF_SHARED, ndev->name, ndev ) ) ) {
 		netdev_err(ndev, "ex_fifo unable to request IRQ\n");
 		goto bail;
 	}
+	ndev->irq = irq;
 
 	me->txFifoSize = txFifoSize( me );
 	me->rxFifoSize = rxFifoSize( me );
