@@ -169,13 +169,15 @@ architecture Impl of Usb2EpCDCNCMOut is
 begin
 
    P_RD_COMB : process ( rRd, ramWrPtrIb, rdData, fifoRenaOut ) is
-      variable v : RdRegType;
+      variable v         : RdRegType;
+      variable lenMinus1 : RamIdxType;
    begin
       v            := rRd;
 
       rdAddr       <= rRd.rdPtr + rRd.rdOff;
       ramRen       <= '1';
       fifoEmptyOut <= '1';
+      lenMinus1    := rRd.dgramLen - 1;
 
       case ( rRd.state ) is
          when IDLE =>
@@ -264,9 +266,9 @@ begin
             fifoEmptyOut <= '0';
             ramRen       <= fifoRenaOut;
             if ( fifoRenaOut = '1' ) then
-               v.dgramLen   := rRd.dgramLen - 1;
+               v.dgramLen   := lenMinus1;
                v.rdOff      := rRd.rdOff    + 1;
-               if ( v.dgramLen( v.dgramLen'left ) = '1' ) then
+               if ( lenMinus1( lenMinus1'left ) = '1' ) then
                   rdAddr    <= rRd.rdPtr + rRd.sdpOff + rRd.sdpIdx;
                   v.sdpIdx  := rRd.sdpIdx + 1;
                   v.state   := READ_DGRAM_IDX;
@@ -275,7 +277,7 @@ begin
       end case;
 
       fifoDataOut <= rdData(7 downto 0);
-      fifoLastOut <= v.dgramLen( v.dgramLen'left );
+      fifoLastOut <= lenMinus1( lenMinus1'left );
 
       rInRd <= v;
    end process P_RD_COMB;
