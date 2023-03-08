@@ -88,7 +88,7 @@ entity Usb2EpCDCECM is
       -- write-enable; data are *not* written while fifoFullInp is asserted.
       -- I.e., it is safe to hold fifoDataInp/fifoWenaInp steady until fifoFullInp
       -- is deasserted.
-      fifoDonInp                 : in  std_logic;
+      fifoLastInp                : in  std_logic;
       fifoWenaInp                : in  std_logic;
       fifoFullInp                : out std_logic;
       -- (approximate) fill level. The deassertion of fifoFullInp and the value of
@@ -99,7 +99,7 @@ entity Usb2EpCDCECM is
       -- read-enable; data are *not* read while fifoEmptyOut is asserted.
       -- I.e., it is safe to hold fifoRenaOut steady until fifoEmptyOut
       -- is deasserted.
-      fifoDonOut                 : out std_logic;
+      fifoLastOut                : out std_logic;
       fifoRenaOut                : in  std_logic;
       fifoEmptyOut               : out std_logic;
       -- (approximate) fill level. The deassertion of fifoEmptyOut and the value of
@@ -191,7 +191,8 @@ begin
          OUT_REG_OUT_G               => FIFO_OUT_REG_OUT_G,
          ASYNC_G                     => ASYNC_G,
          LD_MAX_FRAMES_INP_G         => LD_FIFO_DEPTH_INP_G,
-         LD_MAX_FRAMES_OUT_G         => LD_FIFO_DEPTH_OUT_G
+         LD_MAX_FRAMES_OUT_G         => LD_FIFO_DEPTH_OUT_G,
+         DON_IS_LAST_G               => true
       )
       port map (
          usb2Clk                     => usb2Clk,
@@ -208,13 +209,13 @@ begin
          epRstOut                    => epRstLoc,
 
          datInp                      => fifoDataInp,
-         donInp                      => fifoDonInp,
+         donInp                      => fifoLastInp,
          wenInp                      => fifoWenaInp,
          filledInp                   => fifoFilledInp,
          fullInp                     => fifoFullInp,
 
          datOut                      => fifoDataOut,
-         donOut                      => fifoDonOut,
+         donOut                      => fifoLastOut,
          renOut                      => fifoRenaOut,
          filledOut                   => fifoFilledOut,
          framesOut                   => fifoFramesOut,

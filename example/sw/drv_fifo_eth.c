@@ -64,8 +64,8 @@ MODULE_ALIAS("platform:exFifoEth");
 #define FIFO_REG           0xc0
 
 #define RX_FIFO_EMPTY (1<<8)
-#define RX_FIFO_EOP   (1<<9)
-#define TX_FIFO_EOP   (1<<9)
+#define RX_FIFO_LAST  (1<<9)
+#define TX_FIFO_LAST  (1<<9)
 
 #define RX_FIFO_IRQ  (1<<0)
 #define TX_FIFO_IRQ  (1<<1)
@@ -205,24 +205,16 @@ txFifoPush(struct drv_info *me, struct sk_buff *skb)
 {
 int  i;
 u8  *p = (u8*)skb->data;
-	if ( FW_NCM == me->fwType ) {
-		if ( skb->len == 0 ) {
-			return;
-		}
-		for ( i = 0; i < skb->len - 1 ; i++ ) {
-			iowrite32( (u32)(*p), me->base + FIFO_REG );
-			p++;
-		}
-		/* EOP marker */
-		iowrite32( (u32)TX_FIFO_EOP | (u32)(*p), me->base + FIFO_REG );
-	} else {
-		for ( i = 0; i < skb->len - ( FW_NCM == me->fwType ? 1 : 0 ) ; i++ ) {
-			iowrite32( (u32)(*p), me->base + FIFO_REG );
-			p++;
-		}
-		/* EOP marker */
-		iowrite32( (u32)TX_FIFO_EOP, me->base + FIFO_REG );
+
+	if ( skb->len == 0 ) {
+		return;
 	}
+	for ( i = 0; i < skb->len - 1 ; i++ ) {
+		iowrite32( (u32)(*p), me->base + FIFO_REG );
+		p++;
+	}
+	/* EOP marker */
+	iowrite32( (u32)TX_FIFO_LAST | (u32)(*p), me->base + FIFO_REG );
 }
 
 static int
@@ -262,8 +254,7 @@ ndev_hard_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	avail = txSpaceAvailable( me );
 	netdev_dbg(ndev, "ex_fifo hard_start_xmit entering (space %d).\n", avail);
 
-	/* need 1 slot for the EOP marker (ECM) */
-	if ( unlikely( skb->len + (FW_ECM == me->fwType ? 1 : 0) ) > avail ) {
+	if ( unlikely( skb->len ) > avail ) {
 		ndev->stats.tx_errors++;
 		ndev->stats.tx_dropped++;
 		dev_kfree_skb_any( skb );
@@ -344,7 +335,7 @@ static void rx_work_fn(struct kthread_work *w)
 				dev_kfree_skb_any( skb );
 			}
 			while ( rxFramesAvailable( me ) > 0 ) {
-				while ( ! (rxFifoPop( me ) & RX_FIFO_EOP) )
+				while ( ! (rxFifoPop( me ) & RX_FIFO_LAST) )
 					/* nothing else to do */;
 				ndev->stats.rx_dropped++;
 			}
@@ -356,10 +347,7 @@ static void rx_work_fn(struct kthread_work *w)
 				*p = (u8)(d & 0xff);
 				i++;
 				p++;
-				if ( !! (d & RX_FIFO_EOP)  ) {
-					if ( FW_ECM == me->fwType ) {
-						i--;
-					}
+				if ( !! (d & RX_FIFO_LAST)  ) {
 					break;
 				}
 			}
@@ -372,7 +360,7 @@ static void rx_work_fn(struct kthread_work *w)
 				ndev->stats.rx_bytes += len;
 			} else {
 				netdev_err( ndev, "Not enough room (?!), RX packet dropped.\n");
-				while ( ! (rxFifoPop( me ) & RX_FIFO_EOP ) )
+				while ( ! (rxFifoPop( me ) & RX_FIFO_LAST ) )
 					/* nothing else to do */;
 				ndev->stats.rx_dropped++;
 				dev_kfree_skb_any( skb );
