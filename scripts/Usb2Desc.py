@@ -291,9 +291,13 @@ class Usb2DescContext(list):
 
     DSC_IFC_CLASS_AUDIO                = 0x01
 
+    DSC_FCN_SUBCLASS_AUDIO_UNDEFINED   = 0x00
     DSC_FCN_SUBCLASS_AUDIO_SPEAKER     = 0x22
     DSC_IFC_SUBCLASS_AUDIO_CONTROL     = 0x01
     DSC_IFC_SUBCLASS_AUDIO_STREAMING   = 0x02
+
+    DSC_FCN_PROTOCOL_AUDIO_UAC2        = 0x20
+    DSC_FCN_PROTOCOL_AUDIO_UAC3        = 0x30
 
     DSC_IFC_CLASS_CDC                  = 0x02
 
@@ -672,11 +676,11 @@ class Usb2DescContext(list):
 
     @acc(5)
     def bmNetworkCapabilities(self, v): return v
-      
 
- 
+
+
   @factory
-  class Usb2UACDesc(Usb2Desc.clazz):
+  class Usb2UAC2Desc(Usb2Desc.clazz):
 
     DSC_TYPE_CS_INTERFACE                                = 0x24
     DSC_TYPE_CS_ENDPOINT                                 = 0x25
@@ -695,18 +699,30 @@ class Usb2DescContext(list):
     DSC_CATEGORY_HEADSET                                 = 0x04
     DSC_CATEGORY_OTHER                                   = 0xff
 
+    DSC_AUDIO_TERMINAL_TYPE_STREAMING                    = 0x0101
+    DSC_AUDIO_TERMINAL_TYPE_OUT_SPEAKER                  = 0x0301
+
+    DSC_SUBTYPE_AS_GENERAL                               = 0x01
+    DSC_SUBTYPE_AS_FORMAT_TYPE                           = 0x02
+
+    DSC_AS_FORMAT_TYPE_1                                 = 0x01
+
+    DSC_AS_FORMAT_TYPE_1_PCM                             = 0x00000001
+
+    DSC_SUBTYPE_EP_GENERAL                               = 0x01
+
     def __init__(self, length, typ):
       super().__init__(length, typ)
 
+    @acc(2)
+    def bDescriptorSubtype(self, v): return v
+
   @factory
-  class Usb2UACFuncHeaderDesc(Usb2UACDesc.clazz):
+  class Usb2UAC2FuncHeaderDesc(Usb2UAC2Desc.clazz):
     def __init__(self):
       super().__init__(9, self.DSC_TYPE_CS_INTERFACE)
       self.bDescriptorSubtype( self.DSC_SUBTYPE_HEADER )
       self.bcdADC(0x0200)
-
-    @acc(2)
-    def bDescriptorSubtype(self, v): return v
 
     @acc(3,2)
     def bcdADC(self, v): return v
@@ -721,14 +737,23 @@ class Usb2DescContext(list):
     def bmControls(self, v): return v
 
   @factory
-  class Usb2UACClockSourceDesc(Usb2UACDesc.clazz):
+  class Usb2UAC2ClockSourceDesc(Usb2UAC2Desc.clazz):
+    DSC_CLK_SRC_EXTERNAL       = 0x00
+    DSC_CLK_SRC_INTERNAL_FIXED = 0x01
+    DSC_CLK_SRC_INTERNAL_PROG  = 0x02
+    DSC_CLK_SRC_SOF_SYNCED     = 0x04
+
+    DSC_CLK_SRC_CTL_FREQ_RO    = 0x01
+    DSC_CLK_SRC_CTL_FREQ_RW    = 0x03
+    DSC_CLK_SRC_CTL_VALID_RO   = 0x04
+    DSC_CLK_SRC_CTL_VALID_RW   = 0x0C
+
     def __init__(self):
-      super().__init__(8, self.DSC_TYPE_INTERFACE)
-      self.bDescriptorSubtype( d.DSC_SUBTYPE_CLOCK_SOURCE )
-      self.iClockSource(0)
+      super().__init__(8, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_CLOCK_SOURCE )
 
     @acc(3)
-    def bClockId(self, v): return v
+    def bClockID(self, v): return v
 
     @acc(4)
     def bmAttributes(self, v): return v
@@ -740,7 +765,179 @@ class Usb2DescContext(list):
     def bAssocTerminal(self, v): return v
 
     @acc(7)
-    def iClockSource(self, v): return v
+    def iClockSource(self, v): return self.cvtString(v)
+
+  @factory
+  class Usb2UAC2InputTerminalDesc(Usb2UAC2Desc.clazz):
+    def __init__(self):
+      super().__init__(17, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_INPUT_TERMINAL )
+
+    @acc(3)
+    def bTerminalID(self, v): return v
+
+    @acc(4,2)
+    def wTerminalType(self, v): return v
+
+    @acc(6)
+    def bAssocTerminal(self, v): return v
+
+    @acc(7)
+    def bCSourceID(self, v): return v
+
+    @acc(8)
+    def bNrChannels(self, v): return v
+
+    @acc(9,4)
+    def bmChannelConfig(self, v): return v
+
+    @acc(13)
+    def iChannelNames(self, v): return self.cvtString(v)
+
+    @acc(14, 2)
+    def bmControls(self, v): return v
+
+    @acc(16)
+    def iTerminal(self, v): return self.cvtString(v)
+
+  @factory
+  class Usb2UAC2OutputTerminalDesc(Usb2UAC2Desc.clazz):
+    def __init__(self):
+      super().__init__(12, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_OUTPUT_TERMINAL )
+
+    @acc(3)
+    def bTerminalID(self, v): return v
+
+    @acc(4,2)
+    def wTerminalType(self, v): return v
+
+    @acc(6)
+    def bAssocTerminal(self, v): return v
+
+    @acc(7)
+    def bSourceID(self, v): return v
+
+    @acc(8)
+    def bCSourceID(self, v): return v
+
+    @acc(8)
+    def bNrChannels(self, v): return v
+
+    @acc(9, 2)
+    def bmControls(self, v): return v
+
+    @acc(11)
+    def iTerminal(self, v): return self.cvtString(v)
+
+  @factory
+  class Usb2UAC2MonoFeatureUnitDesc(Usb2UAC2Desc.clazz):
+    def __init__(self):
+      super().__init__(14, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( d.DSC_SUBTYPE_FEATURE_UNIT )
+
+    @acc(3)
+    def bUnitID(self, v): return v
+
+    @acc(4)
+    def bSourceID(self, v): return v
+
+    @acc(5, 4)
+    def bmaControls0(self, v): return v
+
+    @acc(9, 4)
+    def bmaControls1(self, v): return v
+
+    @acc(13)
+    def iFeature(self,v): return self.cvtString(v)
+
+  @factory
+  class Usb2UAC2StereoFeatureUnitDesc(Usb2UAC2Desc.clazz):
+    def __init__(self):
+      super().__init__(18, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_FEATURE_UNIT )
+
+    @acc(3)
+    def bUnitID(self, v): return v
+
+    @acc(4)
+    def bSourceID(self, v): return v
+
+    @acc(5, 4)
+    def bmaControls0(self, v): return v
+
+    @acc(9, 4)
+    def bmaControls1(self, v): return v
+
+    @acc(13, 4)
+    def bmaControls2(self, v): return v
+
+    @acc(17)
+    def iFeature(self,v): return self.cvtString(v)
+
+  @factory
+  class Usb2UAC2ClassSpecificASInterfaceDesc(Usb2UAC2Desc.clazz):
+
+    def __init__(self):
+      super().__init__(16, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_AS_GENERAL )
+
+    @acc(3)
+    def bTerminalLink(self, v): return v
+
+    @acc(4)
+    def bmControls(self, v): return v
+
+    @acc(5)
+    def bFormatType(self, v): return v
+
+    @acc(6,4)
+    def bmFormats(self, v): return v
+
+    @acc(10)
+    def bNrChannels(self, v): return v
+
+    @acc(11,4)
+    def bmChannelConfig(self, v): return v
+
+    @acc(15)
+    def iChannelNames(self, v): return self.cvtStr(v)
+
+  @factory
+  class Usb2UAC2FormatType1Desc(Usb2UAC2Desc.clazz):
+
+    def __init__(self):
+      super().__init__(6, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_AS_FORMAT_TYPE )
+      self.bFormatType( self.DSC_AS_FORMAT_TYPE_1 )
+
+    @acc(3)
+    def bFormatType(self, v): return v
+
+    @acc(4)
+    def bSubslotSize(self, v): return v
+
+    @acc(5)
+    def bBitResolution(self, v): return v
+
+  @factory
+  class Usb2UAC2ASISOEndpointDesc(Usb2UAC2Desc.clazz):
+
+    def __init__(self):
+      super().__init__(8, self.DSC_TYPE_CS_ENDPOINT)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_EP_GENERAL )
+
+    @acc(3)
+    def bmAttributes(self, v): return v
+
+    @acc(4)
+    def bmControls(self, v): return v
+
+    @acc(5)
+    def bLockDelayUnits(self, v): return v
+
+    @acc(6,2)
+    def wLockDelay(self, v): return v
 
 class SingleCfgDevice(Usb2DescContext):
   def __init__(self, idVendor, idDevice, remWake = False, bcdDevice = 0x0100):
@@ -773,7 +970,7 @@ class SingleCfgDevice(Usb2DescContext):
   def configurationDesc(self):
     return self.configurationDesc_
 
-def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True):
+def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True, fcnTitle=None):
   numIfcs = 0
   numEPPs = 0
   if epPktSize is None:
@@ -787,6 +984,8 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
   d.bFunctionClass( d.DSC_IFC_CLASS_CDC )
   d.bFunctionSubClass( d.DSC_CDC_SUBCLASS_ECM )
   d.bFunctionProtocol( d.DSC_CDC_PROTOCOL_NONE )
+  if not fcnTitle is None:
+    d.iFunction( fcnTitle )
 
   # interface 0
   d = ctxt.Usb2InterfaceDesc()
@@ -857,7 +1056,7 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
-def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True):
+def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True, fcnTitle=None):
   numIfcs = 0
   numEPPs = 0
   if epPktSize is None:
@@ -871,6 +1070,8 @@ def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
   d.bFunctionClass( d.DSC_IFC_CLASS_CDC )
   d.bFunctionSubClass( d.DSC_CDC_SUBCLASS_NCM )
   d.bFunctionProtocol( d.DSC_CDC_PROTOCOL_NONE )
+  if not fcnTitle is None:
+    d.iFunction( fcnTitle )
 
   # interface 0
   d = ctxt.Usb2InterfaceDesc()
@@ -948,7 +1149,7 @@ def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True)
 # epPktSize None selects the max. allowed for the selected speed
 # ifcNum defines the index of the first of two interfaces used by
 # this class
-def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineState=False, hiSpeed=True):
+def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineState=False, hiSpeed=True, fcnTitle = None):
   numIfcs = 0
   numEPPs = 0
   if epPktSize is None:
@@ -962,6 +1163,8 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineSt
   d.bFunctionClass( d.DSC_IFC_CLASS_CDC )
   d.bFunctionSubClass( d.DSC_CDC_SUBCLASS_ACM )
   d.bFunctionProtocol( d.DSC_CDC_PROTOCOL_NONE )
+  if not fcnTitle is None:
+    d.iFunction( fcnTitle )
 
   # interface 0
   d = ctxt.Usb2InterfaceDesc()
@@ -1039,15 +1242,24 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineSt
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
-def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True):
+def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None):
   numIfcs = 0
   numEPPs = 0
+
+  haveMasterMute   = False
+  haveMasterVolume = False
+
+  haveLRMute       = False
+  haveLRVolume     = False
+
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bFirstInterface( ifcNumber )
   d.bInterfaceCount( 2 )
   d.bFunctionClass( d.DSC_IFC_CLASS_AUDIO )
-  d.bFunctionSubClass( d.DSC_FCN_SUBCLASS_AUDIO_SPEAKER )
-  d.bFunctionProtocol( 0x30 )
+  d.bFunctionSubClass( d.DSC_FCN_SUBCLASS_AUDIO_UNDEFINED )
+  d.bFunctionProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC2 )
+  if not fcnTitle is None:
+    d.iFunction( fcnTitle )
 
   # AC (audio-control) interface
   d = ctxt.Usb2InterfaceDesc()
@@ -1055,7 +1267,181 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
   d.bAlternateSetting(0)
   d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
   d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_CONTROL )
-  d.bInterfaceProtocol( 0x30 )
+  d.bInterfaceProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC2 )
+
+  # no endpoints (optional interrupt endpoint omitted)
+
+  numIfcs += 1
+
+  numChannels = 2
+  totl        = 0
+  d = ctxt.Usb2UAC2FuncHeaderDesc()
+  d.bCategory( d.DSC_CATEGORY_DESKTOP_SPEAKER )
+  d.bmControls( 0x00 )
+  hdr   = d
+  totl += d.size
+
+  # IDs must match BADD profile for the BADDSpkrCtl to be
+  # able to dispatch the requests to the correct unit
+  clkID = 0x09
+  inTID = 0x01
+  ftrID = 0x02
+  ouTID = 0x03
+
+  d = ctxt.Usb2UAC2ClockSourceDesc()
+  d.bClockID( clkID )
+  d.bmAttributes( d.DSC_CLK_SRC_EXTERNAL )
+  d.bmControls( d.DSC_CLK_SRC_CTL_FREQ_RO )
+  d.bAssocTerminal( 0x00 )
+  totl += d.size
+
+  d = ctxt.Usb2UAC2InputTerminalDesc()
+  d.bTerminalID( inTID )
+  d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_STREAMING )
+  d.bAssocTerminal( 0x00 )
+  d.bCSourceID( clkID )
+  d.bNrChannels( numChannels )
+  if ( 2 == numChannels ):
+    channelConfig = 0x3 # front left right
+  else:
+    channelConfig = 0x4 # front center
+  d.bmChannelConfig( channelConfig )
+  totl += d.size
+
+  if ( 2 == numChannels ):
+    d = ctxt.Usb2UAC2StereoFeatureUnitDesc()
+  else:
+    d = ctxt.Usb2UAC2MonoFeatureUnitDesc()
+
+  d.bUnitID( ftrID )
+  d.bSourceID( inTID )
+
+  ctls = 0
+  if ( haveMasterMute ):
+    ctls |= 3
+  if ( haveMasterVolume ):
+    ctls |= 0xc
+  d.bmaControls0( ctls )
+
+  ctls = 0
+  if ( haveLRMute ):
+    ctls |= 3
+  if ( haveLRVolume ):
+    ctls |= 0xc
+  d.bmaControls1( ctls )
+  if ( 2 == numChannels ):
+    d.bmaControls2( ctls )
+  totl += d.size
+
+  d = ctxt.Usb2UAC2OutputTerminalDesc()
+  d.bTerminalID( ouTID )
+  d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_OUT_SPEAKER )
+  d.bAssocTerminal( 0x00 )
+  d.bSourceID( ftrID )
+  d.bCSourceID( clkID )
+  d.bmControls( 0x0000 )
+  totl += d.size
+
+  hdr.wTotalLength( totl )
+
+  # AS (audio-streaming interface)
+  d = ctxt.Usb2InterfaceDesc()
+  # zero-bandwidth altsetting 0
+  d.bInterfaceNumber( ifcNumber + numIfcs )
+  d.bAlternateSetting(0)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
+  d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_STREAMING )
+  d.bInterfaceProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC2 )
+
+  # AS (audio-streaming interface)
+  d = ctxt.Usb2InterfaceDesc()
+  d.bInterfaceNumber( ifcNumber + numIfcs )
+  # 1kHz altsetting 1
+  d.bAlternateSetting(1)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
+  d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_STREAMING )
+  d.bInterfaceProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC2 )
+
+  # AS CS-specific interface
+  d = ctxt.Usb2UAC2ClassSpecificASInterfaceDesc()
+  d.bTerminalLink( inTID )
+  d.bmControls( 0x00 )
+  d.bFormatType( d.DSC_AS_FORMAT_TYPE_1 )
+  d.bmFormats( d.DSC_AS_FORMAT_TYPE_1_PCM )
+  d.bNrChannels( numChannels )
+  d.bmChannelConfig( channelConfig )
+
+  # AS CS-specific format
+  d = ctxt.Usb2UAC2FormatType1Desc()
+  if ( has24Bits ):
+    d.bSubslotSize( 3 )
+    d.bBitResolution( 24 )
+  else:
+    d.bSubslotSize( 2 )
+    d.bBitResolution( 16 )
+
+  # endpoint 1, ISO OUT
+  d = ctxt.Usb2EndpointDesc()
+  d.bEndpointAddress( d.ENDPOINT_OUT | (epAddr + numEPPs) )
+  atts = d.ENDPOINT_TT_ISOCHRONOUS
+  if ( isAsync ):
+    atts |= d.ENDPOINT_SYNC_ASYNC
+  else:
+    atts |= d.ENDPOINT_SYNC_SYNCHRONOUS
+  d.bmAttributes( atts )
+  if ( has24Bits ):
+    smpSize = 3
+  else:
+    smpSize = 2
+  # stereo, 48KHz sample size
+  pktSize = 48*numChannels*smpSize
+  if ( isAsync ):
+    pktSize += numChannels*smpSize
+  d.wMaxPacketSize( pktSize )
+  if ( hiSpeed ):
+    d.bInterval(0x04)
+  else:
+    d.bInterval(0x01)
+
+  d = ctxt.Usb2UAC2ASISOEndpointDesc()
+  d.bmAttributes( 0x00 )
+
+  if ( isAsync ):
+    # endpoint 1, ISO INP -- feedback
+    d = ctxt.Usb2EndpointDesc()
+    d.bEndpointAddress( d.ENDPOINT_IN  | (epAddr + numEPPs) )
+    atts =d.ENDPOINT_TT_ISOCHRONOUS | d.ENDPOINT_SYNC_NONE | d.ENDPOINT_USAGE_FEEDBACK
+    d.bmAttributes( atts )
+    if ( hiSpeed ):
+      d.wMaxPacketSize( 4 )
+      d.bInterval(0x04)
+    else:
+      d.wMaxPacketSize( 3 )
+      d.bInterval(0x01)
+  numEPPs += 1
+
+  numIfcs += 1
+  # return number of interfaces and endpoint pairs used
+  return numIfcs, numEPPs
+def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None):
+  numIfcs = 0
+  numEPPs = 0
+  d = ctxt.Usb2InterfaceAssociationDesc()
+  d.bFirstInterface( ifcNumber )
+  d.bInterfaceCount( 2 )
+  d.bFunctionClass( d.DSC_IFC_CLASS_AUDIO )
+  d.bFunctionSubClass( d.DSC_FCN_SUBCLASS_AUDIO_SPEAKER )
+  d.bFunctionProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC3 )
+  if not fcnTitle is None:
+    d.iFunction( fcnTitle )
+
+  # AC (audio-control) interface
+  d = ctxt.Usb2InterfaceDesc()
+  d.bInterfaceNumber( ifcNumber + numIfcs )
+  d.bAlternateSetting(0)
+  d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
+  d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_CONTROL )
+  d.bInterfaceProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC3 )
   # no endpoints (optional interrupt endpoint omitted)
 
   numIfcs += 1
@@ -1067,7 +1453,7 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
   d.bAlternateSetting(0)
   d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
   d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_STREAMING )
-  d.bInterfaceProtocol( 0x30 )
+  d.bInterfaceProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC3 )
 
   # AS (audio-streaming interface)
   d = ctxt.Usb2InterfaceDesc()
@@ -1076,7 +1462,7 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
   d.bAlternateSetting(1)
   d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
   d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_STREAMING )
-  d.bInterfaceProtocol( 0x30 )
+  d.bInterfaceProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC3 )
 
   # endpoint 1, ISO OUT
   d = ctxt.Usb2EndpointDesc()
