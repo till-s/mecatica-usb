@@ -50,8 +50,9 @@ if __name__ == "__main__":
 
   iProduct="Till's Mecatica USB Example Device"
   # MAC address is patched by the firmware using DeviceDNA
-  iMACAddr="02DEADBEEF34"
-  ctxt = ExampleDevDesc.mkExampleDevDescriptors(idVendor=idVendor, idProduct=idProduct, ifcNumber=0, epAddr=1, iMACAddr=iMACAddr, dualSpeed=True, iProduct=iProduct)
+  iECMMACAddr="02DEADBEEF34"
+  iNCMMACAddr="02DEADBEEF31"
+  ctxt = ExampleDevDesc.mkExampleDevDescriptors(idVendor=idVendor, idProduct=idProduct, ifcNumber=0, epAddr=1, iECMMACAddr=iECMMACAddr, iNCMMACAddr=iNCMMACAddr, dualSpeed=True, iProduct=iProduct)
  
   with io.open( fnam, 'x' ) as f:
     print("-- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.", file=f)

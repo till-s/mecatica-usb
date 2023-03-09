@@ -7,7 +7,7 @@
 
 import Usb2Desc
 
-def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iMACAddr = None, epPktSize=None, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False):
+def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iECMMACAddr = None, iNCMMACAddr = None, epPktSize=None, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False):
   remWake = True
   c  = Usb2Desc.Usb2DescContext()
   d  = c.Usb2DeviceDesc()
@@ -39,20 +39,21 @@ def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iMACAddr
     ifcNumber_ = ifcNumber
     epAddr_    = epAddr
 
-    ifs, eps = Usb2Desc.addBasicACM(c, ifcNumber_, epAddr_, epPktSize, sendBreak=True, lineState=True, hiSpeed = speed)
+    ifs, eps = Usb2Desc.addBasicACM(c, ifcNumber_, epAddr_, epPktSize, sendBreak=True, lineState=True, hiSpeed = speed, fcnTitle = "Mecatica ACM")
     ifcNumber_ += ifs
     epAddr_    += eps
 
-    ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True  )
+    ifs, eps = Usb2Desc.addUAC2Speaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC2 Speaker")
     ifcNumber_ += ifs
     epAddr_    += eps
 
-    if not iMACAddr is None:
-      ifs, eps = Usb2Desc.addBasicECM( c, ifcNumber_, epAddr_, iMACAddr = iMACAddr, hiSpeed = speed)
+    if not iECMMACAddr is None:
+      ifs, eps = Usb2Desc.addBasicECM( c, ifcNumber_, epAddr_, iMACAddr = iECMMACAddr, hiSpeed = speed, fcnTitle = "Mecatica ECM")
       ifcNumber_ += ifs
       epAddr_    += eps
 
-      ifs, eps = Usb2Desc.addBasicNCM( c, ifcNumber_, epAddr_, iMACAddr = iMACAddr, hiSpeed = speed )
+    if not iNCMMACAddr is None:
+      ifs, eps = Usb2Desc.addBasicNCM( c, ifcNumber_, epAddr_, iMACAddr = iNCMMACAddr, hiSpeed = speed, fcnTitle = "Mecatica NCM")
       ifcNumber_ += ifs
       epAddr_    += eps
 
