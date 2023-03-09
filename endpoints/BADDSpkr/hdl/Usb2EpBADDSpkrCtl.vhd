@@ -7,6 +7,7 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
+use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
 
 -- Example for how to extend EP0 functionality.
@@ -36,15 +37,20 @@ entity Usb2EpBADDSpkrCtl is
       muteRight       : out std_logic;
       powerState      : out unsigned(1 downto 0)
    );
+
+   attribute MARK_DEBUG of usb2Ep0ReqParam : signal is "TRUE";
+
 end entity Usb2EpBADDSpkrCtl;
 
 architecture Impl of Usb2EpBADDSpkrCtl is
 
    type StateType is (IDLE, SEND_DAT, GET_PARAM, DONE);
 
+   subtype IdxType is signed(4 downto 0);
+
    type BufType is record
       dat             : Usb2ByteArray(15 downto 0);
-      idx             : signed(4 downto 0);
+      idx             : IdxType;
    end record BufType;
 
    constant BUF_INIT_C : BufType := (
@@ -157,6 +163,7 @@ architecture Impl of Usb2EpBADDSpkrCtl is
       muteRight       : std_logic;
       powerState      : unsigned(1 downto 0);
       buf             : bufType;
+      len             : IdxType;
    end record RegType;
 
 
@@ -170,7 +177,8 @@ architecture Impl of Usb2EpBADDSpkrCtl is
       muteLeft        => '0',
       muteRight       => '0',
       powerState      => to_unsigned(1, 2),
-      buf             => BUF_INIT_C
+      buf             => BUF_INIT_C,
+      len             => (others => '1')
    );
 
    signal r    : RegType := REG_INIT_C;
@@ -208,6 +216,8 @@ architecture Impl of Usb2EpBADDSpkrCtl is
       end if;
       return true;
    end function accept;
+
+   attribute MARK_DEBUG of r : signal is "TRUE";
 
 begin
 
@@ -345,6 +355,24 @@ begin
                         end if;
                      when others            =>
                   end case;
+
+                  if    ( v.state = GET_PARAM ) then
+                     if ( resize( unsigned( v.buf.idx + 1 ), 16 ) /= usb2Ep0ReqParam.length ) then
+                        v.ctlExt.ack := '1';
+                        v.ctlExt.don := '1';
+                        v.ctlExt.err := '1';
+                        v.state      := DONE;
+                     end if;
+                  elsif ( v.state = SEND_DAT  ) then
+                     if ( resize( unsigned( v.buf.idx + 1 ), 16 ) < usb2Ep0ReqParam.length ) then
+                        v.ctlExt.ack := '1';
+                        v.ctlExt.don := '1';
+                        v.ctlExt.err := '1';
+                        v.state      := DONE;
+                     else
+                        v.len        := signed( resize( usb2Ep0ReqParam.length, v.len'length ) ) - 1;
+                     end if;
+                  end if;
                end if;
             end if;
 
@@ -384,11 +412,12 @@ begin
             end if;
 
          when SEND_DAT =>
-            usb2Ep0ObExt.mstInp.vld <= not r.buf.idx(r.buf.idx'left);
-            usb2Ep0ObExt.mstInp.don <= r.buf.idx(r.buf.idx'left);
+            usb2Ep0ObExt.mstInp.vld <= not r.len(r.len'left);
+            usb2Ep0ObExt.mstInp.don <= r.len(r.len'left);
             if ( usb2Ep0IbExt.subInp.rdy = '1' ) then
-               if ( r.buf.idx(r.buf.idx'left) = '0' ) then
+               if ( r.len(r.buf.idx'left) = '0' ) then
                   v.buf.idx := r.buf.idx - 1;
+                  v.len     := r.len     - 1;
                else
                   -- done
                   v.ctlExt.ack := '1';
@@ -398,7 +427,7 @@ begin
             end if;
 
          when DONE => -- flags are asserted during this cycle
-            v.state := IDLE;
+            -- wait for vld to be deasserted
       end case;
 
       -- host did not bother to read all the data

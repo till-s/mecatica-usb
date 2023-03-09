@@ -284,6 +284,19 @@ begin
          timo  => 100
       );
 
+
+      -- short read
+      ulpiTstSendCtlReq(ulpiTstOb,
+         dva   => DEV_ADDR_C,
+         typ   => CRT_CLS_IFC_RD_C,
+         cod   => AC_COD_RNG_C,
+         val   => (CK_FRQ_C & CH_M_C),
+         idx   => (ID_CK_C  & IFN_C ),
+         eda   => (x"01", x"00"),
+         timo  => 100
+      );
+
+
       checkParm( ulpiTstOb, ID_PD_C, AC_PDOM_C, AC_COD_CUR_C, CH_M_C, powerStateSL, "10", "01" );
 
       checkParm( ulpiTstOb, ID_FU_C, FU_VOL_C, AC_COD_CUR_C, CH_M_C, volMasterSL, x"0044", x"0000" );

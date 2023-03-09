@@ -109,7 +109,6 @@ begin
          when IDLE =>
             v.idx        := IndexType'low;
             if ( usb2CtlReqParam.vld = '1' ) then
-            report "FOO " & integer'image(to_integer(usb2CtlReqParam.length));
                v.nBytes     := to_integer(usb2CtlReqParam.length) - 1;
                v.ctlExt.ack := '1';
                v.ctlExt.err := '1';
