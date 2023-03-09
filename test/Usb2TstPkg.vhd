@@ -887,7 +887,7 @@ report integer'image(ra) & " of " & integer'image(rak);
       end if;
       ulpiClkTick;
       if ( v(TYP_I_C)(7) = '1' ) then
-          ulpiTstWaitDat(ob, eda, USB2_ENDP_ZERO_C, dva, rtr, w => w, timo => timo, estl => (epid = USB2_PID_HSK_STALL_C) );
+          ulpiTstWaitDat(ob, eda, USB2_ENDP_ZERO_C, dva, rtr, w => w, timo => timo, rak => 200, estl => (epid = USB2_PID_HSK_STALL_C) );
           ulpiClkTick;
           if ( epid = USB2_PID_HSK_STALL_C ) then
              return;
