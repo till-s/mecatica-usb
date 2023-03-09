@@ -55,6 +55,7 @@ SRCS += Usb2EpCDCNCMCtl.vhd
 SRCS += Usb2EpCDCNCMInp.vhd
 SRCS += Usb2EpCDCNCMInpTb.vhd
 SRCS += Usb2EpCDCNCMOutTb.vhd
+SRCS += Usb2Ep0StringTb.vhd
 
 
 PROG+=UlpiIOTb
@@ -76,6 +77,7 @@ endif
 PROG += OthSpeedCfgTb
 PROG += Usb2EpCDCNCMOutTb
 PROG += Usb2EpCDCNCMInpTb
+PROG += Usb2Ep0StringTb
 
 all: test
 
@@ -146,6 +148,8 @@ Usb2EpCDCNCMInpTb.o: Usb2EpCDCNCMInp.o
 
 Usb2EpCDCNCMOutTb: NCMOutTst.txt NCMOutCmp.txt
 Usb2EpCDCNCMInpTb: NCMInpTst.txt
+
+Usb2Ep0StringTb.o: Usb2Core.o
 
 NCMInpTst.txt: NCMOutCmp.txt
 	cp $^ $@
