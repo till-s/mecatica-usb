@@ -608,6 +608,7 @@ begin
                   when USB2_REQ_STD_GET_DESCRIPTOR_C    =>
                      v.tblOff      := USB2_DESC_IDX_LENGTH_C;
                      v.retVal      := (others => '0');
+                     v.tmpVal      := (others => '0');
                      v.size2B      := false;
                      v.state       := GET_DESCRIPTOR_SIZE;
                      v.count       := 0;
@@ -655,7 +656,7 @@ begin
 
                         when USB2_STD_DESC_TYPE_STRING_C            =>
                            if ( NUM_STRINGS_C > 0 ) then
-                              v.count := to_integer(unsigned(r.reqParam.value(7 downto 0)));
+                              v.count      := to_integer(unsigned(r.reqParam.value(7 downto 0)));
                               -- ignore language ID
                               v.tblIdx     := STRINGS_IDX_C;
                               v.descType   := USB2_STD_DESC_TYPE_STRING_C;
@@ -906,9 +907,10 @@ begin
                if ( not r.tblRdDone ) then
                   READ_TBL( v );
                elsif ( r.size2B ) then
-                  v.tblOff := r.tblOff - 1;
-                  v.tmpVal := r.readVal;
-                  v.size2B := false;
+                  v.tblOff    := r.tblOff - 1;
+                  v.tmpVal    := r.readVal;
+                  v.size2B    := false;
+                  -- will read again (low-byte)
                else
                   if ( r.reqParam.length > w2u( r.tmpVal & r.readVal ) ) then
                      v.auxOff    := to_integer( w2u( r.tmpVal & r.readVal ) ) - 1 ;
