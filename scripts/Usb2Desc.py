@@ -1246,11 +1246,14 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
   numIfcs = 0
   numEPPs = 0
 
-  haveMasterMute   = False
-  haveMasterVolume = False
+  # MacOS would mute the device if they found that we support
+  # no controls. Thus, enable them. The related control requests
+  # are supported anyways; just no i2c implementation...
+  haveMasterMute   = True
+  haveMasterVolume = True
 
-  haveLRMute       = False
-  haveLRVolume     = False
+  haveLRMute       = True
+  haveLRVolume     = True
 
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bFirstInterface( ifcNumber )
