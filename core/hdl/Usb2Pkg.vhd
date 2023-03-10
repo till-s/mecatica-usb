@@ -401,8 +401,9 @@ package Usb2Pkg is
    -- use as a sentinel to terminate table
    constant USB2_STD_DESC_TYPE_SENTINEL_C                  : Usb2ByteType               := x"FF";
 
-   constant USB2_CS_DESC_SUBTYPE_ACM_C                     : Usb2ByteType               := x"02";
-   constant USB2_CS_DESC_SUBTYPE_ETHERNET_NETWORKING_C     : Usb2ByteType               := x"0F";
+   constant USB2_CS_DESC_SUBTYPE_CDC_ACM_C                 : Usb2ByteType               := x"02";
+   constant USB2_CS_DESC_SUBTYPE_CDC_NCM_C                 : Usb2ByteType               := x"0D";
+   constant USB2_CS_DESC_SUBTYPE_CDC_ECM_C                 : Usb2ByteType               := x"0F";
 
    function usb2DescIsSentinel(constant x : Usb2ByteType) return boolean;
     
