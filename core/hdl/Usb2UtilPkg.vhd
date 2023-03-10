@@ -15,6 +15,10 @@ package Usb2UtilPkg is
 
    function toStr(constant x : in boolean) return string;
 
+   function toStr(constant x : in unsigned) return string;
+   function toStr(constant x : in std_logic_vector) return string;
+   function toStr(constant x : in signed) return string;
+
    function toSl(constant x : in boolean) return std_logic;
 
    function ite(constant x: in boolean; constant a,b: integer)
@@ -99,5 +103,23 @@ package body Usb2UtilPkg is
       end loop;
       return r;
    end function numBits;
+
+   function toStr(constant x : in unsigned)
+   return string is
+   begin
+      return integer'image(to_integer(x));
+   end function toStr;
+
+   function toStr(constant x : in std_logic_vector)
+   return string is
+   begin
+      return integer'image(to_integer(unsigned(x)));
+   end function toStr;
+
+   function toStr(constant x : in signed)
+   return string is
+   begin
+      return integer'image(to_integer(x));
+   end function toStr;
 
 end package body Usb2UtilPkg;
