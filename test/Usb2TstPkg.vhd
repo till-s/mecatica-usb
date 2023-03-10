@@ -764,7 +764,6 @@ end if;
                end if;
                if ( rak >= 0 ) then
                   ra := ra + 1;
-report integer'image(ra) & " of " & integer'image(rak);
                end if;
             end loop L_NAK;
             if ( estl ) then
