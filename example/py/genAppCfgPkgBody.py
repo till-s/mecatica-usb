@@ -25,8 +25,9 @@ if __name__ == "__main__":
   fnam      = here + '/../hdl/AppCfgPkgBody.vhd'
   idVendor  = 0x1209
   idProduct = None
+  iSerial   = None
 
-  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:")
+  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:s:")
   for o in opt:
     if o[0] in ("-h"):
        print("usage: {} [-h] [-v <vendor_id>] [-f <output_file>] -p <product_id>".format(sys.argv[0]))
@@ -34,12 +35,15 @@ if __name__ == "__main__":
        print("          -v vendor_id     : vendor_id (hex), defaults to 0x{:04x}".format(idVendor))
        print("          -p product_id    : product_id (use 0x0001 for private testing *only*)")
        print("          -f file_name     : output file name, defaults to '{}'".format(fnam))
+       print("          -s serial_number : (string) goes into the device descriptor")
     elif o[0] in ("-v"):
        idVendor  = int(o[1], 0)
     elif o[0] in ("-p"):
        idProduct = int(o[1], 0)
     elif o[0] in ("-f"):
        fnam      = o[1]
+    elif o[0] in ("-2"):
+       iSerial   = o[1]
 
   if idProduct is None:
     raise RuntimeError(
@@ -49,10 +53,10 @@ if __name__ == "__main__":
             "see https://pid.codes/1209/0001/")
 
   iProduct="Till's Mecatica USB Example Device"
-  # MAC address is patched by the firmware using DeviceDNA
+  # one MAC address is patched by the firmware using DeviceDNA
   iECMMACAddr="02DEADBEEF34"
   iNCMMACAddr="02DEADBEEF31"
-  ctxt = ExampleDevDesc.mkExampleDevDescriptors(idVendor=idVendor, idProduct=idProduct, ifcNumber=0, epAddr=1, iECMMACAddr=iECMMACAddr, iNCMMACAddr=iNCMMACAddr, dualSpeed=True, iProduct=iProduct)
+  ctxt = ExampleDevDesc.mkExampleDevDescriptors(idVendor=idVendor, idProduct=idProduct, ifcNumber=0, epAddr=1, iECMMACAddr=iECMMACAddr, iNCMMACAddr=iNCMMACAddr, dualSpeed=True, iProduct=iProduct, iSerial=iSerial)
  
   with io.open( fnam, 'x' ) as f:
     print("-- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.", file=f)

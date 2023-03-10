@@ -7,7 +7,7 @@
 
 import Usb2Desc
 
-def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iECMMACAddr = None, iNCMMACAddr = None, epPktSize=None, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False):
+def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iECMMACAddr = None, iNCMMACAddr = None, epPktSize=None, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False, iSerial=None):
   remWake = True
   c  = Usb2Desc.Usb2DescContext()
   d  = c.Usb2DeviceDesc()
@@ -17,6 +17,8 @@ def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iECMMACA
   d.bcdDevice( 0x0100 )
   if not iProduct is None:
     d.iProduct( iProduct )
+  if not iSerial  is None:
+    d.iSerialNumber( iSerial )
   d.setIADMultiFunction()
   devd = d
   
