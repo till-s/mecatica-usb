@@ -18,6 +18,42 @@ package Usb2DescPkg is
    subtype  Usb2DescIdxType    is natural range 0 to USB2_APP_DESCRIPTORS_C'length - 1;
    type Usb2DescIdxArray is array(natural range <>) of Usb2DescIdxType;
 
+   constant USB2_DEV_CLASS_NONE_C                         : Usb2ByteType := x"00";
+   constant USB2_DEV_CLASS_CDC_C                          : Usb2ByteType := x"02";
+
+   constant USB2_IFC_CLASS_CDC_C                          : Usb2ByteType := x"02";
+   constant USB2_IFC_CLASS_DAT_C                          : Usb2ByteType := x"0A";
+
+   constant USB2_CDC_SUBCLASS_NONE_C                      : Usb2ByteType := x"00";
+   constant USB2_CDC_SUBCLASS_ACM_C                       : Usb2ByteType := x"02";
+   constant USB2_CDC_SUBCLASS_ECM_C                       : Usb2ByteType := x"06";
+   constant USB2_CDC_SUBCLASS_NCM_C                       : Usb2ByteType := x"0D";
+
+   constant USB2_DAT_SUB_CLASS_NONE_C                     : Usb2ByteType := x"00";
+
+   constant USB2_CDC_PROTO_NONE_C                         : Usb2ByteType := x"00";
+   constant USB2_DAT_PROTO_NONE_C                         : Usb2ByteType := x"00";
+
+   constant USB2_DESC_IDX_LENGTH_C                        : natural := 0;
+   constant USB2_DESC_IDX_TYPE_C                          : natural := 1;
+   constant USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C             : natural := 7;
+   constant USB2_DEV_DESC_IDX_NUM_CONFIGURATIONS_C        : natural := 17;
+
+   constant USB2_CFG_DESC_IDX_TOTAL_LENGTH_C              : natural := 2;
+   constant USB2_CFG_DESC_IDX_NUM_INTERFACES_C            : natural := 4;
+   constant USB2_CFG_DESC_IDX_CFG_VALUE_C                 : natural := 5;
+   constant USB2_CFG_DESC_IDX_ATTRIBUTES_C                : natural := 7;
+
+   constant USB2_IFC_DESC_IDX_IFC_NUM_C                   : natural := 2;
+   constant USB2_IFC_DESC_IDX_ALTSETTING_C                : natural := 3;
+   constant USB2_IFC_DESC_IDX_NUM_ENDPOINTS_C             : natural := 4;
+
+   constant USB2_EPT_DESC_IDX_ADDRESS_C                   : natural := 2;
+   constant USB2_EPT_DESC_IDX_ATTRIBUTES_C                : natural := 3;
+   constant USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C              : natural := 4;
+
+   constant USB2_CS_DESC_IDX_SUBTYPE_C                    : natural := 2;
+
 --   function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray) return integer;
 
    function USB2_APP_MAX_ENDPOINTS_F(constant d: Usb2ByteArray) return positive;
@@ -100,40 +136,26 @@ package Usb2DescPkg is
       constant a : boolean := false -- terminate at sentinel?
    ) return natural;
 
-   constant USB2_DEV_CLASS_NONE_C                         : Usb2ByteType := x"00";
-   constant USB2_DEV_CLASS_CDC_C                          : Usb2ByteType := x"02";
 
-   constant USB2_IFC_CLASS_CDC_C                          : Usb2ByteType := x"02";
-   constant USB2_IFC_CLASS_DAT_C                          : Usb2ByteType := x"0A";
+   -- Return the index of the 'n'th string
+   -- descriptor (-1 if not found).
+   --
+   -- It is OK to pass -1 (NOP, returns -1)
+   -- 
+   -- n = 0 finds the languages
+   function usb2NthStringDescriptor(
+      constant d : Usb2ByteArray;
+      constant n : integer
+   ) return integer;
 
-   constant USB2_CDC_SUB_CLASS_NONE_C                     : Usb2ByteType := x"00";
-   constant USB2_CDC_SUB_CLASS_ACM_C                      : Usb2ByteType := x"02";
-   constant USB2_CDC_SUB_CLASS_ECM_C                      : Usb2ByteType := x"06";
-
-   constant USB2_DAT_SUB_CLASS_NONE_C                     : Usb2ByteType := x"00";
-
-   constant USB2_CDC_PROTO_NONE_C                         : Usb2ByteType := x"00";
-   constant USB2_DAT_PROTO_NONE_C                         : Usb2ByteType := x"00";
-
-   constant USB2_DESC_IDX_LENGTH_C                        : natural := 0;
-   constant USB2_DESC_IDX_TYPE_C                          : natural := 1;
-   constant USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C             : natural := 7;
-   constant USB2_DEV_DESC_IDX_NUM_CONFIGURATIONS_C        : natural := 17;
-
-   constant USB2_CFG_DESC_IDX_TOTAL_LENGTH_C              : natural := 2;
-   constant USB2_CFG_DESC_IDX_NUM_INTERFACES_C            : natural := 4;
-   constant USB2_CFG_DESC_IDX_CFG_VALUE_C                 : natural := 5;
-   constant USB2_CFG_DESC_IDX_ATTRIBUTES_C                : natural := 7;
-
-   constant USB2_IFC_DESC_IDX_IFC_NUM_C                   : natural := 2;
-   constant USB2_IFC_DESC_IDX_ALTSETTING_C                : natural := 3;
-   constant USB2_IFC_DESC_IDX_NUM_ENDPOINTS_C             : natural := 4;
-
-   constant USB2_EPT_DESC_IDX_ADDRESS_C                   : natural := 2;
-   constant USB2_EPT_DESC_IDX_ATTRIBUTES_C                : natural := 3;
-   constant USB2_EPT_DESC_IDX_MAX_PKT_SIZE_C              : natural := 4;
-
-   constant USB2_CS_DESC_IDX_SUBTYPE_C                    : natural := 2;
+   -- Find the string descriptor index pointing to the MAC address
+   -- of the first interface of desired subclass.
+   -- Returns -1 if not found
+   function usb2EthMacAddrStringDescriptor(
+      constant d : Usb2ByteArray;
+      -- must be one of USB2_CDC_SUBCLASS_ECM_C, USB2_CDC_SUBCLASS_NCM_C
+      constant s : Usb2ByteType := USB2_CDC_SUBCLASS_NCM_C
+   ) return integer;
 
 end package Usb2DescPkg;
 
@@ -146,6 +168,9 @@ package body Usb2DescPkg is
    ) return integer is
       variable i : integer := s;
    begin
+      if ( i < 0 ) then
+         return i;
+      end if;
       i := i + to_integer( unsigned( d(i + USB2_DESC_IDX_LENGTH_C) ) );
       if ( i >= d'high ) then
          return -1;
@@ -345,5 +370,79 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       end if;
       return i;
    end function USB2_APP_STRINGS_IDX_F;
+
+   function usb2NthStringDescriptor(
+      constant d : Usb2ByteArray;
+      constant n : integer
+   ) return integer is
+      variable i : integer;
+      variable k : integer;
+   begin
+      k := n;
+      if ( k < 0 ) then
+         return -1;
+      end if;
+      i := usb2NextDescriptor(d, 0, USB2_STD_DESC_TYPE_STRING_C);
+      while ( k > 0 ) loop
+         i := usb2NextDescriptor( d, i, a => true );
+         assert i >= 0 report "Skipping string descriptor failed" severity warning;
+         if ( i < 0 ) then
+            return -1;
+         end if;
+         i := usb2NextDescriptor( d, i, USB2_STD_DESC_TYPE_STRING_C, a => true );
+         assert i >= 0 report "Locating next string descriptor failed" severity warning;
+         if ( i < 0 ) then
+            return -1;
+         end if;
+         k := k - 1;
+      end loop;
+      return i;
+   end function usb2NthStringDescriptor;
+
+   function usb2EthMacAddrStringDescriptor(
+      constant d : Usb2ByteArray;
+      -- must be one of USB2_CDC_SUBCLASS_ECM_C, USB2_CDC_SUBCLASS_NCM_C
+      constant s : Usb2ByteType := USB2_CDC_SUBCLASS_NCM_C
+   ) return integer is
+      variable i                    : integer;
+      variable si                   : integer;
+      constant IDX_MAC_ADDR_SIDX_C  : natural      := 3;
+      constant IDX_CLS_C            : natural      := 5;
+      constant IDX_SUBCLS_C         : natural      := 6;
+   begin
+
+      i := 0;
+      L_IFC : while true loop
+
+         i := usb2NextDescriptor(d, i, USB2_STD_DESC_TYPE_INTERFACE_C, a => true);
+         if ( i < 0 ) then
+            return -1;
+         end if;
+
+         if (     ( d( i + IDX_CLS_C    ) = USB2_IFC_CLASS_CDC_C )
+              and ( d( i + IDX_SUBCLS_C ) = s                    ) ) then
+            exit L_IFC;
+         end if;
+
+         i := usb2NextDescriptor( d, i, a => true );
+         if ( i < 0 ) then
+            return -1;
+         end if;
+
+      end loop;
+
+      -- ECM and NCM both use this subtype of descriptor for the mac addres
+      i  := usb2NextCsDescriptor( d, i, USB2_CS_DESC_SUBTYPE_CDC_ECM_C, a => true );
+      assert i > 0 report " Ethernet functional descriptor not found" severity warning;
+      if ( i < 0 ) then
+         return -1;
+      end if;
+
+      si := to_integer( unsigned( d( i + IDX_MAC_ADDR_SIDX_C ) ) );
+      assert si > 0 report "CDCECM invalid iMACAddr string index" severity warning;
+
+      return usb2NthStringDescriptor( d, si );
+
+   end function usb2EthMacAddrStringDescriptor;
 
 end package body Usb2DescPkg;
