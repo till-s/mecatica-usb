@@ -217,45 +217,13 @@ architecture Impl of Usb2ExampleDev is
       variable v                     : Usb2ByteType := (others => '0');
       constant IDX_BM_CAPABILITIES_C : natural      := 3;
    begin
-      i := usb2NextCsDescriptor(USB2_APP_DESCRIPTORS_C, 0, USB2_CS_DESC_SUBTYPE_ACM_C);
+      i := usb2NextCsDescriptor(USB2_APP_DESCRIPTORS_C, 0, USB2_CS_DESC_SUBTYPE_CDC_ACM_C);
       assert i >= 0 report "CDCACM functional descriptor not found" severity failure;
       if ( i >= 0 ) then
          v := USB2_APP_DESCRIPTORS_C( i + IDX_BM_CAPABILITIES_C );
       end if;
       return v;
    end function acmCapabilities;
-
-   function ecmMacAddr return integer is
-      variable i                    : integer;
-      variable si                   : integer;
-      constant IDX_MAC_ADDR_SIDX_C  : natural := 3;
-   begin
-      i := usb2NextCsDescriptor(USB2_APP_DESCRIPTORS_C, 0, USB2_CS_DESC_SUBTYPE_ETHERNET_NETWORKING_C);
-      assert i >= 0 report "CDCECM functional descriptor not found" severity warning;
-      if ( i < 0 ) then
-         return -1;
-      end if;
-      si := to_integer(unsigned(USB2_APP_DESCRIPTORS_C( i + IDX_MAC_ADDR_SIDX_C )));
-      assert si > 0 report "CDCECM invalid iMACAddr string index" severity warning;
-      if ( si < 1 ) then
-         return -1;
-      end if;
-      i := USB2_APP_STRINGS_IDX_F( USB2_APP_DESCRIPTORS_C );
-      while ( si > 0 ) loop
-         i := usb2NextDescriptor( USB2_APP_DESCRIPTORS_C, i, a => true );
-         assert i >= 0 report "Skipping string descriptor failed" severity warning;
-         if ( i < 0 ) then
-            return -1;
-         end if;
-         i := usb2NextDescriptor( USB2_APP_DESCRIPTORS_C, i, USB2_STD_DESC_TYPE_STRING_C, a => true );
-         assert i >= 0 report "Locating next string descriptor failed" severity warning;
-         if ( i < 0 ) then
-            return -1;
-         end if;
-         si := si - 1;
-      end loop;
-      return i;
-   end function ecmMacAddr;
 
    constant USE_MMCM_C                         : boolean := true;
 
@@ -280,7 +248,11 @@ architecture Impl of Usb2ExampleDev is
    constant LD_ECM_FIFO_DEPTH_INP_C            : natural := 12;
    constant LD_ECM_FIFO_DEPTH_OUT_C            : natural := 12;
 
-   constant ECM_MAC_IDX_C                      : integer := ecmMacAddr;
+   constant ECM_MAC_IDX_C                      : integer :=
+      usb2EthMacAddrStringDescriptor( USB2_APP_DESCRIPTORS_C, USB2_CS_DESC_SUBTYPE_CDC_ECM_C );
+   constant NCM_MAC_IDX_C                      : integer :=
+      usb2EthMacAddrStringDescriptor( USB2_APP_DESCRIPTORS_C, USB2_CS_DESC_SUBTYPE_CDC_NCM_C );
+   constant USE_MAC_IDX_C                      : integer := ite( NCM_MAC_IDX_C < 0, ECM_MAC_IDX_C, NCM_MAC_IDX_C );
 
    constant CDC_ACM_BM_CAPABILITIES            : Usb2ByteType := acmCapabilities;
    constant ENBL_LINE_BREAK_C                  : boolean      := (CDC_ACM_BM_CAPABILITIES(2) = '1');
@@ -730,7 +702,7 @@ begin
 
       -- Patch device DNA into the iMACAddress descriptor (which is a string,
       -- so we must convert to utf-16-le which is trivial for '0'-'F')
-      G_PATCH : if ( ECM_MAC_IDX_C >= 0 ) generate
+      G_PATCH : if ( USE_MAC_IDX_C >= 0 ) generate
          signal   dnaShift                 : std_logic := '0';
          signal   dnaRead                  : std_logic := '0';
          signal   dnaOut                   : std_logic := '0';
@@ -783,7 +755,7 @@ begin
             macAddrPatchDone <= '0';
             dnaShift         <= '0';
             descRWIb         <= USB2_DESC_RW_IB_INIT_C;
-            descRWIb.addr    <= to_unsigned( ECM_MAC_IDX_C + r.offset, descRWIb.addr'length );
+            descRWIb.addr    <= to_unsigned( USE_MAC_IDX_C + r.offset, descRWIb.addr'length );
             descRWIb.wdata   <= ascii( r.sreg(3 downto 0) );
 
             case ( r.state ) is
