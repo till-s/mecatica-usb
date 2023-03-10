@@ -123,15 +123,18 @@ begin
                         ) then
 
                         if ( usb2CtlReqParam.dev2Host ) then
-                           if ( usb2CtlReqParam.length <= HANDLE_REQUESTS_G(i).dataSize ) then
-                              v.reqVld(i)  := '1';
-                              v.ctlExt.ack := '0';
-                              v.ctlExt.err := '0';
-                              v.ctlExt.don := '0';
-                              v.state      := WAIT_RESP;
+                           v.reqVld(i)  := '1';
+                           v.ctlExt.ack := '0';
+                           v.ctlExt.err := '0';
+                           v.ctlExt.don := '0';
+                           v.state      := WAIT_RESP;
+                           -- clip to what we actually have
+                           if ( usb2CtlReqParam.length > HANDLE_REQUESTS_G(i).dataSize ) then
+                              v.nBytes  := HANDLE_REQUESTS_G(i).dataSize - 1;
                            end if;
                         else
-                           if ( usb2CtlReqParam.length = HANDLE_REQUESTS_G(i).dataSize ) then
+                           -- allow short writes - assuming they know what they are doing
+                           if ( usb2CtlReqParam.length <= HANDLE_REQUESTS_G(i).dataSize ) then
                               v.ctlExt.ack := '0';
                               v.ctlExt.err := '0';
                               v.ctlExt.don := '0';

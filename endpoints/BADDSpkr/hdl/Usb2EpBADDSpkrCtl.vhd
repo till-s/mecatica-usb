@@ -356,20 +356,18 @@ begin
                      when others            =>
                   end case;
 
+                  v.len := v.buf.idx;
                   if    ( v.state = GET_PARAM ) then
-                     if ( resize( unsigned( v.buf.idx + 1 ), 16 ) /= usb2Ep0ReqParam.length ) then
+                     -- allow short writes (assume they know what they are doing)
+                     if ( resize( v.buf.idx, 16 ) < signed( usb2Ep0ReqParam.length ) - 1 ) then
                         v.ctlExt.ack := '1';
                         v.ctlExt.don := '1';
                         v.ctlExt.err := '1';
                         v.state      := DONE;
                      end if;
                   elsif ( v.state = SEND_DAT  ) then
-                     if ( resize( unsigned( v.buf.idx + 1 ), 16 ) < usb2Ep0ReqParam.length ) then
-                        v.ctlExt.ack := '1';
-                        v.ctlExt.don := '1';
-                        v.ctlExt.err := '1';
-                        v.state      := DONE;
-                     else
+                     if ( resize( v.buf.idx, 16 ) > signed( usb2Ep0ReqParam.length ) - 1 ) then
+                        -- clip to what they asked for
                         v.len        := signed( resize( usb2Ep0ReqParam.length, v.len'length ) ) - 1;
                      end if;
                   end if;
