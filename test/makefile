@@ -32,7 +32,9 @@ SRCS+= Usb2FifoAsyncTb.vhd
 SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
 SRCS+= Usb2FifoEpFrmdTb.vhd
+SRCS+= Usb2EpCDCACM.vhd
 SRCS+= Usb2EpCDCACMCtl.vhd
+SRCS+= Usb2EpCDCACMNotify.vhd
 SRCS+= UlpiLineState.vhd
 SRCS+= Usb2IsoTb.vhd
 SRCS+= UlpiIOBuf.vhd
@@ -56,6 +58,7 @@ SRCS += Usb2EpCDCNCMInp.vhd
 SRCS += Usb2EpCDCNCMInpTb.vhd
 SRCS += Usb2EpCDCNCMOutTb.vhd
 SRCS += Usb2Ep0StringTb.vhd
+SRCS += Usb2CDCACMTb.vhd
 
 
 PROG+=UlpiIOTb
@@ -78,6 +81,7 @@ PROG += OthSpeedCfgTb
 PROG += Usb2EpCDCNCMOutTb
 PROG += Usb2EpCDCNCMInpTb
 PROG += Usb2Ep0StringTb
+PROG += Usb2CDCACMTb
 
 all: test
 
@@ -122,6 +126,8 @@ UlpiIOBufTb.o: UlpiIOBuf.o
 UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o
 Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o Usb2EpCDCACMCtl.o
 Usb2EpCDCACMCtl.o: Usb2EpGenericCtlPkg.o Usb2EpGenericCtl.o
+Usb2EpCDCACMNotify.o: Usb2CCSync.o
+Usb2EpCDCACM.o: Usb2FifoEp.o Usb2EpCDCACMNotify.o Usb2EpCDCACMCtl.o
 Usb2EpGenericCtl.o: Usb2EpGenericCtlPkg.o
 Usb2FifoEpFrmdTb.o: Usb2Core.o Usb2FifoEp.o
 Usb2FifoTb.o: Usb2Fifo.o
@@ -150,6 +156,7 @@ Usb2EpCDCNCMOutTb: NCMOutTst.txt NCMOutCmp.txt
 Usb2EpCDCNCMInpTb: NCMInpTst.txt
 
 Usb2Ep0StringTb.o: Usb2Core.o
+Usb2CDCACMTb.o: Usb2Core.o Usb2EpCDCACM.o
 
 NCMInpTst.txt: NCMOutCmp.txt
 	cp $^ $@
