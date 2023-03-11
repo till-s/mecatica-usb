@@ -1319,10 +1319,58 @@ begin
          val => x"0001"  -- alt
       );
 
+      -- ECM - ctl
+      ulpiTstSendCtlReq(
+         ulpiTstOb,
+         USB2_REQ_STD_SET_INTERFACE_C,
+         DEV_ADDR_C,
+         idx => x"0004", -- ifc
+         val => x"0000"  -- alt
+      );
+
+      -- ECM - strm
+      ulpiTstSendCtlReq(
+         ulpiTstOb,
+         USB2_REQ_STD_SET_INTERFACE_C,
+         DEV_ADDR_C,
+         idx => x"0005", -- ifc
+         val => x"0001"  -- alt
+      );
+
+      -- NCM - ctl
+      ulpiTstSendCtlReq(
+         ulpiTstOb,
+         USB2_REQ_STD_SET_INTERFACE_C,
+         DEV_ADDR_C,
+         idx => x"0006", -- ifc
+         val => x"0000"  -- alt
+      );
+
+      -- NCM - strm
+      ulpiTstSendCtlReq(
+         ulpiTstOb,
+         USB2_REQ_STD_SET_INTERFACE_C,
+         DEV_ADDR_C,
+         idx => x"0007", -- ifc
+         val => x"0001"  -- alt
+      );
+
+
+
       assert epOb(1).config.maxPktSizeInp = 512 report "EP1 IN  unexpected packet size!" severity failure;
       assert epOb(1).config.maxPktSizeOut = 512 report "EP1 OUT unexpected packet size!" severity failure;
       assert epOb(2).config.maxPktSizeInp =   8 report "EP2 IN  unexpected packet size!" severity failure;
       assert epOb(2).config.maxPktSizeOut =   0 report "EP2 OUT unexpected packet size!" severity failure;
+      assert epOb(3).config.maxPktSizeInp =   4 report "EP3 IN  unexpected packet size!" severity failure;
+      assert epOb(3).config.maxPktSizeOut = 294 report "EP3 OUT unexpected packet size!" severity failure;
+      assert epOb(4).config.maxPktSizeInp = 512 report "EP4 IN  unexpected packet size!" severity failure;
+      assert epOb(4).config.maxPktSizeOut = 512 report "EP4 OUT unexpected packet size!" severity failure;
+      assert epOb(5).config.maxPktSizeInp =  16 report "EP5 IN  unexpected packet size!" severity failure;
+      assert epOb(5).config.maxPktSizeOut =   0 report "EP5 OUT unexpected packet size!" severity failure;
+      assert epOb(6).config.maxPktSizeInp = 512 report "EP6 IN  unexpected packet size!" severity failure;
+      assert epOb(6).config.maxPktSizeOut = 512 report "EP6 OUT unexpected packet size!" severity failure;
+      assert epOb(7).config.maxPktSizeInp =  16 report "EP7 IN  unexpected packet size!" severity failure;
+      assert epOb(7).config.maxPktSizeOut =   0 report "EP7 OUT unexpected packet size!" severity failure;
 
       -- pass current configuration to test pkg
       usb2TstPkgConfig( epOb );
