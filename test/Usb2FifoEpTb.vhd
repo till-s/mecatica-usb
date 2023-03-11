@@ -35,7 +35,7 @@ package body Usb2AppCfgPkg is
 
    constant DEVDESC_C : Usb2ByteArray := (
        0 => x"12",                                    -- length
-       1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_DEVICE_C),     -- type
+       1 => USB2_DESC_TYPE_DEVICE_C,                  -- type
        2 => x"00",  3 => x"02",                       -- USB version
        4 => x"FF",                                    -- dev class
        5 => x"FF",                                    -- dev subclass
@@ -52,7 +52,7 @@ package body Usb2AppCfgPkg is
 
    constant CONFDESC_C : Usb2ByteArray := (
        0 => x"09",                                    -- length
-       1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_CONFIGURATION_C), -- type
+       1 => USB2_DESC_TYPE_CONFIGURATION_C,           -- type
        2 => x"3E", 3 => x"00",                        -- total length
        4 => x"01",                                    -- num interfaces
        5 => x"01",                                    -- config value
@@ -66,7 +66,7 @@ package body Usb2AppCfgPkg is
       12 => x"00",
 
       13 => x"09",                                    -- length
-      14 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_INTERFACE_C), -- type
+      14 => USB2_DESC_TYPE_INTERFACE_C,               -- type
       15 => x"00",                                    -- interface number
       16 => x"00",                                    -- alt-setting
       17 => x"02",                                    -- num-endpoints
@@ -76,7 +76,7 @@ package body Usb2AppCfgPkg is
       21 => x"00",                                    -- string desc
 
       22 => x"07", -- endpoint                           length
-      23 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
+      23 => USB2_DESC_TYPE_ENDPOINT_C,                -- type
       24 => x"01",                                    -- address (OUT EP1)
       25 => "000000" & USB2_TT_BULK_C,                -- attributes
       26 => x"00", 27 => x"00",                       -- maxPktSize
@@ -87,14 +87,14 @@ package body Usb2AppCfgPkg is
       31 => x"00",
 
       32 => x"07", -- endpoint                           length
-      33 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
+      33 => USB2_DESC_TYPE_ENDPOINT_C,                -- type
       34 => x"81",                                    -- address (IN EP1)
       35 => "000000" & USB2_TT_BULK_C,                -- attributes
       36 => x"00", 37 => x"00",                       -- maxPktSize
       38 => x"00",                                    -- interval
 
       39 => x"09",                                    -- length
-      40 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_INTERFACE_C), -- type
+      40 => USB2_DESC_TYPE_INTERFACE_C,               -- type
       41 => std_logic_vector(to_unsigned(IFC_NUM_C,8)), -- interface number
       42 => x"01",                                    -- alt-setting
       43 => x"02",                                    -- num-endpoints
@@ -104,14 +104,14 @@ package body Usb2AppCfgPkg is
       47 => x"00",                                    -- string desc
 
       48 => x"07", -- endpoint                           length
-      49 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
+      49 => USB2_DESC_TYPE_ENDPOINT_C,                -- type
       50 => x"01",                                    -- address (OUT EP1)
       51 => "000000" & USB2_TT_BULK_C,                -- attributes
       52 => x"08", 53 => x"00",                       -- maxPktSize
       54 => x"00",                                    -- interval
 
       55 => x"07", -- endpoint                           length
-      56 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_ENDPOINT_C), -- type
+      56 => USB2_DESC_TYPE_ENDPOINT_C,                -- type
       57 => x"81",                                    -- address (IN EP1)
       58 => "000000" & USB2_TT_BULK_C,                -- attributes
       59 => x"08", 60 => x"00",                       -- maxPktSize
@@ -120,12 +120,12 @@ package body Usb2AppCfgPkg is
 
    constant STRS_C : Usb2ByteArray := (
        0 => x"04",                                    -- length
-       1 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_STRING_C), -- type
+       1 => USB2_DESC_TYPE_STRING_C,                  -- type
        2 => USB2_LANGID_EN_US_C( 7 downto 0),
        3 => USB2_LANGID_EN_US_C(15 downto 8),
 
        4 => x"06",
-       5 => std_logic_vector(x"0" & USB2_STD_DESC_TYPE_STRING_C), -- type
+       5 => USB2_DESC_TYPE_STRING_C,                  -- type
        6 => x"54",
        7 => x"00",
        8 => x"55",

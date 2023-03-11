@@ -100,7 +100,7 @@ architecture Impl of Usb2StdCtlEp is
    function FS_QUAL_IDX_F( constant d : in Usb2ByteArray ) return integer is
    begin
       if ( FS_CFG_IDX_TABLE_C'length > 0 ) then
-         return usb2NextDescriptor( d, FS_CFG_IDX_TABLE_C(0), USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C, true );
+         return usb2NextDescriptor( d, FS_CFG_IDX_TABLE_C(0), USB2_DESC_TYPE_DEVICE_QUALIFIER_C, true );
       else
          return -1;
       end if;
@@ -109,7 +109,7 @@ architecture Impl of Usb2StdCtlEp is
    function HS_QUAL_IDX_F( constant d : in Usb2ByteArray ) return integer is
    begin
       if ( HS_CFG_IDX_TABLE_C'length > 0 ) then
-         return usb2NextDescriptor( d, HS_CFG_IDX_TABLE_C(0), USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C, true );
+         return usb2NextDescriptor( d, HS_CFG_IDX_TABLE_C(0), USB2_DESC_TYPE_DEVICE_QUALIFIER_C, true );
       else
          return -1;
       end if;
@@ -251,7 +251,7 @@ architecture Impl of Usb2StdCtlEp is
       epIdx       : EpIdxType;
       epIsInp     : boolean;
       numEp       : EpIdxType;
-      descType    : Usb2StdDescriptorTypeType;
+      descType    : Usb2ByteType;
       size2B      : boolean;
       sizeMatch   : boolean;
       setupDone   : boolean;
@@ -614,11 +614,11 @@ begin
                      v.count       := 0;
                      v.patchOthCfg := (others => '0');
 
-                     case ( Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) ) ) is
-                        when USB2_STD_DESC_TYPE_DEVICE_C            =>
+                     case ( r.reqParam.value(15 downto 8) ) is
+                        when USB2_DESC_TYPE_DEVICE_C            =>
                            v.tblIdx   := selCfgIdxTbl( tblSelHS )(0);
 
-                        when USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C  =>
+                        when USB2_DESC_TYPE_DEVICE_QUALIFIER_C  =>
                            if ( FS_QUAL_IDX_C > 0 and HS_QUAL_IDX_C > 0 ) then
                               if ( r.devStatus.hiSpeed ) then
                                  v.tblIdx := HS_QUAL_IDX_C;
@@ -630,10 +630,9 @@ begin
                               setProtoStall( v, '1' );
                            end if;
 
-                        when USB2_STD_DESC_TYPE_CONFIGURATION_C     |
-                             USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C  =>
-                           if (   Usb2StdDescriptorTypeType( r.reqParam.value(11 downto 8) )
-                                = USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C ) then
+                        when USB2_DESC_TYPE_CONFIGURATION_C     |
+                             USB2_DESC_TYPE_OTHER_SPEED_CONF_C  =>
+                           if (   r.reqParam.value(15 downto 8) = USB2_DESC_TYPE_OTHER_SPEED_CONF_C ) then
                               if ( FS_CFG_IDX_TABLE_C'length > 0 and HS_CFG_IDX_TABLE_C'length > 0 ) then
                                  tblSelHS         := not tblSelHS; -- other speed
                                  -- during READ_DESCRIPTOR we must patch the descriptor type
@@ -654,12 +653,12 @@ begin
                               setProtoStall( v, '1' );
                            end if;
 
-                        when USB2_STD_DESC_TYPE_STRING_C            =>
+                        when USB2_DESC_TYPE_STRING_C            =>
                            if ( NUM_STRINGS_C > 0 ) then
                               v.count      := to_integer(unsigned(r.reqParam.value(7 downto 0)));
                               -- ignore language ID
                               v.tblIdx     := STRINGS_IDX_C;
-                              v.descType   := USB2_STD_DESC_TYPE_STRING_C;
+                              v.descType   := USB2_DESC_TYPE_STRING_C;
                            else
                               setProtoStall( v, '1' );
                            end if;
@@ -751,7 +750,7 @@ begin
                            v.altIdx   := to_integer(unsigned( r.reqParam.value(7 downto 0)));
                            v.tblOff   := USB2_DESC_IDX_LENGTH_C;
                            v.tblIdx   := r.cfgIdx;
-                           v.descType := USB2_STD_DESC_TYPE_INTERFACE_C;
+                           v.descType := USB2_DESC_TYPE_INTERFACE_C;
                            v.state    := DEACT_IFC;
                            v.epIdx    := 1;
                      end if;
@@ -782,10 +781,10 @@ begin
             else
                v.tblOff := USB2_DESC_IDX_LENGTH_C;
                if ( usb2DescIsSentinel( r.readVal ) ) then
-                  -- USB2_STD_DESC_TYPE_SENTINEL_C detected; -> end of table
+                  -- USB2_DESC_TYPE_SENTINEL_C detected; -> end of table
                   setProtoStall( v, '1' );
                   v.state      := GET_PARAMS;
-               elsif ( Usb2StdDescriptorTypeType(r.readVal(3 downto 0)) = r.descType ) then
+               elsif ( r.readVal = r.descType ) then
                   -- found; pre-read aux entry
                   v.tblOff := r.auxOff;
                   READ_TBL( v, r.retState );
@@ -800,7 +799,7 @@ begin
                v.altSettings(r.ifcIdx) := 0;
                -- load endpoint table for this alt-setting
                v.tblOff                := USB2_DESC_IDX_LENGTH_C;
-               v.descType              := USB2_STD_DESC_TYPE_INTERFACE_C;
+               v.descType              := USB2_DESC_TYPE_INTERFACE_C;
                v.state                 := LOAD_ALT;
                v.altIdx                :=  0;
                v.err                   := '0';
@@ -840,6 +839,7 @@ begin
                   READ_TBL( v );
                end if;
             elsif ( r.tblOff = USB2_IFC_DESC_IDX_NUM_ENDPOINTS_C ) then
+report integer'image( to_integer(unsigned(r.readVal)) ) & " " & integer'image( r.tblOff )  & " " & integer'image( r.tblIdx );
                v.numEp    := to_integer(unsigned(r.readVal));
                v.state    := LOAD_EPTS;
             end if;
@@ -860,7 +860,7 @@ begin
             else
                v.retState := r.state;
                v.auxOff   := USB2_EPT_DESC_IDX_ADDRESS_C;
-               v.descType := USB2_STD_DESC_TYPE_ENDPOINT_C;
+               v.descType := USB2_DESC_TYPE_ENDPOINT_C;
                v.state    := SCAN_DESC;
 
                if    ( r.tblOff = USB2_EPT_DESC_IDX_ADDRESS_C ) then
@@ -940,7 +940,7 @@ begin
             else
                epOb.mstInp.dat <= descVal;
                if ( r.patchOthCfg(0) = '1' ) then
-                  epOb.mstInp.dat(Usb2StdDescriptorTypeType'range) <= std_logic_vector( USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C );
+                  epOb.mstInp.dat <= USB2_DESC_TYPE_OTHER_SPEED_CONF_C;
                end if;
                epOb.mstInp.vld <= not r.flg;
                epOb.mstInp.don <= r.flg;

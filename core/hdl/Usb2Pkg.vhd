@@ -385,15 +385,14 @@ package Usb2Pkg is
    constant USB2_NOT_CLS_CDC_SERIAL_STATE_C                : Usb2CtlRequestCodeType     := x"20";
    constant USB2_NOT_CLS_CDC_SPEED_CHANGE_C                : Usb2CtlRequestCodeType     := x"2A";
 
-   subtype  Usb2StdDescriptorTypeType                      is unsigned(3 downto 0);
-   constant USB2_STD_DESC_TYPE_DEVICE_C                    : Usb2StdDescriptorTypeType  := x"1";
-   constant USB2_STD_DESC_TYPE_CONFIGURATION_C             : Usb2StdDescriptorTypeType  := x"2";
-   constant USB2_STD_DESC_TYPE_STRING_C                    : Usb2StdDescriptorTypeType  := x"3";
-   constant USB2_STD_DESC_TYPE_INTERFACE_C                 : Usb2StdDescriptorTypeType  := x"4";
-   constant USB2_STD_DESC_TYPE_ENDPOINT_C                  : Usb2StdDescriptorTypeType  := x"5";
-   constant USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C          : Usb2StdDescriptorTypeType  := x"6";
-   constant USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C          : Usb2StdDescriptorTypeType  := x"7";
-   constant USB2_STD_DESC_TYPE_INTERFACE_POWER_C           : Usb2StdDescriptorTypeType  := x"8";
+   constant USB2_DESC_TYPE_DEVICE_C                        : Usb2ByteType               := x"01";
+   constant USB2_DESC_TYPE_CONFIGURATION_C                 : Usb2ByteType               := x"02";
+   constant USB2_DESC_TYPE_STRING_C                        : Usb2ByteType               := x"03";
+   constant USB2_DESC_TYPE_INTERFACE_C                     : Usb2ByteType               := x"04";
+   constant USB2_DESC_TYPE_ENDPOINT_C                      : Usb2ByteType               := x"05";
+   constant USB2_DESC_TYPE_DEVICE_QUALIFIER_C              : Usb2ByteType               := x"06";
+   constant USB2_DESC_TYPE_OTHER_SPEED_CONF_C              : Usb2ByteType               := x"07";
+   constant USB2_DESC_TYPE_INTERFACE_POWER_C               : Usb2ByteType               := x"08";
 
    constant USB2_CS_DESC_TYPE_INTERFACE_C                  : Usb2ByteType               := x"24";
    constant USB2_CS_DESC_TYPE_ENDPOINT_C                   : Usb2ByteType               := x"25";

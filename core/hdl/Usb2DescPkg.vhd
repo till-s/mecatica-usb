@@ -102,14 +102,6 @@ package Usb2DescPkg is
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
       constant s: integer;
-      constant t: Usb2StdDescriptorTypeType;
-      constant a: boolean := false -- terminate at sentinel?
-   ) return integer;
-
-   -- find next descriptor of a certain type starting at index s; returns -1 if none is found
-   function usb2NextDescriptor(
-      constant d: Usb2ByteArray;
-      constant s: integer;
       constant t: Usb2ByteType;
       constant a: boolean := false -- terminate at sentinel?
    ) return integer;
@@ -132,7 +124,7 @@ package Usb2DescPkg is
 
    function usb2CountDescriptors(
       constant d : Usb2ByteArray;
-      constant t : Usb2StdDescriptorTypeType;
+      constant t : Usb2ByteType;
       constant a : boolean := false -- terminate at sentinel?
    ) return natural;
 
@@ -200,22 +192,10 @@ package body Usb2DescPkg is
       variable i : integer := s;
    begin
 report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " & toStr(d(i+USB2_DESC_IDX_TYPE_C));
-      while ( i >= 0 and d(i + USB2_DESC_IDX_TYPE_C) /= t ) loop
+      while ( i >= 0 and d(i + USB2_DESC_IDX_TYPE_C) /= Usb2ByteType(t) ) loop
          i := usb2NextDescriptor(d, i, a);
       end loop;
       return i;
-   end function usb2NextDescriptor;
-
-   -- find next descriptor of a certain type starting at index s; returns -1 if none is found
-   function usb2NextDescriptor(
-      constant d: Usb2ByteArray;
-      constant s: integer;
-      constant t: Usb2StdDescriptorTypeType;
-      constant a: boolean := false
-   ) return integer is
-      constant tt : Usb2ByteType := x"0" & std_logic_vector(t);
-   begin
-      return usb2NextDescriptor(d, s, tt, a);
    end function usb2NextDescriptor;
 
    -- find next descriptor of a certain class-specific subtype starting at index s; returns -1 if none found
@@ -241,7 +221,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
 
    function findMax(
       constant d : Usb2ByteArray;
-      constant t : Usb2StdDescriptorTypeType;
+      constant t : Usb2ByteType;
       constant o : natural;
       constant b : natural
    ) return natural is
@@ -267,7 +247,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
    return positive is
       variable v : integer;
    begin
-      v := findMax(d, USB2_STD_DESC_TYPE_ENDPOINT_C, USB2_EPT_DESC_IDX_ADDRESS_C, 3);
+      v := findMax(d, USB2_DESC_TYPE_ENDPOINT_C, USB2_EPT_DESC_IDX_ADDRESS_C, 3);
       if ( v <= 0 ) then
          v := 1; -- EP 0 has no descriptor
       end if;
@@ -279,7 +259,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
    return natural is
       variable v : natural;
    begin
-      v := findMax(d, USB2_STD_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_IFC_NUM_C, 6);
+      v := findMax(d, USB2_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_IFC_NUM_C, 6);
       report integer'image(v) & " max IFs";
       return v;
    end function USB2_APP_MAX_INTERFACES_F;
@@ -288,14 +268,14 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
    return natural is
       variable v : natural;
    begin
-      v := findMax(d, USB2_STD_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_ALTSETTING_C, 6);
+      v := findMax(d, USB2_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_ALTSETTING_C, 6);
       report integer'image(v) & " max ALTs";
       return v;
    end function USB2_APP_MAX_ALTSETTINGS_F;
 
    function usb2CountDescriptors(
       constant d : Usb2ByteArray;
-      constant t : Usb2StdDescriptorTypeType;
+      constant t : Usb2ByteType;
       constant a : boolean := false
    ) return natural is
       variable i  : integer := d'low;
@@ -318,7 +298,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       if ( i < 0 ) then
          return -1;
       end if;
-      nc := usb2CountDescriptors(d(i to d'high), USB2_STD_DESC_TYPE_CONFIGURATION_C, true);
+      nc := usb2CountDescriptors(d(i to d'high), USB2_DESC_TYPE_CONFIGURATION_C, true);
       assert nc > 0 report "No configurations?" severity failure;
       return nc;
    end function USB2_APP_NUM_CONFIGURATIONS_F;
@@ -327,9 +307,9 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
    return integer is
       variable i : integer;
    begin
-      i := usb2NextDescriptor(d, 0, USB2_STD_DESC_TYPE_DEVICE_C);
+      i := usb2NextDescriptor(d, 0, USB2_DESC_TYPE_DEVICE_C);
       if ( hs ) then
-         i := usb2NextDescriptor(d, usb2NextDescriptor( d, i ), USB2_STD_DESC_TYPE_DEVICE_C);
+         i := usb2NextDescriptor(d, usb2NextDescriptor( d, i ), USB2_DESC_TYPE_DEVICE_C);
       end if;
       return i;
    end function deviceDescriptorIndex;
@@ -344,10 +324,10 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       if ( NC < 0 ) then
          return rv;
       end if;
-      rv(0) := usb2NextDescriptor(d, di, USB2_STD_DESC_TYPE_DEVICE_C);
+      rv(0) := usb2NextDescriptor(d, di, USB2_DESC_TYPE_DEVICE_C);
       frm   := rv(0);
       for i in 1 to NC loop
-         rv(i) := usb2NextDescriptor(d, frm, USB2_STD_DESC_TYPE_CONFIGURATION_C);
+         rv(i) := usb2NextDescriptor(d, frm, USB2_DESC_TYPE_CONFIGURATION_C);
          frm   := usb2NextDescriptor(d, rv(i));
       end loop;
       return rv;
@@ -356,14 +336,14 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
    function USB2_APP_NUM_STRINGS_F(constant d: Usb2ByteArray)
    return natural is
    begin
-      return usb2CountDescriptors(d, USB2_STD_DESC_TYPE_STRING_C);
+      return usb2CountDescriptors(d, USB2_DESC_TYPE_STRING_C);
    end function USB2_APP_NUM_STRINGS_F;
 
    function USB2_APP_STRINGS_IDX_F(constant d: Usb2ByteArray)
    return Usb2DescIdxType is
       variable i : integer;
    begin
-      i := usb2NextDescriptor(d, 0, USB2_STD_DESC_TYPE_STRING_C);
+      i := usb2NextDescriptor(d, 0, USB2_DESC_TYPE_STRING_C);
       -- avoid out-of range result; user must check USB2_APP_NUM_STRINGS_C
       if ( i < 0 ) then
          i := 0;
@@ -382,14 +362,14 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       if ( k < 0 ) then
          return -1;
       end if;
-      i := usb2NextDescriptor(d, 0, USB2_STD_DESC_TYPE_STRING_C);
+      i := usb2NextDescriptor(d, 0, USB2_DESC_TYPE_STRING_C);
       while ( k > 0 ) loop
          i := usb2NextDescriptor( d, i, a => true );
          assert i >= 0 report "Skipping string descriptor failed" severity warning;
          if ( i < 0 ) then
             return -1;
          end if;
-         i := usb2NextDescriptor( d, i, USB2_STD_DESC_TYPE_STRING_C, a => true );
+         i := usb2NextDescriptor( d, i, USB2_DESC_TYPE_STRING_C, a => true );
          assert i >= 0 report "Locating next string descriptor failed" severity warning;
          if ( i < 0 ) then
             return -1;
@@ -414,7 +394,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       i := 0;
       L_IFC : while true loop
 
-         i := usb2NextDescriptor(d, i, USB2_STD_DESC_TYPE_INTERFACE_C, a => true);
+         i := usb2NextDescriptor(d, i, USB2_DESC_TYPE_INTERFACE_C, a => true);
          if ( i < 0 ) then
             return -1;
          end if;

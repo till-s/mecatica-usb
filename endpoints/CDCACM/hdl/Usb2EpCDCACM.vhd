@@ -56,8 +56,8 @@ entity Usb2EpCDCACM is
       usb2DataEpIb               : in  Usb2EndpPairObType;
       usb2DataEpOb               : out Usb2EndpPairIbType;
       -- Notification interface bulk endpoint pair
-      usb2NotifyEpIb             : in  Usb2EndpPairObType;
-      usb2NotifyEpOb             : out Usb2EndpPairIbType;
+      usb2NotifyEpIb             : in  Usb2EndpPairObType  := USB2_ENDP_PAIR_OB_INIT_C;
+      usb2NotifyEpOb             : out Usb2EndpPairIbType  := USB2_ENDP_PAIR_IB_INIT_C;
 
       -- FIFO control (in usb2Clk domain!)
       --

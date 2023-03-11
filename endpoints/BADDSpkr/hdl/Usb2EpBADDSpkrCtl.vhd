@@ -19,7 +19,8 @@ entity Usb2EpBADDSpkrCtl is
       VOL_RNG_MIN_G   : integer range -32767 to 32767 := -32767; -- -128 + 1/156 db
       VOL_RNG_MAX_G   : integer range -32767 to 32767 := +32767; -- +128 - 1/156 db
       VOL_RNG_RES_G   : integer range      1 to 32767 := 256;    --    1         db
-      AC_IFC_NUM_G    : Usb2InterfaceNumType
+      AC_IFC_NUM_G    : Usb2InterfaceNumType;
+      MARK_DEBUG_G    : boolean                       := false
    );
    port (
       clk             : in  std_logic;
@@ -38,7 +39,7 @@ entity Usb2EpBADDSpkrCtl is
       powerState      : out unsigned(1 downto 0)
    );
 
-   attribute MARK_DEBUG of usb2Ep0ReqParam : signal is "TRUE";
+   attribute MARK_DEBUG of usb2Ep0ReqParam : signal is toStr(MARK_DEBUG_G);
 
 end entity Usb2EpBADDSpkrCtl;
 
@@ -217,7 +218,7 @@ architecture Impl of Usb2EpBADDSpkrCtl is
       return true;
    end function accept;
 
-   attribute MARK_DEBUG of r : signal is "TRUE";
+   attribute MARK_DEBUG of r : signal is toStr(MARK_DEBUG_G);
 
 begin
 

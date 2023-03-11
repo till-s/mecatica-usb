@@ -1244,7 +1244,7 @@ architecture sim of Usb2Ep0StringTb is
       variable n  : natural := 0;
    begin
       while ( i >= 0 ) loop
-         i  := usb2NextDescriptor(d, i, USB2_STD_DESC_TYPE_STRING_C);
+         i  := usb2NextDescriptor(d, i, USB2_DESC_TYPE_STRING_C);
          if ( i >= 0 ) then
             if ( n = w ) then
                return i;
@@ -1264,8 +1264,9 @@ architecture sim of Usb2Ep0StringTb is
       constant idx    : natural := nthStr(x);
       constant len    : natural := to_integer( unsigned( USB2_APP_DESCRIPTORS_C( idx ) ) );
    begin
-      reqval(15 downto 8) := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_STRING_C);
+      reqval(15 downto 8) := USB2_DESC_TYPE_STRING_C;
       reqval( 7 downto 0) := std_logic_vector( to_unsigned( x, 8 ) );
+
       -- mimick getting length
       ulpiTstSendCtlReq(
          ul,
@@ -1304,14 +1305,12 @@ begin
 
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_ADDRESS_C, USB2_DEV_ADDR_DFLT_C, val => (x"00" & "0" & DEV_ADDR_C) );
 
-report "Address set";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C, val => (x"00" & CONFIG_VALUE_C ) );
-report "Config set";
 
       -- pass current configuration to test pkg
       usb2TstPkgConfig( epOb );
 
-      reqval(15 downto 8) := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_CONFIGURATION_C);
+      reqval(15 downto 8) := USB2_DESC_TYPE_CONFIGURATION_C;
       reqval( 7 downto 0) := CONFIG_INDEX_C;
       -- mimick getting length
       ulpiTstSendCtlReq(

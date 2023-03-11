@@ -318,9 +318,9 @@ begin
       -- replace descriptor type CONF -> OTHER_SPEED_CONF
       idx := 0;
       while ( idx >= 0 ) loop
-         idx := usb2NextDescriptor(othConf, idx, USB2_STD_DESC_TYPE_CONFIGURATION_C);
+         idx := usb2NextDescriptor(othConf, idx, USB2_DESC_TYPE_CONFIGURATION_C);
          if ( idx >= 0 ) then
-            othConf(idx + USB2_DESC_IDX_TYPE_C) := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C);
+            othConf(idx + USB2_DESC_IDX_TYPE_C) := USB2_DESC_TYPE_OTHER_SPEED_CONF_C;
          end if;
       end loop;
 
@@ -333,13 +333,13 @@ begin
 
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_ADDRESS_C, USB2_DEV_ADDR_DFLT_C, val => (x"00" & "0" & DEV_ADDR_C) );
 
-      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_DEVICE_C) & x"00";
+      reqval := USB2_DESC_TYPE_DEVICE_C & x"00";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => USB2_APP_DESCRIPTORS_C(0 to 17));
 
-      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C) & x"00";
+      reqval := USB2_DESC_TYPE_DEVICE_QUALIFIER_C & x"00";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => USB2_APP_DESCRIPTORS_C(18 to 27));
 
-      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C) & x"01";
+      reqval := USB2_DESC_TYPE_OTHER_SPEED_CONF_C & x"01";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => othConf(94 to 127));
       -- switch speed, delay until visible
       hiSpeed <= '1';
@@ -350,16 +350,16 @@ begin
       -- reconfigure test package for possibly different EP0 packet size
       usb2TstPkgConfig( epOb, hiSpeed = '1' );
 
-      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_DEVICE_C) & x"00";
+      reqval := USB2_DESC_TYPE_DEVICE_C & x"00";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => USB2_APP_DESCRIPTORS_C(48 to 65));
 
-      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_DEVICE_QUALIFIER_C) & x"00";
+      reqval := USB2_DESC_TYPE_DEVICE_QUALIFIER_C & x"00";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => USB2_APP_DESCRIPTORS_C(66 to 75));
 
-      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C) & x"01";
+      reqval := USB2_DESC_TYPE_OTHER_SPEED_CONF_C & x"01";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, epid => USB2_PID_HSK_STALL_C );
 
-      reqval := "0000" & std_logic_vector(USB2_STD_DESC_TYPE_OTHER_SPEED_CONF_C) & x"00";
+      reqval := USB2_DESC_TYPE_OTHER_SPEED_CONF_C & x"00";
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_GET_DESCRIPTOR_C, DEV_ADDR_C, val => reqval, eda => othConf(28 to 45));
 
       ulpiTstSendCtlReq(ulpiTstOb, USB2_REQ_STD_SET_CONFIGURATION_C, DEV_ADDR_C,     val => (x"00" & CONFIG_VALUE_C ) );

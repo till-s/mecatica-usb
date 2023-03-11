@@ -333,6 +333,16 @@ begin
       signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0);
       signal epRunning    : std_logic;
       signal usb2RstLoc   : std_logic;
+
+      attribute MARK_DEBUG of fifoRdy    : signal is "TRUE";
+      attribute MARK_DEBUG of fifoFilled : signal is "TRUE";
+      attribute MARK_DEBUG of fifoFull   : signal is "TRUE";
+      attribute MARK_DEBUG of fifoEmpty  : signal is "TRUE";
+      attribute MARK_DEBUG of epRunning  : signal is "TRUE";
+      attribute MARK_DEBUG of usb2RstLoc : signal is "TRUE";
+      attribute MARK_DEBUG of fifoWen    : signal is "TRUE";
+      attribute MARK_DEBUG of fifoRen    : signal is "TRUE";
+
    begin
 
       -- reduce typing
