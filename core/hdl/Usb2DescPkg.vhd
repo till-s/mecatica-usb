@@ -61,7 +61,7 @@ package Usb2DescPkg is
    -- max. number of interfaces among all configurations
    -- e.g., if config 1 has 1 interface and config 2 has
    -- 2 interfaces then the max would be 2.  
-   function USB2_APP_MAX_INTERFACES_F(constant d: Usb2ByteArray) return natural;
+   function usb2AppGetMaxInterfaces(constant d: Usb2ByteArray) return natural;
    -- max. number of alt. settings of any interface of
    -- any configuration.
    -- e.g., if config 1 has 1 interface 3 alt-settings
@@ -255,14 +255,14 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return v;
    end function usb2AppGetMaxEndpointAddr;
 
-   function USB2_APP_MAX_INTERFACES_F(constant d: Usb2ByteArray)
+   function usb2AppGetMaxInterfaces(constant d: Usb2ByteArray)
    return natural is
       variable v : natural;
    begin
       v := findMax(d, USB2_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_IFC_NUM_C, 6);
       report integer'image(v) & " max IFs";
       return v;
-   end function USB2_APP_MAX_INTERFACES_F;
+   end function usb2AppGetMaxInterfaces;
 
    function USB2_APP_MAX_ALTSETTINGS_F(constant d: Usb2ByteArray)
    return natural is
