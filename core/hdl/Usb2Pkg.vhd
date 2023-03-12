@@ -325,7 +325,7 @@ package Usb2Pkg is
 
    function usb2ReqTypeIsDev2Host  (constant reqTyp : in Usb2ByteType) return boolean;
    function usb2ReqTypeGetType     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
-   function USB2_REQ_TYP_RECIPIENT_F(constant reqTyp : in Usb2ByteType) return std_logic_vector;
+   function usb2ReqTypeGetRecipient(constant reqTyp : in Usb2ByteType) return std_logic_vector;
 
    function usb2MakeRequestType(
       constant dev2Host  : in  boolean;
@@ -595,7 +595,7 @@ package body Usb2Pkg is
       return x(1 downto 0);
    end function usb2PidGroup;
 
-   function usb2ReqTypeIsDev2Host (constant reqTyp : in Usb2ByteType)
+   function usb2ReqTypeIsDev2Host  (constant reqTyp : in Usb2ByteType)
    return boolean is begin
       return reqTyp(7) = '1';
    end function usb2ReqTypeIsDev2Host;
@@ -605,10 +605,10 @@ package body Usb2Pkg is
       return reqTyp(6 downto 5);
    end function usb2ReqTypeGetType;
 
-   function USB2_REQ_TYP_RECIPIENT_F(constant reqTyp : in Usb2ByteType)
+   function usb2ReqTypeGetRecipient(constant reqTyp : in Usb2ByteType)
    return std_logic_vector is begin
       return reqTyp(1 downto 0);
-   end function USB2_REQ_TYP_RECIPIENT_F;
+   end function usb2ReqTypeGetRecipient;
 
    function usb2DescIsSentinel(constant x: Usb2ByteType)
    return boolean is begin
