@@ -1426,6 +1426,7 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
   numIfcs += 1
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
+
 def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None):
   numIfcs = 0
   numEPPs = 0

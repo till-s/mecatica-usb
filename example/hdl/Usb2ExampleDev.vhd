@@ -19,6 +19,7 @@ use     work.Usb2UtilPkg.all;
 use     work.Usb2DescPkg.all;
 use     work.Usb2AppCfgPkg.all;
 use     work.StdLogPkg.all;
+use     work.Usb2MuxEpCtlPkg.all;
 
 entity Usb2ExampleDev is
    generic (
@@ -67,8 +68,8 @@ entity Usb2ExampleDev is
       -- ULPI transceiver)
       CLK0_OUT_PHASE_G                   : real     := 15.0;
 
-      MARK_DEBUG_EP0_CTL_MUX_G           : boolean  := true;
-      MARK_DEBUG_ULPI_IO_G               : boolean  := true;
+      MARK_DEBUG_EP0_CTL_MUX_G           : boolean  := false;
+      MARK_DEBUG_ULPI_IO_G               : boolean  := false;
       MARK_DEBUG_ULPI_LINE_STATE_G       : boolean  := false;
       MARK_DEBUG_PKT_RX_G                : boolean  := false;
       MARK_DEBUG_PKT_TX_G                : boolean  := false;
@@ -227,20 +228,56 @@ architecture Impl of Usb2ExampleDev is
 
    constant USE_MMCM_C                         : boolean := true;
 
+   constant HAVE_ACM_C                         : boolean :=
+      ( usb2NextIfcAssocDescriptor(
+           USB2_APP_DESCRIPTORS_C,
+           0,
+           USB2_IFC_CLASS_CDC_C,
+           USB2_IFC_SUBCLASS_CDC_ACM_C,
+           USB2_IFC_PROTOCOL_NONE_C
+        ) >= 0 );
+           
+   constant HAVE_BADD_C                        : boolean :=
+      ( usb2NextIfcAssocDescriptor(
+           USB2_APP_DESCRIPTORS_C,
+           0,
+           USB2_IFC_CLASS_AUDIO_C,
+           USB2_IFC_SUBCLASS_AUDIO_SPEAKER_C
+           -- accept UAC2 or UAC3
+        ) >= 0 );
+
+    constant HAVE_ECM_C                        : boolean :=
+      ( usb2NextIfcAssocDescriptor(
+           USB2_APP_DESCRIPTORS_C,
+           0,
+           USB2_IFC_CLASS_CDC_C,
+           USB2_IFC_SUBCLASS_CDC_ECM_C,
+           USB2_IFC_PROTOCOL_NONE_C
+        ) >= 0 );
+
+    constant HAVE_NCM_C                        : boolean :=
+      ( usb2NextIfcAssocDescriptor(
+           USB2_APP_DESCRIPTORS_C,
+           0,
+           USB2_IFC_CLASS_CDC_C,
+           USB2_IFC_SUBCLASS_CDC_NCM_C,
+           USB2_IFC_PROTOCOL_NONE_C
+        ) >= 0 );
+ 
    constant N_EP_C                             : natural := usb2AppGetMaxEndpointAddr(USB2_APP_DESCRIPTORS_C);
 
-   constant CDC_ACM_BULK_EP_IDX_C              : natural := 1;
-   constant CDC_ACM_IRQ_EP_IDX_C               : natural := 2;
-   constant BADD_ISO_EP_IDX_C                  : natural := 3;
-   constant CDC_ECM_BULK_EP_IDX_C              : natural := 4;
-   constant CDC_ECM_IRQ_EP_IDX_C               : natural := 5;
-   constant CDC_NCM_BULK_EP_IDX_C              : natural := 6;
-   constant CDC_NCM_IRQ_EP_IDX_C               : natural := 7;
+   constant CDC_ACM_BULK_EP_IDX_C              : natural := 0                       + ite( HAVE_ACM_C,  1, 0 );
+   constant CDC_ACM_IRQ_EP_IDX_C               : natural := CDC_ACM_BULK_EP_IDX_C   + ite( HAVE_ACM_C,  1, 0 );
+   constant BADD_ISO_EP_IDX_C                  : natural := CDC_ACM_IRQ_EP_IDX_C    + ite( HAVE_BADD_C, 1, 0 );
+   constant CDC_ECM_BULK_EP_IDX_C              : natural := BADD_ISO_EP_IDX_C       + ite( HAVE_ECM_C,  1, 0 );
+   constant CDC_ECM_IRQ_EP_IDX_C               : natural := CDC_ECM_BULK_EP_IDX_C   + ite( HAVE_ECM_C,  1, 0 );
+   constant CDC_NCM_BULK_EP_IDX_C              : natural := CDC_ECM_IRQ_EP_IDX_C    + ite( HAVE_NCM_C,  1, 0 );
+   constant CDC_NCM_IRQ_EP_IDX_C               : natural := CDC_NCM_BULK_EP_IDX_C   + ite( HAVE_NCM_C,  1, 0 );
 
-   constant CDC_ACM_IFC_NUM_C                  : natural := 0; -- uses 2 interfaces
-   constant BADD_IFC_NUM_C                     : natural := 2; -- uses 2 interfaces
-   constant CDC_ECM_IFC_NUM_C                  : natural := 4;
-   constant CDC_NCM_IFC_NUM_C                  : natural := 6;
+   constant CDC_ACM_CTL_IFC_NUM_C              : natural := 0; -- uses 2 interfaces
+   constant BADD_CTL_IFC_NUM_C                 : natural := CDC_ACM_CTL_IFC_NUM_C   + ite( HAVE_ACM_C,  2, 0 );
+   constant CDC_ECM_CTL_IFC_NUM_C              : natural := BADD_CTL_IFC_NUM_C      + ite( HAVE_BADD_C, 2, 0 );
+   constant CDC_NCM_CTL_IFC_NUM_C              : natural := CDC_ECM_CTL_IFC_NUM_C   + ite( HAVE_ECM_C,  2, 0 );
 
    constant LD_ACM_FIFO_DEPTH_INP_C            : natural := 10;
    constant LD_ACM_FIFO_DEPTH_OUT_C            : natural := 10;
@@ -260,6 +297,15 @@ architecture Impl of Usb2ExampleDev is
 
    constant LD_NCM_RAM_DEPTH_INP_C             : natural := 12;
    constant LD_NCM_RAM_DEPTH_OUT_C             : natural := 12;
+
+   constant HAVE_ACM_AGENT_C                   : boolean := HAVE_ACM_C and ( ENBL_LINE_BREAK_C or ENBL_LINE_STATE_C );
+
+   constant CDC_ACM_EP0_AGENT_IDX_C            : natural := 0;
+   constant BADD_EP0_AGENT_IDX_C               : natural := CDC_ACM_EP0_AGENT_IDX_C + ite( HAVE_ACM_AGENT_C,  1, 0 );
+   constant CDC_ECM_EP0_AGENT_IDX_C            : natural := BADD_EP0_AGENT_IDX_C    + ite( HAVE_BADD_C,       1, 0 );
+   constant CDC_NCM_EP0_AGENT_IDX_C            : natural := CDC_ECM_EP0_AGENT_IDX_C + ite( HAVE_ECM_C,        1, 0 );
+   constant NUM_EP0_AGENTS_C                   : natural := CDC_NCM_EP0_AGENT_IDX_C + ite( HAVE_NCM_C,        1, 0 );
+
 
    signal acmFifoTimer                         : unsigned(31 downto 0) := (others => '0');
    signal acmFifoMinFill                       : unsigned(LD_ACM_FIFO_DEPTH_INP_C - 1 downto 0) := (others => '0');
@@ -297,19 +343,15 @@ architecture Impl of Usb2ExampleDev is
    signal ulpiIb                               : UlpiIbType;
    signal ulpiOb                               : UlpiObType;
 
-   type   MuxSelType                           is ( NONE, CDCACM, BADD, CDCECM, CDCNCM );
-
    signal usb2Ep0ReqParamIn                    : Usb2CtlReqParamType;
    signal usb2Ep0ReqParam                      : Usb2CtlReqParamType;
-   signal usb2Ep0CDCACMCtlExt                  : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
-   signal usb2Ep0CDCECMCtlExt                  : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
-   signal usb2Ep0CDCNCMCtlExt                  : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
-   signal usb2Ep0BADDCtlExt                    : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
+
    signal usb2Ep0CtlExt                        : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
-   signal usb2Ep0BADDCtlEpExt                  : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
-   signal usb2Ep0CDCACMCtlEpExt                : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
-   signal usb2Ep0CDCNCMCtlEpExt                : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
-   signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+
+   signal usb2Ep0CtlExtArr                     : Usb2CtlExtArray(0 to NUM_EP0_AGENTS_C - 1)     := ( others => USB2_CTL_EXT_NAK_C );
+   signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType                             := USB2_ENDP_PAIR_IB_INIT_C;
+   signal usb2Ep0CtlEpExtArr                   : Usb2EndpPairIbArray(0 to NUM_EP0_AGENTS_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
+
    signal usb2DevStatus                        : Usb2DevStatusType;
 
    signal usb2RemoteWake                       : std_logic;
@@ -318,9 +360,6 @@ architecture Impl of Usb2ExampleDev is
    signal descRWOb                             : Usb2DescRWObType   := USB2_DESC_RW_OB_INIT_C;
 
    signal macAddrPatchDone                     : std_logic := '1';
-
-   signal muxSel                               : MuxSelType         := NONE;
-   signal muxSelIn                             : MuxSelType         := NONE;
 
    signal gnd                                  : std_logic := '0';
 
@@ -338,7 +377,6 @@ architecture Impl of Usb2ExampleDev is
    attribute MARK_DEBUG                        of usb2Ep0ReqParam   : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
    attribute MARK_DEBUG                        of usb2Ep0CtlExt     : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
    attribute MARK_DEBUG                        of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
-   attribute MARK_DEBUG                        of muxSel            : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
 
 begin
 
@@ -458,100 +496,57 @@ begin
          descRWOb                     => descRWOb
       );
 
-   -- Control EP-0 mux
+   G_EP0_MUX : if ( NUM_EP0_AGENTS_C > 0 ) generate
 
-   B_EP0_MUX : block is
+      function cat(
+         constant x : Usb2CtlEpAgentConfigArray := USB2_CTL_EP_AGENT_CONFIG_EMPTY_C;
+         constant y : Usb2CtlEpAgentConfigType
+      ) return Usb2CtlEpAgentConfigArray is
+      begin
+         return x & y;
+      end function cat;
+
+      constant EP0_AGENTS_C : Usb2CtlEpAgentConfigArray := (
+         ite( HAVE_ACM_AGENT_C, usb2CtlEpMkCsIfcAgentConfig( CDC_ACM_CTL_IFC_NUM_C ) ) &
+         ite( HAVE_BADD_C     , usb2CtlEpMkCsIfcAgentConfig( BADD_CTL_IFC_NUM_C    ) ) &
+         ite( HAVE_ECM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_ECM_CTL_IFC_NUM_C ) ) &
+         ite( HAVE_NCM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_NCM_CTL_IFC_NUM_C ) )
+      );
+
    begin
 
-      P_MUX : process (
-         muxSel,
-         usb2Ep0ReqParamIn,
-         usb2Ep0CDCACMCtlExt,
-         usb2Ep0CDCECMCtlExt,
-         usb2Ep0CDCNCMCtlExt,
-         usb2Ep0BADDCtlExt,
-         usb2Ep0BADDCtlEpExt,
-         usb2Ep0CDCACMCtlEpExt,
-         usb2Ep0CDCNCMCtlEpExt
-      ) is
-         variable v : MuxSelType;
-      begin
+      -- Control EP-0 mux
 
-         v := muxSel;
+      U_EP0_AGENT_MUX : entity work.Usb2MuxEpCtl
+         generic map (
+            AGENTS_G => EP0_AGENTS_C
+         )
+         port map (
+            usb2Clk           => ulpiClkLoc,
+            usb2Rst           => usb2RstLoc,
 
-         usb2Ep0CtlExt   <= USB2_CTL_EXT_NAK_C;
-         usb2Ep0CtlEpExt <= USB2_ENDP_PAIR_IB_INIT_C;
+            usb2CtlReqParamIb => usb2Ep0ReqParamIn,
+            usb2CtlExtOb      => usb2Ep0CtlExt,
+            usb2CtlEpExtOb    => usb2Ep0CtlEpExt,
 
-         usb2Ep0ReqParam <= usb2Ep0ReqParamIn;
-
-         -- reset state
-         if ( usb2Ep0ReqParamIn.vld = '0' ) then
-            v := NONE;
-         end if;
-
-         if ( muxSel = NONE ) then
-            -- don't propagate 'vld' to the EPs until a choice is made
-            usb2Ep0ReqParam.vld <= '0';
-
-            if ( usb2Ep0ReqParamIn.vld = '1' ) then
-               -- new mux setting
-               if ( usb2Ep0ReqParamIn.reqType = USB2_REQ_TYP_TYPE_CLASS_C ) then
-                  if    ( usb2CtlReqDstInterface( usb2Ep0ReqParamIn, toUsb2InterfaceNumType( CDC_ACM_IFC_NUM_C ) ) ) then
-                     v := CDCACM;
-                  elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParamIn, toUsb2InterfaceNumType( BADD_IFC_NUM_C ) ) ) then
-                     v := BADD;
-                  elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParamIn, toUsb2InterfaceNumType( CDC_ECM_IFC_NUM_C ) ) ) then
-                     v := CDCECM;
-                  elsif ( usb2CtlReqDstInterface( usb2Ep0ReqParamIn, toUsb2InterfaceNumType( CDC_NCM_IFC_NUM_C ) ) ) then
-                     v := CDCNCM;
-                  end if;
-               end if;
-               -- blank the 'ack/don' flags during this cycle
-               if ( v /= NONE ) then
-                  usb2Ep0CtlExt <= USB2_CTL_EXT_INIT_C;
-               end if;
-            end if;
-         end if;
-
-         if    ( muxSel = CDCACM  ) then
-            usb2Ep0CtlExt   <= usb2Ep0CDCACMCtlExt;
-            usb2Ep0CtlEpExt <= usb2Ep0CDCACMCtlEpExt;
-         elsif ( muxSel = CDCECM  ) then
-            usb2Ep0CtlExt   <= usb2Ep0CDCECMCtlExt;
-         elsif ( muxSel = CDCNCM  ) then
-            usb2Ep0CtlExt   <= usb2Ep0CDCNCMCtlExt;
-            usb2Ep0CtlEpExt <= usb2Ep0CDCNCMCtlEpExt;
-         elsif ( muxSel = BADD ) then
-            usb2Ep0CtlExt   <= usb2Ep0BADDCtlExt;
-            usb2Ep0CtlEpExt <= usb2Ep0BADDCtlEpExt;
-         end if;
-
-         muxSelIn <= v;
-      end process P_MUX;
-
-      P_SEL : process( ulpiClkLoc ) is
-      begin
-         if ( rising_edge( ulpiClkLoc ) ) then
-            if ( usb2RstLoc = '1' ) then
-               muxSel <= NONE;
-            else
-               muxSel <= muxSelIn;
-            end if;
-         end if;
-      end process P_SEL;
+            usb2CtlReqParamOb => usb2Ep0ReqParam,
+            usb2CtlExtIb      => usb2Ep0CtlExtArr,
+            usb2CtlEpExtIb    => usb2Ep0CtlEpExtArr
+         );
 
       usb2EpIb(0) <= usb2Ep0CtlEpExt;
 
-   end block B_EP0_MUX;
+   end generate G_EP0_MUX;
+
 
    -- CDC ACM Endpoint
-   B_EP_CDCACM : block is
+   G_EP_CDCACM : if ( HAVE_ACM_C ) generate
       signal cnt : unsigned(7 downto 0) := (others => '0');
    begin
 
       U_CDCACM : entity work.Usb2EpCDCACM
          generic map (
-            CTL_IFC_NUM_G               => CDC_ACM_IFC_NUM_C,
+            CTL_IFC_NUM_G               => CDC_ACM_CTL_IFC_NUM_C,
             LD_FIFO_DEPTH_INP_G         => LD_ACM_FIFO_DEPTH_INP_C,
             LD_FIFO_DEPTH_OUT_G         => LD_ACM_FIFO_DEPTH_OUT_C,
             FIFO_TIMER_WIDTH_G          => acmFifoTimer'length,
@@ -565,8 +560,8 @@ begin
             usb2Rx                     => usb2Rx,
 
             usb2Ep0ReqParam            => usb2Ep0ReqParam,
-            usb2Ep0CtlExt              => usb2Ep0CDCACMCtlExt,
-            usb2Ep0ObExt               => usb2Ep0CDCACMCtlEpExt,
+            usb2Ep0CtlExt              => usb2Ep0CtlExtArr( CDC_ACM_EP0_AGENT_IDX_C ),
+            usb2Ep0ObExt               => usb2Ep0CtlEpExtArr( CDC_ACM_EP0_AGENT_IDX_C ),
             usb2Ep0IbExt               => usb2EpOb(0),
 
             usb2DataEpIb               => usb2EpOb(CDC_ACM_BULK_EP_IDX_C),
@@ -651,13 +646,13 @@ begin
       acmFifoOutFill  <= resize( acmFifoFilledOut, acmFifoOutFill'length );
 
       acmFifoInpFill  <= resize( acmFifoFilledInp, acmFifoInpFill'length );
-   end block B_EP_CDCACM;
+   end generate G_EP_CDCACM;
 
-   B_EP_ISO_BADD : block is
+   G_EP_ISO_BADD : if ( HAVE_BADD_C ) generate
    begin
       U_BADD : entity work.Usb2EpBADDSpkr
          generic map (
-            AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_IFC_NUM_C),
+            AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_CTL_IFC_NUM_C),
             SAMPLE_SIZE_G             => 3,
             MARK_DEBUG_G              => MARK_DEBUG_SND_G,
             MARK_DEBUG_BCLK_G         => false
@@ -668,8 +663,8 @@ begin
             usb2RstBsy                => open,
 
             usb2Ep0ReqParam           => usb2Ep0ReqParam,
-            usb2Ep0CtlExt             => usb2Ep0BADDCtlExt,
-            usb2Ep0ObExt              => usb2Ep0BADDCtlEpExt,
+            usb2Ep0CtlExt             => usb2Ep0CtlExtArr( BADD_EP0_AGENT_IDX_C ),
+            usb2Ep0ObExt              => usb2Ep0CtlEpExtArr( BADD_EP0_AGENT_IDX_C ),
             usb2Ep0IbExt              => usb2EpOb(0),
 
             usb2Rx                    => usb2Rx,
@@ -689,9 +684,9 @@ begin
             i2sPBLRC                  => i2sPBLRC,
             i2sPBDAT                  => i2sPBDAT
          );
-   end block B_EP_ISO_BADD;
+   end generate G_EP_ISO_BADD;
 
-   B_EP_CDCECM : block is
+   G_EP_CDCECM : if ( HAVE_ECM_C ) generate
       signal   ecmCarrier             : std_logic;
    begin
 
@@ -700,118 +695,9 @@ begin
       ecmCarrier      <= iRegs(1,0)(31);
       ecmFifoTimer    <= unsigned(iRegs(1,1)(ecmFifoTimer'range));
 
-      -- Patch device DNA into the iMACAddress descriptor (which is a string,
-      -- so we must convert to utf-16-le which is trivial for '0'-'F')
-      G_PATCH : if ( USE_MAC_IDX_C >= 0 ) generate
-         signal   dnaShift                 : std_logic := '0';
-         signal   dnaRead                  : std_logic := '0';
-         signal   dnaOut                   : std_logic := '0';
-
-         -- each nibble is one unicode character
-         constant OFFBEG_C                 : Usb2DescIdxType := 2 + 2*2;   -- header + 2 unicode char
-         constant OFFEND_C                 : Usb2DescIdxType := 2 + 2*11;  -- header + 11 unicode chars
-
-         constant SREG_INIT_C              : std_logic_vector(4 downto 0) := ( 0 => '1', others => '0');
-
-         type StateType is ( INIT, SHIFT_AND_PATCH, DONE );
-
-         type RegType is record
-            state        : StateType;
-            dnaRead      : std_logic;
-            offset       : Usb2DescIdxType;
-            -- one extra bit as a marker
-            sreg         : std_logic_vector(4 downto 0);
-         end record RegType;
-
-         constant REG_INIT_C : RegType := (
-            state        => INIT,
-            dnaRead      => '1',
-            offset       => (2 + 2*2),
-            sreg         => SREG_INIT_C
-         );
-
-         signal   r      : RegType := REG_INIT_C;
-         signal   rin    : RegType;
-
-         function ascii(constant x : in std_logic_vector(3 downto 0))
-         return Usb2ByteType is
-            variable v : unsigned(Usb2ByteType'range);
-         begin
-            v := 16#30# + resize(unsigned(x), v'length);
-            if ( unsigned(x) > 9 ) then
-               v := v + 7;
-            end if;
-            return Usb2ByteType(v);
-         end function ascii;
-
-      begin
-
-         dnaRead         <= r.dnaRead;
-
-         P_COMB : process ( r, dnaOut, descRWIb ) is
-            variable v : RegType;
-         begin
-            v                := r;
-            macAddrPatchDone <= '0';
-            dnaShift         <= '0';
-            descRWIb         <= USB2_DESC_RW_IB_INIT_C;
-            descRWIb.addr    <= to_unsigned( USE_MAC_IDX_C + r.offset, descRWIb.addr'length );
-            descRWIb.wdata   <= ascii( r.sreg(3 downto 0) );
-
-            case ( r.state ) is
-               when INIT =>
-                  v.state   := SHIFT_AND_PATCH;
-                  v.dnaRead := '0';
-
-               when SHIFT_AND_PATCH =>
-                  if ( r.sreg(r.sreg'left) = '1' ) then
-                     -- got a nibble; write
-                    descRWIb.cen <= '1';
-                    descRWIb.wen <= '1';
-                    if ( r.offset = OFFEND_C ) then
-                       v.state  := DONE;
-                    else
-                       v.offset := r.offset + 2; -- next unicode char
-                       v.sreg   := SREG_INIT_C;
-                    end if;
-                  else
-                     dnaShift <= '1';
-                     v.sreg   := r.sreg(r.sreg'left - 1 downto 0) & dnaOut;
-                  end if;
-
-               when DONE =>
-                  macAddrPatchDone <= '1';
-            end case;
-
-            rin <= v;
-         end process P_COMB;
-
-         P_SEQ  : process ( ulpiClkLoc ) is
-         begin
-            if ( rising_edge( ulpiClkLoc ) ) then
-               -- while clock not stable hold in reset
-               if ( ulpiRst = '1' ) then
-                  r <= REG_INIT_C;
-               else
-                  r <= rin;
-               end if;
-            end if;
-         end process P_SEQ;
-
-         U_DNA_PORT : DNA_PORT
-            port map (
-               CLK                        => ulpiClkLoc,
-               DIN                        => '0',
-               READ                       => dnaRead,
-               SHIFT                      => dnaShift,
-               DOUT                       => dnaOut
-            );
-
-      end generate G_PATCH;
-
       U_CDCECM : entity work.Usb2EpCDCECM
          generic map (
-            CTL_IFC_NUM_G              => CDC_ECM_IFC_NUM_C,
+            CTL_IFC_NUM_G              => CDC_ECM_CTL_IFC_NUM_C,
             LD_FIFO_DEPTH_INP_G        => LD_ECM_FIFO_DEPTH_INP_C,
             LD_FIFO_DEPTH_OUT_G        => LD_ECM_FIFO_DEPTH_OUT_C,
             FIFO_TIMER_WIDTH_G         => ecmFifoTimer'length,
@@ -822,7 +708,7 @@ begin
             usb2Rst                    => usb2RstLoc,
 
             usb2Ep0ReqParam            => usb2Ep0ReqParam,
-            usb2Ep0CtlExt              => usb2Ep0CDCECMCtlExt,
+            usb2Ep0CtlExt              => usb2Ep0CtlExtArr( CDC_ECM_EP0_AGENT_IDX_C ),
 
             usb2DataEpIb               => usb2EpOb(CDC_ECM_BULK_EP_IDX_C),
             usb2DataEpOb               => usb2EpIb(CDC_ECM_BULK_EP_IDX_C),
@@ -857,9 +743,11 @@ begin
       ecmFifoOutFrms <= resize(ecmFifoFramesOut, ecmFifoOutFrms'length);
       ecmFifoInpFill <= resize(ecmFifoFilledInp, ecmFifoInpFill'length);
 
-   end block B_EP_CDCECM;
+      usb2Ep0CtlEpExtArr( CDC_ECM_EP0_AGENT_IDX_C ) <= USB2_ENDP_PAIR_IB_INIT_C;
 
-   B_EP_CDCNCM : block is
+   end generate G_EP_CDCECM;
+
+   G_EP_CDCNCM : if ( HAVE_NCM_C ) generate
       signal   ncmCarrier             : std_logic;
    begin
 
@@ -867,7 +755,7 @@ begin
 
       U_CDCNCM : entity work.Usb2EpCDCNCM
          generic map (
-            CTL_IFC_NUM_G              => CDC_NCM_IFC_NUM_C,
+            CTL_IFC_NUM_G              => CDC_NCM_CTL_IFC_NUM_C,
             ASYNC_G                    => false,
             LD_RAM_DEPTH_INP_G         => LD_NCM_RAM_DEPTH_INP_C,
             LD_RAM_DEPTH_OUT_G         => LD_NCM_RAM_DEPTH_OUT_C,
@@ -879,10 +767,10 @@ begin
             usb2EpRstOut               => open,
 
             usb2Ep0ReqParam            => usb2Ep0ReqParam,
-            usb2Ep0CtlExt              => usb2Ep0CDCNCMCtlExt,
+            usb2Ep0CtlExt              => usb2Ep0CtlExtArr( CDC_NCM_EP0_AGENT_IDX_C ),
 
             usb2CtlEpIb                => usb2EpOb(0),
-            usb2CtlEpOb                => usb2Ep0CDCNCMCtlEpExt,
+            usb2CtlEpOb                => usb2Ep0CtlEpExtArr( CDC_NCM_EP0_AGENT_IDX_C ),
 
             usb2DataEpIb               => usb2EpOb(CDC_NCM_BULK_EP_IDX_C),
             usb2DataEpOb               => usb2EpIb(CDC_NCM_BULK_EP_IDX_C),
@@ -917,7 +805,117 @@ begin
       ncmFifoInpAvail <= resize(ncmFifoAvailInp, ncmFifoInpAvail'length);
       ncmFifoOutEmpty <= ncmFifoEmptyOut;
 
-   end block B_EP_CDCNCM;
+   end generate G_EP_CDCNCM;
+
+   -- Patch device DNA into the iMACAddress descriptor (which is a string,
+   -- so we must convert to utf-16-le which is trivial for '0'-'F')
+   G_PATCH_MAC_ADDR : if ( USE_MAC_IDX_C >= 0 ) generate
+      signal   dnaShift                 : std_logic := '0';
+      signal   dnaRead                  : std_logic := '0';
+      signal   dnaOut                   : std_logic := '0';
+
+      -- each nibble is one unicode character
+      constant OFFBEG_C                 : Usb2DescIdxType := 2 + 2*2;   -- header + 2 unicode char
+      constant OFFEND_C                 : Usb2DescIdxType := 2 + 2*11;  -- header + 11 unicode chars
+
+      constant SREG_INIT_C              : std_logic_vector(4 downto 0) := ( 0 => '1', others => '0');
+
+      type StateType is ( INIT, SHIFT_AND_PATCH, DONE );
+
+      type RegType is record
+         state        : StateType;
+         dnaRead      : std_logic;
+         offset       : Usb2DescIdxType;
+         -- one extra bit as a marker
+         sreg         : std_logic_vector(4 downto 0);
+      end record RegType;
+
+      constant REG_INIT_C : RegType := (
+         state        => INIT,
+         dnaRead      => '1',
+         offset       => (2 + 2*2),
+         sreg         => SREG_INIT_C
+      );
+
+      signal   r      : RegType := REG_INIT_C;
+      signal   rin    : RegType;
+
+      function ascii(constant x : in std_logic_vector(3 downto 0))
+      return Usb2ByteType is
+         variable v : unsigned(Usb2ByteType'range);
+      begin
+         v := 16#30# + resize(unsigned(x), v'length);
+         if ( unsigned(x) > 9 ) then
+            v := v + 7;
+         end if;
+         return Usb2ByteType(v);
+      end function ascii;
+
+   begin
+
+      dnaRead         <= r.dnaRead;
+
+      P_COMB : process ( r, dnaOut, descRWIb ) is
+         variable v : RegType;
+      begin
+         v                := r;
+         macAddrPatchDone <= '0';
+         dnaShift         <= '0';
+         descRWIb         <= USB2_DESC_RW_IB_INIT_C;
+         descRWIb.addr    <= to_unsigned( USE_MAC_IDX_C + r.offset, descRWIb.addr'length );
+         descRWIb.wdata   <= ascii( r.sreg(3 downto 0) );
+
+         case ( r.state ) is
+            when INIT =>
+               v.state   := SHIFT_AND_PATCH;
+               v.dnaRead := '0';
+
+            when SHIFT_AND_PATCH =>
+               if ( r.sreg(r.sreg'left) = '1' ) then
+                  -- got a nibble; write
+                 descRWIb.cen <= '1';
+                 descRWIb.wen <= '1';
+                 if ( r.offset = OFFEND_C ) then
+                    v.state  := DONE;
+                 else
+                    v.offset := r.offset + 2; -- next unicode char
+                    v.sreg   := SREG_INIT_C;
+                 end if;
+               else
+                  dnaShift <= '1';
+                  v.sreg   := r.sreg(r.sreg'left - 1 downto 0) & dnaOut;
+               end if;
+
+            when DONE =>
+               macAddrPatchDone <= '1';
+         end case;
+
+         rin <= v;
+      end process P_COMB;
+
+      P_SEQ  : process ( ulpiClkLoc ) is
+      begin
+         if ( rising_edge( ulpiClkLoc ) ) then
+            -- while clock not stable hold in reset
+            if ( ulpiRst = '1' ) then
+               r <= REG_INIT_C;
+            else
+               r <= rin;
+            end if;
+         end if;
+      end process P_SEQ;
+
+      U_DNA_PORT : DNA_PORT
+         port map (
+            CLK                        => ulpiClkLoc,
+            DIN                        => '0',
+            READ                       => dnaRead,
+            SHIFT                      => dnaShift,
+            DOUT                       => dnaOut
+         );
+
+   end generate G_PATCH_MAC_ADDR;
+
 
    -- Clock generation
 

@@ -18,22 +18,6 @@ package Usb2DescPkg is
    subtype  Usb2DescIdxType    is natural range 0 to USB2_APP_DESCRIPTORS_C'length - 1;
    type Usb2DescIdxArray is array(natural range <>) of Usb2DescIdxType;
 
-   constant USB2_DEV_CLASS_NONE_C                         : Usb2ByteType := x"00";
-   constant USB2_DEV_CLASS_CDC_C                          : Usb2ByteType := x"02";
-
-   constant USB2_IFC_CLASS_CDC_C                          : Usb2ByteType := x"02";
-   constant USB2_IFC_CLASS_DAT_C                          : Usb2ByteType := x"0A";
-
-   constant USB2_CDC_SUBCLASS_NONE_C                      : Usb2ByteType := x"00";
-   constant USB2_CDC_SUBCLASS_ACM_C                       : Usb2ByteType := x"02";
-   constant USB2_CDC_SUBCLASS_ECM_C                       : Usb2ByteType := x"06";
-   constant USB2_CDC_SUBCLASS_NCM_C                       : Usb2ByteType := x"0D";
-
-   constant USB2_DAT_SUB_CLASS_NONE_C                     : Usb2ByteType := x"00";
-
-   constant USB2_CDC_PROTO_NONE_C                         : Usb2ByteType := x"00";
-   constant USB2_DAT_PROTO_NONE_C                         : Usb2ByteType := x"00";
-
    constant USB2_DESC_IDX_LENGTH_C                        : natural := 0;
    constant USB2_DESC_IDX_TYPE_C                          : natural := 1;
    constant USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C             : natural := 7;
@@ -143,8 +127,17 @@ package Usb2DescPkg is
    -- Returns -1 if not found
    function usb2EthMacAddrStringDescriptor(
       constant d : Usb2ByteArray;
-      -- must be one of USB2_CDC_SUBCLASS_ECM_C, USB2_CDC_SUBCLASS_NCM_C
-      constant s : Usb2ByteType := USB2_CDC_SUBCLASS_NCM_C
+      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
+   ) return integer;
+
+   function usb2NextIfcAssocDescriptor(
+      constant d : Usb2ByteArray;
+      constant i : integer; 
+      constant c : Usb2ByteType;
+      constant s : Usb2ByteType;
+      constant p : Usb2ByteType := (others => 'X');
+      constant a : boolean      := true 
    ) return integer;
 
 end package Usb2DescPkg;
@@ -373,8 +366,8 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
 
    function usb2EthMacAddrStringDescriptor(
       constant d : Usb2ByteArray;
-      -- must be one of USB2_CDC_SUBCLASS_ECM_C, USB2_CDC_SUBCLASS_NCM_C
-      constant s : Usb2ByteType := USB2_CDC_SUBCLASS_NCM_C
+      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
    ) return integer is
       variable i                    : integer;
       variable si                   : integer;
@@ -416,5 +409,36 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return usb2NthStringDescriptor( d, si );
 
    end function usb2EthMacAddrStringDescriptor;
+
+   function usb2NextIfcAssocDescriptor(
+      constant d : Usb2ByteArray;
+      constant i : integer; 
+      constant c : Usb2ByteType;
+      constant s : Usb2ByteType;
+      constant p : Usb2ByteType := (others => 'X');
+      constant a : boolean      := true 
+   ) return integer is
+      variable x              : integer;
+      constant IDX_FCN_CLSS_C : natural := 4;
+      constant IDX_FCN_SUBC_C : natural := 5;
+      constant IDX_FCN_PROT_C : natural := 6;
+      constant X_C            : Usb2ByteType := (others => 'X');
+   begin
+      x := usb2NextDescriptor(d, i, USB2_DESC_TYPE_INTERFACE_ASSOCIATION_C, a);
+      while ( x >= 0 ) loop
+         if (     (   d(x + IDX_FCN_CLSS_C) = c )
+              and (   d(x + IDX_FCN_SUBC_C) = s )
+              and ( ( d(x + IDX_FCN_PROT_C) = p ) or ( p = X_C ) ) ) then
+            return x;
+         end if;
+         -- skip this one
+         x := usb2NextDescriptor(d, x, a );
+         if ( x >= 0 ) then
+            -- look for the next association desc
+            x := usb2NextDescriptor(d, x, USB2_DESC_TYPE_INTERFACE_ASSOCIATION_C, a);
+         end if;
+      end loop;
+      return x;
+   end function usb2NextIfcAssocDescriptor;
 
 end package body Usb2DescPkg;

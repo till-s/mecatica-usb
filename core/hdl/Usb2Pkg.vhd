@@ -19,7 +19,7 @@ package Usb2Pkg is
 
    subtype  Usb2ByteType            is std_logic_vector(7 downto 0);
    type     Usb2ByteArray           is array(natural range <>) of Usb2ByteType;
- 
+
    subtype  Usb2TimerType           is signed(17 downto 0);
    constant USB2_TIMER_MAX_C        : Usb2TimerType   := (Usb2TimerType'left => '0', others => '1');
    constant USB2_TIMER_EXPIRED_C    : Usb2TimerType   := (others => '1');
@@ -244,7 +244,7 @@ package Usb2Pkg is
    --       0          0       0        --> frame received (assume max pkt size 4)
    --       0          0       1        -> EP ready for data
    --       0          1       1        -> received NULL packet
-   --       0          0       1        -> 
+   --       0          0       1        ->
    --       0          0       1        -> ready for next
    --       1          0       1        -> EP starts reading
    --       1          0       1        -> continue reading; meanwhile next frame is allowed
@@ -263,7 +263,7 @@ package Usb2Pkg is
       bFramedInp : std_logic; -- when set: no framing by 'don'; send as soon as 'vld' deasserted or maxPktSize reached
       -- if mstInp.vld is asserted then the endpoint
       -- must be able to supply the entire payload of
-      -- a data packet (or less if there is no data); 
+      -- a data packet (or less if there is no data);
       -- empty packets are sent setting 'vld = 0, don = 1'
       mstInp     : Usb2StrmMstType;
       -- if subOut.rdy is asserted then the endpoint
@@ -393,6 +393,7 @@ package Usb2Pkg is
    constant USB2_DESC_TYPE_DEVICE_QUALIFIER_C              : Usb2ByteType               := x"06";
    constant USB2_DESC_TYPE_OTHER_SPEED_CONF_C              : Usb2ByteType               := x"07";
    constant USB2_DESC_TYPE_INTERFACE_POWER_C               : Usb2ByteType               := x"08";
+   constant USB2_DESC_TYPE_INTERFACE_ASSOCIATION_C         : Usb2ByteType               := x"0B";
 
    constant USB2_CS_DESC_TYPE_INTERFACE_C                  : Usb2ByteType               := x"24";
    constant USB2_CS_DESC_TYPE_ENDPOINT_C                   : Usb2ByteType               := x"25";
@@ -404,8 +405,31 @@ package Usb2Pkg is
    constant USB2_CS_DESC_SUBTYPE_CDC_NCM_C                 : Usb2ByteType               := x"0D";
    constant USB2_CS_DESC_SUBTYPE_CDC_ECM_C                 : Usb2ByteType               := x"0F";
 
+   -- class and subclass codes
+   constant USB2_DEV_CLASS_NONE_C                          : Usb2ByteType               := x"00";
+   constant USB2_DEV_CLASS_CDC_C                           : Usb2ByteType               := x"02";
+
+
+   constant USB2_IFC_CLASS_CDC_C                           : Usb2ByteType               := x"02";
+   constant USB2_IFC_SUBCLASS_CDC_ACM_C                    : Usb2ByteType               := x"02";
+   constant USB2_IFC_SUBCLASS_CDC_ECM_C                    : Usb2ByteType               := x"06";
+   constant USB2_IFC_SUBCLASS_CDC_NCM_C                    : Usb2ByteType               := x"0D";
+
+   constant USB2_IFC_CLASS_AUDIO_C                         : Usb2ByteType               := x"01";
+   constant USB2_IFC_SUBCLASS_AUDIO_SPEAKER_C              : Usb2ByteType               := x"22";
+
+   constant USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC2_C        : Usb2ByteType               := x"20";
+   constant USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC3_C        : Usb2ByteType               := x"30";
+
+   constant USB2_IFC_CLASS_DAT_C                           : Usb2ByteType               := x"0A";
+
+
+   -- usb2 generic
+   constant USB2_IFC_PROTOCOL_NONE_C                       : Usb2ByteType               := x"00";
+   constant USB2_IFC_SUBCLASS_NONE_C                       : Usb2ByteType               := x"00";
+
    function usb2DescIsSentinel(constant x : Usb2ByteType) return boolean;
-    
+
    subtype  Usb2StdFeatureType                             is unsigned(1 downto 0);
    constant USB2_STD_FEAT_ENDPOINT_HALT_C                  : Usb2StdFeatureType         := "00";
    constant USB2_STD_FEAT_DEVICE_REMOTE_WAKEUP_C           : Usb2StdFeatureType         := "01";
@@ -509,6 +533,8 @@ package Usb2Pkg is
       err       => '0',
       don       => '0'
    );
+
+   type     Usb2CtlExtArray   is array (natural range <>) of Usb2CtlExtType;
 
    subtype  Usb2Utf16CharType is std_logic_vector(15 downto 0);
 
@@ -614,7 +640,7 @@ package body Usb2Pkg is
    return boolean is begin
       return x(7) = '1';
    end function usb2DescIsSentinel;
-   
+
    function usb2TimerExpired(constant t: in Usb2TimerType)
    return boolean is begin
       return t(t'left) = '1';
