@@ -26,7 +26,7 @@ package body Usb2AppCfgPkg is
       end loop;
    end procedure pr;
 
-   function USB2_APP_DESCRIPTORS_F return Usb2ByteArray is
+   function usb2AppGetDescriptors return Usb2ByteArray is
       constant c : Usb2ByteArray := (
       -- Usb2DeviceDesc
         0 => x"12",
@@ -244,7 +244,7 @@ begin
 
    P_TST : process is
 
-      constant EP0_SZ_C       : Usb2ByteType           := USB2_APP_DESCRIPTORS_F(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
+      constant EP0_SZ_C       : Usb2ByteType           := usb2AppGetDescriptors(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
 
    begin
       ulpiTstHandlePhyInit( ulpiTstOb );

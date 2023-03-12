@@ -31,7 +31,7 @@ package body Usb2AppCfgPkg is
       end loop;
    end procedure pr;
 
-   function USB2_APP_DESCRIPTORS_F return Usb2ByteArray is
+   function usb2AppGetDescriptors return Usb2ByteArray is
 
    constant DEVDESC_C : Usb2ByteArray := (
        0 => x"12",                                    -- length
@@ -179,7 +179,7 @@ architecture sim of Usb2FifoEpFrmdTb is
 
    constant NUM_ENDPOINTS_C        : natural                      := usb2AppGetMaxEndpointAddr(USB2_APP_DESCRIPTORS_C);
 
-   constant EP0_SZ_C               : Usb2ByteType           := USB2_APP_DESCRIPTORS_F(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
+   constant EP0_SZ_C               : Usb2ByteType           := usb2AppGetDescriptors(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
    constant EP1_SZ_C               : natural                := 8; -- must match value in descriptor
    constant EP1                    : Usb2EndpIdxType        := x"1";
 

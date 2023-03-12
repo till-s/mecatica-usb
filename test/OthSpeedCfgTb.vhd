@@ -15,7 +15,7 @@ use     work.Usb2DescPkg.all;
 
 package body Usb2AppCfgPkg is
 
-   -- Python code to generate USB2_APP_DESCRIPTORS_F
+   -- Python code to generate usb2AppGetDescriptors
    --
    -- import Usb2Desc
    -- 
@@ -48,7 +48,7 @@ package body Usb2AppCfgPkg is
    -- c.wrapup()
    -- c.vhdl()
 
-   function USB2_APP_DESCRIPTORS_F return Usb2ByteArray is
+   function usb2AppGetDescriptors return Usb2ByteArray is
    constant c : Usb2ByteArray := (
       -- Usb2DeviceDesc
         0 => x"12",  -- bLength
@@ -289,7 +289,7 @@ architecture sim of OthSpeedCfgTb is
 
    constant NUM_ENDPOINTS_C        : natural                      := usb2AppGetMaxEndpointAddr(USB2_APP_DESCRIPTORS_C);
 
-   constant EP0_SZ_C               : Usb2ByteType           := USB2_APP_DESCRIPTORS_F(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
+   constant EP0_SZ_C               : Usb2ByteType           := usb2AppGetDescriptors(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
 
    constant IFC_C                  : std_logic_vector(15 downto 0) := x"0000";
    constant ALT0_C                 : std_logic_vector(15 downto 0) := x"0000";

@@ -26,7 +26,7 @@ package body Usb2AppCfgPkg is
       end loop;
    end procedure pr;
 
-   function USB2_APP_DESCRIPTORS_F return Usb2ByteArray is
+   function usb2AppGetDescriptors return Usb2ByteArray is
 
    constant DEVDESC_C : Usb2ByteArray := (
        0 => x"12",                                    -- length
@@ -211,7 +211,7 @@ begin
       constant cfgdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(18 to stridx - 1);
       constant strdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(stridx + 4 to stridx + 9);
 
-      constant EP0_SZ_C       : Usb2ByteType           := USB2_APP_DESCRIPTORS_F(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
+      constant EP0_SZ_C       : Usb2ByteType           := usb2AppGetDescriptors(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
       constant EP1_SZ_C       : Usb2ByteType           := x"08"; -- must match value in descriptor
 
    begin

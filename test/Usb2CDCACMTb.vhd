@@ -19,7 +19,7 @@ use     work.Usb2DescPkg.all;
 
 package body Usb2AppCfgPkg is
 
-   function USB2_APP_DESCRIPTORS_F return Usb2ByteArray is
+   function usb2AppGetDescriptors return Usb2ByteArray is
       constant c : Usb2ByteArray := (
       -- Usb2DeviceDesc
         0 => x"12",  -- bLength
@@ -1202,7 +1202,7 @@ package body Usb2AppCfgPkg is
       );
    begin
       return c;
-   end function USB2_APP_DESCRIPTORS_F;
+   end function usb2AppGetDescriptors;
 end package body Usb2AppCfgPkg;
 
 library ieee;
