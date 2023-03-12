@@ -327,7 +327,7 @@ package Usb2Pkg is
    function USB2_REQ_TYP_TYPE_F     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
    function USB2_REQ_TYP_RECIPIENT_F(constant reqTyp : in Usb2ByteType) return std_logic_vector;
 
-   function USB2_MAKE_REQ_TYP_F(
+   function usb2MakeRequestType(
       constant dev2Host  : in  boolean;
       constant reqType   : in  std_logic_vector(1 downto 0);
       constant recipient : in  std_logic_vector(1 downto 0)
@@ -684,7 +684,7 @@ package body Usb2Pkg is
       end if;
    end function epOutRunning;
 
-   function USB2_MAKE_REQ_TYP_F(
+   function usb2MakeRequestType(
       constant dev2Host  : in  boolean;
       constant reqType   : in  std_logic_vector(1 downto 0);
       constant recipient : in  std_logic_vector(1 downto 0)
@@ -698,7 +698,7 @@ package body Usb2Pkg is
       v(6 downto 5) := reqType;
       v(1 downto 0) := recipient;
       return v;
-   end function USB2_MAKE_REQ_TYP_F;
+   end function usb2MakeRequestType;
 
    function usb2MergeEndpPairIb(
       constant ib : in Usb2EndpPairIbType;

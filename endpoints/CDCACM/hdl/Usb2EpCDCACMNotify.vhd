@@ -58,7 +58,7 @@ architecture Impl of Usb2EpCDCACMNotify is
    constant MEND_MSG_C     : natural                      := MAX_MSG_SIZE_C - 1;
    constant MSZ_C          : std_logic_vector(7 downto 0) := x"02";
 
-   constant REQ_TYP_C      : Usb2ByteType := USB2_MAKE_REQ_TYP_F(
+   constant REQ_TYP_C      : Usb2ByteType := usb2MakeRequestType(
                                                 true,
                                                 USB2_REQ_TYP_TYPE_CLASS_C,
                                                 USB2_REQ_TYP_RECIPIENT_IFC_C

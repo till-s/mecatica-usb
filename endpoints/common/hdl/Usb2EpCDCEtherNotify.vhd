@@ -73,7 +73,7 @@ architecture Impl of Usb2EpCDCEtherNotify is
 
    constant IFC_NUM_C      : Usb2ByteType := Usb2ByteType( toUsb2InterfaceNumType( CTL_IFC_NUM_G ) );
 
-   constant REQ_TYP_C      : Usb2ByteType := USB2_MAKE_REQ_TYP_F(
+   constant REQ_TYP_C      : Usb2ByteType := usb2MakeRequestType(
                                                 true,
                                                 USB2_REQ_TYP_TYPE_CLASS_C,
                                                 USB2_REQ_TYP_RECIPIENT_IFC_C
