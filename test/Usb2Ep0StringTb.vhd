@@ -1224,7 +1224,7 @@ architecture sim of Usb2Ep0StringTb is
    -- index is zero-based (?)
    constant CONFIG_INDEX_C         : std_logic_vector(7 downto 0) := x"00";
 
-   constant NUM_ENDPOINTS_C        : natural                      := USB2_APP_MAX_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
+   constant NUM_ENDPOINTS_C        : natural                      := usb2AppGetMaxEndpointAddr(USB2_APP_DESCRIPTORS_C);
    constant NUM_STRINGS_C          : natural                      := USB2_APP_NUM_STRINGS_F  (USB2_APP_DESCRIPTORS_C);
 
    signal epIb                     : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);

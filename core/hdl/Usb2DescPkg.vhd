@@ -56,7 +56,7 @@ package Usb2DescPkg is
 
 --   function Usb2AppGetNumConfigurations(constant d: Usb2ByteArray) return integer;
 
-   function USB2_APP_MAX_ENDPOINTS_F(constant d: Usb2ByteArray) return positive;
+   function usb2AppGetMaxEndpointAddr(constant d: Usb2ByteArray) return positive;
 
    -- max. number of interfaces among all configurations
    -- e.g., if config 1 has 1 interface and config 2 has
@@ -243,7 +243,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return highest + 1;
    end function findMax;
 
-   function USB2_APP_MAX_ENDPOINTS_F(constant d: Usb2ByteArray)
+   function usb2AppGetMaxEndpointAddr(constant d: Usb2ByteArray)
    return positive is
       variable v : integer;
    begin
@@ -253,7 +253,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       end if;
       report integer'image(v) & " endpoints";
       return v;
-   end function USB2_APP_MAX_ENDPOINTS_F;
+   end function usb2AppGetMaxEndpointAddr;
 
    function USB2_APP_MAX_INTERFACES_F(constant d: Usb2ByteArray)
    return natural is

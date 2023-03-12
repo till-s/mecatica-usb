@@ -227,7 +227,7 @@ architecture Impl of Usb2ExampleDev is
 
    constant USE_MMCM_C                         : boolean := true;
 
-   constant N_EP_C                             : natural := USB2_APP_MAX_ENDPOINTS_F(USB2_APP_DESCRIPTORS_C);
+   constant N_EP_C                             : natural := usb2AppGetMaxEndpointAddr(USB2_APP_DESCRIPTORS_C);
 
    constant CDC_ACM_BULK_EP_IDX_C              : natural := 1;
    constant CDC_ACM_IRQ_EP_IDX_C               : natural := 2;
