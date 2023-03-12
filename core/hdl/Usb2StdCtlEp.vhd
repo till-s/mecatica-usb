@@ -92,7 +92,7 @@ architecture Impl of Usb2StdCtlEp is
    constant MAX_ALTSETTINGS_C  : natural          := usb2AppGetMaxAltsettings( DESCRIPTORS_G );
    constant MAX_INTERFACES_C   : natural          := usb2AppGetMaxInterfaces ( DESCRIPTORS_G );
    constant STRINGS_IDX_C      : Usb2DescIdxType  := USB2_APP_STRINGS_IDX_F    ( DESCRIPTORS_G );
-   constant NUM_STRINGS_C      : natural          := USB2_APP_NUM_STRINGS_F    ( DESCRIPTORS_G );
+   constant NUM_STRINGS_C      : natural          := usb2AppGetNumStrings    ( DESCRIPTORS_G );
 
    constant FS_CFG_IDX_TABLE_C : Usb2DescIdxArray := usb2AppGetConfigIdxTbl ( DESCRIPTORS_G, false );
    constant HS_CFG_IDX_TABLE_C : Usb2DescIdxArray := usb2AppGetConfigIdxTbl ( DESCRIPTORS_G, true  );

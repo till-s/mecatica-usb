@@ -1233,7 +1233,7 @@ architecture sim of Usb2CDCACMTb is
    constant NOTE_EP_IDX_C          : natural                      := 2;
 
    constant NUM_ENDPOINTS_C        : natural                      := usb2AppGetMaxEndpointAddr(USB2_APP_DESCRIPTORS_C);
-   constant NUM_STRINGS_C          : natural                      := USB2_APP_NUM_STRINGS_F  (USB2_APP_DESCRIPTORS_C);
+   constant NUM_STRINGS_C          : natural                      := usb2AppGetNumStrings  (USB2_APP_DESCRIPTORS_C);
 
    signal epIb                     : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_IB_INIT_C);
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);

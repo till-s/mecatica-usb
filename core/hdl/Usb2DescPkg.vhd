@@ -94,7 +94,7 @@ package Usb2DescPkg is
    -- it has a zero-length HS_CONFIG_IDX_TBL
    function usb2AppGetConfigIdxTbl(constant d: Usb2ByteArray; constant hs : boolean := false) return Usb2DescIdxArray;
 
-   function USB2_APP_NUM_STRINGS_F(constant d: Usb2ByteArray) return natural;
+   function usb2AppGetNumStrings (constant d: Usb2ByteArray) return natural;
 
    function USB2_APP_STRINGS_IDX_F(constant d: Usb2ByteArray) return Usb2DescIdxType;
 
@@ -339,11 +339,11 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return rv;
    end function usb2AppGetConfigIdxTbl;
 
-   function USB2_APP_NUM_STRINGS_F(constant d: Usb2ByteArray)
+   function usb2AppGetNumStrings(constant d: Usb2ByteArray)
    return natural is
    begin
       return usb2CountDescriptors(d, USB2_DESC_TYPE_STRING_C);
-   end function USB2_APP_NUM_STRINGS_F;
+   end function usb2AppGetNumStrings;
 
    function USB2_APP_STRINGS_IDX_F(constant d: Usb2ByteArray)
    return Usb2DescIdxType is
