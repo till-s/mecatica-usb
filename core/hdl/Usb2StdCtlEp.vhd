@@ -89,7 +89,7 @@ architecture Impl of Usb2StdCtlEp is
       end loop;
    end procedure pr;
 
-   constant MAX_ALTSETTINGS_C  : natural          := USB2_APP_MAX_ALTSETTINGS_F( DESCRIPTORS_G );
+   constant MAX_ALTSETTINGS_C  : natural          := usb2AppGetMaxAltsettings( DESCRIPTORS_G );
    constant MAX_INTERFACES_C   : natural          := usb2AppGetMaxInterfaces ( DESCRIPTORS_G );
    constant STRINGS_IDX_C      : Usb2DescIdxType  := USB2_APP_STRINGS_IDX_F    ( DESCRIPTORS_G );
    constant NUM_STRINGS_C      : natural          := USB2_APP_NUM_STRINGS_F    ( DESCRIPTORS_G );

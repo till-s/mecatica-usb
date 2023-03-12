@@ -69,7 +69,7 @@ package Usb2DescPkg is
    -- has a single interface with 1 alt-settings then
    -- the max would be 3. Note that the number of alt-
    -- settings includes the default (0) setting.
-   function USB2_APP_MAX_ALTSETTINGS_F(constant d: Usb2ByteArray) return natural;
+   function usb2AppGetMaxAltsettings(constant d: Usb2ByteArray) return natural;
 
    -- A high-speed device is expected to follow the layout:
    --      FS-device descriptor
@@ -264,14 +264,14 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return v;
    end function usb2AppGetMaxInterfaces;
 
-   function USB2_APP_MAX_ALTSETTINGS_F(constant d: Usb2ByteArray)
+   function usb2AppGetMaxAltsettings(constant d: Usb2ByteArray)
    return natural is
       variable v : natural;
    begin
       v := findMax(d, USB2_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_ALTSETTING_C, 6);
       report integer'image(v) & " max ALTs";
       return v;
-   end function USB2_APP_MAX_ALTSETTINGS_F;
+   end function usb2AppGetMaxAltsettings;
 
    function usb2CountDescriptors(
       constant d : Usb2ByteArray;
