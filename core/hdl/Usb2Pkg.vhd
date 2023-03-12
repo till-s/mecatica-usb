@@ -323,8 +323,8 @@ package Usb2Pkg is
    type Usb2EndpPairIbArray       is array (natural range <>) of Usb2EndpPairIbType;
    type Usb2EndpPairObArray       is array (natural range <>) of Usb2EndpPairObType;
 
-   function usb2ReqTypeIsDev2Host (constant reqTyp : in Usb2ByteType) return boolean;
-   function USB2_REQ_TYP_TYPE_F     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
+   function usb2ReqTypeIsDev2Host  (constant reqTyp : in Usb2ByteType) return boolean;
+   function usb2ReqTypeGetType     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
    function USB2_REQ_TYP_RECIPIENT_F(constant reqTyp : in Usb2ByteType) return std_logic_vector;
 
    function usb2MakeRequestType(
@@ -600,10 +600,10 @@ package body Usb2Pkg is
       return reqTyp(7) = '1';
    end function usb2ReqTypeIsDev2Host;
 
-   function USB2_REQ_TYP_TYPE_F     (constant reqTyp : in Usb2ByteType)
+   function usb2ReqTypeGetType     (constant reqTyp : in Usb2ByteType)
    return std_logic_vector is begin
       return reqTyp(6 downto 5);
-   end function USB2_REQ_TYP_TYPE_F;
+   end function usb2ReqTypeGetType;
 
    function USB2_REQ_TYP_RECIPIENT_F(constant reqTyp : in Usb2ByteType)
    return std_logic_vector is begin

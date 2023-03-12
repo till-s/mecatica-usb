@@ -452,7 +452,7 @@ begin
                case ( r.parmIdx ) is
                   when "000" =>
                      v.reqParam.dev2Host  := usb2ReqTypeIsDev2Host ( epIb.mstCtl.dat );
-                     v.reqParam.reqType   := USB2_REQ_TYP_TYPE_F     ( epIb.mstCtl.dat );
+                     v.reqParam.reqType   := usb2ReqTypeGetType     ( epIb.mstCtl.dat );
                      v.reqParam.recipient := USB2_REQ_TYP_RECIPIENT_F( epIb.mstCtl.dat );
                   when "001" =>
                      v.reqParam.request             := unsigned(epIb.mstCtl.dat);
