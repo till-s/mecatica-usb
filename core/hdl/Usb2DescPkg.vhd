@@ -54,7 +54,7 @@ package Usb2DescPkg is
 
    constant USB2_CS_DESC_IDX_SUBTYPE_C                    : natural := 2;
 
---   function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray) return integer;
+--   function Usb2AppGetNumConfigurations(constant d: Usb2ByteArray) return integer;
 
    function USB2_APP_MAX_ENDPOINTS_F(constant d: Usb2ByteArray) return positive;
 
@@ -291,17 +291,23 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return n;
    end function usb2CountDescriptors;
   
-   function USB2_APP_NUM_CONFIGURATIONS_F(constant d: Usb2ByteArray; constant i: integer)
+   -- count number of configurations; if 
+   -- a => false then both speeds are counted
+   function Usb2AppGetNumConfigurations(
+      constant d: Usb2ByteArray;
+      constant i: integer;
+      constant a: boolean := true
+   )
    return integer is
       variable nc : natural;
    begin
       if ( i < 0 ) then
          return -1;
       end if;
-      nc := usb2CountDescriptors(d(i to d'high), USB2_DESC_TYPE_CONFIGURATION_C, true);
+      nc := usb2CountDescriptors(d(i to d'high), USB2_DESC_TYPE_CONFIGURATION_C, a => a);
       assert nc > 0 report "No configurations?" severity failure;
       return nc;
-   end function USB2_APP_NUM_CONFIGURATIONS_F;
+   end function Usb2AppGetNumConfigurations;
 
    function deviceDescriptorIndex(constant d: Usb2ByteArray; constant hs : boolean)
    return integer is
@@ -317,7 +323,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
    function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray; constant hs : boolean := false)
    return Usb2DescIdxArray is
       constant di  : integer  := deviceDescriptorIndex(d, hs);
-      constant NC  : integer  := USB2_APP_NUM_CONFIGURATIONS_F(d, di);
+      constant NC  : integer  := Usb2AppGetNumConfigurations(d, di);
       variable rv  : Usb2DescIdxArray(0 to NC);
       variable frm : natural;
    begin
