@@ -94,8 +94,8 @@ architecture Impl of Usb2StdCtlEp is
    constant STRINGS_IDX_C      : Usb2DescIdxType  := USB2_APP_STRINGS_IDX_F    ( DESCRIPTORS_G );
    constant NUM_STRINGS_C      : natural          := USB2_APP_NUM_STRINGS_F    ( DESCRIPTORS_G );
 
-   constant FS_CFG_IDX_TABLE_C : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F ( DESCRIPTORS_G, false );
-   constant HS_CFG_IDX_TABLE_C : Usb2DescIdxArray := USB2_APP_CONFIG_IDX_TBL_F ( DESCRIPTORS_G, true  );
+   constant FS_CFG_IDX_TABLE_C : Usb2DescIdxArray := usb2AppGetConfigIdxTbl ( DESCRIPTORS_G, false );
+   constant HS_CFG_IDX_TABLE_C : Usb2DescIdxArray := usb2AppGetConfigIdxTbl ( DESCRIPTORS_G, true  );
 
    function FS_QUAL_IDX_F( constant d : in Usb2ByteArray ) return integer is
    begin

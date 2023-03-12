@@ -92,7 +92,7 @@ package Usb2DescPkg is
    --      string-descriptors
    --      SENTINEL
    -- it has a zero-length HS_CONFIG_IDX_TBL
-   function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray; constant hs : boolean := false) return Usb2DescIdxArray;
+   function usb2AppGetConfigIdxTbl(constant d: Usb2ByteArray; constant hs : boolean := false) return Usb2DescIdxArray;
 
    function USB2_APP_NUM_STRINGS_F(constant d: Usb2ByteArray) return natural;
 
@@ -320,7 +320,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return i;
    end function deviceDescriptorIndex;
 
-   function USB2_APP_CONFIG_IDX_TBL_F(constant d: Usb2ByteArray; constant hs : boolean := false)
+   function usb2AppGetConfigIdxTbl(constant d: Usb2ByteArray; constant hs : boolean := false)
    return Usb2DescIdxArray is
       constant di  : integer  := deviceDescriptorIndex(d, hs);
       constant NC  : integer  := Usb2AppGetNumConfigurations(d, di);
@@ -337,7 +337,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
          frm   := usb2NextDescriptor(d, rv(i));
       end loop;
       return rv;
-   end function USB2_APP_CONFIG_IDX_TBL_F;
+   end function usb2AppGetConfigIdxTbl;
 
    function USB2_APP_NUM_STRINGS_F(constant d: Usb2ByteArray)
    return natural is
