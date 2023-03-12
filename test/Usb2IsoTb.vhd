@@ -325,7 +325,7 @@ begin
       variable reqval         : std_logic_vector(15 downto 0);
       variable reqidx         : std_logic_vector(15 downto 0);
 
-      constant stridx         : natural                := USB2_APP_STRINGS_IDX_F(USB2_APP_DESCRIPTORS_C);
+      constant stridx         : natural                := usb2NthStringDescriptor(USB2_APP_DESCRIPTORS_C, 0);
       constant devdsc         : Usb2ByteArray(0 to 17) := USB2_APP_DESCRIPTORS_C(0  to 17);
       constant cfgdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(18 to stridx - 1);
       constant strdsc         : Usb2ByteArray          := USB2_APP_DESCRIPTORS_C(stridx + 4 to stridx + 9);

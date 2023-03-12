@@ -94,9 +94,7 @@ package Usb2DescPkg is
    -- it has a zero-length HS_CONFIG_IDX_TBL
    function usb2AppGetConfigIdxTbl(constant d: Usb2ByteArray; constant hs : boolean := false) return Usb2DescIdxArray;
 
-   function usb2AppGetNumStrings (constant d: Usb2ByteArray) return natural;
-
-   function USB2_APP_STRINGS_IDX_F(constant d: Usb2ByteArray) return Usb2DescIdxType;
+   function usb2AppGetNumStrings  (constant d: Usb2ByteArray) return natural;
 
    -- find next descriptor of a certain type starting at index s; returns -1 if none is found
    function usb2NextDescriptor(
@@ -344,18 +342,6 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
    begin
       return usb2CountDescriptors(d, USB2_DESC_TYPE_STRING_C);
    end function usb2AppGetNumStrings;
-
-   function USB2_APP_STRINGS_IDX_F(constant d: Usb2ByteArray)
-   return Usb2DescIdxType is
-      variable i : integer;
-   begin
-      i := usb2NextDescriptor(d, 0, USB2_DESC_TYPE_STRING_C);
-      -- avoid out-of range result; user must check USB2_APP_NUM_STRINGS_C
-      if ( i < 0 ) then
-         i := 0;
-      end if;
-      return i;
-   end function USB2_APP_STRINGS_IDX_F;
 
    function usb2NthStringDescriptor(
       constant d : Usb2ByteArray;
