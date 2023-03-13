@@ -3,8 +3,7 @@
 --   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
 -- This notice must not be removed.
 
--- CDC ECM Endpoint with a FIFO interface. It also demonstrates
--- the implementation of a control interface via device requests (EP0).
+-- CDC ECM Endpoint with a FIFO interface.
 -- Asynchronous clock domains are supported.
 
 library ieee;

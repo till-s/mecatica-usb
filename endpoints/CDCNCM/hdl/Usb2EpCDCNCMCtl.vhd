@@ -3,6 +3,8 @@
 --   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
 -- This notice must not be removed.
 
+-- Control-interface endpoint for CDC NCM
+
 library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
@@ -10,10 +12,6 @@ use     ieee.numeric_std.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
 use     work.Usb2EpGenericCtlPkg.all;
-
-
--- Example for how to extend EP0 functionality.
--- This module implements 'send-break' for CDC-ACM.
 
 entity Usb2EpCDCNCMCtl is
    generic (
