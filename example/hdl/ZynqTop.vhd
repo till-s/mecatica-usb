@@ -484,7 +484,7 @@ begin
       ulpiRstb <= '1';
    end generate G_NO_EXT_RST;
 
-   U_ULPI_TOP : entity work.Usb2ExampleDev
+   U_ULPI_TOP : entity work.X7Wrapper
       generic map (
          SYS_CLK_PERIOD_NS_G              => SYS_CLK_PERIOD_NS_C,
          ULPI_CLK_MODE_INP_G              => ULPI_CLK_MODE_INP_C,

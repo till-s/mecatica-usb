@@ -230,7 +230,8 @@ architecture Impl of X7Wrapper is
    constant USE_MAC_IDX_C                      : integer := ite( NCM_MAC_IDX_C < 0, ECM_MAC_IDX_C, NCM_MAC_IDX_C );
 
    signal acmFifoTimer                         : unsigned(31 downto 0) := (others => '0');
-   signal acmFifoMinFill                       : unsigned(15 downto 0) := (others => '0');
+   signal acmFifoMinFill                       : unsigned(LD_ACM_FIFO_DEPTH_INP_C - 1 downto 0) := (others => '0');
+
    signal acmFifoFilledInp                     : unsigned(15 downto 0) := (others => '0');
    signal acmFifoFilledOut                     : unsigned(15 downto 0) := (others => '0');
    signal acmFifoLocal                         : std_logic    := '0';
