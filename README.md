@@ -11,8 +11,8 @@ ULPI PHY chip).
 The main use-case are FPGA applications which benefit from a high- or
 full-speed USB-2 interface (low-speed is ATM not supported).
 
-A few generic function classes (CDC-ACM, CDC-ECM) are implemented which
-can be connected to the generic core IP. USB descriptors are generated
+A few generic function classes (CDC-ACM, CDC-ECM, CDC-NCM) are implemented
+which can be connected to the generic core IP. USB descriptors are generated
 easily with a python tool. Users may also create their own endpoint
 implementations and attach these to the USB-2 core.
 
@@ -36,6 +36,8 @@ License](https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12)
 which is released under the
 [GNU GPLv3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html).
 
+I'm also open to use a different license.
+
 <details><summary><h2>
 Features
 </h2></summary>
@@ -44,7 +46,7 @@ The Usb2Core implements the following features:
 
  - Standard ULPI interface in output- and input-clock mode. Note, however,
    that I have experienced [strange problems](./doc/PROBLEMS.md) when trying
-   to operate a `USB3340` in input-clock mode. When I added a crystal to
+   to operate a `USB3340` PHY in input-clock mode. When I added a crystal to
    the board and strapped the device for output-clock mode these problems
    disappeared!
 
@@ -81,7 +83,8 @@ The Usb2Core implements the following features:
 
 In addition to the `Usb2Core` a few standard functions which implement
 standard USB device classes are provided. Compliant host-OS drivers should
-support these functions out of the box (tested under linux).
+support these functions out of the box (tested under linux, windows-10 and
+macos).
 
  - CDC ACM function. This function presents a simple FIFO interface to the
    FPGA client firmware. The CDC ACM *LineState* and *SendBreak* capabilites
@@ -95,11 +98,19 @@ support these functions out of the box (tested under linux).
    FPGA client firmware and is recognized as an ethernet device on the host.
    This allows host software to leverage the power of the network stack
    (provided that some sort of networking is also implemented in the FPGA).
+   ECM is supported by respective class-drivers under linux and macos.
+
+ - CDC NCM function. This function presents the same simple FIFO interface
+   as the ECM. It consumes slightly more resources than ECM but is supported
+   out of the box by Windows -- which lacks an ECM-class driver. Linux and
+   macos support NCM, too.
 
  - BADD Speaker class audio function. This is mainly demonstrating the
    implementation of an isochronous endpoint pair. Audio played on the host
    (under linux: using the vanilla `snd-usb-audio` driver) is converted
    into a `i2s` stream in the FPGA and forwarded to an audio-codec.
+   This example also works with the native class-drivers under windows and
+   macos.
 
 The Mecatica Usb package also comes with an example design for the Digilent
 ZYBO (first version) development board which features a Zynq-XC7Z010 device.
@@ -113,6 +124,7 @@ to its successor or a similar one should be straightforward.
 
      - ACM can sink/source data for throughput measurements.
      - ECM Ethernet function.
+     - NCM Ethernet function.
      - BADD Speaker function forward `i2s` stream to the on-board SSM2603
        audio coded.
 
@@ -120,9 +132,15 @@ to its successor or a similar one should be straightforward.
 
      - Application using libusb for exercising max. throughput.
      - A trivial demo driver which implements an ethernet device
-       *on the Zynq target* interfacing to the ECM FIFO is provided.
-       This demonstrates and exercises the ECM ethernet function by
+       *on the Zynq target* interfacing to the ECM or NCM FIFO is provided.
+       This demonstrates and exercises the ECM (or NCM) ethernet function by
        connecting the Zynq-linux network stack to the host's networking.
+       You cannot expect high performance from this driver or the
+       firmware architecture. The FIFO can sustain the theoretical maximum
+       speed of 60MB/s without problems but this is not a good software
+       interface. Mecatica is aimed at FPGA applications - for software
+       applications you'd use the PS USB interface. Interfacing the
+       ethernet functions directly to sofware is a *demo only*.
 
 </details>
 
@@ -237,7 +255,8 @@ A number of generics controls the properties of the ULPI interface:
 
 </dt><dd>
 
-  Record holding global (and dynamic) information about the device such as
+  Record holding global (and dynamic) information about the device state
+  such as
 
   - whether remote wakeup is supported and enabled
   - Current Usb2 device state (Usb2-spec, 9.1)
@@ -282,6 +301,8 @@ A number of generics controls the properties of the ULPI interface:
 
   Global device configuration; signals whether high-speed support
   should be enabled. In most cases this is tied to a static value.
+  '1' for high-speed capable applications and '0' for full-speed
+  only use cases.
 
 </dd><dt>
 
@@ -290,7 +311,7 @@ A number of generics controls the properties of the ULPI interface:
 </dt><dd>
 
   Signal remote wakeup. In order to take effect remote-wakeup must
-  have been enable by the host and marked as supported in the currently
+  have been enabled by the host and marked as supported in the currently
   active configuration descriptor.
 
 </dd><dt>
@@ -337,16 +358,16 @@ groups:
    the currently active 'maxPacketSize').
  - data exchange and handshake (`mstOut`, `subInp`, `mstCtl`, `bFramedInp`,
    `mstInp`, and `subOut`).
- - *Halt-feature* and *STALL* support (`setHaltInp`, `clrHaltInp`, `setHaltOut`,
-   `clrHaltOut`, `stalledInp`, `stalledOut`).
+ - *Halt-feature* (`haltedInp`, `haltedOut`) and *STALL* support (`stalledInp`,
+   `stalledOut`). See below for details.
 
 #### Configuration Information
 
 The `config` record conveys the currently active transfer-type and maximum
 packet size of an endpoint pair. This also includes information whether an
-endpoint is currently running. Usb interfaces may have multiple alt-settings
+endpoint is currently "running". Usb interfaces may have multiple alt-settings
 and only endpoints which are part of the currently active alt-setting are
-running; others may have to be explicitly reset. E.g., the CDC ECM specification
+"running"; others may have to be explicitly reset. E.g., the CDC ECM specification
 mandates (3.3) that when the host selects the first alt-setting (which must not
 have *any* endpoints) to "recover the network aspects of a device to known states".
 
@@ -740,6 +761,8 @@ USB Function Implementations
 
 ### CDC ECM Function
 
+### CDC NCM Function
+
 ### BADD-Speaker Function
 
 </details>
@@ -775,6 +798,17 @@ Usb descriptors for the project.
      only. Do not redistribute hardware/firmware using this ID!_**
 
          py/genAppCfgPkgBody.py -p 0x0001
+
+     The tool support a number of other options (use `-h` for help). In particular,
+     you may disable individual functions (and reduce the amount of resources used).
+     The VHDL code extracts all the necessary information from the descriptors and
+     configures itself to support only the functions and features present in the
+     descriptors:
+
+       - `-S` disables the sound (ISO) function.
+       - `-E` disables the CDC ECM ethernet function
+       - `-N` disables the CDC NCM ethernet function
+       - `-A` disables the CDC ACM function
 
 #### Generate the Vivado Project
 
@@ -855,6 +889,20 @@ most likely cause is lack of the necessary permission. Try running as root
 and/or add suitable udev rules (how to do that is beyond the scope of this
 document).
 
+##### Important Notes Regarding Throughput
+
+While the native CDC-ACM `tty` driver is useful for low-performance applications
+because it gives access to the device using ordinary tty software you will *never*
+be able to achieve reasonable throughput with this driver due to the very small buffer
+space it uses. Throughput was 100-times less than with the `bldtst` program.
+
+Also, keep in mind that the USB is a *bus* and that *all functions* as well as other
+devices connected to the same port share bandwidth. Even unused functions may use
+a noticeable amount of bandwidth if the host has to periodically poll them for activity.
+
+It is best to unbind any drivers from all other functions and unplug other devices
+when performing the throughput test.
+
 #### Testing the ECM Device
 
 The ECM device is supported by the standard linux `cdc_ether` driver which presents
@@ -868,7 +916,8 @@ stack available on the Zynq/ZYBO target (assuming you have linux installed there
 There is a trivial [driver](./example/sw/drv_fifo_eth.c) available which talks to the
 ECM device's FIFO interface via AXI and presents an ethernet device *on the target
 linux system*. Note that this is a driver which must be cross-compiled and loaded
-on the *target*.
+on the *target*. Also note that this is an extremely inefficient driver. It's for 
+*demonstration*.
 
 Edit the [Makefile](./example/sw/Makefile) or add a `./example/sw/config-local.mk`
 file and define the path to the (target) kernel sources:
@@ -898,14 +947,25 @@ Once you have successfully bound this driver you should be able to bring
 both interfaces (on the target and the host) up and after assigning IP addresses
 they should be able to communicate!
 
+I have successfully tested this under linux and macos. Windows does not have
+a native CDC-ECM driver, unfortunately.
+
+#### Testing the NCM Device
+
+The NCM device is supported by the standard linux `cdc_ncm` driver. On the Zynq
+it is supported by the same `drv_fifo_eth.ko` demo driver and works exactly the
+same way as the ECM device. On the host, NCM is supported by linux, windows and
+macos.
+
 #### Testing the BADD Speaker Device
 
 The BADD Speaker device implements a simple audio device that follows the
 "Basic Audio Device Definition (v3) - Speaker Profile" and is supported by
-the standard linux `usb_snd_audio` driver.
-
-Note that windows-10 does not support uac-3; therefore this example cannot
-be tested under windows.
+the standard linux `usb_snd_audio` driver. Alternatively, the python tool
+can generate slightly more complex descriptors conforming to the UAC-2
+specification. The `genAppCfgPkgBody.py` script uses this option by default.
+It has the advantage that the example works under windows and macos, too.
+Neither of these supports UAC-3 (only linux does).
 
 On the target the firmware converts the audio stream into a I2S signal
 which drives the SSM2603 audio codec chip on the ZYBO board. By default
@@ -935,7 +995,9 @@ driver must be loaded.
     # modprobe i2c-dev
     # ssm2603 -U
 
-At this point you should be able to play audio from the host.
+At this point you should be able to play audio from the host. Sometimes
+I have to run `ssm2603 -U` twice or I hear scrambled audio. Probably I
+got some delay timng in that program wrong.
 
 I had actually modified my ZYBO board in the past and loaded the optional
 crystal:
@@ -954,7 +1016,7 @@ feedback.
 Note that when running with a 12.288MHz reference the initialization of the audio
 chip must be slightly different. The clock difference to 12.000MHz is too big
 to be compensated by the audio feedback and distortion will result (in addition
-to the wrong pitch or the audio).
+to the wrong pitch of the audio).
 
     # ssm2603 -M
 
