@@ -757,13 +757,99 @@ steps may be required).
 USB Function Implementations
 </h2></summary>
 
+### Generic FIFO Interface
+
+All the CDC functions use internal FIFOs; ACM and ECM are based on `Usb2FifoEp.vhd`
+which is a generic FIFO which can be used to implement other endpoints as well.
+The internal implementaton of NCM is different but it offers the same FIFO interface
+ports as the other CDC functions.
+
+This FIFO interface is less complex than the endpoint interface to the `Usb2Core`.
+
+The interface uses 
+
+ - a data port including a `LAST` flag which is asserted during the last transfer
+   of a frame (only applicable if the function uses frames such as ethernet).
+ - read- (`OUT` direction) or write-enable (`IN`) control signals.
+ - empty (`OUT` direction) or full (`IN`) handshake signals.
+
+In `OUT` direction data (and `LAST`) are ready and valid as soon as `empty` is deasserted.
+Data are consumed by asserting `read-enable`.
+
+In `IN` direction data octets (and `LAST`) are written while write-enable is asserted
+and `full` is deasserted.
+
 ### CDC ACM Function
+
+To the host the ACM function presents itself as a standard CDC-ACM device. Optionally,
+(if enabled in the descriptors) the "line-break" and/or "line-state" features are
+supported (ports are available to connect the respective signals).
+
+The ACM function uses *unframed* data. The `LAST` marker is not supported/used. Data are
+sent (`IN` direction) as soon as the fifo is empty or the maximum packet size is reached.
+If data are sourced slower than they can be sent on the USB this may result in poor
+efficiency and many small packets. In order to mitigate this effect the function offers
+two ports (which work similar to the termios VTIME/VMIN feature):
+
+ - fifoMinFillInp: data are accumulated in the `IN` fifo until this threshold is reached
+   before a USB packet is formed.
+ - fifoTimeFillInp: every time a data item is written to the FIFO a timer is reset. If
+   the timer (which is clocked at the 60MHz ULPI clock rate) reaches the `fifoTimeFillInp`
+   timeout data are sent on the USB even if the `fifoMinFilInp` threshold has not been
+   reached yet. A timeout of all-ones results in an infinite timeout.
+
+Thus, data can be accumulated in the FIFO until either the threshold is reached or the
+timeout expires - which ever happens first.
+
+The FIFO depth can be configured by means of generics.
+
+While this function is supported on the host side natively by most operating systems
+it should be noted that the native drivers probably are not very efficient (a typical
+terminal application is not optimized for high throughput). However, as demonstrated by
+the examples: it is quite straigntforward to overcome this limitation, e.g., by using
+libusb to access the function.
 
 ### CDC ECM Function
 
+The ECM function offers the same FIFO interface as the ACM. Because ethernet data are
+always framed (using the `LAST` flag) the min-fill threshold and -timer are not used.
+
+The MAC address of the function is defined in the descriptors. The example application
+shows how the MAC address could be patched with a unique address (to be read, e.g., from
+an EEPROM).
+
+ECM is quite simple and offers offers ethernet connectivity to the firmware downstream
+of the function (note, however, that Mecatica does not include a network stack).
+
+The depth of the internal fifo buffer is configurable by means of generics.
+
+The ECM function has a `carrier` input port which should be used to indicate that
+the user is ready for handling network traffic (this will signal to the host side
+that the ethernet interface is "running").
+
 ### CDC NCM Function
 
+The NCM function is very similar to ECM from the firmware perspective. It does use
+more FPGA resources due to its higher complexity. Unfortunately, windows does not
+natively support ECM so that you may want to use NCM if interfacing to windows is
+a requirement.
+
+The NCM has a few features (such as NTB sizes and other parameters which may
+help increasing efficiency) that can be tuned with generics.
+
+The NCM function optionally (if enabled in the descriptors) supports the
+`SET_NET_ADDRESS` request - however, linux currently does not.
+
+Like ECM the NCM function also supports a `carrier` input port.
+
 ### BADD-Speaker Function
+
+This function supports the BADD (UAC3) speaker profile. However, since only linux supports
+UAC3 at this point one can also create UAC2 descriptors that are compatible with this
+function (and the python tool supports this).
+
+This function mainly serves as an example and test of an isochronous endpoint including
+feedback functionality.
 
 </details>
 
@@ -780,6 +866,20 @@ Example Design
 ### Zynq Platform with Example Device
 
 #### Extension Board
+
+The hardware design of a simple extension board for the ZYBO (v1) is
+available in the `kicad` subdirectory. The extension board hosts a
+USB3340 ULPI PHY, a clock and a micro-USB connector. It connects to
+three PMOD sites on the ZYBO (JB, JC and JD). The board can be configured
+for UPLI input-clock or output-clock mode. Note that [problems](./doc/PROBLEMS.md)
+with input-clock mode which disappeared when I populated the clock
+generator and strapped the board for clock-output mode.
+
+Unfortunately no suitable clock-capable input is routed from the Zynq
+to the PMOD sites. Thus, we have to use an ordinary input for shipping
+the clock which will cause Vivado to complain. I didn't experience
+problems (60MHz is not that high of a frequency) but I did have to do
+some phase shifting in a MMCM.
 
 ### Device Functions
 
@@ -864,10 +964,10 @@ helps with this process:
   1. `chdir example/sw`
   2. `make blktst`
 
-The `blktst` program puts the endpoint in firmware into "blast" mode. In this
+The `blktst` program puts the endpoint into "blast" mode. In this
 mode the endpoint discards all incoming data (after reading it) and it
-feeds the *OUT* endpoint with a counter value at the maximum rate (60MB/s in high-
-speed, 1.5MB/s in full-speed mode).
+feeds the *OUT* endpoint with an incrementing counter value at the maximum
+rate (60MB/s in high-speed, 1.5MB/s in full-speed mode).
 
 `blktst` uses an ample amount of buffer space and schedules bulk-read
 (or bulk-write) operations in order to saturate the connection. It transfers
@@ -894,7 +994,7 @@ document).
 While the native CDC-ACM `tty` driver is useful for low-performance applications
 because it gives access to the device using ordinary tty software you will *never*
 be able to achieve reasonable throughput with this driver due to the very small buffer
-space it uses. Throughput was 100-times less than with the `bldtst` program.
+space it uses. Throughput was 100-times less than with the `blktst` program.
 
 Also, keep in mind that the USB is a *bus* and that *all functions* as well as other
 devices connected to the same port share bandwidth. Even unused functions may use
@@ -965,7 +1065,7 @@ the standard linux `usb_snd_audio` driver. Alternatively, the python tool
 can generate slightly more complex descriptors conforming to the UAC-2
 specification. The `genAppCfgPkgBody.py` script uses this option by default.
 It has the advantage that the example works under windows and macos, too.
-Neither of these supports UAC-3 (only linux does).
+Neither of these OSes supports UAC-3 (only linux does).
 
 On the target the firmware converts the audio stream into a I2S signal
 which drives the SSM2603 audio codec chip on the ZYBO board. By default

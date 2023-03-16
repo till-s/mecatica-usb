@@ -73,12 +73,12 @@ size supported by the endpoint or the remaining data of a frame
 (whichever is less).
 
 The core may throttle data by controlling `rdy` (*IN* direction)
-or `vld` (*OUT* direction), respectively, but the endpoint *may not*.
+or `vld` (*OUT* direction), respectively, but the endpoint *must not*.
 Note, however, that *for non-ISO transactions* the core never throttles
 traffic in *OUT* direction because data are supplied from the internal
 packet buffer.
 
-Mecatica Usb provides a generic FIFO (`Usb2FifoEp.vhd`) for use by
+Mecatica USB provides a generic FIFO (`Usb2FifoEp.vhd`) for use by
 endpoints which does provide buffering as well as clock-domain
 crossing and which offers a simpler interface.
 
@@ -87,8 +87,8 @@ crossing and which offers a simpler interface.
 The core's packet engine takes care of converting frames sent by
 the endpoint into a sequence of *IN* packets of the maximum packet
 size defined in the endpoint descriptor followed by a smaller
-or *null* packet which marks the last packet of a frame (see Usb
-spec.).
+or *null* packet (AKA *ZLP* - zero-length packet) which marks the
+last packet of a frame (see USB spec.).
 
 Similarly, *OUT* packets are assembled into frames separated
 by `don = 1` markers.
@@ -108,10 +108,10 @@ it from the buffer. This operation is transparent to the endpoint
 
 ### *OUT* Direction
 
-Data is received into an internal buffer and the endpoint is only
+Data are received into an internal buffer and the endpoint is only
 notified (`vld = 1`) once the checksum has been validated. In case
 of a bad checksum the buffer contents are erased and retransmission
-by the host is triggered (by means of the Usb data-toggle mechanism).
+by the host is triggered (by means of the USB data-toggle mechanism).
 This operation is transparent to the endpoint.
 
 Note that there is always a one-packet latency before the endpoint
@@ -135,7 +135,7 @@ and framed transfers.
 ### Unframed Transfer
 
 Unframed transfers are simpler but do not support the framing
-mechanism defined by Usb (a sequence of max-sized packets followed
+mechanism defined by USB (a sequence of max-sized packets followed
 by a non-max packet). It can only be used if the host-side does
 not expect framing.
 
@@ -150,7 +150,7 @@ maximum packet size is reached. During each cycle when
 
 a data octet is transferred to the core.
 
-Note that it is not possible to send "*null*"-packets in unframed
+Note that it is not possible to send "*null*"-packets (ZLP) in unframed
 mode.
 
 ### Framed Transfer
@@ -191,11 +191,10 @@ be ready to accept a subsequent packet.
 
 ### Semantics of `rdy` After the First Item is Consumed
 
-If `rdy` remains asserted *after the first item has been consumed*
-then the core assumes that it may receive a next packet into its
-internal buffer while the endpoint consumes the previous one
-and that the endpoint eventually will be ready to consume this
-second packet as well.
+If `rdy` remains asserted *after the first item (octet) has been consumed*
+then the core assumes that it may receive a next packet into its internal
+buffer while the endpoint consumes the previous one and that the endpoint
+eventually will be ready to consume this second packet as well.
 
 If `rdy` is deasserted after the first item has been consumed then
 the core will throttle further transfers (reverting to PING in the
@@ -204,9 +203,8 @@ high-speed case) until `rdy` is re-asserted.
 Because data are read out of the internal buffer the core keeps
 `vld` asserted for the duration of an entire packet.
 
-A high-speed *OUT* endpoint optimized for high-throughput
-may thus follow e.g., the following simplified (and not
-fully optimized) algorithm:
+A high-speed *OUT* endpoint optimized for high-throughput may thus follow
+e.g., the following simplified (and not fully optimized) algorithm:
 
   - Assert `rdy` if the endpoint can consume at least
     2\*max-packet size. Otherwize deassert `rdy` after
@@ -285,7 +283,7 @@ honor the `bFramedInp` signal).
 
 So-called high-bandwidth isochronous transfers use multiple packets per microframe
 and need special attention because the USB spec. effectively requires that it is known
-*in advance* how many packets per microframe are needed for every transfer.
+*in advance* how many packets per microframe are needed for any specific transfer.
 
 This means that a pure streaming interface is not possible for isochronous *IN*
 transfers.
@@ -307,7 +305,7 @@ An endpoint may use the `usb2Rx.pktHdr.sof` flag to synchronize transmission wit
 ## Isochronous Core to Endpoint Transfer (*OUT* direction)
 
 Isochronous *OUT* transfers do not support packet buffering or retransmission.
-Usb-short packet framing is not supported natively either. I.e., the application
+USB-short packet framing is not supported natively either. I.e., the application
 must check the received packet size and reassemble frames when needed.
 
 Data are streamed out as they arrive and individual packets are throttled with the
