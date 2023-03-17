@@ -36,7 +36,28 @@ License](https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12)
 which is released under the
 [GNU GPLv3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html).
 
+The EUPL permits including/merging/distributing the licensed code with 
+products released under some other licenses, e.g., the GPL variants.
+
 I'm also open to use a different license.
+
+## Compatibility
+
+All the functions (CDC-ACM, CDC-ECM, CDC-NCM, UAC2-Speaker) implemented
+by Mecatica have been tested under linux (5.15), Windows-10 (no ECM) and
+MacOS.
+
+## Language and Hardware
+
+Mecatica is written in VHDL and has been tested with Xilinx tools and
+hardware. The code is hardware-agnostic and should be portable to other
+FPGA families (might need some tweaking so that RAM is properly inferred).
+
+## Performance and Resource Consumption
+
+I was able to achieve aboutn 47MB/s with high-speed bulk transfers (no
+other devices or functions connected to the host port). The USB core
+and ACM function consume about 1800 LUTs (7Series).
 
 <details><summary><h2>
 Features
@@ -795,7 +816,7 @@ two ports (which work similar to the termios VTIME/VMIN feature):
    before a USB packet is formed.
  - fifoTimeFillInp: every time a data item is written to the FIFO a timer is reset. If
    the timer (which is clocked at the 60MHz ULPI clock rate) reaches the `fifoTimeFillInp`
-   timeout data are sent on the USB even if the `fifoMinFilInp` threshold has not been
+   timeout data are sent on the USB even if the `fifoMinFillInp` threshold has not been
    reached yet. A timeout of all-ones results in an infinite timeout.
 
 Thus, data can be accumulated in the FIFO until either the threshold is reached or the
