@@ -71,7 +71,7 @@ entity Usb2ExampleDev is
       usb2RemoteWake       : in  std_logic := '0';
       usb2HiSpeedEn        : in  std_logic := '1';
 
-      ulpiRegReq           : in  UlpiRegReqType;
+      ulpiRegReq           : in  UlpiRegReqType                                 := ULPI_REG_REQ_INIT_C;
       ulpiRegRep           : out UlpiRegRepType;
 
       -- Descriptor BRAM interface (only if DESCRIPTORS_BRAM_G => true)
@@ -80,7 +80,7 @@ entity Usb2ExampleDev is
       usb2DescRWOb         : out Usb2DescRWObType                               := USB2_DESC_RW_OB_INIT_C;
 
       -- ACM FIFO CLOCK DOMAIN
-      acmFifoClk           : in  std_logic;
+      acmFifoClk           : in  std_logic := '0';
       acmFifoRstOut        : out std_logic := '0';
 
       acmFifoOutDat        : out Usb2ByteType                                   := (others => '0');
@@ -131,7 +131,7 @@ entity Usb2ExampleDev is
       baddPowerState       : out unsigned(1 downto 0) := (others => '0');
 
       -- ECM FIFO CLOCK DOMAIN
-      ecmFifoClk           : in  std_logic;
+      ecmFifoClk           : in  std_logic    := '0';
       ecmFifoRstOut        : out std_logic    := '0';
 
       ecmFifoOutDat        : out Usb2ByteType                                   := (others => '0');
@@ -154,7 +154,7 @@ entity Usb2ExampleDev is
       ecmCarrier           : in  std_logic    := '0';
 
       -- NCM FIFO CLOCK DOMAIN
-      ncmFifoClk           : in  std_logic;
+      ncmFifoClk           : in  std_logic    := '0';
       ncmFifoRstOut        : out std_logic    := '0';
 
       ncmFifoOutDat        : out Usb2ByteType := (others => '0');
