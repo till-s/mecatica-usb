@@ -920,7 +920,7 @@ Usb descriptors for the project.
 
          py/genAppCfgPkgBody.py -p 0x0001
 
-     The tool support a number of other options (use `-h` for help). In particular,
+     The tool supports a number of other options (use `-h` for help). In particular,
      you may disable individual functions (and reduce the amount of resources used).
      The VHDL code extracts all the necessary information from the descriptors and
      configures itself to support only the functions and features present in the
