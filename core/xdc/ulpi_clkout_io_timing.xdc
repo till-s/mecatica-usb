@@ -16,7 +16,14 @@
 # set the min. input delay to
 # min(data_trace_delay - clock_trace_delay) + min. delay when data source is valid after active clock (ULPI: 0ns)
 
-set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[][0-7][]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]0[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]1[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]2[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]3[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]4[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]5[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]6[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]7[]]/D}]]
 set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/nxt_r_reg/D]]
 set_input_delay -add_delay -clock ulpiClk -min 0.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]]
 # use -quiet for stp_i since this signal is only used when MARK_DEBUG is enabled
@@ -25,7 +32,14 @@ set_input_delay -quiet -add_delay -clock ulpiClk -min 0.500 [all_fanin -quiet -f
 # set the max. input delay to
 # max(data_trace_delay - clock_trace_delay) + max. delay when data source is valid after active clock (ULPI: 9ns)
 
-set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[][0-7][]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]0[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]1[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]2[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]3[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]4[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]5[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]6[]]/D}]]
+set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex {.*/din_r_reg[[]7[]]/D}]]
 set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/nxt_r_reg/D]]
 set_input_delay -add_delay -clock ulpiClk -max 9.500 [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]]
 # use -quiet for stp_i since this signal is only used when MARK_DEBUG is enabled
@@ -37,8 +51,22 @@ set_input_delay -quiet -add_delay -clock ulpiClk -max 9.500 [all_fanin -quiet -f
 # set the min. output delay to
 #  min(data_trace_delay + clock_trace_delay) - ULPI_hold_time (ULPI: 0ns)
 
-set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]]
-set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]0[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]1[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]2[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]3[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]4[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]5[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]6[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]7[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]0[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]1[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]2[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]3[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]4[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]5[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]6[]]/Q}]]
+set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]7[]]/Q}]]
 
 set_output_delay -add_delay -clock ulpiClk -min 1.00  [all_fanout -flat -endpoints_only [get_pins -hier -regex .*/stp_r_reg/Q]]
 set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoints_only [get_pins -hier -regex .*/stp_r_reg/Q]]
@@ -48,4 +76,11 @@ set_output_delay -add_delay -clock ulpiClk -max 7.000 [all_fanout -flat -endpoin
 #if we're paranoid we'd set this to 1 clock cycle to avoid possible
 #metastability when the turn-around cycle is latched. However, at least on slower
 #devices this does not seem possible. 2-cycles is a must!
-set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[][0-7][]]/Q}]] 33.333
+set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]0[]]/Q}]] 33.333
+set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]1[]]/Q}]] 33.333
+set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]2[]]/Q}]] 33.333
+set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]3[]]/Q}]] 33.333
+set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]4[]]/Q}]] 33.333
+set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]5[]]/Q}]] 33.333
+set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]6[]]/Q}]] 33.333
+set_max_delay -from [all_fanin -flat -startpoints_only [get_pins -hier -regex .*/dir_r_reg/D]] -to [all_fanout -flat -endpoints_only [get_pins -hier -regex {.*/dou_r_reg[[]7[]]/Q}]] 33.333
