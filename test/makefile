@@ -50,6 +50,7 @@ SRCS += Usb2EpI2SPlaybackTb.vhd
 endif
 SRCS += OthSpeedCfgTb.vhd
 SRCS += Usb2EpCDCEtherNotify.vhd
+SRCS += Usb2EpGenericCtlPkg.vhd
 SRCS += Usb2EpGenericCtl.vhd
 SRCS += Usb2EpCDCNCM.vhd
 SRCS += Usb2EpCDCNCMOut.vhd
