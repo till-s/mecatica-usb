@@ -25,9 +25,10 @@ package Usb2TstPkg is
 
    constant USB2_TST_NULL_DATA_C : Usb2ByteArray(0 to -1) := ( others => (others => '0') );
 
-   signal ulpiTstOb              : ulpiIbType             := ULPI_IB_INIT_C;
-   signal ulpiTstIb              : ulpiObType             := ULPI_OB_INIT_C;
-   signal ulpiDatIO              : Usb2ByteType           := (others => 'Z');
+   signal ulpiTstOb              : UlpiIbType             := ULPI_IB_INIT_C;
+   -- ulpiTstIb looped back while ulpiTstOb.dir = 0
+   signal ulpiTstIO              : UlpiIbType;
+   signal ulpiTstIb              : UlpiObType             := ULPI_OB_INIT_C;
 
    signal ulpiTstClk             : std_logic              := '0';
    signal ulpiTstRun             : boolean                := true;
@@ -1005,13 +1006,12 @@ architecture Sim of Usb2TstPkgProcesses is
    constant PER_C : time := 1 sec / 60.0E6;
 begin
 
-   P_ULPI_DAT : process ( ulpiTstOb, ulpiDatIO ) is
+   P_ULPI_DAT : process ( ulpiTstOb, ulpiTstIb ) is
    begin
-      ulpiTstIb.dat <= ulpiDatIO;
-      if ( ulpiTstOb.dir = '1' ) then
-         ulpiDatIO <= ulpiTstOb.dat;
-      else
-         ulpiDatIO <= (others => 'Z');
+      ulpiTstIO     <= ulpiTstOb;
+      ulpiTstIO.stp <= ulpiTstIb.stp;
+      if ( ulpiTstOb.dir = '0' ) then
+         ulpiTstIO.dat <= ulpiTstIb.dat;
       end if;
    end process P_ULPI_DAT;
 
