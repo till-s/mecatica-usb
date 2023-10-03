@@ -716,7 +716,7 @@ begin
             txDataMst.vld  <= ei.mstInp.vld;
             txDataMst.don  <= ei.mstInp.don;
 
-            if ( ei.bFramedInp = '1' ) then
+            if ( (ei.bFramedInp and not ei.mstInp.don) = '1' ) then
                -- if they don't want us to frame the input data
                -- then we must assert txDatMst.don as soon as ei.mstInp.vld turns off
                -- we then proceed to the ACK phase
