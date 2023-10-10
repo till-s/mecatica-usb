@@ -133,7 +133,7 @@ begin
       ulpiClk                      => ulpiTstClk,
       rst                          => open,
       
-      ulpiIb                       => ulpiTstOb,
+      ulpiIb                       => ulpiTstIO,
       ulpiOb                       => ulpiTstIb,
 
       ulpiRx                       => ulpiRx,

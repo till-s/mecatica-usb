@@ -1364,7 +1364,7 @@ begin
       ulpiRst                      => open,
       usb2Rst                      => open,
 
-      ulpiIb                       => ulpiTstOb,
+      ulpiIb                       => ulpiTstIO,
       ulpiOb                       => ulpiTstIb,
 
       usb2DevStatus                => open,
