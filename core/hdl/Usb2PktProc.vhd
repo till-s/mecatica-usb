@@ -81,7 +81,7 @@ architecture Impl of Usb2PktProc is
    -- transmit (tx-data) - receive (hsk)    ; ULPI: HS: 92  clocks, FS: 80 clocks (no range given)
    -- transmit (tx-data) - receive (hsk)    ; USB2: HS: 92-102   clocks, FS: 80 - 90 clocks
    -- ULPI: RXCMD delay     2-4 (HS+FS)
-   --       TX-Start delay  1-2 (HS), 1-10 (FS) 
+   --       TX-Start delay  1-2 (HS), 1-10 (FS)
    --
    -- min timeout on wire: our timeout - tx-delay - rx-delay - our-latency
    --   our-timeout-min = usb_min_timeout + (tx-delay + rx-delay + our-latency)_max
@@ -135,6 +135,7 @@ architecture Impl of Usb2PktProc is
       nxtState        : StateType;
       dataTglInp      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
       dataTglOut      : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
+      lstPktFullSz    : std_logic_vector(NUM_ENDPOINTS_G - 1 downto 0);
       isoXactInp      : IsoXactNumArray (0 to NUM_ENDPOINTS_G - 1);
       isoXactOut      : IsoXactNumArray (0 to NUM_ENDPOINTS_G - 1);
       timer           : Usb2TimerType;
@@ -177,6 +178,7 @@ architecture Impl of Usb2PktProc is
       nxtState        => IDLE,
       dataTglInp      => (others => '0'),
       dataTglOut      => (others => '0'),
+      lstPktFullSz    => (others => '0'),
       isoXactInp      => (others => (others => '0' )),
       isoXactOut      => (others => (others => '0' )),
       timer           => USB2_TIMER_EXPIRED_C,
@@ -290,7 +292,7 @@ architecture Impl of Usb2PktProc is
          if ( c( to_integer( epidx ) ).maxPktSizeOut = 0 ) then
             return false;
          end if;
-      else 
+      else
          if ( c( to_integer( epidx ) ).maxPktSizeInp = 0 ) then
             return false;
          end if;
@@ -407,7 +409,7 @@ begin
       v.rxActive := usb2Rx.rxActive;
 
       -- count time since SE0 -> J (well, we assume it's J)
-      -- this happens *before* rxActive or dir are deasserted 
+      -- this happens *before* rxActive or dir are deasserted
       if ( devStatus.hiSpeed ) then
          v.se0JTimer := (others => '0');
          v.se0JSeen  := true;
@@ -498,7 +500,17 @@ begin
                         v.pid      := USB2_PID_HSK_STALL_C;
                         v.timer    := TIME_HSK_TX_C;
                         v.nxtState := HSK;
-                     elsif (    ( ( ei.mstInp.vld or ei.mstInp.don or r.bufInpVld) = '0' )
+                     elsif ( -- reasons why we have to send NAK
+                                         -- nothing to send: but if the last packet was full-size and framing is disabled
+                                         -- then this means we now must send a ZLP. Note that if the last packet was full-sized
+                                         -- then bufInpPart cannot be set; we don't have to deal with a previous 'partially'
+                                         -- taken frame.
+                                (        ( ( ei.mstInp.vld or (r.lstPktFullSz( to_integer( v.epIdx ) ) and ei.bFramedInp) ) = '0')
+                                         -- no request to send a ZLP
+                                    and  ( ei.mstInp.don = '0' )
+                                         -- nothing in the replay buffer
+                                    and  ( r.bufInpVld   = '0' )
+                                )
                              -- if buffer is currently in use we have to wait for retries to finish
                              or ( ( ( r.bufInpVld or r.bufInpPart ) = '1' ) and ( r.bufInpEpIdx /= v.epIdx ) )
                            )  then
@@ -518,12 +530,18 @@ begin
 --                              v.retries   := 0;
 --                              v.bufRWIdx  := r.bufVldIdx;
 --                              v.bufInpVld := '0';
---      
+--
+                        -- normal path for INP; special cases are still dealt with
+
+                        v.nxtState := DATA_INP;
+
                         if ( r.dataTglInp( to_integer( v.epIdx ) ) = '0' ) then
                            v.pid := USB2_PID_DAT_DATA0_C;
                         else
                            v.pid := USB2_PID_DAT_DATA1_C;
                         end if;
+
+                        -- do we have something to replay?
                         if ( (r.bufInpVld or r.bufInpPart) = '1' ) then
                            v.nxtState  := DATA_REP;
                            -- pre-load next readout
@@ -536,8 +554,15 @@ begin
                               v.donFlg   := '1';
                               v.bufRWIdx := r.bufRWIdx;
                            end if;
-                        else
-                           v.nxtState := DATA_INP;
+                        elsif ( ( not ei.mstInp.vld and r.lstPktFullSz( to_integer( v.epIdx ) ) and ei.bFramedInp ) = '1') then
+                           -- unframed input: there is no new packet and the previous one was full-size.
+                           -- We must at this point send a ZLP
+                           v.nxtState  := WAIT_DON;
+                           v.donFlg    := '1';
+                           -- remember this packet in case it gets lost
+                           v.bufInpVld := '1';
+                           -- the ZLP is not full-size
+                           v.lstPktFullSz( to_integer( v.epIdx ) ) := '0';
                         end if;
                      end if;
                   else
@@ -571,14 +596,14 @@ begin
                      -- and identify lost packets.
                      if (   (    r.isoXactOut( to_integer( r.epIdx ) ) = "11"
                              and (   USB2_PID_DAT_DATA0_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2)
-                                  or USB2_PID_DAT_MDATA_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2) ) ) 
+                                  or USB2_PID_DAT_MDATA_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2) ) )
                          or (     r.isoXactOut( to_integer( r.epIdx ) ) = "00"
                              and (   USB2_PID_DAT_DATA1_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2)
-                                  or USB2_PID_DAT_MDATA_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2) ) ) 
+                                  or USB2_PID_DAT_MDATA_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2) ) )
                          or (     r.isoXactOut( to_integer( r.epIdx ) ) = "01"
                              and (   USB2_PID_DAT_DATA2_C(3 downto 2) = usb2Rx.pktHdr.pid(3 downto 2) ) ) ) then
                         v.isoXactOut( to_integer( r.epIdx ) ) := r.isoXactOut( to_integer( r.epIdx ) ) + 1;
-                        v.state := ISO_OUT; 
+                        v.state := ISO_OUT;
                      end if;
                   end if;
                elsif ( checkDatHdr( usb2Rx.pktHdr ) ) then
@@ -609,14 +634,14 @@ begin
                      epObLoc( to_integer( rd.epIdx ) ).mstOut.err <= '1';
                   end if;
                   v.state    := IDLE;
-               end if;   
+               end if;
             elsif ( usb2TimerExpired( r.timer ) ) then
                if ( epConfig( to_integer( r.epIdx ) ).transferTypeOut = USB2_TT_ISOCHRONOUS_C ) then
                   epObLoc( to_integer( rd.epIdx ) ).mstOut.don <= '1';
                   epObLoc( to_integer( rd.epIdx ) ).mstOut.err <= '1';
                end if;
                v.state := IDLE;
-            end if;   
+            end if;
 
          when ISO_OUT =>
             epObLoc( to_integer( r.epIdx ) ).mstOut.vld <= usb2Rx.mst.vld;
@@ -648,7 +673,7 @@ begin
                      v.donFlg      := '1';
                   end if;
                end if;
-              
+
                -- consume one item and create a fragment if we filled the segment
                if ( ( ei.mstInp.vld and txDataSub.rdy ) = '1' ) then
                   v.dataCounter := r.dataCounter - 1;
@@ -715,8 +740,9 @@ begin
             bufWriteInp    <= '0' & ei.mstInp.dat;
             txDataMst.vld  <= ei.mstInp.vld;
             txDataMst.don  <= ei.mstInp.don;
+            v.lstPktFullSz( to_integer( r.epIdx ) ) := '0';
 
-            if ( (ei.bFramedInp and not ei.mstInp.don) = '1' ) then
+            if ( ei.bFramedInp = '1' ) then
                -- if they don't want us to frame the input data
                -- then we must assert txDatMst.don as soon as ei.mstInp.vld turns off
                -- we then proceed to the ACK phase
@@ -750,6 +776,9 @@ begin
                   v.bufInpVld   := '1';
                   v.bufInpPart  := '0';
                   v.state       := WAIT_DON;
+                  if ( ei.mstInp.err = '0' ) then
+                     v.lstPktFullSz( to_integer( r.epIdx ) ) := '1';
+                  end if;
                   -- doesn't matter if the data counter will overflow
                   -- v.dataCounter := r.dataCounter;
                end if;
@@ -940,7 +969,7 @@ begin
       end if;
 
       if ( r.milliSec( r.milliSec'left ) = '1' ) then
-         v.milliSec := MILLI_SEC_C; 
+         v.milliSec := MILLI_SEC_C;
          if ( not usb2TimerExpired( r.retryTimeout ) ) then
             v.retryTimeout := r.retryTimeout - 1;
          end if;
@@ -967,6 +996,8 @@ begin
          -- see if we have anything new to offer
          if ( ( rd.bufRdIdx = r.bufVldIdx ) or ( bufReadOut(8) = '1' ) ) then
             -- End of packet sequence (setup packets do not require an empty data packet)
+            -- NOTE: even bFramedInp (unframed), full-sized packets will be replayed with a
+            --       null-packet following.
             if ( rd.dataCounter < epConfig( to_integer( rd.epIdx) ).maxPktSizeOut or rd.isSetup ) then
                v.mstOut.don := '1';
             end if;

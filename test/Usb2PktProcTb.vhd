@@ -176,6 +176,7 @@ architecture sim of Usb2PktProcTb is
    signal epOb                     : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1)     := (others => USB2_ENDP_PAIR_OB_INIT_C);
 
    signal framedInp                : std_logic := '1';
+   signal haltInp                  : std_logic := '0';
 
    constant d1 : Usb2ByteArray := ( x"01", x"02", x"03" );
    constant d2 : Usb2ByteArray := (
@@ -316,6 +317,34 @@ report "GET_DESCRIPTOR(STR), nonexistent!";
       ulpiClkTick;
 
       ulpiTstWaitDat(ulpiTstOb, d2(9 to d2'high), TST_EP_C, DEV_ADDR_C, nofr => true);
+
+      for rtr in 0 to 1 loop
+
+         ulpiClkTick;
+
+         ulpiTstWaitDat(ulpiTstOb, d2(0 to 0), TST_EP_C, DEV_ADDR_C, nofr => false);
+
+         ulpiClkTick;
+         ulpiClkTick;
+
+         haltInp <= '1';
+         -- make sure a full IN packet is followed by a ZLP if no further data can
+         -- be read; test also that a retry of this ZLP works
+         ulpiTstWaitDat(ulpiTstOb, d2(1 to 8), TST_EP_C, DEV_ADDR_C, rtr => rtr, nofr => false);
+
+         haltInp <= '0';
+         ulpiClkTick;
+         ulpiTstWaitDat(ulpiTstOb, d2(9 to d2'high), TST_EP_C, DEV_ADDR_C, nofr => false);
+
+         ulpiClkTick;
+
+      end loop;
+
+
+      ulpiClkTick;
+      ulpiClkTick;
+
+
       framedInp <= '1';
 
       for i in 0 to 20 loop
@@ -396,7 +425,9 @@ report "GET_DESCRIPTOR(STR), nonexistent!";
                   end if;
                end if;
             else
-               ep.mstInp.vld := '1';
+               if ( haltInp = '0' ) then
+                  ep.mstInp.vld := '1';
+               end if;
             end if;
          end if;
          if ( epOb(TST_EP_IDX_C).mstOut.vld = '1' ) then
