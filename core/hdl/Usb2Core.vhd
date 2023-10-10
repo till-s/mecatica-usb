@@ -52,6 +52,9 @@ entity Usb2Core is
       ulpiIb                       : in    UlpiIbType;
       ulpiOb                       : out   UlpiObType;
 
+      -- debugging and other special needs
+      ulpiRx                       : out   UlpiRxType;
+
       ulpiForceStp                 : in    std_logic       := '0';
 
       -- access to registers in the ULPI PHY
@@ -103,7 +106,7 @@ architecture Impl of Usb2Core is
 
    constant NUM_ENDPOINTS_C : natural         := usb2AppGetMaxEndpointAddr(DESCRIPTORS_G);
 
-   signal ulpiRx            : UlpiRxType      := ULPI_RX_INIT_C;
+   signal ulpiRxLoc         : UlpiRxType      := ULPI_RX_INIT_C;
    signal usb2RxLoc         : Usb2RxType      := USB2_RX_INIT_C;
    signal ulpiTxReq         : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
    signal ulpiPktTxReq      : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
@@ -142,6 +145,7 @@ architecture Impl of Usb2Core is
 begin
 
    usb2Rx               <= usb2RxLoc;
+   ulpiRx               <= ulpiRxLoc;
    usb2EpOb             <= epOb;
    epIb(1 to epIb'high) <= usb2EpIb(1 to usb2EpIb'high);
 
@@ -227,7 +231,7 @@ begin
 
       forceStp        => ulpiForceStp,
 
-      ulpiRx          => ulpiRx,
+      ulpiRx          => ulpiRxLoc,
       ulpiTxReq       => ulpiTxReq,
       ulpiTxRep       => ulpiTxRep,
 
@@ -243,7 +247,7 @@ begin
          clk          => ulpiClk,
          rst          => ulpiRst,
 
-         ulpiRx       => ulpiRx,
+         ulpiRx       => ulpiRxLoc,
 
          ulpiRegReq   => lineStateRegReq,
          ulpiRegRep   => lineStateRegRep,
@@ -267,7 +271,7 @@ begin
    port map (
       clk             => ulpiClk,
       rst             => usb2Rst,
-      ulpiRx          => ulpiRx,
+      ulpiRx          => ulpiRxLoc,
       usb2Rx          => usb2RxLoc
    );
 

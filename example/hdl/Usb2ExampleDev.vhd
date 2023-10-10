@@ -64,6 +64,7 @@ entity Usb2ExampleDev is
       -- ULPI interface
       ulpiIb               : in  UlpiIbType;
       ulpiOb               : out UlpiObType;
+      ulpiRx               : out UlpiRxType;
       -- Force a STP on the ulpi interface
       -- Only use if you know what you are doing.
       ulpiForceStp         : in  std_logic := '0';
@@ -343,6 +344,7 @@ begin
 
          ulpiIb                       => ulpiIb,
          ulpiOb                       => ulpiOb,
+         ulpiRx                       => ulpiRx,
 
          ulpiRegReq                   => ulpiRegReq,
          ulpiRegRep                   => ulpiRegRep,
