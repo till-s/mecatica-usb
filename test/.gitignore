@@ -1,0 +1,8 @@
+*.o
+*Tb
+work-*.cf
+NCMInpCmp.txt
+NCMInpTst.txt
+NCMOutCmp.txt
+NCMOutTst.txt
+
