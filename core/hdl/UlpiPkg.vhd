@@ -94,13 +94,15 @@ package UlpiPkg is
       dir   :  std_logic;
       nxt   :  std_logic;
       trn   :  std_logic;
+      stp   :  std_logic;
    end record UlpiRxType;
 
    constant ULPI_RX_INIT_C : UlpiRxType := (
       dat   => (others => '0'),
       dir   => '1',
       nxt   => '0',
-      trn   => '0'
+      trn   => '0',
+      stp   => '0'
    );
 
    function ulpiIsRxCmd(constant x : in UlpiRxType) return boolean;

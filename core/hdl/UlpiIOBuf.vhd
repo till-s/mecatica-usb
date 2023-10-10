@@ -238,5 +238,6 @@ begin
    ulpiRx.nxt <= nxt_r;
    ulpiRx.dir <= dir_r;
    ulpiRx.trn <= trn_r;
+   ulpiRx.stp <= stp_i;
 
 end architecture Impl;
