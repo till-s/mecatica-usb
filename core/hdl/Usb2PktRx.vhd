@@ -32,18 +32,6 @@ architecture Impl of Usb2PktRx is
 
    type StateType is (WAIT_FOR_START, WAIT_FOR_EOP, WAIT_FOR_PID, TOK1, TOK2, DAT);
 
-   function rxActive_f(constant x : in UlpiRxType) return std_logic is
-   begin
-      if ( x.dir = '0' ) then
-         return '0';
-      end if;
-      if ( x.trn = '1' ) then
-         -- turn-around cycle that may have aborted a reg-read
-         return x.nxt;
-      end if;
-      return x.nxt or x.dat(ULPI_RXCMD_RX_ACTIVE_BIT_C);
-   end function rxActive_f;
-
    type RxBufType is record
       dat         : std_logic_vector(7 downto 0);
       nxt         : std_logic;
@@ -96,7 +84,7 @@ begin
          v.pktHdr.vld := '0';
          v.pktHdr.pid := USB2_PID_SPC_NONE_C;
       end if;
-      rxAct          := rxActive_f( ulpiRx );
+      rxAct          := ulpiRxActive( ulpiRx );
       v.datDon       := '0';
       isRxCmd        := ulpiIsRxCmd( ulpiRx );
 

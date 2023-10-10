@@ -106,6 +106,7 @@ package UlpiPkg is
    );
 
    function ulpiIsRxCmd(constant x : in UlpiRxType) return boolean;
+   function ulpiRxActive(constant x : in UlpiRxType) return std_logic;
 
    -- The first data byte must be a TXCMD byte.
    -- The first cycle after 'vld' is deasserted
@@ -167,5 +168,17 @@ package body UlpiPkg is
    begin
       return (x.dir and not x.trn and not x.nxt) = '1';
    end function ulpiIsRxCmd;
+
+   function ulpiRxActive(constant x : in UlpiRxType) return std_logic is
+   begin
+      if ( x.dir = '0' ) then
+         return '0';
+      end if;
+      if ( x.trn = '1' ) then
+         -- turn-around cycle that may have aborted a reg-read
+         return x.nxt;
+      end if;
+      return x.nxt or x.dat(ULPI_RXCMD_RX_ACTIVE_BIT_C);
+   end function ulpiRxActive;
  
 end package body UlpiPkg;
