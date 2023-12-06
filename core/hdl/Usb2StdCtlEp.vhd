@@ -999,11 +999,11 @@ report integer'image( to_integer(unsigned(r.readVal)) ) & " " & integer'image( r
                if ( epIb.subInp.rdy = '1' ) then
                   if ( r.reqParam.request = USB2_REQ_STD_SET_ADDRESS_C ) then
                         -- when SET_ADDRESS completed successfully we set the device address and
-                        -- change state DEFAULT <=> ADDRESS
+                        -- change state DEFLT <=> ADDRESS
                         -- behaviour when CONFIGURED is undefined
                      v.devStatus.devAddr := Usb2DevAddrType(r.reqParam.value(Usb2DevAddrType'range));
                      if ( v.devStatus.devAddr = USB2_DEV_ADDR_DFLT_C ) then
-                        v.devStatus.state := DEFAULT;
+                        v.devStatus.state := DEFLT;
                      else
                         v.devStatus.state := ADDRESS;
                      end if;

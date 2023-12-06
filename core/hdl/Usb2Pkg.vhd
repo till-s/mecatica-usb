@@ -134,7 +134,7 @@ package Usb2Pkg is
    constant USB2_CRC16_CHCK_C : std_logic_vector(15 downto 0) := x"B001";
    constant USB2_CRC16_INIT_C : std_logic_vector(15 downto 0) := x"FFFF";
 
-   type Usb2DevStateType is (POWERED, DEFAULT, ADDRESS, CONFIGURED, SUSPENDED);
+   type Usb2DevStateType is (POWERED, DEFLT, ADDRESS, CONFIGURED, SUSPENDED);
 
    type Usb2DevStatusType is record
       state            : Usb2DevStateType;
@@ -149,7 +149,7 @@ package Usb2Pkg is
    end record;
 
    constant USB2_DEV_STATUS_INIT_C : Usb2DevStatusType := (
-      state             => DEFAULT,
+      state             => DEFLT,
       devAddr           => (others => '0'),
       hiSpeed           => false,
       remWakeup         => false,

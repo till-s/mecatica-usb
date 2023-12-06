@@ -186,7 +186,7 @@ architecture Impl of Usb2PktProc is
       se0JSeen        => false,
       lineState       => "11",
       rxActive        => false,
-      prevDevState    => DEFAULT,
+      prevDevState    => DEFLT,
       tok             => USB2_PID_SPC_NONE_C,
       epIdx           => USB2_ENDP_ZERO_C,
       dataCounter     => (others => '0'),
@@ -961,7 +961,7 @@ begin
       v.dataTglInp := v.dataTglInp and not devStatus.clrHaltedInp(r.dataTglInp'range);
       v.dataTglOut := v.dataTglOut and not devStatus.clrHaltedOut(r.dataTglOut'range);
 
-      if ( devStatus.state /= DEFAULT and devStatus.state /= ADDRESS and devStatus.state /= CONFIGURED ) then
+      if ( devStatus.state /= DEFLT and devStatus.state /= ADDRESS and devStatus.state /= CONFIGURED ) then
          -- discard everything we've done
          rin <= r;
       else
