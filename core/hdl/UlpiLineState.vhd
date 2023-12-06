@@ -100,6 +100,14 @@ architecture Impl of UlpiLineState is
    constant PERIOD_3060_C           : natural := 3060 / PRESC_US_C;
    constant PERIOD_5060_C           : natural := 5060 / PRESC_US_C;
 
+   -- reset transceiver and disconnect all terminations
+   constant ULPI_FUN_CTL_REINI_C    : std_logic_vector(7 downto 0) :=
+         ULPI_FUN_CTL_X_FS_C
+   --    ULPI_FUN_CTL_TERM_C is deasserted
+      or ULPI_FUN_CTL_OP_NRM_C
+      or ULPI_FUN_CTL_RST_C
+      or ULPI_FUN_CTL_SUSPENDM_C;
+
    constant ULPI_FUN_CTL_FS_C       : std_logic_vector(7 downto 0) :=
          ULPI_FUN_CTL_X_FS_C
       or ULPI_FUN_CTL_TERM_C
@@ -127,6 +135,7 @@ architecture Impl of UlpiLineState is
    constant ULPI_LINE_STATE_INI_C   : std_logic_vector(1 downto 0) := "11";
 
    type StateType is (
+      RESET,
       INIT,
       INIT1,
       INIT2,
@@ -172,8 +181,8 @@ architecture Impl of UlpiLineState is
    end record RegType;
 
    constant REG_INIT_C : RegType := (
-      state       => INIT,
-      nxtState    => INIT,
+      state       => RESET,
+      nxtState    => RESET,
       txReq       => ULPI_TX_REQ_INIT_C,
       regReq      => ULPI_REG_REQ_INIT_C,
       lineState   => ULPI_LINE_STATE_INI_C,
@@ -288,9 +297,18 @@ begin
       end if;
 
       case ( r.state ) is
+         when RESET =>
+            -- reset transceiver and disconnect terminations
+            writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_REINI_C );
+            v.nxtState    := INIT;
+            -- remain disconnected for > 4ms
+            -- 11.5.1.9: "The port must not perform normal disconnect detection
+            --            until at least 4 ms after entering this [='suspended'] state."
+            start5060     := true;
+
          when INIT  =>
             -- wait for the PHY to deassert DIR
-            if ( ulpiRx.dir = '0' ) then
+            if ( expiredTimer( r.time5060 ) and ulpiRx.dir = '0' ) then
                writeReg(v, ULPI_REG_OTG_CTL_C, ULPI_OTG_CTL_INI_C);
                v.nxtState := INIT1;
             end if;
