@@ -62,24 +62,37 @@ architecture sim of Usb2FSLSRxTb is
       x"2d" & x"ed" & x"b0" & x"09" & x"a7" & x"b3" & x"97" & x"6b" & x"10" & x"f5" & x"d0" & x"44" & x"d7" & x"93" & x"b7" & x"d4" & x"ba" & x"9c" & x"5f" & x"55" & x"65" & x"cc" & x"6f" & x"0b" & x"11" & x"0e" & x"e1" & x"28" & x"66" & x"a2" & x"1e" & x"77";
 
    signal clk      : std_logic := '0';
-   signal j        : std_logic := '1';
-   signal se0      : std_logic := '0';
+   signal rxTstJ   : std_logic := '1';
+   signal rxTstSE0 : std_logic := '0';
+   signal j        : std_logic;
+   signal se0      : std_logic;
    signal stuff    : natural   := 0;
    signal run      : boolean   := true;
    signal active   : std_logic;
    signal valid    : std_logic;
    signal dout     : std_logic_vector(7 downto 0);
+   signal txData   : std_logic_vector(7 downto 0) := (others => '0');
+   signal txStp    : std_logic := '0';
+   signal txNxt    : std_logic;
+   signal txJ      : std_logic;
+   signal txSE0    : std_logic;
 
    constant PERF_C : time      := 19.95 ns;
    constant PERS_C : time      := 20.05 ns;
-   constant NPHS_C : natural   := 5;
+   constant NPHS_C : natural   := 6;
 
    signal clkPer   : time      := PERS_C;
+
+   signal rxTstDon : boolean   := false;
+
+   procedure TICK is
+   begin
+      wait until rising_edge( clk );
+   end procedure TICK;
 
 begin
 
    P_FEED : process is
-
       procedure FTICK is
       begin
          wait for 20 ns;
@@ -87,25 +100,25 @@ begin
 
       procedure SEND_EOP is
       begin
-         se0   <= '1';
-         j     <= '1';
-         stuff <= 0;
+         rxTstSE0 <= '1';
+         rxTstJ   <= '1';
+         stuff    <= 0;
          FTICK;
          FTICK;
-         se0   <= '0';
+         rxTstSE0 <= '0';
          FTICK;
       end procedure SEND_EOP;
 
       procedure SEND_BIT(constant b: in std_logic) is
       begin
          if ( stuff = 5 ) then
-            j     <= not j;
-            stuff <= 0;
+            rxTstJ <= not rxTstJ;
+            stuff  <= 0;
             FTICK;
          end if;
          if ( b = '0' ) then
-            j     <= not j;
-            stuff <= 0;
+            rxTstJ <= not rxTstJ;
+            stuff  <= 0;
          else
             stuff <= stuff + 1;
          end if;
@@ -164,6 +177,8 @@ begin
 
       wait for 20 ns; 
 
+      rxTstDon <= true;
+
       wait;
    end process P_FEED;
 
@@ -191,7 +206,7 @@ begin
    end process P_ACT;
 
    P_MON : process ( clk ) is
-      variable idx : natural := 1;
+      variable idx : integer := 1;
       variable cmp : std_logic_vector(0 to 7);
       variable phs : natural := 0;
    begin
@@ -223,12 +238,59 @@ begin
                assert dout = x"f8" report "Dribble test (unstuffed) mismatch" severity failure;
                report "Testing unstuffed dribble bit passed";
                phs := phs + 1;
+               idx := -1;
+            end if;
+         elsif ( phs = 5 ) then
+            if ( valid = '1' ) then
+               if ( idx < 0 ) then
+                  cmp := x"5A";
+               else
+                  cmp := BITS_C(idx*8 to idx*8 + 7);
+               end if;
+               assert  cmp = dout
+                  report "TX test mismatch @idx " & integer'image(idx)
+                  severity failure;
+               idx := idx + 1;
+            end if;
+            if ( idx >= BITS_C'length ) then
+               phs := phs + 1;
             end if;
          end if;
+         
       end if;
    end process P_MON;
 
-   U_DUT : entity work.Usb2FSLSRx
+   P_FEED_TX : process is
+      variable idx : natural := 0;
+   begin
+      wait until rxTstDon;
+
+      report "Testing transmitter";
+      TICK;
+      txData <= x"4A";
+      L_TX : while (true) loop
+         TICK;
+         while ( txNxt = '0' ) loop
+            TICK;
+         end loop;
+         if ( idx < BITS_C'length/8 ) then
+            txData <= BITS_C(8*idx to 8*idx + 7);
+            idx    := idx + 1;
+         else
+            txData <= x"00";
+            txStp  <= '1';
+            exit L_TX;
+         end if;
+      end loop;
+      TICK;
+      wait;
+
+   end process P_FEED_TX;
+
+   j   <= rxTstJ   and txJ;
+   se0 <= rxTstSE0 or  txSE0;
+
+   U_DUT_RX : entity work.Usb2FSLSRx
       port map (
          clk    => clk,
          rst    => '0',
@@ -237,6 +299,18 @@ begin
          valid  => valid,
          active => active,
          data   => dout
+      );
+
+   U_DUT_TX : entity work.Usb2FSLSTx
+      port map (
+         clk    => clk,
+         rst    => '0',
+         data   => txData,
+         stp    => txStp,
+         nxt    => txNxt,
+         j      => txJ,
+         se0    => txSE0,
+         active => open
       );
  
 end architecture sim;
