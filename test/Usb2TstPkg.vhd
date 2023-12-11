@@ -976,6 +976,12 @@ report "status end";
       ulpiTstRegWait(ob, regAddr, regIsRd, regDat);
 
       assert not regIsRd report "ulpiTstHandlePhyInit: Register write expected" severity failure;
+      assert regAddr = to_integer(unsigned(ULPI_REG_FUN_CTL_C)) report "ulpiTstHandlePhyInit: unexpected register address (not FUNCTL)" severity failure;
+      assert regDat  = x"61" report "ulpiTstHandlePhyInit: unexpected FUNCTL register contents" severity failure;
+
+      ulpiTstRegWait(ob, regAddr, regIsRd, regDat);
+
+      assert not regIsRd report "ulpiTstHandlePhyInit: Register write expected" severity failure;
       assert regAddr = to_integer(unsigned(ULPI_REG_OTG_CTL_C)) report "ulpiTstHandlePhyInit: unexpected register address (not OTGCTL)" severity failure;
       assert regDat  = x"00" report "ulpiTstHandlePhyInit: unexpected OTG register contents" severity failure;
 
