@@ -70,47 +70,63 @@ architecture sim of Usb2FSLSRxTb is
    signal valid    : std_logic;
    signal dout     : std_logic_vector(7 downto 0);
 
-   constant PER_C  : time      := 19.95 ns;
+   constant PERF_C : time      := 19.95 ns;
+   constant PERS_C : time      := 20.05 ns;
+
+   signal clkPer   : time      := PERS_C;
+
 begin
 
    P_FEED : process is
    begin
-      for i in BITS_C'left to BITS_C'right loop
-         wait for 20 ns;
-         if ( BITS_C(i) = '0' ) then
-            j     <= not j;
-            stuff <= 0;
-         else
-            if ( stuff = 4 ) then
-               wait for 20 ns;
+      for phs in 1 to 2 loop
+         report "Testing clock period " & time'image(clkPer);
+         for i in BITS_C'left to BITS_C'right loop
+            wait for 20 ns;
+            if ( BITS_C(i) = '0' ) then
                j     <= not j;
                stuff <= 0;
             else
-               stuff <= stuff + 1;
+               if ( stuff = 4 ) then
+                  wait for 20 ns;
+                  j     <= not j;
+                  stuff <= 0;
+               else
+                  stuff <= stuff + 1;
+               end if;
             end if;
-         end if;
+         end loop;
+         wait for 20 ns;
+         se0 <= '1';
+         j   <= '1';
+         wait for 20 ns;
+         wait for 20 ns;
+         se0 <= '0';
+         wait for 20 ns; 
+         clkPer <= PERF_C;
+         wait for 20 ns; 
       end loop;
-      wait for 20 ns;
-      se0 <= '1';
-      j   <= '1';
-      wait for 20 ns;
-      wait for 20 ns;
-      se0 <= '0';
       wait;
    end process P_FEED;
 
    P_CLK : process is
    begin
       if ( not run ) then wait; end if;
-      wait for PER_C / 2.0 / 4; clk <= not clk;
+      wait for clkPer / 2.0 / 4; clk <= not clk;
    end process P_CLK;
 
    P_ACT : process ( clk ) is
-      variable a : std_logic := '0';
+      variable a   : std_logic := '0';
+      variable phs : natural := 0;
    begin
       if ( rising_edge( clk ) ) then
          if ( ( not active and a ) = '1' ) then
-            run <= false;
+            if ( phs = 1 ) then
+               run <= false;
+               report "Test PASSED";
+            else
+               phs := phs + 1;
+            end if;
          end if;
          a := active;
       end if;
@@ -131,6 +147,9 @@ begin
                       " Got (rev):" & integer'image( to_integer(unsigned(cmp)) )
                severity failure;
             idx := idx + 1;
+            if ( idx*8 >= BITS_C'length ) then
+               idx := 1;
+            end if;
          end if;
       end if;
    end process P_MON;
