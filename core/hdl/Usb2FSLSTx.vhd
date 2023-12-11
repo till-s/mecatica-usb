@@ -84,7 +84,7 @@ begin
       case ( r.state ) is
          when IDLE =>
             v.nstuff := to_unsigned(4, r.nstuff'length);
-            v.nbits  := to_unsigned(8-3-1, v.nbits'length);
+            v.nbits  := to_unsigned(8-2-1, v.nbits'length);
             v.presc  := to_unsigned(NSMPL_C - 1, v.presc'length);
             v.dataSR := '0' & SYNC_C(SYNC_C'left downto 1);
             if ( data(7 downto 4) = ULPI_TXCMD_TX_C ) then
@@ -101,13 +101,14 @@ begin
                else
                   if ( r.dataSR(0) = '0' ) then
                      v.j      := not r.j;
+                     v.nstuff := to_unsigned(4, r.nstuff'length); 
                   else
                      v.nstuff := r.nstuff - 1;
                   end if;
                   if ( r.nbits(r.nbits'left) = '1' ) then
                      if ( r.state = SYNC ) then
                         v.dataSR := not data(3 downto 0) & data(3 downto 0);
-                        v.nbits  := to_unsigned(8-3, v.nbits'length);
+                        v.nbits  := to_unsigned(8-2, v.nbits'length);
                         v.state  := RUN;
                      else
                         v.nxt := '1';
@@ -139,7 +140,7 @@ begin
             v.state  := EOP;
          else
             v.dataSR := data;
-            v.nbits  := to_unsigned(8-3, v.nbits'length);
+            v.nbits  := to_unsigned(8-2, v.nbits'length);
          end if;
       end if;
       

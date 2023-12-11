@@ -7,10 +7,10 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
-entity Usb2FSLSRxTb is
-end entity Usb2FSLSRxTb;
+entity Usb2FSLSTb is
+end entity Usb2FSLSTb;
 
-architecture sim of Usb2FSLSRxTb is
+architecture sim of Usb2FSLSTb is
    constant BITS_C : std_logic_vector := 
       x"01" & x"fb" & x"4c" & x"53" & x"54" & x"d1" & x"8a" & x"09" & x"b5" & x"09" & x"24" & x"0d" & x"c5" & x"85" & x"10" & x"e9" & x"36" & x"0f" & x"e3" & x"1c" & x"4d" & x"b9" & x"ff" & x"e4" & x"f3" & x"3c" & x"c8" & x"a5" & x"be" & x"c8" & x"da" & x"cd" & 
       x"3a" & x"9f" & x"84" & x"25" & x"ca" & x"68" & x"b1" & x"e3" & x"24" & x"33" & x"cc" & x"a7" & x"31" & x"39" & x"ea" & x"20" & x"42" & x"52" & x"25" & x"95" & x"7a" & x"73" & x"b4" & x"fb" & x"d6" & x"25" & x"cf" & x"2b" & x"a9" & x"5d" & x"20" & x"d1" & 

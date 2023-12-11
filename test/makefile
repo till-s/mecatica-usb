@@ -86,7 +86,7 @@ PROG += Usb2EpCDCNCMOutTb
 PROG += Usb2EpCDCNCMInpTb
 PROG += Usb2Ep0StringTb
 PROG += Usb2CDCACMTb
-PROG += Usb2FSLSRxTb
+PROG += Usb2FSLSTb
 
 all: test
 
