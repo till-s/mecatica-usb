@@ -10,18 +10,27 @@ use     ieee.numeric_std.all;
 
 entity Usb2FSLSRx is
    generic (
-      CLK_FREQ_G : real := 48.0E6
+      CLK_FREQ_G     : real := 48.0E6
    );
    port (
-      clk        : in  std_logic;
-      rst        : in  std_logic;
+      clk            : in  std_logic;
+      rst            : in  std_logic;
       -- synchronized into 'clk' domain by user
-      j          : in  std_logic;
-      se0        : in  std_logic;
+      j              : in  std_logic;
+      se0            : in  std_logic;
       -- sync detected -> EOP
-      active     : out std_logic;
-      valid      : out std_logic;
-      data       : out std_logic_vector(7 downto 0)
+      active         : out std_logic;
+      valid          : out std_logic;
+      data           : out std_logic_vector(7 downto 0);
+      suspended      : out std_logic;
+      usb2Reset      : out std_logic;
+      rxError        : out std_logic;
+      -- if lineStateJ and lineStateSE0 are both
+      -- asserted then this indicates an invalid
+      -- state (e.g., after init until a valid state is
+      -- acquired)
+      lineStateJ     : out std_logic;
+      lineStateSE0   : out std_logic
    );
 end entity Usb2FSLSRx;
 
@@ -47,10 +56,13 @@ architecture rtl of Usb2FSLSRx is
       se0Lst           : std_logic;
       active           : std_logic;
       timer            : integer range -1 to TIME_SUSP_C - 1;
+      lineStateJ       : std_logic;
+      lineStateSE0     : std_logic;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
-      state            => IDLE,
+      -- start in EOP state waiting for SE0 and J to stabilize
+      state            => EOP,
       jkSR             => (others => '1'),
       dataSR           => (others => '0'),
       presc            => (others => '0'),
@@ -60,7 +72,9 @@ architecture rtl of Usb2FSLSRx is
       clkAdj           => '0',
       se0Lst           => '0',
       active           => '0',
-      timer            => TIME_SUSP_C - 1
+      timer            => TIME_RST_C - 1,
+      lineStateJ       => '1',
+      lineStateSE0     => '1'
    );
 
    signal r            : RegType := REG_INIT_C;
@@ -91,6 +105,11 @@ begin
       v.nbits(v.nbits'left) := '0';
 
       if ( r.presc = 0 ) then
+         if ( r.lineStateSE0 = '0' ) then
+            v.lineStateJ := j;
+         else
+            v.lineStateJ := '0';
+         end if;
          if    ( j /= r.jkSR(0) ) then
             if ( r.nstuff(r.nstuff'left) /= '1' ) then
                v.dataSR := '0' & r.dataSR(r.dataSR'left downto 1);
@@ -162,12 +181,16 @@ begin
                v.err    := '0';
             end if;
             if ( (se0 or r.se0Lst) = '0' and ( (j and r.jkSR(r.jkSR'left)) = '1' ) ) then
-               v.state := IDLE;
-               v.timer := TIME_SUSP_C - 1;
+               v.lineStateSE0 := '0';
+               v.lineStateJ   := '1';
+               v.state        := IDLE;
+               v.timer        := TIME_SUSP_C - 1;
             end if;
       end case;
 
       if ( ( se0 and r.se0Lst ) = '1' ) then
+         v.lineStateJ   := '0';
+         v.lineStateSE0 := '1';
          if ( r.state /= EOP and r.state /= RESET ) then
             v.timer := TIME_RST_C - 1;
             v.state := EOP;
@@ -190,7 +213,13 @@ begin
       end if;
    end process P_SEQ;
 
-   data   <= r.dataSR;
-   valid  <= r.nbits(r.nbits'left);
-   active <= r.active;
+   data           <= r.dataSR;
+   valid          <= r.nbits(r.nbits'left);
+   active         <= r.active;
+   rxError        <= r.err;
+   suspended      <= '1' when r.state = SUSP  else '0';
+   usb2Reset      <= '1' when r.state = RESET else '0';
+   lineStateJ     <= r.lineStateJ;
+   lineStateSE0   <= r.lineStateSE0;
+   
 end architecture rtl;
