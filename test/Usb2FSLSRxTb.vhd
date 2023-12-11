@@ -72,40 +72,98 @@ architecture sim of Usb2FSLSRxTb is
 
    constant PERF_C : time      := 19.95 ns;
    constant PERS_C : time      := 20.05 ns;
+   constant NPHS_C : natural   := 5;
 
    signal clkPer   : time      := PERS_C;
 
 begin
 
    P_FEED : process is
+
+      procedure FTICK is
+      begin
+         wait for 20 ns;
+      end procedure FTICK;
+
+      procedure SEND_EOP is
+      begin
+         se0   <= '1';
+         j     <= '1';
+         stuff <= 0;
+         FTICK;
+         FTICK;
+         se0   <= '0';
+         FTICK;
+      end procedure SEND_EOP;
+
+      procedure SEND_BIT(constant b: in std_logic) is
+      begin
+         if ( stuff = 5 ) then
+            j     <= not j;
+            stuff <= 0;
+            FTICK;
+         end if;
+         if ( b = '0' ) then
+            j     <= not j;
+            stuff <= 0;
+         else
+            stuff <= stuff + 1;
+         end if;
+         FTICK;
+      end procedure SEND_BIT;
+
+      procedure SEND_BYTE(constant b: in std_logic_vector(7 downto 0)) is
+      begin
+         for i in b'right to b'left loop
+            SEND_BIT( b(i) );
+         end loop;
+      end procedure SEND_BYTE;
+
+      constant SYNC_C : std_logic_vector := x"80";
+
    begin
+      FTICK;
       for phs in 1 to 2 loop
          report "Testing clock period " & time'image(clkPer);
          for i in BITS_C'left to BITS_C'right loop
-            wait for 20 ns;
-            if ( BITS_C(i) = '0' ) then
-               j     <= not j;
-               stuff <= 0;
-            else
-               if ( stuff = 4 ) then
-                  wait for 20 ns;
-                  j     <= not j;
-                  stuff <= 0;
-               else
-                  stuff <= stuff + 1;
-               end if;
-            end if;
+            SEND_BIT( BITS_C(i) );
          end loop;
-         wait for 20 ns;
-         se0 <= '1';
-         j   <= '1';
-         wait for 20 ns;
-         wait for 20 ns;
-         se0 <= '0';
-         wait for 20 ns; 
+         SEND_EOP;
          clkPer <= PERF_C;
-         wait for 20 ns; 
+         FTICK;
       end loop;
+
+      -- send with a dribble bit
+      SEND_BYTE( SYNC_C );
+      SEND_BYTE( x"f0"  );
+      SEND_BIT( '0' );
+      SEND_EOP;
+      FTICK;
+      FTICK;
+      -- send with a dribble bit
+      SEND_BYTE( SYNC_C );
+      SEND_BYTE( x"f0"  );
+      SEND_BIT( '1' );
+      SEND_EOP;
+      FTICK;
+      FTICK;
+
+      -- send with a un-stuffed dribble bit
+      SEND_BYTE( SYNC_C );
+      for i in 1 to 3 loop
+         SEND_BIT( '0' );
+      end loop;
+      for i in 1 to 6 loop
+         stuff <= 0;
+         wait for 0 ns;
+         SEND_BIT( '1' );
+      end loop;
+      SEND_EOP;
+      FTICK;
+      FTICK;
+
+      wait for 20 ns; 
+
       wait;
    end process P_FEED;
 
@@ -121,7 +179,7 @@ begin
    begin
       if ( rising_edge( clk ) ) then
          if ( ( not active and a ) = '1' ) then
-            if ( phs = 1 ) then
+            if ( phs = NPHS_C - 1 ) then
                run <= false;
                report "Test PASSED";
             else
@@ -135,20 +193,36 @@ begin
    P_MON : process ( clk ) is
       variable idx : natural := 1;
       variable cmp : std_logic_vector(0 to 7);
+      variable phs : natural := 0;
    begin
       if ( rising_edge( clk ) ) then
-         for i in 0 to 7 loop
-            cmp(i) := dout(i);
-         end loop;
-         if ( valid = '1' ) then
-            assert BITS_C(idx*8 to idx*8 + 7) = cmp
-               report "Mismatch at index " & integer'image(idx) &
-                      " Expected: " & integer'image( to_integer(unsigned(BITS_C(idx*8 to idx*8 + 7 ))) ) &
-                      " Got (rev):" & integer'image( to_integer(unsigned(cmp)) )
-               severity failure;
-            idx := idx + 1;
-            if ( idx*8 >= BITS_C'length ) then
-               idx := 1;
+         if ( phs < 2 ) then
+            for i in 0 to 7 loop
+               cmp(i) := dout(i);
+            end loop;
+            if ( valid = '1' ) then
+               assert BITS_C(idx*8 to idx*8 + 7) = cmp
+                  report "Mismatch at index " & integer'image(idx) &
+                         " Expected: " & integer'image( to_integer(unsigned(BITS_C(idx*8 to idx*8 + 7 ))) ) &
+                         " Got (rev):" & integer'image( to_integer(unsigned(cmp)) )
+                  severity failure;
+               idx := idx + 1;
+               if ( idx*8 >= BITS_C'length ) then
+                  idx := 1;
+                  phs := phs + 1;
+               end if;
+            end if;
+         elsif ( phs = 2 or phs = 3 ) then
+            if ( valid = '1' ) then
+               assert dout = x"f0" report "Dribble test mismatch" severity failure;
+               report "Testing dribble bit passed";
+               phs := phs + 1;
+            end if;
+         elsif ( phs = 4 ) then
+            if ( valid = '1' ) then
+               assert dout = x"f8" report "Dribble test (unstuffed) mismatch" severity failure;
+               report "Testing unstuffed dribble bit passed";
+               phs := phs + 1;
             end if;
          end if;
       end if;
