@@ -28,7 +28,9 @@ entity Usb2FSLSRx is
       data           : out std_logic_vector(7 downto 0);
       rxCmdVld       : out std_logic;
       suspended      : out std_logic;
-      usb2Reset      : out std_logic
+      usb2Reset      : out std_logic;
+      remWake        : in  std_logic := '0';
+      sendK          : out std_logic
    );
 end entity Usb2FSLSRx;
 
@@ -37,9 +39,11 @@ architecture rtl of Usb2FSLSRx is
    constant NSMPL_C     : integer := 4;
 
    constant TIME_SUSP_C : integer := integer( 3.0E-3 * CLK_FREQ_G );
+   constant TIME_REMW_C : integer := integer( 5.0E-3 * CLK_FREQ_G ) - TIME_SUSP_C;
+   constant TIME_SNDK_C : integer := integer( 1.5E-3 * CLK_FREQ_G );
    constant TIME_RST_C  : integer := integer( 3.0E-6 * CLK_FREQ_G );
 
-   type StateType is (IDLE, SUSP, SYNC, RUN, EOP, RESET);
+   type StateType is (IDLE, SUSP, SNDK, SYNC, RUN, EOP, RESET);
 
    type RegType is record
       state            : StateType;
@@ -54,10 +58,12 @@ architecture rtl of Usb2FSLSRx is
       clkAdj           : std_logic;
       se0Lst           : std_logic;
       active           : std_logic;
+      suspended        : std_logic;
       timer            : integer range -1 to TIME_SUSP_C - 1;
       rxCmd            : std_logic_vector(7 downto 0);
       rxCmdLst         : std_logic_vector(7 downto 0);
       rxCmdVld         : std_logic_vector(1 downto 0);
+      sendK            : std_logic;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -73,11 +79,13 @@ architecture rtl of Usb2FSLSRx is
       clkAdj           => '0',
       se0Lst           => '0',
       active           => '0',
+      suspended        => '0',
       timer            => TIME_RST_C - 1,
       -- initialize to invalid line state
       rxCmd            => x"03",
       rxCmdLst         => x"03",
-      rxCmdVld         => (others => '0')
+      rxCmdVld         => (others => '0'),
+      sendK            => '0'
    );
 
    signal r            : RegType := REG_INIT_C;
@@ -89,7 +97,7 @@ begin
 
    clkrec <= j & r.jkSR(r.jkSR'left) & r.jkSR(NSMPL_C/2 - 1 downto 0);
 
-   P_COMB : process ( r, j, se0, clkrec ) is
+   P_COMB : process ( r, j, se0, clkrec, remWake ) is
       variable v : RegType;
    begin
       v            := r;
@@ -142,7 +150,9 @@ begin
             -- is evaluated at every clock until sync is achieved
             v.presc  := (others => '0');
             if ( r.timer < 0 ) then
-               v.state := SUSP;
+               v.state     := SUSP;
+               v.suspended := '1';
+               v.timer     := TIME_REMW_C - 1;
             end if;
             -- should not use the first j-k transition for syncing
             -- ('Note' in 7.1.14.1: ... the first SYNC field bit
@@ -156,6 +166,16 @@ begin
          when SUSP =>
             -- resume signalling is ended by a low-speed EOP which should bring
             -- us back to IDLE
+            if ( ( r.timer < 0 ) and ( remWake = '1' ) ) then
+               v.state := SNDK;
+               v.timer := TIME_SNDK_C - 1;
+               v.sendK := '1';
+            end if;
+
+         when SNDK =>
+            if ( r.timer < 0 ) then
+               v.sendK := '0';
+            end if;
 
          when SYNC =>
             v.nbits := (others => '0');
@@ -202,6 +222,7 @@ begin
       end if;
 
       if ( ( se0 and r.se0Lst ) = '1' ) then
+         v.suspended         := '0';
          v.rxCmd(1 downto 0) := ULPI_RXCMD_LINE_STATE_SE0_C;
          if ( r.state /= EOP and r.state /= RESET ) then
             v.timer := TIME_RST_C - 1;
@@ -255,7 +276,8 @@ begin
    valid          <= r.nbits(r.nbits'left);
    active         <= r.active;
    rxCmdVld       <= r.rxCmdVld(0);
-   suspended      <= '1' when r.state = SUSP  else '0';
+   suspended      <= r.suspended;
    usb2Reset      <= '1' when r.state = RESET else '0';
+   sendK          <= r.sendK;
    
 end architecture rtl;
