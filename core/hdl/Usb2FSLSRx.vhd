@@ -231,7 +231,9 @@ begin
          if ( ( r.nbits(r.nbits'left) = '0' ) and ( ( r.active = '1' ) or (r.rxCmdVld = "01") ) ) then
             v.rxCmdLst   := r.rxCmd;
             -- ERROR is only asserted once; mark;
-            v.errFlagged := r.rxCmd( ULPI_RXCMD_RX_ERROR_BIT_C  );
+            if ( r.rxCmd( ULPI_RXCMD_RX_ERROR_BIT_C ) = '1' ) then
+               v.errFlagged := '1';
+            end if;
          end if;
       end if;
 
