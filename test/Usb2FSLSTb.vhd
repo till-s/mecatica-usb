@@ -64,6 +64,9 @@ architecture sim of Usb2FSLSTb is
    signal clk      : std_logic := '0';
    signal rxTstJ   : std_logic := '1';
    signal rxTstSE0 : std_logic := '0';
+   signal rxCmdVld : std_logic;
+   signal dir      : std_logic;
+   signal dirLst   : std_logic := '0';
    signal j        : std_logic;
    signal se0      : std_logic;
    signal stuff    : natural   := 0;
@@ -76,6 +79,7 @@ architecture sim of Usb2FSLSTb is
    signal txNxt    : std_logic;
    signal txJ      : std_logic;
    signal txSE0    : std_logic;
+   signal txAct    : std_logic;
 
    constant PERF_C : time      := 19.95 ns;
    constant PERS_C : time      := 20.05 ns;
@@ -205,17 +209,22 @@ begin
       end if;
    end process P_ACT;
 
+   dir <= rxCmdVld or active;
+
    P_MON : process ( clk ) is
       variable idx : integer := 1;
       variable cmp : std_logic_vector(0 to 7);
       variable phs : natural := 0;
+      variable trn : boolean;
    begin
       if ( rising_edge( clk ) ) then
+         dirLst <= dir;
+         trn    := (dir /= dirLst);
          if ( phs < 2 ) then
             for i in 0 to 7 loop
                cmp(i) := dout(i);
             end loop;
-            if ( valid = '1' ) then
+            if ( valid = '1' and not trn ) then
                assert BITS_C(idx*8 to idx*8 + 7) = cmp
                   report "Mismatch at index " & integer'image(idx) &
                          " Expected: " & integer'image( to_integer(unsigned(BITS_C(idx*8 to idx*8 + 7 ))) ) &
@@ -228,20 +237,20 @@ begin
                end if;
             end if;
          elsif ( phs = 2 or phs = 3 ) then
-            if ( valid = '1' ) then
+            if ( valid = '1' and not trn ) then
                assert dout = x"f0" report "Dribble test mismatch" severity failure;
                report "Testing dribble bit passed";
                phs := phs + 1;
             end if;
          elsif ( phs = 4 ) then
-            if ( valid = '1' ) then
+            if ( valid = '1' and not trn ) then
                assert dout = x"f8" report "Dribble test (unstuffed) mismatch" severity failure;
                report "Testing unstuffed dribble bit passed";
                phs := phs + 1;
                idx := -1;
             end if;
          elsif ( phs = 5 ) then
-            if ( valid = '1' ) then
+            if ( valid = '1' and not trn ) then
                if ( idx < 0 ) then
                   cmp := x"5A";
                else
@@ -292,25 +301,27 @@ begin
 
    U_DUT_RX : entity work.Usb2FSLSRx
       port map (
-         clk    => clk,
-         rst    => '0',
-         j      => j,
-         se0    => se0,
-         valid  => valid,
-         active => active,
-         data   => dout
+         clk          => clk,
+         rst          => '0',
+         j            => j,
+         se0          => se0,
+         valid        => valid,
+         active       => active,
+         data         => dout,
+         rxCmdVld     => rxCmdVld,
+         txActive     => '0' -- DONT blank reception for this test
       );
 
    U_DUT_TX : entity work.Usb2FSLSTx
       port map (
-         clk    => clk,
-         rst    => '0',
-         data   => txData,
-         stp    => txStp,
-         nxt    => txNxt,
-         j      => txJ,
-         se0    => txSE0,
-         active => open
+         clk          => clk,
+         rst          => '0',
+         data         => txData,
+         stp          => txStp,
+         nxt          => txNxt,
+         j            => txJ,
+         se0          => txSE0,
+         active       => txAct
       );
  
 end architecture sim;

@@ -1,4 +1,3 @@
-
 -- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.
 -- You may obtain a copy of the license at
 --   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
@@ -26,7 +25,9 @@ entity Usb2FSLSTx is
       j              : out std_logic;
       se0            : out std_logic;
       -- status
-      active         : out std_logic
+      active         : out std_logic;
+      -- drive outputs
+      oe             : out std_logic;
    );
 end entity Usb2FSLSTx;
 
@@ -85,7 +86,7 @@ begin
          when IDLE =>
             v.nstuff := to_unsigned(4, r.nstuff'length);
             v.nbits  := to_unsigned(8-2-1, v.nbits'length);
-            v.presc  := to_unsigned(NSMPL_C - 1, v.presc'length);
+            v.presc  := to_unsigned(0, v.presc'length);
             v.dataSR := '0' & SYNC_C(SYNC_C'left downto 1);
             if ( data(7 downto 4) = ULPI_TXCMD_TX_C ) then
                v.j      := '0';
@@ -129,7 +130,6 @@ begin
                if ( r.se0 = "00" ) then
                   -- se0 is loaded with "10" which is OK
                   v.state := IDLE;
-                  v.act   := '0';
                end if;
             end if;
 
@@ -138,6 +138,7 @@ begin
       if ( r.rdy = '1' ) then
          if ( stp = '1' ) then
             v.state  := EOP;
+            v.act    := '0';
          else
             v.dataSR := data;
             v.nbits  := to_unsigned(8-2, v.nbits'length);
@@ -162,5 +163,6 @@ begin
    j       <= r.j;
    se0     <= r.se0(0);
    active  <= r.act;
+   oe      <= '1' when r.state /= IDLE else '0';
 
 end architecture rtl;
