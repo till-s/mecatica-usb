@@ -7,6 +7,8 @@ library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
 
+use     work.UlpiPkg.all;
+
 entity Usb2FSLSTb is
 end entity Usb2FSLSTb;
 
@@ -80,10 +82,11 @@ architecture sim of Usb2FSLSTb is
    signal txJ      : std_logic;
    signal txSE0    : std_logic;
    signal txAct    : std_logic;
+   signal monDon   : boolean   := false;
 
    constant PERF_C : time      := 19.95 ns;
    constant PERS_C : time      := 20.05 ns;
-   constant NPHS_C : natural   := 6;
+   constant NPHS_C : natural   := 7;
 
    signal clkPer   : time      := PERS_C;
 
@@ -198,14 +201,14 @@ begin
    begin
       if ( rising_edge( clk ) ) then
          if ( ( not active and a ) = '1' ) then
-            if ( phs = NPHS_C - 1 ) then
-               run <= false;
-               report "Test PASSED";
-            else
-               phs := phs + 1;
-            end if;
+            phs := phs + 1;
          end if;
          a := active;
+         if ( monDon ) then
+            assert phs = NPHS_C report "mismatch in RX phases" severity failure;
+            run <= false;
+            report "Test PASSED";
+         end if;
       end if;
    end process P_ACT;
 
@@ -216,6 +219,7 @@ begin
       variable cmp : std_logic_vector(0 to 7);
       variable phs : natural := 0;
       variable trn : boolean;
+      variable tst : boolean := false;
    begin
       if ( rising_edge( clk ) ) then
          dirLst <= dir;
@@ -261,37 +265,71 @@ begin
                   severity failure;
                idx := idx + 1;
             end if;
-            if ( idx >= BITS_C'length ) then
+            if ( idx*8 >= BITS_C'length ) then
                phs := phs + 1;
+               idx := -1;
+               tst := false;
             end if;
+         elsif ( phs = 6 ) then
+            if ( valid = '1' and not trn ) then
+               if ( idx < 0 ) then
+                  cmp := x"5A";
+               else
+                  cmp := x"00";
+               end if;
+               assert  cmp = dout
+                  report "TX test mismatch @idx " & integer'image(idx)
+                  severity failure;
+               idx := idx + 1;
+            end if;
+            if ( ( (active and not valid) or rxCmdVld ) = '1' ) then
+               if ( ( dout(ULPI_RXCMD_RX_ERROR_BIT_C) = '1' ) and ( idx >= 0 ) ) then
+                  tst := true;
+               end if;
+               if ( ( dout(ULPI_RXCMD_RX_ACTIVE_BIT_C) = '0' ) and ( idx > 0 ) ) then
+                  assert tst report "bit stuff error missed" severity failure;
+                  phs := phs + 1;
+                  idx := -1;
+               end if;
+            end if;
+         elsif ( phs < NPHS_C ) then
+            assert false report "Internal error -- unmonitored test phase" severity failure;
+         else
+            monDon <= true;
          end if;
-         
       end if;
    end process P_MON;
 
    P_FEED_TX : process is
-      variable idx : natural := 0;
+      procedure SEND(constant x : std_logic_vector; constant sta : std_logic := '0') is
+         variable idx : natural := 0;
+      begin
+         TICK;
+         txData <= x"4A";
+         L_TX : while (true) loop
+            TICK;
+            while ( txNxt = '0' ) loop
+               TICK;
+            end loop;
+            if ( idx < x'length/8 ) then
+               txData <= x(8*idx to 8*idx + 7);
+               idx    := idx + 1;
+            else
+               txData <= (others => sta);
+               txStp  <= '1';
+               exit L_TX;
+            end if;
+         end loop;
+         TICK;
+         txStp <= '0';
+         TICK;
+      end procedure SEND;
    begin
       wait until rxTstDon;
-
       report "Testing transmitter";
-      TICK;
-      txData <= x"4A";
-      L_TX : while (true) loop
-         TICK;
-         while ( txNxt = '0' ) loop
-            TICK;
-         end loop;
-         if ( idx < BITS_C'length/8 ) then
-            txData <= BITS_C(8*idx to 8*idx + 7);
-            idx    := idx + 1;
-         else
-            txData <= x"00";
-            txStp  <= '1';
-            exit L_TX;
-         end if;
-      end loop;
-      TICK;
+      SEND( BITS_C );
+      -- send with error condition
+      SEND( x"00", sta => '1' );
       wait;
 
    end process P_FEED_TX;

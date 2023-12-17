@@ -63,6 +63,7 @@ SRCS += Usb2CDCACMTb.vhd
 SRCS += Usb2FSLSRx.vhd
 SRCS += Usb2FSLSTx.vhd
 SRCS += Usb2FSLSTb.vhd
+SRCS += Usb2FSLSEmul.vhd
 
 
 PROG+=UlpiIOTb
@@ -165,7 +166,9 @@ Usb2CDCACMTb.o: Usb2Core.o Usb2EpCDCACM.o
 
 Usb2FSLSTx.o: UlpiPkg.o
 
-Usb2FSLSTb.o: Usb2FSLSRx.o Usb2FSLSTx.o
+Usb2FSLSTb.o: UlpiPkg.o Usb2FSLSRx.o Usb2FSLSTx.o
+
+UlpiFSLSEmul.o: UlpiPkg.o Usb2UtilPkg.o Usb2FSLSRx.o Usb2FSLSTx.o Usb2CCSync.o
 
 NCMInpTst.txt: NCMOutCmp.txt
 	cp $^ $@
