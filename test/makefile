@@ -165,7 +165,7 @@ Usb2CDCACMTb.o: Usb2Core.o Usb2EpCDCACM.o
 
 Usb2FSLSTx.o: UlpiPkg.o
 
-Usb2FSLSRxTb.o: Usb2FSLSRx.o Usb2FSLSTx.o
+Usb2FSLSTb.o: Usb2FSLSRx.o Usb2FSLSTx.o
 
 NCMInpTst.txt: NCMOutCmp.txt
 	cp $^ $@
