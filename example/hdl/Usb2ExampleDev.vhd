@@ -18,39 +18,41 @@ use     work.Usb2MuxEpCtlPkg.all;
 
 entity Usb2ExampleDev is
    generic (
-      ULPI_CLK_MODE_INP_G                : boolean  := true;
+      ULPI_CLK_MODE_INP_G                : boolean      := true;
+      ULPI_EMUL_MODE_G                   : UlpiEmulMode := NONE;
+      FSLS_INPUT_MODE_VPVM_G             : boolean      := true;
 
       -- descriptors
       DESCRIPTORS_G                      : Usb2ByteArray;
       -- whether to use BRAM to store descriptors
-      DESCRIPTORS_BRAM_G                 : boolean := true;
+      DESCRIPTORS_BRAM_G                 : boolean     := true;
 
-      LD_ACM_FIFO_DEPTH_INP_G            : natural := 10;
-      LD_ACM_FIFO_DEPTH_OUT_G            : natural := 10;
+      LD_ACM_FIFO_DEPTH_INP_G            : natural     := 10;
+      LD_ACM_FIFO_DEPTH_OUT_G            : natural     := 10;
       -- asynchronous EP clock ?
-      CDC_ACM_ASYNC_G                    : boolean := false;
+      CDC_ACM_ASYNC_G                    : boolean     := false;
 
       -- min. 2 ethernet frames -> 4kB
-      LD_ECM_FIFO_DEPTH_INP_G            : natural := 12;
-      LD_ECM_FIFO_DEPTH_OUT_G            : natural := 12;
+      LD_ECM_FIFO_DEPTH_INP_G            : natural     := 12;
+      LD_ECM_FIFO_DEPTH_OUT_G            : natural     := 12;
       -- asynchronous EP clock ?
-      CDC_ECM_ASYNC_G                    : boolean := false;
+      CDC_ECM_ASYNC_G                    : boolean     := false;
 
 
-      LD_NCM_RAM_DEPTH_INP_G             : natural := 12;
-      LD_NCM_RAM_DEPTH_OUT_G             : natural := 12;
+      LD_NCM_RAM_DEPTH_INP_G             : natural     := 12;
+      LD_NCM_RAM_DEPTH_OUT_G             : natural     := 12;
       -- asynchronous EP clock ?
-      CDC_NCM_ASYNC_G                    : boolean := false;
+      CDC_NCM_ASYNC_G                    : boolean     := false;
 
 
-      MARK_DEBUG_EP0_CTL_MUX_G           : boolean := false;
-      MARK_DEBUG_ULPI_IO_G               : boolean := false;
-      MARK_DEBUG_ULPI_LINE_STATE_G       : boolean := false;
-      MARK_DEBUG_PKT_RX_G                : boolean := false;
-      MARK_DEBUG_PKT_TX_G                : boolean := false;
-      MARK_DEBUG_PKT_PROC_G              : boolean := false;
-      MARK_DEBUG_EP0_G                   : boolean := false;
-      MARK_DEBUG_SND_G                   : boolean := false
+      MARK_DEBUG_EP0_CTL_MUX_G           : boolean     := false;
+      MARK_DEBUG_ULPI_IO_G               : boolean     := false;
+      MARK_DEBUG_ULPI_LINE_STATE_G       : boolean     := false;
+      MARK_DEBUG_PKT_RX_G                : boolean     := false;
+      MARK_DEBUG_PKT_TX_G                : boolean     := false;
+      MARK_DEBUG_PKT_PROC_G              : boolean     := false;
+      MARK_DEBUG_EP0_G                   : boolean     := false;
+      MARK_DEBUG_SND_G                   : boolean     := false
    );
    port (
       usb2Clk              : in  std_logic;
@@ -333,6 +335,8 @@ begin
          ULPI_DIR_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIN_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_STP_MODE_G              => NORMAL,
+         ULPI_EMUL_MODE_G             => ULPI_EMUL_MODE_G,
+         FSLS_INPUT_MODE_VPVM_G       => FSLS_INPUT_MODE_VPVM_G,
          DESCRIPTORS_G                => DESCRIPTORS_G,
          DESCRIPTOR_BRAM_G            => DESCRIPTORS_BRAM_G
       )

@@ -92,6 +92,13 @@ package UlpiPkg is
       err   => '0'
    );
 
+   constant ULPI_REG_REP_ERR_C : UlpiRegRepType := (
+      rdat  => (others => '0'),
+      ack   => '1',
+      err   => '1'
+   );
+
+
    type UlpiRxType is record
       dat   :  std_logic_vector(7 downto 0);
       dir   :  std_logic;
@@ -161,6 +168,27 @@ package UlpiPkg is
       dat  => (others => '0')
    );
 
+   type FsLsIbType is record
+      vp    : std_logic;
+      vm    : std_logic;
+   end record FsLsIbType;
+
+   constant FSLS_IB_INIT_C : FsLsIbType := (
+      vp    => '1',
+      vm    => '0'
+   );
+
+   type FsLsObType is record
+      vp    : std_logic;
+      vm    : std_logic;
+      oe    : std_logic;
+   end record FsLsObType;
+
+   constant FSLS_OB_INIT_C : FsLsObType := (
+      vp    => '1',
+      vm    => '0',
+      oe    => '0'
+   );
 
 end package UlpiPkg;
 

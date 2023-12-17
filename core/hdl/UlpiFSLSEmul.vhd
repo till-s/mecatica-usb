@@ -35,11 +35,8 @@ entity UlpiFSLSEmul is
       ulpiTxRep            : out UlpiTxRepType;
 
       -- transceiver interface
-      vpInp                : in  std_logic;
-      vmInp                : in  std_logic;
-      vpvmOE               : out std_logic;
-      vpOut                : out std_logic;
-      vmOut                : out std_logic;
+      fslsIb               : in  FsLsIbType;
+      fslsOb               : out FsLsObType;
 
       -- USB device state interface
       usb2RemWake          : in  std_logic := '0';
@@ -50,6 +47,24 @@ end entity UlpiFSLSEmul;
 
 architecture rtl of UlpiFSLSEmul is
    constant CLK_FREQ_C       : real := ite( IS_FS_G, 48.0E6, 6.0E6 );
+
+   type StateType            is ( RX, TX );
+
+   type RegType is record
+      state                  : StateType;
+      vldLst                 : std_logic;
+      dirLst                 : std_logic;
+   end record RegType;
+
+   constant REG_INIT_C       : RegType := (
+      state                  => RX,
+      vldLst                 => '0',
+      dirLst                 => '0'
+   );
+
+   signal   r                : RegType := REG_INIT_C;
+   signal   rin              : RegType;
+
    signal   rxJ              : std_logic;
    signal   rxSE0            : std_logic;
    signal   vpInpLoc         : std_logic;
@@ -61,39 +76,42 @@ architecture rtl of UlpiFSLSEmul is
    signal   txActive         : std_logic;
    signal   txData           : std_logic_vector(7 downto 0);
    signal   txNxt            : std_logic;
-   signal   txStp            : std_logic;
+   signal   txStp            : std_logic := '0';
    signal   rxActive         : std_logic;
    signal   rxValid          : std_logic;
    signal   txOE             : std_logic;
    signal   rxData           : std_logic_vector(7 downto 0);
    signal   rxCmdValid       : std_logic;
    signal   sendK            : std_logic;
+   signal   ulpiDir          : std_logic;
 begin
 
    G_FS_MAP : if ( IS_FS_G ) generate
-      vpInpLoc <= vpInp;
-      vmInpLoc <= vmInp;
-      vpOut    <= vpOutLoc;
-      vmOut    <= vmOutLoc;
+      vpInpLoc   <= fslsIb.vp;
+      vmInpLoc   <= fslsIb.vm;
+      fslsOb.vp  <= vpOutLoc;
+      fslsOb.vm  <= vmOutLoc;
    end generate G_FS_MAP;
 
    G_LS_MAP : if ( not IS_FS_G ) generate
 
       G_LS_VPVM : if ( INPUT_MODE_VPVM_G ) generate
-         vpInpLoc <= vmInp;
-         vmInpLoc <= vpInp;
+         vpInpLoc <= fslsIb.vm;
+         vmInpLoc <= fslsIb.vp;
       end generate G_LS_VPVM;
 
       G_LS_SE0J : if ( not INPUT_MODE_VPVM_G ) generate
-         vpInpLoc <= vpInp;
-         vmInpLoc <= vmInp;
+         vpInpLoc <= fslsIb.vp;
+         vmInpLoc <= fslsIb.vm;
       end generate G_LS_SE0J;
 
-      vpOut    <= vmOutLoc;
-      vmOut    <= vpOutLoc;
+      fslsOb.vp   <= vmOutLoc;
+      fslsOb.vm   <= vpOutLoc;
    end generate G_LS_MAP;
 
-   rxJ <= vpInpSyn;
+   fslsOb.oe <= txOE;
+
+   rxJ    <= vpInpSyn;
 
    G_SE0_COMB : if ( INPUT_MODE_VPVM_G ) generate
       rxSE0    <= vpInpSyn nor vmInpSyn;
@@ -161,5 +179,58 @@ begin
          active            => txActive,
          oe                => txOE
       );
+
+   ulpiTxRep.err <= '0';
+   ulpiTxRep.don <= txStp;
+   ulpiTxRep.nxt <= txNxt;
+
+   ulpiDir       <= rxActive or rxCmdValid;
+
+   ulpiRx.dat    <= rxData;
+   ulpiRx.dir    <= ulpiDir;
+   ulpiRx.nxt    <= rxValid;
+   ulpiRx.trn    <= (ulpiDir xor r.dirLst);
+   ulpiRx.stp    <= txStp;
+
+   P_COMB : process (r, ulpiTxReq, txActive, ulpiDir ) is
+      variable v : RegType;
+   begin
+      v      := r;
+      txData <= x"00";
+      txStp  <= '0';
+
+      case ( r.state ) is
+         when RX =>
+            v.dirLst := ulpiDir;
+            if ( ( ulpiDir = '0' ) and (ulpiTxReq.dat /= x"00") ) then
+               txData  <= ulpiTxReq.dat;
+               v.state := TX;
+            end if;
+         when TX =>
+            v.vldLst := ulpiTxReq.vld;
+            txData   <= ulpiTxReq.dat;
+            if ( (not ulpiTxReq.vld and r.vldLst) = '1' ) then
+               txData <= (others => ulpiTxReq.err);
+               txStp  <= '1';
+            end if;
+            if ( txActive = '0' ) then
+               v.state := RX;
+            end if;
+
+      end case;
+
+      rin <= v;
+   end process P_COMB;
+
+   P_SEQ : process ( ulpiClk ) is
+   begin
+      if ( rising_edge( ulpiClk ) ) then
+         if ( ulpiRst = '1' ) then
+            r <= REG_INIT_C;
+         else
+            r <= rin;
+         end if;
+      end if;
+   end process P_SEQ;
 
 end architecture rtl;

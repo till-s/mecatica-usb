@@ -33,8 +33,10 @@ entity Usb2Core is
       ULPI_DIR_IOB_G               : boolean         := true;
       ULPI_DIN_IOB_G               : boolean         := true;
       ULPI_STP_MODE_G              : UlpiStpModeType := NORMAL;
+      ULPI_EMUL_MODE_G             : UlpiEmulMode    := NONE;
       DESCRIPTORS_G                : Usb2ByteArray;
-      DESCRIPTOR_BRAM_G            : boolean         := false
+      DESCRIPTOR_BRAM_G            : boolean         := false;
+      FSLS_INPUT_MODE_VPVM_G       : boolean         := true
    );
 
    port (
@@ -49,8 +51,12 @@ entity Usb2Core is
 
       -- ULPI interface; connects directly to device
       -- pins (IOBs)
-      ulpiIb                       : in    UlpiIbType;
-      ulpiOb                       : out   UlpiObType;
+      ulpiIb                       : in    UlpiIbType := ULPI_IB_INIT_C;
+      ulpiOb                       : out   UlpiObType := ULPI_OB_INIT_C;
+
+      -- FS/LS serial interface (for ULPI emulation)
+      fslsIb                       : in    FsLsIbType := FSLS_IB_INIT_C;
+      fslsOb                       : out   FsLsObType := FSLS_OB_INIT_C;
 
       -- debugging and other special needs
       ulpiRx                       : out   UlpiRxType;
@@ -114,15 +120,15 @@ architecture Impl of Usb2Core is
    signal ulpiTxRep         : UlpiTxRepType;
 
    signal regReq            : UlpiRegReqType  := ULPI_REG_REQ_INIT_C;
-   signal regRep            : UlpiRegRepType;
+   signal regRep            : UlpiRegRepType  := ULPI_REG_REP_ERR_C;
 
    signal lineStateRegReq   : UlpiRegReqType;
-   signal lineStateRegRep   : UlpiRegRepType  := ULPI_REG_REP_INIT_C;
+   signal lineStateRegRep   : UlpiRegRepType  := ULPI_REG_REP_ERR_C;
 
    signal rstReq            : std_logic;
    signal suspend           : std_logic;
    signal isHiSpeed         : std_logic;
-   signal isHiSpeedNego     : std_logic;
+   signal isHiSpeedNego     : std_logic       := '0';
 
    signal txDataMst         : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
    signal txDataSub         : Usb2PkTxSubType := USB2_PKTX_SUB_INIT_C;
@@ -214,6 +220,8 @@ begin
       end if;
    end process P_REG_MUX;
 
+   G_ULPI : if ( ULPI_EMUL_MODE_G = NONE ) generate
+
    U_ULPI_IO : entity work.UlpiIO
    generic map (
       MARK_DEBUG_G    => MARK_DEBUG_ULPI_IO_G,
@@ -263,6 +271,32 @@ begin
 
          usb2RemWake  => remWake
       );
+
+   end generate G_ULPI;
+
+   G_FSLS : if ( ULPI_EMUL_MODE_G /= NONE ) generate
+      U_FSLS : entity work.UlpiFSLSEmul
+         generic map (
+            IS_FS_G            => (ULPI_EMUL_MODE_G = FS_ONLY),
+            INPUT_MODE_VPVM_G  => FSLS_INPUT_MODE_VPVM_G
+         )
+         port map (
+            ulpiClk            => ulpiClk,
+            ulpiRst            => ulpiRst,
+
+            ulpiRx             => ulpiRxLoc,
+            ulpiTxReq          => ulpiTxReq,
+            ulpiTxRep          => ulpiTxRep,
+
+            fslsIb             => fslsIb,
+            fslsOb             => fslsOb,
+
+            usb2RemWake        => remWake,
+            usb2Rst            => rstReq,
+            usb2Suspend        => suspend
+         );
+      ulpiLineTxReq <= ulpiPktTxReq;
+   end generate G_FSLS;
 
    U_PKT_RX : entity work.Usb2PktRx
    generic map (

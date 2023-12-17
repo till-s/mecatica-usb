@@ -120,7 +120,7 @@ Usb2EpGenericCtlPkg.o: Usb2Pkg.o Usb2UtilPkg.o
 $(patsubst %.vhd,%.o,$(filter %Tb.vhd,$(SRCS))): Usb2TstPkg.o
 
 UlpiIO.o: UlpiIOBuf.o
-Usb2Core.o: UlpiIO.o UlpiLineState.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o
+Usb2Core.o: UlpiIO.o UlpiLineState.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o Usb2StdCtlEp.o UlpiFSLSEmul.o
 Usb2FifoEp.o: Usb2Fifo.o Usb2CCSync.o Usb2Bram.o
 Usb2MboxSync.o: Usb2CCSync.o
 Usb2Fifo.o: Usb2Bram.o Usb2MboxSync.o
