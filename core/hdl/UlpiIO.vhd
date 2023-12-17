@@ -22,8 +22,8 @@ entity UlpiIO is
       ULPI_STP_MODE_G    : UlpiStpModeType := NORMAL
    );
    port (
-      rst                : in    std_logic := '0';
       ulpiClk            : in    std_logic;
+      ulpiRst            : in    std_logic := '0';
       -- ULPI signals (routed to buffers and then pins)
       ulpiIb             : in    UlpiIbType;
       ulpiOb             : out   UlpiObType;
@@ -244,7 +244,7 @@ begin
    P_SEQ_TX : process ( ulpiClk ) is
    begin
       if ( rising_edge( ulpiClk ) ) then
-         if ( rst = '1' ) then
+         if ( ulpiRst = '1' ) then
             rTx <= TX_REG_INIT_C;
          else
             rTx <= rinTx;

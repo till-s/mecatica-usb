@@ -224,7 +224,7 @@ begin
    )
    port map (
       ulpiClk         => ulpiClk,
-      rst             => ulpiRst,
+      ulpiRst         => ulpiRst,
 
       ulpiIb          => ulpiIb,
       ulpiOb          => ulpiOb,

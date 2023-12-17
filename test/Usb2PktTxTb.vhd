@@ -131,7 +131,7 @@ begin
    U_ULPI_IO : entity work.UlpiIO
    port map (
       ulpiClk                      => ulpiTstClk,
-      rst                          => open,
+      ulpiRst                      => open,
       
       ulpiIb                       => ulpiTstIO,
       ulpiOb                       => ulpiTstIb,

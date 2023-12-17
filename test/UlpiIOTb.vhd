@@ -422,7 +422,7 @@ begin
 
    U_DUT : entity work.UlpiIO
       port map (
-         rst         => rst,
+         ulpiRst     => rst,
          ulpiClk     => clk,
          ulpiIb      => ulpiIb,
          ulpiOb      => ulpiOb,
