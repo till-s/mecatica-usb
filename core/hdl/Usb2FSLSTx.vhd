@@ -27,7 +27,7 @@ entity Usb2FSLSTx is
       -- status
       active         : out std_logic;
       -- drive outputs
-      oe             : out std_logic;
+      oe             : out std_logic
    );
 end entity Usb2FSLSTx;
 
