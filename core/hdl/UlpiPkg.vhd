@@ -9,6 +9,8 @@ use     ieee.std_logic_1164.all;
 package UlpiPkg is
 
    constant ULPI_TXCMD_TX_C                : std_logic_vector(3 downto 0) := "0100";
+   constant ULPI_RXCMD_J_BIT_C             : natural := 0;
+   constant ULPI_RXCMD_K_BIT_C             : natural := 1;
    constant ULPI_RXCMD_RX_ACTIVE_BIT_C     : natural := 4;
    constant ULPI_RXCMD_RX_ERROR_BIT_C      : natural := 5;
 
