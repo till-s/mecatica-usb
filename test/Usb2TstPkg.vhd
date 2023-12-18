@@ -310,14 +310,13 @@ package body Usb2TstPkg is
          ob.nxt <= '1';
       end if;
       for i in vc'range loop
-         ob.dat <= vc(i);
          for j in 0 to w - 1 loop
             ob.nxt <= '0';
             ob.dat <= RXCMD_C;
             ulpiClkTick;
-            ob.dat <= vc(i);
-            ob.nxt <= '1';
          end loop;
+         ob.dat <= vc(i);
+         ob.nxt <= '1';
          ulpiClkTick;
       end loop;
       if ( e ) then
