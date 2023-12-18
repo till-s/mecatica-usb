@@ -64,6 +64,7 @@ architecture sim of Usb2FSLSTb is
       x"2d" & x"ed" & x"b0" & x"09" & x"a7" & x"b3" & x"97" & x"6b" & x"10" & x"f5" & x"d0" & x"44" & x"d7" & x"93" & x"b7" & x"d4" & x"ba" & x"9c" & x"5f" & x"55" & x"65" & x"cc" & x"6f" & x"0b" & x"11" & x"0e" & x"e1" & x"28" & x"66" & x"a2" & x"1e" & x"77";
 
    signal clk      : std_logic := '0';
+   signal txClk    : std_logic := '0';
    signal rxTstJ   : std_logic := '1';
    signal rxTstSE0 : std_logic := '0';
    signal rxCmdVld : std_logic;
@@ -96,6 +97,12 @@ architecture sim of Usb2FSLSTb is
    begin
       wait until rising_edge( clk );
    end procedure TICK;
+
+   procedure TTICK is
+   begin
+      wait until rising_edge( txClk );
+   end procedure TTICK;
+
 
 begin
 
@@ -194,6 +201,13 @@ begin
       if ( not run ) then wait; end if;
       wait for clkPer / 2.0 / 4; clk <= not clk;
    end process P_CLK;
+
+   P_TCLK : process is
+   begin
+      if ( not run ) then wait; end if;
+      wait for clkPer / 2.0 ; txClk <= not txClk;
+   end process P_TCLK;
+
 
    P_ACT : process ( clk ) is
       variable a   : std_logic := '0';
@@ -304,12 +318,12 @@ begin
       procedure SEND(constant x : std_logic_vector; constant sta : std_logic := '0') is
          variable idx : natural := 0;
       begin
-         TICK;
+         TTICK;
          txData <= x"4A";
          L_TX : while (true) loop
-            TICK;
+            TTICK;
             while ( txNxt = '0' ) loop
-               TICK;
+               TTICK;
             end loop;
             if ( idx < x'length/8 ) then
                txData <= x(8*idx to 8*idx + 7);
@@ -320,9 +334,9 @@ begin
                exit L_TX;
             end if;
          end loop;
-         TICK;
+         TTICK;
          txStp <= '0';
-         TICK;
+         TTICK;
       end procedure SEND;
    begin
       wait until rxTstDon;
@@ -352,7 +366,7 @@ begin
 
    U_DUT_TX : entity work.Usb2FSLSTx
       port map (
-         clk          => clk,
+         clk          => txClk,
          rst          => '0',
          data         => txData,
          stp          => txStp,

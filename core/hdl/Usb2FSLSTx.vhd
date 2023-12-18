@@ -44,9 +44,8 @@ architecture rtl of Usb2FSLSTx is
       state            : StateType;
       dataSR           : std_logic_vector(7 downto 0);
       -- presc relies on NSMPL_C = 4!
-      presc            : unsigned(1 downto 0);
+      phase            : std_logic_vector(7 downto 0);
       nstuff           : unsigned(3 downto 0);
-      nbits            : unsigned(3 downto 0);
       j                : std_logic;
       vm               : std_logic;
       se0              : std_logic_vector(1 downto 0);
@@ -60,9 +59,8 @@ architecture rtl of Usb2FSLSTx is
    constant REG_INIT_C : RegType := (
       state            => IDLE,
       dataSR           => SYNC_C,
-      presc            => (others => '0'),
+      phase            => (others => '0'),
       nstuff           => (others => '0'),
-      nbits            => (others => '0'),
       j                => '1',
       vm               => '0',
       se0              => "10",
@@ -83,8 +81,6 @@ begin
    begin
       v        := r;
 
-      v.presc  := r.presc - 1;
-
       v.nxt    := '0';
       -- read next byte or STP in the cycle following NXT
       v.rdy    := r.nxt;
@@ -92,8 +88,7 @@ begin
       case ( r.state ) is
          when IDLE =>
             v.nstuff      := to_unsigned(4, r.nstuff'length);
-            v.nbits       := to_unsigned(8-2-1, v.nbits'length);
-            v.presc       := to_unsigned(0, v.presc'length);
+            v.phase       := "10000000";
             v.dataSR      := '0' & SYNC_C(SYNC_C'left downto 1);
             v.frcStuffErr := '0';
             if ( data(7 downto 4) = ULPI_TXCMD_TX_C ) then
@@ -116,46 +111,54 @@ begin
             end if;
 
          when SYNC | RUN =>
-            if ( r.presc = 0 ) then
-               if ( (not r.frcStuffErr and r.nstuff(r.nstuff'left) ) = '1' ) then
+            if ( (not r.frcStuffErr and r.nstuff(r.nstuff'left) ) = '1' ) then
+               v.j      := not r.j;
+               v.nstuff := to_unsigned(4, r.nstuff'length); 
+            else
+               -- bit-stuffing
+               if ( r.dataSR(0) = '0' ) then
                   v.j      := not r.j;
                   v.nstuff := to_unsigned(4, r.nstuff'length); 
                else
-                  if ( r.dataSR(0) = '0' ) then
-                     v.j      := not r.j;
-                     v.nstuff := to_unsigned(4, r.nstuff'length); 
+                  v.nstuff := r.nstuff - 1;
+               end if;
+
+               -- micro-state machine
+               v.phase  := r.phase(0) & r.phase(r.phase'left downto 1);
+               v.dataSR := '0' & r.dataSR(r.dataSR'left downto 1);
+
+               if ( ( r.state = RUN ) and (r.frcStuffErr = '0') ) then
+                  v.nxt := r.phase(3);
+               end if;
+               if ( r.phase(1) = '1' ) then
+                  if ( r.state = SYNC ) then
+                     v.dataSR := not data(3 downto 0) & data(3 downto 0);
+                     v.state  := RUN;
                   else
-                     v.nstuff := r.nstuff - 1;
-                  end if;
-                  if ( r.nbits(r.nbits'left) = '1' ) then
-                     if ( r.state = SYNC ) then
-                        v.dataSR := not data(3 downto 0) & data(3 downto 0);
-                        v.nbits  := to_unsigned(8-2, v.nbits'length);
-                        v.state  := RUN;
-                     elsif ( r.frcStuffErr = '1' ) then
-                        v.state  := EOP;
-                        v.act    := '0';
-                     else
-                        v.nxt    := '1';
+                     v.dataSR := data;
+                     if ( r.frcStuffErr = '1' ) then 
+                        v.state := EOP;
+                     elsif ( stp = '1' ) then
+                        if ( data = x"00" ) then
+                           v.state := EOP;
+                        else
+                           v.frcStuffErr := '1';
+                        end if;
                      end if;
-                  else
-                     v.dataSR := '0' & r.dataSR(r.dataSR'left downto 1);
-                     v.nbits  := r.nbits - 1;
                   end if;
                end if;
             end if;
 
          when EOP =>
-            if ( r.presc = 0 ) then
-               -- enter with se0 = "10"; -> "11" -> "01" -> "00"
-               v.se0 := not r.se0(0) & r.se0(1);
-               v.j   := not r.se0(1);
+            -- entering this state the last j/k from the shift operations
+            -- is active.
+            v.se0 := not r.se0(0) & r.se0(1);
+            v.j   := not r.se0(1);
 
-               if ( r.se0 = "00" ) then
-                  -- se0 is loaded with "10" which is OK
-                  v.state := IDLE;
-                  v.oe    := '0';
-               end if;
+            if ( r.se0 = "00" ) then
+               -- se0 is loaded with "10" which is OK
+               v.state := IDLE;
+               v.oe    := '0';
             end if;
 
       end case;
@@ -165,17 +168,6 @@ begin
          v.vm := '0';
       end if;
 
-      if ( r.rdy = '1' ) then
-         if ( ( stp = '1' ) and ( data = x"00" ) ) then
-            v.state  := EOP;
-            v.act    := '0';
-         else
-            v.frcStuffErr := stp;
-            v.dataSR      := data;
-            v.nbits       := to_unsigned(8-2, v.nbits'length);
-         end if;
-      end if;
-      
       rin     <= v;
    end process P_COMB;
 
