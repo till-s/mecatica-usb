@@ -55,6 +55,17 @@ entity Usb2ExampleDev is
       MARK_DEBUG_SND_G                   : boolean     := false
    );
    port (
+      -- sampling clock; required if ULPI_EMU_MODE_G /= NONE;
+      -- used by a non-ulpi transceiver to sample the raw line
+      -- signals. This clock must run at 4*ulpiClk and must be
+      -- phase-locked to ulpiClk. The ulpiClk itself must run
+      -- at the *bit rate* for non-emulation modes.
+      fslsSmplClk          : in  std_logic := '0';
+      fslsSmplRst          : in  std_logic := '0';
+      -- FS/LS ULPI emulation interface
+      fslsIb               : in  FsLsIbType := FSLS_IB_INIT_C;
+      fslsOb               : out FsLsObType := FSLS_OB_INIT_C;
+
       usb2Clk              : in  std_logic;
       -- reset USB (** DONT *** create a loop usb2RstOut => usb2Rst )
       usb2Rst              : in  std_logic := '0';
@@ -64,8 +75,8 @@ entity Usb2ExampleDev is
       ulpiRst              : in  std_logic := '0';
 
       -- ULPI interface
-      ulpiIb               : in  UlpiIbType;
-      ulpiOb               : out UlpiObType;
+      ulpiIb               : in  UlpiIbType := ULPI_IB_INIT_C;
+      ulpiOb               : out UlpiObType := ULPI_OB_INIT_C;
       ulpiRx               : out UlpiRxType;
       -- Force a STP on the ulpi interface
       -- Only use if you know what you are doing.
@@ -341,6 +352,11 @@ begin
          DESCRIPTOR_BRAM_G            => DESCRIPTORS_BRAM_G
       )
       port map (
+         fslsSmplClk                  => fslsSmplClk,
+         fslsSmplRst                  => fslsSmplRst,
+         fslsIb                       => fslsIb,
+         fslsOb                       => fslsOb,
+
          ulpiClk                      => usb2Clk,
 
          ulpiRst                      => ulpiRst,

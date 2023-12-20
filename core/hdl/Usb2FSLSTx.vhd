@@ -38,7 +38,7 @@ architecture rtl of Usb2FSLSTx is
 
    constant SYNC_C      : std_logic_vector(7 downto 0) := x"80";
 
-   type StateType is (IDLE, SYNC, RUN, EOP, SNDK);
+   type StateType is (IDLE, SYNC, RUN, EOP);
 
    type RegType is record
       state            : StateType;
@@ -52,7 +52,6 @@ architecture rtl of Usb2FSLSTx is
       nxt              : std_logic;
       rdy              : std_logic;
       act              : std_logic;
-      oe               : std_logic;
       frcStuffErr      : std_logic;
    end record RegType;
 
@@ -67,12 +66,12 @@ architecture rtl of Usb2FSLSTx is
       nxt              => '0',
       rdy              => '0',
       act              => '0',
-      oe               => '0',
       frcStuffErr      => '0'
    );
 
    signal r            : RegType := REG_INIT_C;
    signal rin          : RegType;
+   signal syn          : std_logic;
 
 begin
 
@@ -85,29 +84,26 @@ begin
       -- read next byte or STP in the cycle following NXT
       v.rdy    := r.nxt;
 
+      syn      <= '1';
+      oe       <= '1';
+
       case ( r.state ) is
+
          when IDLE =>
             v.nstuff      := to_unsigned(4, r.nstuff'length);
-            v.phase       := "10000000";
-            v.dataSR      := '0' & SYNC_C(SYNC_C'left downto 1);
+            v.phase       := "01000000";
+            v.dataSR      := "00" & SYNC_C(SYNC_C'left downto 2);
             v.frcStuffErr := '0';
-            if ( data(7 downto 4) = ULPI_TXCMD_TX_C ) then
-               v.j      := '0';
+
+            if ( sendK = '1' ) then
+               syn        <= '0';
+            elsif ( data(7 downto 4) = ULPI_TXCMD_TX_C ) then
+               syn      <= '0'; -- already send 1st bit during this cycle to reduce latency
+               v.j      := '1';
                v.act    := '1';
                v.state  := SYNC;
-               v.oe     := '1';
-            end if;
-            if ( sendK = '1' ) then
-               v.oe     := '1';
-               v.j      := '0';
-               v.state  := SNDK;
-            end if;
-
-         when SNDK =>
-            if ( sendK = '0' ) then
-               v.oe     := '0';
-               v.j      := '1';
-               v.state  := IDLE;
+            else
+               oe       <= '0';
             end if;
 
          when SYNC | RUN =>
@@ -138,9 +134,11 @@ begin
                      v.dataSR := data;
                      if ( r.frcStuffErr = '1' ) then 
                         v.state := EOP;
+                        v.act   := '0';
                      elsif ( stp = '1' ) then
                         if ( data = x"00" ) then
                            v.state := EOP;
+                           v.act   := '0';
                         else
                            v.frcStuffErr := '1';
                         end if;
@@ -158,7 +156,6 @@ begin
             if ( r.se0 = "00" ) then
                -- se0 is loaded with "10" which is OK
                v.state := IDLE;
-               v.oe    := '0';
             end if;
 
       end case;
@@ -183,10 +180,9 @@ begin
    end process P_SEQ;
 
    nxt     <= r.nxt;
-   j       <= r.j;
-   vm      <= r.vm;
+   j       <= r.j  and syn;
+   vm      <= r.vm or  (not syn and not r.se0(0));
    se0     <= r.se0(0);
    active  <= r.act;
-   oe      <= r.oe;
 
 end architecture rtl;

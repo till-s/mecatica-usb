@@ -26,17 +26,21 @@ entity UlpiFSLSEmul is
       INPUT_MODE_VPVM_G    : boolean := true
    );
    port (
-      -- 4 * clock rate, 48MHz for FS, 6MHz for LS
+      -- 4 * clock rate, 48MHz for FS, 6MHz for LS;
+      -- phase-locked to ulpiClk!
+      smplClk              : in  std_logic;
+      smplRst              : in  std_logic;
+
+      -- transceiver interface
+      fslsIb               : in  FsLsIbType;
+      fslsOb               : out FsLsObType;
+
       ulpiClk              : in  std_logic;
       ulpiRst              : in  std_logic;
 
       ulpiRx               : out UlpiRxType;
       ulpiTxReq            : in  UlpiTxReqType := ULPI_TX_REQ_INIT_C;
       ulpiTxRep            : out UlpiTxRepType;
-
-      -- transceiver interface
-      fslsIb               : in  FsLsIbType;
-      fslsOb               : out FsLsObType;
 
       -- USB device state interface
       usb2RemWake          : in  std_logic := '0';
@@ -54,12 +58,14 @@ architecture rtl of UlpiFSLSEmul is
       state                  : StateType;
       vldLst                 : std_logic;
       dirLst                 : std_logic;
+      txDon                  : std_logic;
    end record RegType;
 
    constant REG_INIT_C       : RegType := (
       state                  => RX,
       vldLst                 => '0',
-      dirLst                 => '0'
+      dirLst                 => '0',
+      txDon                  => '0'
    );
 
    signal   r                : RegType := REG_INIT_C;
@@ -84,6 +90,7 @@ architecture rtl of UlpiFSLSEmul is
    signal   rxCmdValid       : std_logic;
    signal   sendK            : std_logic;
    signal   ulpiDir          : std_logic;
+   signal   ulpiRxLoc        : UlpiRxType;
 begin
 
    G_FS_MAP : if ( IS_FS_G ) generate
@@ -111,7 +118,7 @@ begin
 
    fslsOb.oe <= txOE;
 
-   rxJ    <= vpInpSyn;
+   rxJ       <= vpInpSyn;
 
    G_SE0_COMB : if ( INPUT_MODE_VPVM_G ) generate
       rxSE0    <= vpInpSyn nor vmInpSyn;
@@ -121,43 +128,54 @@ begin
       rxSE0    <= vmInpSyn;
    end generate G_SE0;
 
-   U_SYNC_VP : entity work.Usb2CCSync
-      generic map (
-         STAGES_G          => SYNC_STAGES_G,
-         INIT_G            => '1'
-      )
-      port map (
-         clk               => ulpiClk,
-         rst               => ulpiRst,
-         d                 => vpInpLoc,
-         q                 => vpInpSyn
-      );
+   G_SYNC     : if ( SYNC_STAGES_G > 0 ) generate
 
-   U_SYNC_VM : entity work.Usb2CCSync
-      generic map (
-         STAGES_G          => SYNC_STAGES_G,
-         INIT_G            => '0'
-      )
-      port map (
-         clk               => ulpiClk,
-         rst               => ulpiRst,
-         d                 => vmInpLoc,
-         q                 => vmInpSyn
-      );
+      U_SYNC_VP : entity work.Usb2CCSync
+         generic map (
+            STAGES_G          => SYNC_STAGES_G,
+            INIT_G            => '1'
+         )
+         port map (
+            clk               => smplClk,
+            rst               => smplRst,
+            d                 => vpInpLoc,
+            q                 => vpInpSyn
+         );
+
+      U_SYNC_VM : entity work.Usb2CCSync
+         generic map (
+            STAGES_G          => SYNC_STAGES_G,
+            INIT_G            => '0'
+         )
+         port map (
+            clk               => smplClk,
+            rst               => smplRst,
+            d                 => vmInpLoc,
+            q                 => vmInpSyn
+         );
+
+   end generate G_SYNC;
+
+   G_NO_SYNC  : if ( SYNC_STAGES_G = 0 ) generate
+      vpInpSyn <= vpInpLoc;
+      vmInpSyn <= vmInpLoc;
+   end generate G_NO_SYNC;
 
    U_FSLS_RX : entity work.Usb2FSLSRx
       generic map (
          CLK_FREQ_G        => CLK_FREQ_C
       )
       port map (
-         clk               => ulpiClk,
-         rst               => ulpiRst,
+         smplClk           => smplClk,
+         smplRst           => smplRst,
          j                 => rxJ,
          se0               => rxSE0,
+         outClk            => ulpiClk,
+         outRst            => ulpiRst,
          txActive          => txActive,
-         active            => rxActive,
          valid             => rxValid,
          data              => rxData,
+         active            => rxActive,
          rxCmdVld          => rxCmdValid,
          suspended         => usb2Suspend,
          usb2Reset         => usb2Rst,
@@ -181,28 +199,28 @@ begin
       );
 
    ulpiTxRep.err <= '0';
-   ulpiTxRep.don <= txStp;
+   ulpiTxRep.don <= r.txDon;
    ulpiTxRep.nxt <= txNxt;
 
    ulpiDir       <= rxActive or rxCmdValid;
 
-   ulpiRx.dat    <= rxData;
-   ulpiRx.dir    <= ulpiDir;
-   ulpiRx.nxt    <= rxValid;
-   ulpiRx.trn    <= (ulpiDir xor r.dirLst);
-   ulpiRx.stp    <= txStp;
+   ulpiRxLoc.dat    <= rxData;
+   ulpiRxLoc.dir    <= ulpiDir;
+   ulpiRxLoc.nxt    <= rxValid;
+   ulpiRxLoc.trn    <= (ulpiDir xor r.dirLst);
+   ulpiRxLoc.stp    <= txStp;
 
-   P_COMB : process (r, ulpiTxReq, txActive, ulpiDir ) is
+   P_COMB : process (r, ulpiTxReq, txActive, ulpiDir, txStp ) is
       variable v : RegType;
    begin
-      v      := r;
-      txData <= x"00";
-      txStp  <= '0';
+      v        := r;
+      txData   <= x"00";
+      txStp    <= '0';
+      v.dirLst := ulpiDir;
 
       case ( r.state ) is
          when RX =>
-            v.dirLst := ulpiDir;
-            if ( ( ulpiDir = '0' ) and (ulpiTxReq.dat /= x"00") ) then
+            if ( ( r.dirLst = '0' ) and (ulpiTxReq.dat /= x"00") ) then
                txData  <= ulpiTxReq.dat;
                v.state := TX;
             end if;
@@ -219,6 +237,9 @@ begin
 
       end case;
 
+      -- register to avoid combinatorial loop
+      v.txDon := txStp;
+
       rin <= v;
    end process P_COMB;
 
@@ -229,6 +250,7 @@ begin
             r <= REG_INIT_C;
          else
             r <= rin;
+            ulpiRx <= ulpiRxLoc;
          end if;
       end if;
    end process P_SEQ;

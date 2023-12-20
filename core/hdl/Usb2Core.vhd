@@ -40,8 +40,18 @@ entity Usb2Core is
    );
 
    port (
-      ulpiClk                      : in    std_logic;
+      -- sampling clock; required if ULPI_EMU_MODE_G /= NONE;
+      -- used by a non-ulpi transceiver to sample the raw line
+      -- signals. This clock must run at 4*ulpiClk and must be
+      -- phase-locked to ulpiClk. The ulpiClk itself must run
+      -- at the *bit rate* for non-emulation modes.
+      fslsSmplClk                  : in    std_logic := '0';
+      fslsSmplRst                  : in    std_logic := '0';
+      -- FS/LS serial interface (for ULPI emulation)
+      fslsIb                       : in    FsLsIbType := FSLS_IB_INIT_C;
+      fslsOb                       : out   FsLsObType := FSLS_OB_INIT_C;
 
+      ulpiClk                      : in    std_logic;
       -- resets only the ULPI interface
       ulpiRst                      : in    std_logic := '0';
       -- resets packet engine, EP0, i.e., everything
@@ -53,10 +63,6 @@ entity Usb2Core is
       -- pins (IOBs)
       ulpiIb                       : in    UlpiIbType := ULPI_IB_INIT_C;
       ulpiOb                       : out   UlpiObType := ULPI_OB_INIT_C;
-
-      -- FS/LS serial interface (for ULPI emulation)
-      fslsIb                       : in    FsLsIbType := FSLS_IB_INIT_C;
-      fslsOb                       : out   FsLsObType := FSLS_OB_INIT_C;
 
       -- debugging and other special needs
       ulpiRx                       : out   UlpiRxType;
@@ -281,15 +287,17 @@ begin
             INPUT_MODE_VPVM_G  => FSLS_INPUT_MODE_VPVM_G
          )
          port map (
+            smplClk            => fslsSmplClk,
+            smplRst            => fslsSmplRst,
+            fslsIb             => fslsIb,
+            fslsOb             => fslsOb,
+
             ulpiClk            => ulpiClk,
             ulpiRst            => ulpiRst,
 
             ulpiRx             => ulpiRxLoc,
             ulpiTxReq          => ulpiTxReq,
             ulpiTxRep          => ulpiTxRep,
-
-            fslsIb             => fslsIb,
-            fslsOb             => fslsOb,
 
             usb2RemWake        => remWake,
             usb2Rst            => rstReq,

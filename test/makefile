@@ -61,9 +61,11 @@ SRCS += Usb2EpCDCNCMOutTb.vhd
 SRCS += Usb2Ep0StringTb.vhd
 SRCS += Usb2CDCACMTb.vhd
 SRCS += Usb2FSLSRx.vhd
+SRCS += Usb2FSLSRxBitShift.vhd
 SRCS += Usb2FSLSTx.vhd
 SRCS += Usb2FSLSTb.vhd
 SRCS += Usb2FSLSEmul.vhd
+SRCS += Usb2PktProcFSLSTb.vhd
 
 
 PROG+=UlpiIOTb
@@ -88,6 +90,7 @@ PROG += Usb2EpCDCNCMInpTb
 PROG += Usb2Ep0StringTb
 PROG += Usb2CDCACMTb
 PROG += Usb2FSLSTb
+PROG += Usb2PktProcFSLSTb
 
 all: test
 
@@ -164,9 +167,11 @@ Usb2EpCDCNCMInpTb: NCMInpTst.txt
 Usb2Ep0StringTb.o: Usb2Core.o
 Usb2CDCACMTb.o: Usb2Core.o Usb2EpCDCACM.o
 
+Usb2FSLSRx.o: UlpiPkg.o Usb2FSLSRxBitShift.o
 Usb2FSLSTx.o: UlpiPkg.o
 
 Usb2FSLSTb.o: UlpiPkg.o Usb2FSLSRx.o Usb2FSLSTx.o
+Usb2PktProcFSLSTb.o: UlpiPkg.o Usb2Pkg.o Usb2PrivPkg.o Usb2UtilPkg.o Usb2TstPkg.o UlpiFSLSEmul.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o
 
 UlpiFSLSEmul.o: UlpiPkg.o Usb2UtilPkg.o Usb2FSLSRx.o Usb2FSLSTx.o Usb2CCSync.o
 

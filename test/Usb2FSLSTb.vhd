@@ -64,6 +64,7 @@ architecture sim of Usb2FSLSTb is
       x"2d" & x"ed" & x"b0" & x"09" & x"a7" & x"b3" & x"97" & x"6b" & x"10" & x"f5" & x"d0" & x"44" & x"d7" & x"93" & x"b7" & x"d4" & x"ba" & x"9c" & x"5f" & x"55" & x"65" & x"cc" & x"6f" & x"0b" & x"11" & x"0e" & x"e1" & x"28" & x"66" & x"a2" & x"1e" & x"77";
 
    signal clk      : std_logic := '0';
+   signal rxClk    : std_logic := '0';
    signal txClk    : std_logic := '0';
    signal rxTstJ   : std_logic := '1';
    signal rxTstSE0 : std_logic := '0';
@@ -95,7 +96,7 @@ architecture sim of Usb2FSLSTb is
 
    procedure TICK is
    begin
-      wait until rising_edge( clk );
+      wait until rising_edge( rxClk );
    end procedure TICK;
 
    procedure TTICK is
@@ -200,6 +201,9 @@ begin
    begin
       if ( not run ) then wait; end if;
       wait for clkPer / 2.0 / 4; clk <= not clk;
+      wait for clkPer / 2.0 / 4; clk <= not clk;
+      wait for clkPer / 2.0 / 4; clk <= not clk;
+      wait for clkPer / 2.0 / 4; clk <= not clk; rxClk <= not rxClk;
    end process P_CLK;
 
    P_TCLK : process is
@@ -209,11 +213,11 @@ begin
    end process P_TCLK;
 
 
-   P_ACT : process ( clk ) is
+   P_ACT : process ( rxClk ) is
       variable a   : std_logic := '0';
       variable phs : natural := 0;
    begin
-      if ( rising_edge( clk ) ) then
+      if ( rising_edge( rxClk ) ) then
          if ( ( not active and a ) = '1' ) then
             phs := phs + 1;
          end if;
@@ -228,14 +232,14 @@ begin
 
    dir <= rxCmdVld or active;
 
-   P_MON : process ( clk ) is
+   P_MON : process ( rxClk ) is
       variable idx : integer := 1;
       variable cmp : std_logic_vector(0 to 7);
       variable phs : natural := 0;
       variable trn : boolean;
       variable tst : boolean := false;
    begin
-      if ( rising_edge( clk ) ) then
+      if ( rising_edge( rxClk ) ) then
          dirLst <= dir;
          trn    := (dir /= dirLst);
          if ( phs < 2 ) then
@@ -353,10 +357,13 @@ begin
 
    U_DUT_RX : entity work.Usb2FSLSRx
       port map (
-         clk          => clk,
-         rst          => '0',
+         smplClk      => clk,
+         smplRst      => '0',
          j            => j,
          se0          => se0,
+
+         outClk       => rxClk,
+         outRst       => '0',
          valid        => valid,
          active       => active,
          data         => dout,
