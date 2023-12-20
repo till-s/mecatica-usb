@@ -884,6 +884,9 @@ begin
                v.timer    := r.timer;
             else
                v.timer    := r.timer - r.se0JTimer;
+               if ( usb2TimerExpired( v.timer ) ) then
+                  v.state := r.nxtState;
+               end if;
                v.se0JSeen := true;
             end if;
 
