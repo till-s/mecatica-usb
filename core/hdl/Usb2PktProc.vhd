@@ -933,6 +933,8 @@ begin
                v.timer    := USB2_TIMER_MAX_C; -- should never expire; frame has started already
                -- we still use a timeout so that we can simply bypass the WAIT_FS... states
                -- in high-speed mode
+            elsif ( usb2TimerExpired( r.timer ) ) then
+               v.state    := WAIT_ACK;
             end if;
 
          when WAIT_ACK =>
