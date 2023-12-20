@@ -423,20 +423,20 @@ begin
          v.se0JTimer := (others => '0');
          v.se0JSeen  := true;
       else
+         if ( not usb2TimerExpired( r.se0JTimer ) ) then
+            v.se0JTimer := r.se0JTimer + 1;
+         end if;
          if ( usb2Rx.rxActive ) then
             if ( not r.rxActive ) then
                -- rx just became active
                -- reset and hold timer until SE0
                v.se0JTimer := USB2_TIMER_EXPIRED_C;
             end if;
-            if (    r.lineState = ULPI_RXCMD_LINE_STATE_SE0_C
-                and v.lineState = ULPI_RXCMD_LINE_STATE_FS_J_C ) then
-               -- start timer
-               v.se0JTimer := to_signed(1, v.se0JTimer'length);
-            end if;
          end if;
-         if ( not usb2TimerExpired( r.se0JTimer ) ) then
-            v.se0JTimer := r.se0JTimer + 1;
+         if (    r.lineState = ULPI_RXCMD_LINE_STATE_SE0_C
+             and v.lineState = ULPI_RXCMD_LINE_STATE_FS_J_C ) then
+            -- start timer
+            v.se0JTimer := to_signed(1, v.se0JTimer'length);
          end if;
       end if;
 
