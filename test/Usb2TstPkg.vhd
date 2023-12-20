@@ -62,6 +62,14 @@ package Usb2TstPkg is
       constant x : in    std_logic_vector
    );
 
+   -- create a ULPI token paket (i.e., the first byte is a
+   -- TXCMD byte containing the token 't')
+   function ulpiTstMkTokCmd(
+      constant t : Usb2PidType;
+      constant e : Usb2EndpIdxType;
+      constant a : Usb2DevAddrType
+   ) return Usb2ByteArray;
+
    -- send a token on ULPI
    procedure ulpiTstSendTok(
       signal   ob : inout UlpiIbType;
@@ -376,6 +384,24 @@ package body Usb2TstPkg is
       ob.dat <= (others => '0');
       ulpiClkTick;
    end procedure ulpiTstSendRxCmd;
+
+   function ulpiTstMkTokCmd(
+      constant t : Usb2PidType;
+      constant e : Usb2EndpIdxType;
+      constant a : Usb2DevAddrType
+   ) return Usb2ByteArray is
+      variable v : Usb2ByteArray(0 to 2);
+      variable c : std_logic_vector(4 downto 0);
+      variable x : std_logic_vector(10 downto 0);
+   begin
+      v(0) := ULPI_TXCMD_TX_C & t;
+      x    := std_logic_vector(e) & a;
+      c    := USB2_CRC5_INIT_C(c'range);
+      ulpiTstCrc( c, USB2_CRC5_POLY_C(c'range), x );
+      v(1) := x(7 downto 0);
+      v(2) := not c & x(10 downto 8);
+      return v;
+   end function ulpiTstMkTokCmd;
 
    -- send a token on ULPI
    procedure ulpiTstSendTok(
