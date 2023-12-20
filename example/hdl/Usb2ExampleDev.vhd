@@ -19,7 +19,7 @@ use     work.Usb2MuxEpCtlPkg.all;
 entity Usb2ExampleDev is
    generic (
       ULPI_CLK_MODE_INP_G                : boolean      := true;
-      ULPI_EMUL_MODE_G                   : UlpiEmulMode := NONE;
+      ULPI_EMU_MODE_G                    : UlpiEmuMode  := NONE;
       FSLS_INPUT_MODE_VPVM_G             : boolean      := true;
 
       -- descriptors
@@ -335,7 +335,7 @@ begin
          ULPI_DIR_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIN_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_STP_MODE_G              => NORMAL,
-         ULPI_EMUL_MODE_G             => ULPI_EMUL_MODE_G,
+         ULPI_EMU_MODE_G              => ULPI_EMU_MODE_G,
          FSLS_INPUT_MODE_VPVM_G       => FSLS_INPUT_MODE_VPVM_G,
          DESCRIPTORS_G                => DESCRIPTORS_G,
          DESCRIPTOR_BRAM_G            => DESCRIPTORS_BRAM_G

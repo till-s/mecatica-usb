@@ -33,7 +33,7 @@ entity Usb2Core is
       ULPI_DIR_IOB_G               : boolean         := true;
       ULPI_DIN_IOB_G               : boolean         := true;
       ULPI_STP_MODE_G              : UlpiStpModeType := NORMAL;
-      ULPI_EMUL_MODE_G             : UlpiEmulMode    := NONE;
+      ULPI_EMU_MODE_G              : UlpiEmuMode     := NONE;
       DESCRIPTORS_G                : Usb2ByteArray;
       DESCRIPTOR_BRAM_G            : boolean         := false;
       FSLS_INPUT_MODE_VPVM_G       : boolean         := true
@@ -220,7 +220,7 @@ begin
       end if;
    end process P_REG_MUX;
 
-   G_ULPI : if ( ULPI_EMUL_MODE_G = NONE ) generate
+   G_ULPI : if ( ULPI_EMU_MODE_G = NONE ) generate
 
    U_ULPI_IO : entity work.UlpiIO
    generic map (
@@ -274,10 +274,10 @@ begin
 
    end generate G_ULPI;
 
-   G_FSLS : if ( ULPI_EMUL_MODE_G /= NONE ) generate
+   G_FSLS : if ( ULPI_EMU_MODE_G /= NONE ) generate
       U_FSLS : entity work.UlpiFSLSEmul
          generic map (
-            IS_FS_G            => (ULPI_EMUL_MODE_G = FS_ONLY),
+            IS_FS_G            => (ULPI_EMU_MODE_G = FS_ONLY),
             INPUT_MODE_VPVM_G  => FSLS_INPUT_MODE_VPVM_G
          )
          port map (
@@ -336,6 +336,7 @@ begin
    U_PKT_PROCESSOR : entity work.Usb2PktProc
    generic map (
       SIMULATION_G    => SIMULATION_G,
+      ULPI_EMU_MODE_G => ULPI_EMU_MODE_G,
       MARK_DEBUG_G    => MARK_DEBUG_PKT_PROC_G,
       NUM_ENDPOINTS_G => NUM_ENDPOINTS_C
    )

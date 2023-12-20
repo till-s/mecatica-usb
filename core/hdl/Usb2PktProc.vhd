@@ -20,6 +20,7 @@ use     work.Usb2UtilPkg.all;
 entity Usb2PktProc is
    generic (
       SIMULATION_G    : boolean       := false;
+      ULPI_EMU_MODE_G : UlpiEmuMode   := NONE;
       MARK_DEBUG_G    : boolean       := true;
       NUM_ENDPOINTS_G : positive      := 1;
       INP_TIMO_MS_G   : Usb2TimerType := Usb2TimerType( to_signed( 1000, Usb2TimerType'length ) )
@@ -41,10 +42,16 @@ end entity Usb2PktProc;
 
 architecture Impl of Usb2PktProc is
 
-   function simt(constant a,b: in natural) return Usb2TimerType is
+   function simt(constant a,b,c: in natural) return Usb2TimerType is
       variable v : integer;
    begin
-      if ( SIMULATION_G ) then v := a; else v := b; end if;
+      if    ( SIMULATION_G ) then
+         v := a;
+      elsif ( ULPI_EMU_MODE_G = NONE ) then
+         v := b;
+      elsif ( ULPI_EMU_MODE_G = FS_ONLY ) then
+         v := c;
+      end if;
       v := v - 2; -- timer expired = '-1'
       return Usb2TimerType(to_signed(v, Usb2TimerType'length));
    end function simt;
@@ -74,12 +81,12 @@ architecture Impl of Usb2PktProc is
    --       and        1 clock delay in HSK state
 
    -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks
-   constant TIME_HSK_TX_C        : Usb2TimerType := simt(20,   1);
+   constant TIME_HSK_TX_C        : Usb2TimerType := simt(20,   1, 1);
 
    -- receive (tok) -transmit (tx-data)     ; ULPI: HS: 1-14 clocks, FS: 7-18 clocks
-   constant TIME_DATA_TX_C       : Usb2TimerType := simt(20,   1);
+   constant TIME_DATA_TX_C       : Usb2TimerType := simt(20,   1, 1);
    -- transmit (tx-data) - receive (hsk)    ; ULPI: HS: 92  clocks, FS: 80 clocks (no range given)
-   -- transmit (tx-data) - receive (hsk)    ; USB2: HS: 92-102   clocks, FS: 80 - 90 clocks
+   -- transmit (tx-data) - receive (hsk)    ; USB2: HS: 92-102   clocks, FS: 80 - 90 clocks (16-18 bit times)
    -- ULPI: RXCMD delay     2-4 (HS+FS)
    --       TX-Start delay  1-2 (HS), 1-10 (FS)
    --
@@ -90,8 +97,10 @@ architecture Impl of Usb2PktProc is
    --      HS_max       =  102            + (1        + 2        + 2)  = 107
    --      FS_min       =   80            + (10       + 4        + 2)  = 96
    --      FS_max       =   90            + ( 1       + 2        + 2)  = 95
+   -- In FS mode the SE-J -> K timing is measured by inspecting RXCmd which incur the same delay.
+   -- In emulation mode the timing is in bit-times (ulpiClk ticks at the bit-rate)
    --
-   constant TIME_WAIT_ACK_C      : Usb2TimerType := simt(20,  96);
+   constant TIME_WAIT_ACK_C      : Usb2TimerType := simt(20,  85, 17);
    -- receive (tok) - receive(data-pid)     ; USB2: HS: 92-102, FS: 80 - 90 since only receive-path
    --                                         latency is involved these values can be used verbatim
    -- UPDATE: Hmm - this timeout is mentioned (Fig. 8-32) but it's not clear what the value is.
