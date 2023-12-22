@@ -169,11 +169,13 @@ package UlpiPkg is
    );
 
    type FsLsIbType is record
-      vp    : std_logic;
-      vm    : std_logic;
+      rcv   : std_logic; -- differential receiver
+      vp    : std_logic; -- single-ended VP
+      vm    : std_logic; -- single-ended VM
    end record FsLsIbType;
 
    constant FSLS_IB_INIT_C : FsLsIbType := (
+      rcv   => '1',
       vp    => '1',
       vm    => '0'
    );
