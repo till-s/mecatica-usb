@@ -32,8 +32,10 @@ if __name__ == "__main__":
   iECMMACAddr ="02DEADBEEF34"
   iNCMMACAddr ="02DEADBEEF31"
   haveACM     = True
+  dualSpeed   = True
+  hiSpeed     = True
 
-  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:s:SNEA")
+  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:s:FSNEA")
   for o in opt:
     if o[0] in ("-h"):
        print("usage: {} [-h] [-v <vendor_id>] [-f <output_file>] -p <product_id>".format(sys.argv[0]))
@@ -42,6 +44,7 @@ if __name__ == "__main__":
        print("          -p product_id    : product_id (use 0x0001 for private testing *only*)")
        print("          -f file_name     : output file name, defaults to '{}'".format(fnam))
        print("          -s serial_number : (string) goes into the device descriptor")
+       print("          -F               : Full-speed only")
        print("          -S               : Disable sound function")
        print("          -E               : Disable ECM ethernet function")
        print("          -N               : Disable NCM ethernet function")
@@ -64,6 +67,9 @@ if __name__ == "__main__":
        iNCMMACAddr = None
     elif o[0] in ("-A"):
        haveACM   = False
+    elif o[0] in ("-F"):
+       hiSpeed   = False
+       dualSpeed = False
 
   if idProduct is None:
     raise RuntimeError(
@@ -73,7 +79,7 @@ if __name__ == "__main__":
             "see https://pid.codes/1209/0001/")
 
   iProduct="Till's Mecatica USB Example Device"
-  ctxt = ExampleDevDesc.mkExampleDevDescriptors(idVendor=idVendor, idProduct=idProduct, ifcNumber=0, epAddr=1, iECMMACAddr=iECMMACAddr, iNCMMACAddr=iNCMMACAddr, dualSpeed=True, iProduct=iProduct, iSerial=iSerial, uacProto=uacProto, haveACM=haveACM)
+  ctxt = ExampleDevDesc.mkExampleDevDescriptors(idVendor=idVendor, idProduct=idProduct, ifcNumber=0, epAddr=1, iECMMACAddr=iECMMACAddr, iNCMMACAddr=iNCMMACAddr, dualSpeed=dualSpeed, hiSpeed=hiSpeed, iProduct=iProduct, iSerial=iSerial, uacProto=uacProto, haveACM=haveACM)
  
   with io.open( fnam, 'x' ) as f:
     print("-- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.", file=f)
