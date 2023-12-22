@@ -19,11 +19,11 @@ use     work.Usb2UtilPkg.all;
 
 entity Usb2PktProc is
    generic (
-      SIMULATION_G    : boolean       := false;
-      ULPI_EMU_MODE_G : UlpiEmuMode   := NONE;
-      MARK_DEBUG_G    : boolean       := true;
-      NUM_ENDPOINTS_G : positive      := 1;
-      INP_TIMO_MS_G   : Usb2TimerType := Usb2TimerType( to_signed( 1000, Usb2TimerType'length ) )
+      SIMULATION_G    : boolean           := false;
+      ULPI_EMU_MODE_G : UlpiEmuModeType   := NONE;
+      MARK_DEBUG_G    : boolean           := true;
+      NUM_ENDPOINTS_G : positive          := 1;
+      INP_TIMO_MS_G   : Usb2TimerType     := Usb2TimerType( to_signed( 1000, Usb2TimerType'length ) )
    );
    port (
       clk             : in  std_logic;

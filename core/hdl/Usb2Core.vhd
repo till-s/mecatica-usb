@@ -33,7 +33,7 @@ entity Usb2Core is
       ULPI_DIR_IOB_G               : boolean         := true;
       ULPI_DIN_IOB_G               : boolean         := true;
       ULPI_STP_MODE_G              : UlpiStpModeType := NORMAL;
-      ULPI_EMU_MODE_G              : UlpiEmuMode     := NONE;
+      ULPI_EMU_MODE_G              : UlpiEmuModeType := NONE;
       DESCRIPTORS_G                : Usb2ByteArray;
       DESCRIPTOR_BRAM_G            : boolean         := false;
       FSLS_INPUT_MODE_VPVM_G       : boolean         := true
