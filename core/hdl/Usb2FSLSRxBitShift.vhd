@@ -76,8 +76,6 @@ architecture rtl of Usb2FSLSRxBitShift is
    signal rxAct        : std_logic := '0';
 
    signal clkrec       : std_logic_vector(NSMPL_C - 1 downto 0);
-   signal se0Seen      : boolean   := false;
-   signal jSeen        : boolean   := false;
    signal lineStateLoc : std_logic_vector(1 downto 0);
 
 begin
@@ -103,7 +101,7 @@ begin
       end if;
 
       if ( r.presc = 0 ) then
-         if ( j = r.jkSR(r.jkSR'left) ) then
+         if ( ( j = r.jkSR(r.jkSR'left) ) or ( r.state = SYNC ) ) then
             v.lineState(0) := j;
             v.lineState(1) := not j;
          end if;
@@ -210,37 +208,19 @@ begin
          if ( outRst = '1' ) then
             outAck    <= '0';
             rxAct     <= '0';
-            se0Seen   <= false;
-            jSeen     <= false;
          else
             outAck    <= '0';
-            if ( r.active = '1' ) then
-               rxAct  <= '1';
-            end if;
-            if ( rxAct = '1' ) then
-               if ( lineStateLoc = "00" ) then
-                  se0Seen <= true;
-               end if;
-               if ( se0Seen and (lineStateLoc = "01" ) ) then
-                  jSeen   <= true;
-               end if;
-               if ( jSeen ) then
-                  rxAct   <= '0';
-                  se0Seen <= false;
-                  jSeen   <= false;
-               end if;
-            end if;
             if ( r.outVld = '1' ) then
                outAck <= '1';
                data   <= r.outReg;
             end if;
             rxAct <= r.active;
          end if;
+         lineState <= r.lineState;
          err       <= r.err;
       end if;
    end process P_OUT;
 
-   lineState <= lineStateLoc;
    valid     <= outAck;
    active    <= rxAct;
 
