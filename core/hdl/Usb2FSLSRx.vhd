@@ -57,6 +57,7 @@ architecture rtl of Usb2FSLSRx is
       rxCmdTrn         : std_logic;
       rxCmdVldLst      : std_logic;
       active           : std_logic;
+      rxBlanked        : boolean;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -69,13 +70,15 @@ architecture rtl of Usb2FSLSRx is
       rxCmdLst         => x"03",
       rxCmdTrn         => '0',
       rxCmdVldLst      => '0',
-      active           => '0'
+      active           => '0',
+      rxBlanked        => false
    );
 
    signal r            : RegType := REG_INIT_C;
    signal rin          : RegType;
 
    signal rxAct        : std_logic;
+   signal rxActBlanked : std_logic;
    signal rxVld        : std_logic;
    signal rxErr        : std_logic;
    signal lineState    : std_logic_vector(1 downto 0);
@@ -85,7 +88,7 @@ architecture rtl of Usb2FSLSRx is
 
 begin
 
-   rxCmdLoc( ULPI_RXCMD_RX_ACTIVE_BIT_C ) <= rxAct;
+   rxCmdLoc( ULPI_RXCMD_RX_ACTIVE_BIT_C ) <= rxActBlanked;
    rxCmdLoc( ULPI_RXCMD_RX_ERROR_BIT_C  ) <= rxErr and not r.errFlagged;
    rxCmdLoc( 1 downto 0                 ) <= lineState;
 
@@ -99,8 +102,7 @@ begin
          v.timer := r.timer - 1;
       end if;
 
-      v.active    := rxAct;
-      nxt         <= rxVld;
+      nxt         <= '0';
       v.rxCmdTrn  := '0';
       rxCmdVldLoc := r.rxCmdTrn;
 
@@ -137,8 +139,13 @@ begin
             end if;
       end case;
 
+      if ( txActive = '1' ) then
+         v.rxBlanked := true;
+      end if;
+
       if ( rxCmdLoc(1 downto 0) = ULPI_RXCMD_LINE_STATE_SE0_C ) then
          v.suspended         := '0';
+         v.rxBlanked         := false;
          if ( r.state /= EOP and r.state /= RESET ) then
             v.timer := TIME_RST_C - 1;
             v.state := EOP;
@@ -147,10 +154,19 @@ begin
          end if;
       end if;
 
+      if ( not v.rxBlanked ) then
+         nxt      <= rxVld;
+      end if;
+
       if ( txActive = '0' ) then
 
+         -- while transmitting track line-state changes but blank rxActive
+         if ( not v.rxBlanked ) then
+            v.active := rxAct;
+         end if;
+
          if ( v.active = '1' ) then
-            if ( (r.active = '0' ) and (r.rxCmdVldLst = '0') ) then
+            if ( (r.active = '0' ) and (r.rxCmdVldLst = '0') and not r.rxBlanked ) then
                -- active just became asserted and no RXCMD currently in progress -> assert NXT
                nxt <= '1';
             end if;
@@ -162,7 +178,7 @@ begin
             end if;
          end if;
          -- check if our rxcmd will actually be 'seen'
-         if ( ( nxt = '0' ) and ( ( r.active = '1' ) or ( (not r.rxCmdTrn and rxCmdVldLoc) = '1') ) ) then
+         if ( ( nxt = '0' ) and ( ( r.active = '1' ) or ( (not v.rxCmdTrn and rxCmdVldLoc) = '1') ) ) then
             v.rxCmdLst   := rxCmdLoc;
             -- ERROR is only asserted once; mark;
             if ( rxCmdLoc( ULPI_RXCMD_RX_ERROR_BIT_C ) = '1' ) then
@@ -173,8 +189,8 @@ begin
       end if;
 
       v.rxCmdVldLst := rxCmdVldLoc;
-
-      rxCmdVld <= rxCmdVldLoc;
+      rxCmdVld      <= rxCmdVldLoc;
+      rxActBlanked  <= v.active;
 
       rin      <= v;
    end process P_COMB;
@@ -210,7 +226,7 @@ begin
    suspended      <= r.suspended;
    usb2Reset      <= '1' when r.state = RESET else '0';
    sendK          <= r.sendK;
-   active         <= rxAct;
+   active         <= rxActBlanked;
    data           <= rxDat when nxt = '1' else rxCmdLoc;
    valid          <= nxt;
    
