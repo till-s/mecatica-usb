@@ -33,6 +33,7 @@ end entity Usb2FSLSRxBitShift;
 architecture rtl of Usb2FSLSRxBitShift is
    -- oversampling rate
    constant NSMPL_C     : integer := 4;
+   constant NSTUFF_C    : unsigned(3 downto 0) := to_unsigned( 5, 4 );
 
    type StateType is (IDLE, SYNC, RUN, EOP);
 
@@ -110,7 +111,7 @@ begin
                v.dataSR := '0' & r.dataSR(r.dataSR'left downto 1);
                v.nbits  := r.nbits + 1;
             end if;
-            v.nstuff    := to_unsigned(4, r.nstuff'length);
+            v.nstuff    := NSTUFF_C;
          else
             if ( r.nstuff(r.nstuff'left) = '1' ) then
                v.err    := '1';

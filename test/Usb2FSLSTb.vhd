@@ -126,7 +126,7 @@ begin
 
       procedure SEND_BIT(constant b: in std_logic) is
       begin
-         if ( stuff = 5 ) then
+         if ( stuff = 6 ) then
             rxTstJ <= not rxTstJ;
             stuff  <= 0;
             FTICK;

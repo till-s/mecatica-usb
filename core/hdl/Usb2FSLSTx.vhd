@@ -38,6 +38,9 @@ architecture rtl of Usb2FSLSTx is
 
    constant SYNC_C      : std_logic_vector(7 downto 0) := x"80";
 
+   -- count terminates at -1
+   constant NSTUFF_C    : unsigned(3 downto 0) := to_unsigned(6 - 1, 4);
+
    type StateType is (IDLE, SYNC, RUN, EOP);
 
    type RegType is record
@@ -61,7 +64,7 @@ architecture rtl of Usb2FSLSTx is
       state            => IDLE,
       dataSR           => SYNC_C,
       phase            => (others => '0'),
-      nstuff           => (others => '0'),
+      nstuff           => NSTUFF_C,
       j                => '1',
       vm               => '0',
       se0              => "10",
@@ -101,7 +104,7 @@ begin
       case ( r.state ) is
 
          when IDLE =>
-            v.nstuff      := to_unsigned(4, r.nstuff'length);
+            v.nstuff      := NSTUFF_C;
             v.phase       := "01000000";
             v.dataSR      := "00" & SYNC_C(SYNC_C'left downto 2);
             v.frcStuffErr := '0';
@@ -121,12 +124,12 @@ begin
          when SYNC | RUN =>
             if ( (not r.frcStuffErr and r.nstuff(r.nstuff'left) ) = '1' ) then
                v.j      := not r.j;
-               v.nstuff := to_unsigned(4, r.nstuff'length); 
+               v.nstuff := NSTUFF_C;
             else
                -- bit-stuffing
                if ( r.dataSR(0) = '0' ) then
                   v.j      := not r.j;
-                  v.nstuff := to_unsigned(4, r.nstuff'length); 
+                  v.nstuff := NSTUFF_C;
                else
                   v.nstuff := r.nstuff - 1;
                end if;
@@ -160,14 +163,22 @@ begin
             end if;
 
          when EOP =>
-            -- entering this state the last j/k from the shift operations
-            -- is active.
-            v.se0 := not r.se0(0) & r.se0(1);
-            v.j   := not r.se0(1);
+            -- bit-stuffing must be performed even after the last byte.
+            -- Had a host-controller not accepting the message if this was not
+            -- done...
+            if ( (not r.frcStuffErr and r.nstuff(r.nstuff'left) ) = '1' ) then
+               v.j      := not r.j;
+               v.nstuff := NSTUFF_C;
+            else
+               -- entering this state the last j/k from the shift operations
+               -- is active.
+               v.se0 := not r.se0(0) & r.se0(1);
+               v.j   := not r.se0(1);
 
-            if ( r.se0 = "00" ) then
-               -- se0 is loaded with "10" which is OK
-               v.state := IDLE;
+               if ( r.se0 = "00" ) then
+                  -- se0 is loaded with "10" which is OK
+                  v.state := IDLE;
+               end if;
             end if;
 
       end case;
