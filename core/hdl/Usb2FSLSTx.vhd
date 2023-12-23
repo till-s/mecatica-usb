@@ -52,6 +52,8 @@ architecture rtl of Usb2FSLSTx is
       nxt              : std_logic;
       rdy              : std_logic;
       act              : std_logic;
+      stp              : std_logic;
+      stpDat           : std_logic;
       frcStuffErr      : std_logic;
    end record RegType;
 
@@ -66,6 +68,8 @@ architecture rtl of Usb2FSLSTx is
       nxt              => '0',
       rdy              => '0',
       act              => '0',
+      stp              => '0',
+      stpDat           => '0',
       frcStuffErr      => '0'
    );
 
@@ -87,6 +91,13 @@ begin
       syn      <= '1';
       oe       <= '1';
 
+      -- must always evaluate 'stp' during the 'rdy' cycle --
+      -- the 'phase' may not have changed due to bit-stuffing...
+      if ( ( r.rdy and stp ) = '1' ) then
+         v.stp    := '1';
+         v.stpDat := data(7);
+      end if;
+
       case ( r.state ) is
 
          when IDLE =>
@@ -94,6 +105,7 @@ begin
             v.phase       := "01000000";
             v.dataSR      := "00" & SYNC_C(SYNC_C'left downto 2);
             v.frcStuffErr := '0';
+            v.stp         := '0';
 
             if ( sendK = '1' ) then
                syn        <= '0';
@@ -132,16 +144,16 @@ begin
                      v.state  := RUN;
                   else
                      v.dataSR := data;
-                     if ( r.frcStuffErr = '1' ) then 
-                        v.state := EOP;
-                        v.act   := '0';
-                     elsif ( stp = '1' ) then
-                        if ( data = x"00" ) then
+                     -- evaluate v.stp; it may have been asserted during *this* cycle
+                     if ( ( r.frcStuffErr or v.stp ) = '1' ) then
+                        if ( v.stpDat = '0' ) then
                            v.state := EOP;
                            v.act   := '0';
                         else
                            v.frcStuffErr := '1';
+                           v.dataSR      := (others => '1');
                         end if;
+                        v.stpDat := '0';
                      end if;
                   end if;
                end if;
