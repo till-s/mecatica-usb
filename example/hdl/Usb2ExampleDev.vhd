@@ -435,7 +435,14 @@ begin
    -- CDC ACM Endpoint
    G_EP_CDCACM : if ( HAVE_ACM_C ) generate
       signal cnt : unsigned(7 downto 0) := (others => '0');
+      signal acmEp0CtlExt        : Usb2CtlExtType;
+      signal acmEp0ObExt         : Usb2EndpPairIbType;
    begin
+
+      G_ACM_CTL_EXT : if ( HAVE_ACM_AGENT_C ) generate
+         usb2Ep0CtlExtArr( CDC_ACM_EP0_AGENT_IDX_C )   <= acmEp0CtlExt;
+         usb2Ep0CtlEpExtArr( CDC_ACM_EP0_AGENT_IDX_C ) <= acmEp0ObExt;
+      end generate G_ACM_CTL_EXT;
 
       U_CDCACM : entity work.Usb2EpCDCACM
          generic map (
@@ -454,8 +461,8 @@ begin
             usb2Rx                     => usb2Rx,
 
             usb2Ep0ReqParam            => usb2Ep0ReqParam,
-            usb2Ep0CtlExt              => usb2Ep0CtlExtArr( CDC_ACM_EP0_AGENT_IDX_C ),
-            usb2Ep0ObExt               => usb2Ep0CtlEpExtArr( CDC_ACM_EP0_AGENT_IDX_C ),
+            usb2Ep0CtlExt              => acmEp0CtlExt,
+            usb2Ep0ObExt               => acmEp0ObExt,
             usb2Ep0IbExt               => usb2EpOb(0),
 
             usb2DataEpIb               => usb2EpOb(CDC_ACM_BULK_EP_IDX_C),
