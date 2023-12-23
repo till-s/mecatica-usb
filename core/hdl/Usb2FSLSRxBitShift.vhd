@@ -189,7 +189,6 @@ begin
          v.state     := EOP;
       end if;
 
-      err          <= v.err;
       lineStateLoc <= v.lineState;
       rin          <= v;
    end process P_COMB;
@@ -237,6 +236,7 @@ begin
             end if;
             rxAct <= r.active;
          end if;
+         err       <= r.err;
       end if;
    end process P_OUT;
 
