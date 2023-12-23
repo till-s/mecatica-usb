@@ -21,7 +21,7 @@ entity UlpiFSLSEmul is
       IS_FS_G              : boolean := true;
       -- input-mode:
       --   true : vp -> 'vp', vm -> 'vm'
-      --   false: vp -> 'j',  vm -> 'se0'
+      --   false:             vm -> 'se0'
       -- note: output mode is always vp/vm
       INPUT_MODE_VPVM_G    : boolean := true
    );
@@ -73,8 +73,10 @@ architecture rtl of UlpiFSLSEmul is
 
    signal   rxJ              : std_logic;
    signal   rxSE0            : std_logic;
+   signal   rxInpLoc         : std_logic;
    signal   vpInpLoc         : std_logic;
    signal   vmInpLoc         : std_logic;
+   signal   rxInpSyn         : std_logic;
    signal   vpInpSyn         : std_logic;
    signal   vmInpSyn         : std_logic;
    signal   vpOutLoc         : std_logic;
@@ -96,11 +98,14 @@ begin
    G_FS_MAP : if ( IS_FS_G ) generate
       vpInpLoc   <= fslsIb.vp;
       vmInpLoc   <= fslsIb.vm;
+      rxInpLoc   <= fslsIb.rcv;
       fslsOb.vp  <= vpOutLoc;
       fslsOb.vm  <= vmOutLoc;
    end generate G_FS_MAP;
 
    G_LS_MAP : if ( not IS_FS_G ) generate
+
+      rxInpLoc   <= not fslsIb.rcv;
 
       G_LS_VPVM : if ( INPUT_MODE_VPVM_G ) generate
          vpInpLoc <= fslsIb.vm;
@@ -118,8 +123,6 @@ begin
 
    fslsOb.oe <= txOE;
 
-   rxJ       <= vpInpSyn;
-
    G_SE0_COMB : if ( INPUT_MODE_VPVM_G ) generate
       rxSE0    <= vpInpSyn nor vmInpSyn;
    end generate G_SE0_COMB;
@@ -129,6 +132,18 @@ begin
    end generate G_SE0;
 
    G_SYNC     : if ( SYNC_STAGES_G > 0 ) generate
+
+      U_SYNC_RX : entity work.Usb2CCSync
+         generic map (
+            STAGES_G          => SYNC_STAGES_G,
+            INIT_G            => '1'
+         )
+         port map (
+            clk               => smplClk,
+            rst               => smplRst,
+            d                 => rxInpLoc,
+            q                 => rxInpSyn
+         );
 
       U_SYNC_VP : entity work.Usb2CCSync
          generic map (
@@ -157,9 +172,12 @@ begin
    end generate G_SYNC;
 
    G_NO_SYNC  : if ( SYNC_STAGES_G = 0 ) generate
+      rxInpSyn <= rxInpLoc;
       vpInpSyn <= vpInpLoc;
       vmInpSyn <= vmInpLoc;
    end generate G_NO_SYNC;
+
+   rxJ <= rxInpSyn;
 
    U_FSLS_RX : entity work.Usb2FSLSRx
       generic map (
@@ -198,11 +216,11 @@ begin
          oe                => txOE
       );
 
-   ulpiTxRep.err <= '0';
-   ulpiTxRep.don <= r.txDon;
-   ulpiTxRep.nxt <= txNxt;
+   ulpiTxRep.err    <= '0';
+   ulpiTxRep.don    <= r.txDon;
+   ulpiTxRep.nxt    <= txNxt;
 
-   ulpiDir       <= rxActive or rxCmdValid;
+   ulpiDir          <= rxActive or rxCmdValid;
 
    ulpiRxLoc.dat    <= rxData;
    ulpiRxLoc.dir    <= ulpiDir;
@@ -250,9 +268,10 @@ begin
             r <= REG_INIT_C;
          else
             r <= rin;
-            ulpiRx <= ulpiRxLoc;
          end if;
       end if;
    end process P_SEQ;
+
+   ulpiRx <= ulpiRxLoc;
 
 end architecture rtl;

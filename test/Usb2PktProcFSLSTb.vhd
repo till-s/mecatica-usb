@@ -189,29 +189,15 @@ begin
       if (not run) then wait; end if;
    end process P_CLK;
 
-   usb2HstClk <= usb2Clk;
-   smplHstClk <= smplClk;
+   usb2HstClk    <= usb2Clk;
+   smplHstClk    <= smplClk;
 
---   P_BUS : process (fslsObHst, fslsOb) is
---   begin
---      if fslsOb.oe = '1' then
---         if ( fslsObHst.oe = '1' ) then
---            fslsIb.vp <= 'U';
---            fslsIb.vm <= 'U';
---         else
---            fslsIb.vp <= fslsOb.vp;
---            fslsIb.vm <= fslsOb.vm;
---         end if;
---      elsif ( fslsObHst.oe = '1' ) then
-            fslsIb.vp    <= fslsObHst.vp;
-            fslsIb.vm    <= fslsObHst.vm;
-            fslsIbHst.vp <= fslsOb.vp;
-            fslsIbHst.vm <= fslsOb.vm;
---      else
---            fslsIb.vp <= 'H';
---            fslsIb.vm <= 'L';
---      end if;
---   end process P_BUS;
+   fslsIb.rcv    <= fslsOb.vp when fslsOb.oe = '1' else fslsObHst.vp;
+   fslsIb.vp     <= fslsOb.vp when fslsOb.oe = '1' else fslsObHst.vp;
+   fslsIb.vm     <= fslsOb.vm when fslsOb.oe = '1' else fslsObHst.vm;
+   fslsIbHst.rcv <= fslsObHst.vp when fslsObHst.oe = '1' else fslsOb.vp;
+   fslsIbHst.vp  <= fslsObHst.vp when fslsObHst.oe = '1' else fslsOb.vp;
+   fslsIbHst.vm  <= fslsObHst.vm when fslsObHst.oe = '1' else fslsOb.vm;
 
    U_HST : entity work.UlpiFSLSEmul
       generic map (
