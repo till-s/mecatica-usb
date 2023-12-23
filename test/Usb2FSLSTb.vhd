@@ -88,7 +88,7 @@ architecture sim of Usb2FSLSTb is
 
    constant PERF_C : time      := 19.95 ns;
    constant PERS_C : time      := 20.05 ns;
-   constant NPHS_C : natural   := 7;
+   constant NPHS_C : natural   := 9;
 
    signal clkPer   : time      := PERS_C;
 
@@ -310,7 +310,27 @@ begin
                   idx := -1;
                end if;
             end if;
-         elsif ( phs < NPHS_C ) then
+         elsif ( phs = 7 or phs = 8 ) then
+            if ( valid = '1' and not trn ) then
+               if ( idx < 0 ) then
+                  cmp := x"5A";
+               else
+                  if ( phs = 7 ) then
+                     cmp := x"FF";
+                  else
+                     cmp := x"FC";
+                  end if;
+               end if;
+               assert  cmp = dout
+                  report "TX test mismatch @idx " & integer'image(idx)
+                  severity failure;
+               idx := idx + 1;
+               if ( ( phs = 7 and idx = 4 ) or ( phs = 8 and idx = 1 ) ) then
+                  phs := phs + 1;
+                  idx := -1;
+               end if;
+            end if;
+          elsif ( phs < NPHS_C ) then
             assert false report "Internal error -- unmonitored test phase" severity failure;
          else
             monDon <= true;
@@ -319,6 +339,7 @@ begin
    end process P_MON;
 
    P_FEED_TX : process is
+
       procedure SEND(constant x : std_logic_vector; constant sta : std_logic := '0') is
          variable idx : natural := 0;
       begin
@@ -341,13 +362,24 @@ begin
          TTICK;
          txStp <= '0';
          TTICK;
+         while ( txSE0 = '0' ) loop
+           TTICK;
+         end loop;
+         while ( ( txSE0 = '1' ) or ( txJ = '0' ) ) loop
+           TTICK;
+         end loop;
+         TTICK;
       end procedure SEND;
+
    begin
       wait until rxTstDon;
       report "Testing transmitter";
       SEND( BITS_C );
       -- send with error condition
       SEND( x"00", sta => '1' );
+      SEND( x"FFFFFFFF" );
+      -- trailing bit-stuff
+      SEND( x"FC" );
       wait;
 
    end process P_FEED_TX;
