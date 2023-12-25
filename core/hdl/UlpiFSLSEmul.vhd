@@ -11,8 +11,6 @@ use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
 -- Ulpi emulation for asynchronous FS/LS transceivers.
--- Note: ulpi line state encodes lineState(0)/lineState(1)
---       always as 'full-speed'.
 
 entity UlpiFSLSEmul is
    generic (
@@ -181,6 +179,7 @@ begin
 
    U_FSLS_RX : entity work.Usb2FSLSRx
       generic map (
+         IS_FS_G           => IS_FS_G,
          CLK_FREQ_G        => CLK_FREQ_C
       )
       port map (

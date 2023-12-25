@@ -12,7 +12,8 @@ use     work.UlpiPkg.all;
 
 entity Usb2FSLSRx is
    generic (
-      CLK_FREQ_G     : real := 48.0E6
+      IS_FS_G        : boolean := true;
+      CLK_FREQ_G     : real    := 48.0E6
    );
    port (
       -- sampling clock must be 4 times outClk and phase-synchronous to outClk
@@ -207,6 +208,9 @@ begin
    end process P_SEQ;
 
    U_SHFT : entity work.Usb2FSLSRxBitShift
+      generic map (
+         IS_FS_G    => IS_FS_G
+      )
       port map (
          smplClk    => smplClk,
          smplRst    => smplRst,

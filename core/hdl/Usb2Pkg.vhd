@@ -583,8 +583,11 @@ package Usb2Pkg is
    -- NONE     uses a regular ulpi transceiver
    -- FS_ONLY  uses an internal serializer and
    --          usb2 transceivers; this mode runs
-   --          at a reduced clock rate (48MHz).
-   type UlpiEmuModeType is ( NONE, FS_ONLY );
+   --          at a reduced clock rate (12MHz/48MHz).
+   -- LS_ONLY  uses an internal serializer and
+   --          usb2 transceivers; this mode runs
+   --          at a reduced clock rate (1.5MHz/6MHz).
+   type UlpiEmuModeType is ( NONE, FS_ONLY, LS_ONLY );
 
 end package Usb2Pkg;
 

@@ -10,6 +10,9 @@ use     ieee.numeric_std.all;
 use     work.UlpiPkg.all;
 
 entity Usb2FSLSRxBitShift is
+   generic (
+      IS_FS_G        : boolean := true
+   );
    port (
       -- sampling clock must be 4 times outClk and phase-synchronous to outClk
       smplClk        : in  std_logic;
@@ -67,7 +70,7 @@ architecture rtl of Usb2FSLSRxBitShift is
       err              => '0',
       clkAdj           => '0',
       se0Lst           => '0',
-      lineState        => (others => '0'),
+      lineState        => (others => '1'),
       active           => '0'
    );
 
@@ -103,8 +106,13 @@ begin
 
       if ( r.presc = 0 ) then
          if ( ( j = r.jkSR(r.jkSR'left) ) or ( r.state = SYNC ) ) then
-            v.lineState(0) := j;
-            v.lineState(1) := not j;
+            if ( IS_FS_G ) then
+               v.lineState(0) := j;
+               v.lineState(1) := not j;
+            else
+               v.lineState(0) := not j;
+               v.lineState(1) := j;
+            end if;
          end if;
          if    ( j /= r.jkSR(0) ) then
             if ( r.nstuff(r.nstuff'left) /= '1' ) then
@@ -175,7 +183,11 @@ begin
          when EOP =>
             if ( (se0 or r.se0Lst) = '0' and ( (j and r.jkSR(r.jkSR'left)) = '1' ) ) then
                v.err       := '0';
-               v.lineState := "01";
+               if ( IS_FS_G ) then
+                  v.lineState := ULPI_RXCMD_LINE_STATE_FS_J_C;
+               else
+                  v.lineState := not ULPI_RXCMD_LINE_STATE_FS_J_C;
+               end if;
                if ( r.jkSR(r.jkSR'left - 1 downto 1) = "11" ) then
                   v.state  := IDLE;
                end if;
@@ -184,7 +196,7 @@ begin
 
       if ( ( se0 and r.se0Lst ) = '1' ) then
          v.active    := '0';
-         v.lineState := "00";
+         v.lineState := ULPI_RXCMD_LINE_STATE_SE0_C;
          v.state     := EOP;
       end if;
 

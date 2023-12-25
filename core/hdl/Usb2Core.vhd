@@ -283,7 +283,7 @@ begin
    G_FSLS : if ( ULPI_EMU_MODE_G /= NONE ) generate
       U_FSLS : entity work.UlpiFSLSEmul
          generic map (
-            IS_FS_G            => (ULPI_EMU_MODE_G = FS_ONLY),
+            IS_FS_G            => (ULPI_EMU_MODE_G /= LS_ONLY),
             INPUT_MODE_VPVM_G  => FSLS_INPUT_MODE_VPVM_G
          )
          port map (

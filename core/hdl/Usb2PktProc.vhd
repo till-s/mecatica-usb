@@ -116,6 +116,24 @@ architecture Impl of Usb2PktProc is
 
    constant MILLI_SEC_C          : signed(16 downto 0) := to_signed( 60000-2, 17 );
 
+   function LINE_STATE_J_F
+      return std_logic_vector is
+   begin
+      if ( ULPI_EMU_MODE_G = LS_ONLY ) then
+         return not ULPI_RXCMD_LINE_STATE_FS_J_C;
+      end if;
+      return ULPI_RXCMD_LINE_STATE_FS_J_C;
+   end function LINE_STATE_J_F;
+
+   function LINE_STATE_K_F
+      return std_logic_vector is
+   begin
+      if ( ULPI_EMU_MODE_G = LS_ONLY ) then
+         return not ULPI_RXCMD_LINE_STATE_FS_K_C;
+      end if;
+      return ULPI_RXCMD_LINE_STATE_FS_K_C;
+   end function LINE_STATE_K_F;
+
    type StateType is (
       IDLE,
       DATA_INP,
@@ -434,7 +452,7 @@ begin
             end if;
          end if;
          if (    r.lineState = ULPI_RXCMD_LINE_STATE_SE0_C
-             and v.lineState = ULPI_RXCMD_LINE_STATE_FS_J_C ) then
+             and v.lineState = LINE_STATE_J_F               ) then
             -- start timer
             v.se0JTimer := to_signed(1, v.se0JTimer'length);
          end if;
@@ -921,14 +939,14 @@ begin
             end if;
 
          when WAIT_FS_J =>
-            if ( usb2Rx.isRxCmd and ( usb2Rx.rxCmd(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) ) then
+            if ( usb2Rx.isRxCmd and ( usb2Rx.rxCmd(1 downto 0) = LINE_STATE_J_F               ) ) then
                v.state := WAIT_FS_K;
                -- now start the timer
                usb2TimerStart( v.timer );
             end if;
 
          when WAIT_FS_K =>
-            if ( usb2Rx.isRxCmd and ( usb2Rx.rxCmd(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_K_C ) ) then
+            if ( usb2Rx.isRxCmd and ( usb2Rx.rxCmd(1 downto 0) = LINE_STATE_K_F               ) ) then
                v.state    := WAIT_ACK;
                v.timer    := USB2_TIMER_MAX_C; -- should never expire; frame has started already
                -- we still use a timeout so that we can simply bypass the WAIT_FS... states
