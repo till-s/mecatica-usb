@@ -6,7 +6,7 @@ by Till Straumann, 2023.
 
 Mecatica Usb is a versatile and generic USB-2-device implementation in
 VHDL supporting an ULPI-standard interface (e.g., driving an off-the shelf
-ULPI PHY chip).
+ULPI PHY chip). A serial full-speed only interface is also supported.
 
 The main use-case are FPGA applications which benefit from a high- or
 full-speed USB-2 interface (low-speed is ATM not supported).
@@ -49,15 +49,16 @@ MacOS.
 
 ## Language and Hardware
 
-Mecatica is written in VHDL and has been tested with Xilinx tools and
-hardware. The code is hardware-agnostic and should be portable to other
+Mecatica is written in VHDL and has been tested with Xilinx and Efinix tools
+and hardware. The code is hardware-agnostic and should be portable to other
 FPGA families (might need some tweaking so that RAM is properly inferred).
 
 ## Performance and Resource Consumption
 
 I was able to achieve aboutn 47MB/s with high-speed bulk transfers (no
 other devices or functions connected to the host port). The USB core
-and ACM function consume about 1800 LUTs (7Series).
+and ACM function consume about 1800 LUTs (7Series). Efinix Trion uses
+approximately 2500 LEs.
 
 <details><summary><h2>
 Features
@@ -70,6 +71,11 @@ The Usb2Core implements the following features:
    to operate a `USB3340` PHY in input-clock mode. When I added a crystal to
    the board and strapped the device for output-clock mode these problems
    disappeared!
+
+ - A serial full-speed (only) interface using legacy transceivers (such
+   as STUSB03 or ULPI transceivers in serial mode) is also supported.
+   This is useful on low-end FPGAs where meeting timing at 60MHz can
+   become a challenge.
 
  - Optionally provides access to ULPI-PHY registers via dedicated port for
    special use cases.
@@ -172,7 +178,7 @@ Usb2Core
 The Usb2Core aggregates all the standard components necessary to provide
 core functionality:
 
- - ULPI PHY Interface
+ - ULPI PHY Interface or full-speed only serial interface.
  - Line state monitor (speed negotiation, suspend/resume, reset from USB etc.)
  - Packet engine ((de)-fragmentation, CRC, endpoint (de)-multiplexing, packet
    sequencing and retransmission etc)
@@ -270,7 +276,11 @@ A number of generics controls the properties of the ULPI interface:
   needs. Ordinary applications may ignore this interface (open); advanced
   users must consult the source code for more information.
 
-</dd><dt>
+</dd></dl>
+
+### USB Status and Endpoint Interface Signals
+
+<dl><dt>
 
 `usb2DevStatus`
 
