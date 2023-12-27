@@ -33,6 +33,13 @@ entity Usb2Core is
       ULPI_DIR_IOB_G               : boolean         := true;
       ULPI_DIN_IOB_G               : boolean         := true;
       ULPI_STP_MODE_G              : UlpiStpModeType := NORMAL;
+      -- ULPI emulation mode:
+      --   NONE     => use regular ULPI transceiver
+      --   FS_ONLY  => use serial (non-ULPI) full-speed transceiver
+      --   LS_ONLY  => use serial (non-ULPI) low-speed transceiver
+      -- Note: if the emulation mode is /= NONE then the serial
+      --       signals are connected to fslsIb/fslsOb and ulpiIb/ulpiOb
+      --       are unused.
       ULPI_EMU_MODE_G              : UlpiEmuModeType := NONE;
       DESCRIPTORS_G                : Usb2ByteArray;
       DESCRIPTOR_BRAM_G            : boolean         := false;
@@ -44,7 +51,7 @@ entity Usb2Core is
       -- used by a non-ulpi transceiver to sample the raw line
       -- signals. This clock must run at 4*ulpiClk and must be
       -- phase-locked to ulpiClk. The ulpiClk itself must run
-      -- at the *bit rate* for non-emulation modes.
+      -- at the *bit rate* for serial/emulation modes.
       fslsSmplClk                  : in    std_logic := '0';
       fslsSmplRst                  : in    std_logic := '0';
       -- FS/LS serial interface (for ULPI emulation)
