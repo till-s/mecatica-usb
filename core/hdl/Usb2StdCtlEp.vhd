@@ -944,11 +944,11 @@ report integer'image( to_integer(unsigned(r.readVal)) ) & " " & integer'image( r
                epOb.mstInp.vld <= not r.flg;
                epOb.mstInp.don <= r.flg;
                epOb.mstInp.err <= '0';
-               if ( r.flg = '1' ) then
-                  v.flg   := '0';
-                  v.state := STATUS;
-               else
-                  if ( epIb.subInp.rdy = '1' ) then
+               if ( epIb.subInp.rdy = '1' ) then
+                  if ( r.flg = '1' ) then
+                     v.flg   := '0';
+                     v.state := STATUS;
+                  else
                      -- account for pipeline delay when reading BRAM
                      if ( r.tblOff = r.auxOff + ite( DESCRIPTOR_BRAM_G, 1, 0 ) ) then
                         if ( r.sizeMatch ) then
@@ -970,17 +970,19 @@ report integer'image( to_integer(unsigned(r.readVal)) ) & " " & integer'image( r
             epOb.mstInp.vld <= not r.flg;
             epOb.mstInp.don <= r.flg;
             epOb.mstInp.err <= '0';
-            if ( r.flg = '1' ) then
-               -- wait for send to be done
-               v.flg := '0';
-               v.state      := STATUS;
-            elsif ( epIb.subInp.rdy = '1' ) then
-               if ( r.retSz2 ) then
-                  v.retVal := (others => '0');
-                  v.retSz2 := false;
+            if ( epIb.subInp.rdy = '1' ) then
+               if ( r.flg = '1' ) then
+                  -- wait for send to be done
+                  v.flg       := '0';
+                  v.state     := STATUS;
                else
-                  -- done
-                  v.flg    := '1';
+                  if ( r.retSz2 ) then
+                     v.retVal := (others => '0');
+                     v.retSz2 := false;
+                  else
+                     -- done
+                     v.flg    := '1';
+                  end if;
                end if;
             end if;
 
