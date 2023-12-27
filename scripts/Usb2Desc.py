@@ -312,6 +312,8 @@ class Usb2DescContext(list):
     DSC_DAT_PROTOCOL_NONE              = 0x00
     DSC_DAT_PROTOCOL_NCM               = 0x01
 
+    DSC_IFC_CLASS_VENDOR               = 0xff
+
     def __init__(self, length, typ):
       super().__init__()
       self.cont_    = bytearray(length)
