@@ -30,6 +30,8 @@ package UlpiPkg is
    constant ULPI_FUN_CTL_X_HS_C     : std_logic_vector(7 downto 0) := x"00";
    -- full-speed
    constant ULPI_FUN_CTL_X_FS_C     : std_logic_vector(7 downto 0) := x"01";
+   -- low-speed
+   constant ULPI_FUN_CTL_X_LS_C     : std_logic_vector(7 downto 0) := x"02";
    -- term select
    constant ULPI_FUN_CTL_TERM_C     : std_logic_vector(7 downto 0) := x"04";
 
