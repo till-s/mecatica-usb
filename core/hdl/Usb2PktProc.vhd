@@ -49,7 +49,7 @@ architecture Impl of Usb2PktProc is
          v := a;
       elsif ( ULPI_EMU_MODE_G = NONE ) then
          v := b;
-      elsif ( ULPI_EMU_MODE_G = FS_ONLY ) then
+      else -- FS_ONLY or LS_ONLY measure in bit-times
          v := c;
       end if;
       v := v - 2; -- timer expired = '-1'
@@ -80,12 +80,14 @@ architecture Impl of Usb2PktProc is
    --
    --       and        1 clock delay in HSK state
 
-   -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks
-   constant TIME_HSK_TX_C        : Usb2TimerType := simt(20,   1, 1);
+   -- receive (tok, rx-data) -transmit (hsk); ULPI: HS: 1-14 clocks, FS: 7-18 clocks, LS: 77-247 clocks
+   -- HOWEVER: FS_ONLY/LS_ONLY modes measure time in *bit-times*
+   constant TIME_HSK_TX_C        : Usb2TimerType := simt(20, 1, 1);
 
-   -- receive (tok) -transmit (tx-data)     ; ULPI: HS: 1-14 clocks, FS: 7-18 clocks
-   constant TIME_DATA_TX_C       : Usb2TimerType := simt(20,   1, 1);
-   -- transmit (tx-data) - receive (hsk)    ; ULPI: HS: 92  clocks, FS: 80 clocks (no range given)
+   -- receive (tok) -transmit (tx-data)     ; ULPI: HS: 1-14 clocks, FS: 7-18 clocks, LS: 77-247 clocks
+   -- HOWEVER: FS_ONLY/LS_ONLY modes measure time in *bit-times*
+   constant TIME_DATA_TX_C       : Usb2TimerType := simt(20, 1, 1);
+   -- transmit (tx-data) - receive (hsk)    ; ULPI: HS: 92  clocks, FS: 80 clocks (no range given), LS: 718 clocks
    -- transmit (tx-data) - receive (hsk)    ; USB2: HS: 92-102   clocks, FS: 80 - 90 clocks (16-18 bit times)
    -- ULPI: RXCMD delay     2-4 (HS+FS)
    --       TX-Start delay  1-2 (HS), 1-10 (FS)
@@ -99,8 +101,8 @@ architecture Impl of Usb2PktProc is
    --      FS_max       =   90            + ( 1       + 2        + 2)  = 95
    -- In FS mode the SE-J -> K timing is measured by inspecting RXCmd which incur the same delay.
    -- In emulation mode the timing is in bit-times (ulpiClk ticks at the bit-rate)
-   --
-   constant TIME_WAIT_ACK_C      : Usb2TimerType := simt(20,  85, 17);
+   -- HOWEVER: FS_ONLY/LS_ONLY modes measure time in *bit-times*
+   constant TIME_WAIT_ACK_C      : Usb2TimerType := simt(20, 85, 17);
    -- receive (tok) - receive(data-pid)     ; USB2: HS: 92-102, FS: 80 - 90 since only receive-path
    --                                         latency is involved these values can be used verbatim
    -- UPDATE: Hmm - this timeout is mentioned (Fig. 8-32) but it's not clear what the value is.
