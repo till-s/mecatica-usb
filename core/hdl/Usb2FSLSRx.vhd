@@ -46,6 +46,15 @@ architecture rtl of Usb2FSLSRx is
    constant TIME_SNDK_C : integer := integer( 1.5E-3 * CLK_FREQ_G );
    constant TIME_RST_C  : integer := integer( 3.0E-6 * CLK_FREQ_G );
 
+   function LINE_STATE_J_F
+      return std_logic_vector is
+   begin
+      if ( IS_FS_G ) then
+         return ULPI_RXCMD_LINE_STATE_FS_J_C;
+      end if;
+      return ULPI_RXCMD_LINE_STATE_FS_K_C;
+   end function LINE_STATE_J_F;
+
    type StateType is (RUN, SUSP, SNDK, EOP, RESET);
 
    type RegType is record
@@ -134,7 +143,7 @@ begin
             end if;
 
          when EOP | RESET =>
-            if ( rxCmdLoc(1 downto 0) = ULPI_RXCMD_LINE_STATE_FS_J_C ) then
+            if ( rxCmdLoc(1 downto 0) = LINE_STATE_J_F ) then
                v.state := RUN;
                v.timer := TIME_SUSP_C - 1;
             end if;
