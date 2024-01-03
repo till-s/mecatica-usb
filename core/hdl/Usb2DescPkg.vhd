@@ -231,7 +231,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
          -- and look for the next match
          i := usb2NextDescriptor(d, i, t);
       end loop;
-      return highest + 1;
+      return highest;
    end function findMax;
 
    function usb2AppGetMaxEndpointAddr(constant d: Usb2ByteArray)
@@ -239,9 +239,10 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       variable v : integer;
    begin
       v := findMax(d, USB2_DESC_TYPE_ENDPOINT_C, USB2_EPT_DESC_IDX_ADDRESS_C, 3);
-      if ( v <= 0 ) then
-         v := 1; -- EP 0 has no descriptor
+      if ( v < 0 ) then
+         v := 0; -- EP 0 has no descriptor
       end if;
+      v := v + 1; -- num endpoints = max addr + 1
       report integer'image(v) & " endpoints";
       return v;
    end function usb2AppGetMaxEndpointAddr;
@@ -251,6 +252,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       variable v : natural;
    begin
       v := findMax(d, USB2_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_IFC_NUM_C, 6);
+      v := v + 1; -- number of ifc = max index + 1
       report integer'image(v) & " max IFs";
       return v;
    end function usb2AppGetMaxInterfaces;
@@ -260,6 +262,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       variable v : natural;
    begin
       v := findMax(d, USB2_DESC_TYPE_INTERFACE_C, USB2_IFC_DESC_IDX_ALTSETTING_C, 6);
+      v := v + 1; -- number of alts = max index + 1
       report integer'image(v) & " max ALTs";
       return v;
    end function usb2AppGetMaxAltsettings;
