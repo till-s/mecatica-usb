@@ -7,7 +7,32 @@
 
 import Usb2Desc
 
-def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iECMMACAddr = None, iNCMMACAddr = None, epPktSize=None, iProduct=None, doWrap=True, hiSpeed=True, dualSpeed=False, iSerial=None, uacProto="UAC2", haveACM=True):
+def mkExampleDevDescriptors(
+  # Vendor and Product Info
+  idVendor, idProduct,
+  iProduct            = None,
+  iSerial             = None,
+  # Speed Options
+  hiSpeed             = True,
+  dualSpeed           = False,
+  # Interface and Endpoint Details
+  ifcNumber           = 0,
+  epAddr              = 1,
+  epPktSize           = None,
+  ## Features/Functions
+  # ACM Function
+  haveACM             = True,
+  haveACMLineState    = True,
+  haveACMLineBreak    = True,
+  # ECM Function
+  iECMMACAddr         = None,
+  # NCM Function
+  iNCMMACAddr         = None,
+  # Sound Function
+  uacProto            = "UAC2",
+  # Wrap up the descriptors
+  doWrap              = True
+  ):
   remWake = True
   c  = Usb2Desc.Usb2DescContext()
   d  = c.Usb2DeviceDesc()
@@ -42,7 +67,7 @@ def mkExampleDevDescriptors(idVendor, idProduct, ifcNumber=0, epAddr=1, iECMMACA
     epAddr_    = epAddr
 
     if ( haveACM ):
-      ifs, eps = Usb2Desc.addBasicACM(c, ifcNumber_, epAddr_, epPktSize, sendBreak=True, lineState=True, hiSpeed = speed, fcnTitle = "Mecatica ACM")
+      ifs, eps = Usb2Desc.addBasicACM(c, ifcNumber_, epAddr_, epPktSize, sendBreak=haveACMLineBreak, lineState=haveACMLineState, hiSpeed = speed, fcnTitle = "Mecatica ACM")
       ifcNumber_ += ifs
       epAddr_    += eps
 
