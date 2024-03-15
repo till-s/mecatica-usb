@@ -1,15 +1,15 @@
-# Mecatica Usb
+# Mecatica USB
 
 by Till Straumann, 2023.
 
 ## Introduction
 
-Mecatica Usb is a versatile and generic USB-2-device implementation in
+Mecatica Usb is a versatile and generic USB2-device implementation in
 VHDL supporting an ULPI-standard interface (e.g., driving an off-the shelf
-ULPI PHY chip). A serial full-speed only interface is also supported.
+ULPI PHY chip). A serial (full/low-speed only) interface is also supported.
 
 The main use-case are FPGA applications which benefit from a high- or
-full-speed USB-2 interface (low-speed is ATM not supported).
+full-speed USB-2 interface (low-speed is ATM only supported for the serial interface).
 
 A few generic function classes (CDC-ACM, CDC-ECM, CDC-NCM) are implemented
 which can be connected to the generic core IP. USB descriptors are generated
@@ -75,13 +75,14 @@ The Usb2Core implements the following features:
  - A serial full-speed (only) interface using legacy transceivers (such
    as STUSB03 or ULPI transceivers in serial mode) is also supported.
    This is useful on low-end FPGAs where meeting timing at 60MHz can
-   become a challenge.
+   become a challenge (especially for I/O).
 
  - Optionally provides access to ULPI-PHY registers via dedicated port for
    special use cases.
 
  - Speed negotiation (device starts as full-speed and tries to negotiate
-   high-speed); low-speed is currently *not supported*.
+   high-speed); low-speed is currently *not supported* (when using an ULPI
+   transceiver; low-speed is supported with legacy/serial transceivers).
 
  - Extensible Endpoint-Zero implementation. The endpoint handles the standard
    requests (such as `SET_ADDRESS`, `GET_DESCRIPTOR` etc.) but also features
@@ -89,7 +90,7 @@ The Usb2Core implements the following features:
    specific requests.
 
  - Handles the details of USB-2 transfers (such as retransmission, CRCs,
-   (de-)fragmenting from/to max. packet size etc.) and (de-)multiplexes
+   (de-)fragmentation from/to max. packet size etc.) and (de-)multiplexes
    transfers to individual endpoints as (optionally) framed byte-streams.
 
  - Descriptors are usually hard-coded into the application. Optionally, the
@@ -116,6 +117,12 @@ macos).
  - CDC ACM function. This function presents a simple FIFO interface to the
    FPGA client firmware. The CDC ACM *LineState* and *SendBreak* capabilites
    are supported and accessible from dedicated interface ports.
+   The *LineState* capability supports side-band channels (e.g., modem
+   signals in both directions; events can be signalled to the host side
+   via the function's interrupt endpoint).
+   The capabilities may be disabled in the descriptors (which results
+   in the corresponding logic to be removed from the design) in order
+   to save resources.
 
      On the host this function can be accessed as an ordinary `tty` device.
      (Alternatively, the function may, e.g., be detached from the kernel
@@ -153,7 +160,7 @@ to its successor or a similar one should be straightforward.
      - ECM Ethernet function.
      - NCM Ethernet function.
      - BADD Speaker function forward `i2s` stream to the on-board SSM2603
-       audio coded.
+       audio codec.
 
  - Demo software
 
@@ -168,6 +175,8 @@ to its successor or a similar one should be straightforward.
        interface. Mecatica is aimed at FPGA applications - for software
        applications you'd use the PS USB interface. Interfacing the
        ethernet functions directly to sofware is a *demo only*.
+     - Application to test/demo ACM modem line "interrupts" (uses
+       `ioctl(IOCMIWAIT)`).
 
 </details>
 
@@ -196,6 +205,15 @@ observed.
 A number of generics controls the properties of the ULPI interface:
 <dl>
 <dt>
+
+`ULPI_EMU_MODE_G`
+
+</dt> <dd>
+
+  Set to `NONE` (default) when using the ULPI interface. This generic
+  is used to enable the serial (non-ULPI) interface.
+
+</dd><dt>
 
 `ULPI_NXT_IOB_G`
 
@@ -275,6 +293,93 @@ A number of generics controls the properties of the ULPI interface:
   Interface to the ULPI PHY registers for specialized testing or debugging
   needs. Ordinary applications may ignore this interface (open); advanced
   users must consult the source code for more information.
+
+</dd></dl>
+
+### Serial Interface
+
+Mecatica supports the use of legacy full- or low-speed transceivers over
+a serial interface. When using this serial interface the ULPI interface
+should be left unconnected (except for `ulpiClk`).
+
+The serial interface implements (de-)serialization and (de-)bit stuffing
+for the RX and TX path, respectively. The serial interface is enabled by
+setting the `ULPI_EMU_MODE_G` generic to `FS_ONLY` or `LS_ONLY`, respectively.
+
+The serial interface features an ULPI emulation layer which presents
+parallel data to the USB core.
+
+Note that the `ulpiClk` runs at the *bit-clock frequency* in serial mode,
+i.e., 12MHz for full- and 1.5MHz for low-speed. This also applies to the
+rest of Mecatica: all USB-processing as well as the endpoints etc. are
+clocked at the bit-rate.
+
+In addition to `ulpiClk` the serial interface requires a sampling clock
+which must be phase-synchronous to the bit-clock at 4-times the bit-rate,
+i.e., 48MHz for full- and 6MHz for low-speed.
+
+#### Generics
+
+<dl>
+<dt>
+
+`ULPI_EMU_MODE_G`
+
+</dt> <dd>
+
+  This generic is used to enable the serial (non-ULPI) interface.
+  Set to `FS_ONLY` for full-speed and to `LS_ONLY` for low-speed,
+  respectively.
+
+</dd></dl>
+
+#### Ports
+
+<dl>
+<dt>
+
+  `ulpiClk`
+
+</dt><dd>
+
+  In serial mode the `ulpiClk` must run at the *bit-clock rate*
+  instead of the usual 60MHz. I.e., 12MHz for full- and 1.5MHz for
+  low-speed.
+
+</dd></dt>
+
+  `fslsSmplClk`
+
+</dt><dd>
+
+  Sampling clock used by RX clock recovery. This must be phase-
+  synchronous to the bit-clock (`ulpiClk`) and run at 4-times the
+  bit rate, i.e., 48MHz for full- and 6MHz for low-speed.
+
+  When defining timing constraints keep in mind that the sampling-
+  and bit-clock domains are *not* asynchronous, i.e., their crossing
+  paths must be properly constrained by defining appropriate multicycle
+  paths.
+
+</dd></dt>
+
+  `fslsIb`
+
+</dt><dd>
+
+  Inbound signals from the serial transceiver. These consist of the outputs
+  of the differential- as well as the single-ended receivers.
+
+</dd></dt>
+
+  `fslsOb`
+
+</dt><dd>
+
+  Output signals to the serial transceiver. These consist of the
+  single-ended `vp` and `vm` signals as well as the output-enable (`oe`)
+  for direction-control of the transceiver. If the transceiver uses
+  bi-directional pins then `oe` also controls the FPGA I/O pin direction.
 
 </dd></dl>
 
