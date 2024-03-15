@@ -24,14 +24,24 @@
 #
 #  c.wrapup()
 #
-# and eventually a VHDL representation can be emitted
+# and eventually a VHDL representation of a byte array (contents
+# only) can be emitted:
 #
 #  with io.open("Myfile","w") as f:
-#    c.vhdl( f )
+#    c.emitVhdlByteArray( f )
+#
+# alternatively, a full implementation of the AppCfgPkg body can be
+# generated:
+#
+#  with io.open("AppCfgPkgBody.vhd", "w") as f:
+#    f.genAppCfgPkgBody( f )
+#
+# the generated file should be included with the synthesized file set.
 #
 import sys
 import io
 import re
+import os
 
 # Helper class (see below)
 class CvtReader(object):
@@ -136,7 +146,10 @@ class Usb2DescContext(list):
   #  - set configuration value; the firmware assumes this is 1-based and contiguous
   #  - total config. descriptor length (added to configuration descriptor)
   #  - create and add string descriptor (for all accumulated strings)
-  #  - create and add sentinel descriptor (non-spec conforming but used by FW)
+  #  - create and add sentinel descriptor (non-spec conforming but used by FW;
+  #    the sentinel descriptor(s) are never sent to the host; they exist only
+  #    in the firmware image to mark the end of a set of descriptors.)
+  #
   def wrapup(self):
     if ( self.wrapped ):
        raise RuntimeError("Context is already wrapped")
@@ -216,19 +229,19 @@ class Usb2DescContext(list):
     # append string descriptors
     if ( len( self.strtbl_ ) > 0 ):
       # lang-id at string index 0
-      self.Usb2Desc(4, ns.DSC_TYPE_STRING).cont[2:4] = [0x09, 0x04]
+      self.Usb2StringDesc(0x0409) # US-English
       for s in self.strtbl_:
          self.Usb2StringDesc( s )
     # append TAIL
     self.Usb2SentinelDesc()
     self.wrapped_ = True
 
-  def vhdl(self, f = sys.stdout):
+  def emitVhdlByteArray(self, f = sys.stdout):
     if ( not self.wrapped ):
       RuntimeError("Must wrapup context before VHDL can be emitted")
     if isinstance(f, str):
       with io.open(f, "w") as f:
-         self.vhdl(f)
+         self.emitVhdlByteArray(f)
     else:
       i   = 0
       eol = ""
@@ -249,6 +262,32 @@ class Usb2DescContext(list):
         print( "   -- {}".format( offNam ), file = f )
       else:
         print(file = f)
+
+  def genAppCfgPkgBody(self, f = sys.stdout):
+    print("-- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.", file=f)
+    print("-- You may obtain a copy of the license at", file=f)
+    print("--   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12", file=f)
+    print("-- This notice must not be removed.\n", file=f)
+    print("-- THIS FILE WAS AUTOMATICALLY GENERATED ({}); DO NOT EDIT!\n".format( os.path.basename(sys.argv[0]) ), file=f)
+    print("library ieee;", file=f)
+    print("use     ieee.std_logic_1164.all;", file=f)
+    print("use     ieee.numeric_std.all;", file=f)
+    print("use     ieee.math_real.all;", file=f)
+    print("", file=f)
+    print("use     work.Usb2Pkg.all;", file=f)
+    print("use     work.UlpiPkg.all;", file=f)
+    print("use     work.Usb2UtilPkg.all;", file=f)
+    print("use     work.Usb2DescPkg.all;", file=f)
+    print("", file=f)
+    print("package body Usb2AppCfgPkg is", file=f)
+    print("   function usb2AppGetDescriptors return Usb2ByteArray is", file=f)
+    print("      constant c : Usb2ByteArray := (", file=f)
+    self.emitVhdlByteArray( f )
+    print("      );", file=f)
+    print("   begin", file=f)
+    print("      return c;", file=f)
+    print("   end function usb2AppGetDescriptors;", file=f)
+    print("end package body Usb2AppCfgPkg;", file=f)
 
 
   # the 'factory' decorator converts local classes
@@ -376,12 +415,43 @@ class Usb2DescContext(list):
   class Usb2StringDesc(Usb2Desc.clazz):
 
     def __init__(self, s):
-      senc = s.encode('utf-16-le')
-      super().__init__(2 + len(senc), self.DSC_TYPE_STRING)
-      self.cont[2:] = senc
+      self.isLangId = False
+      if isinstance(s, str):
+        senc = s.encode('utf-16-le')
+        super().__init__(2 + len(senc), self.DSC_TYPE_STRING)
+        self.cont[2:] = senc
+      elif isinstance(s, int):
+        # single language id
+        super().__init__(2 + 2, self.DSC_TYPE_STRING)
+        self.cont[2]  = (s & 0xff)
+        self.cont[3]  = ( (s >> 8) & 0xff );
+        self.isLangId = True
+      elif isinstance(s, list):
+        # list of language ids
+        super().__init__(2 + 2*len(s), self.DSC_TYPE_STRING)
+        off = 2
+        for i in s:
+          if not isinstance(s, int):
+            raise TypeError('Usb2StringDesc: list of language IDs must be a list of integers')
+          self.cont[off + 0] = (i & 0xff)
+          self.cont[off + 1] = ( (i >> 8) & 0xff );
+          off += 2
+        self.isLangId = True
+      else:
+        raise TypeError("Usb2StringDesc constructor expects str, int or list of int")
 
     def __repr__(self):
       return self.cont[2:].decode('utf-16-le')
+
+    def nameAt(self, off):
+      if ( off < 2 ):
+        return super().nameAt( off )
+      if ( 0 == off % 2 ):
+        if (self.isLangId):
+          return 'langID 0x{:04x}'.format(self.cont[off] + (self.cont[off+1]<<8))
+        else:
+          return self.cont[off:off+2].decode('utf-16-le')
+      return None
 
   @factory
   class Usb2DeviceDesc(Usb2Desc.clazz):
