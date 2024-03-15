@@ -121,6 +121,7 @@ architecture top_level of ZynqTop is
    signal ctl                            : std_logic_vector(7 downto 0) := (others => '0');
 
    signal acmLineBreak                   : std_logic;
+   signal acmDCD                         : std_logic;
 
    signal plClk                          : std_logic;
    signal sysRst, sysRstN                : std_logic;
@@ -537,6 +538,7 @@ begin
          acmFifoRstOut        => acmFifoRst,
 
          acmLineBreak         => acmLineBreak,
+         acmDCD               => acmDCD,
 
          ecmFifoOutDat        => ecmFifoOutDat,
          ecmFifoOutLast       => ecmFifoOutLst,
@@ -1025,6 +1027,9 @@ begin
       ledLoc(0) <= refLocked;
    end process P_LED;
 
-   LED <= ledLoc;
+   -- create a DCD interrupt with SW(0)
+   acmDCD <= SW(0);
+
+   LED    <= ledLoc;
 
 end top_level;
