@@ -25,7 +25,7 @@ void usage(const char *nm)
 {
 	printf("usage: %s [-d tty_device] [-n num_irqs]\n", nm);
 	printf("    -n    : number of interrupts to process (< 0 => indefinite)\n");
-	printf("            default: 0 (just print current status of lines)\n");
+	printf("            default: 0 (just print current line state)\n");
 }
 
 int
