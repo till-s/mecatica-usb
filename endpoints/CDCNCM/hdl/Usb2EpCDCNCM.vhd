@@ -98,6 +98,8 @@ entity Usb2EpCDCNCM is
       -- I.e., it is safe to hold fifoDataInp/fifoWenaInp steady until fifoFullInp
       -- is deasserted.
       fifoLastInp                : in  std_logic;
+      -- abort/kill a partial packet in the INP FIFO by rewinding the write-pointer.
+      -- Useful, e.g., when a bad CRC is detected.
       fifoAbrtInp                : in  std_logic := '0';
       fifoWenaInp                : in  std_logic;
       fifoFullInp                : out std_logic;
@@ -109,6 +111,9 @@ entity Usb2EpCDCNCM is
 
       fifoDataOut                : out Usb2ByteType;
       fifoLastOut                : out std_logic;
+      -- abort a partially sent packet by rewinding the read pointer of the OUT
+      -- FIFO. Useful, e.g., when a collision is detected. The packet remains
+      -- in the FIFO and can be replayed.
       fifoAbrtOut                : in  std_logic := '0';
       -- read-enable; data are *not* read while fifoEmptyOut is asserted.
       -- I.e., it is safe to hold fifoRenaOut steady until fifoEmptyOut
