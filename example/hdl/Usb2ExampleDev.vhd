@@ -173,11 +173,14 @@ entity Usb2ExampleDev is
 
       ncmFifoOutDat        : out Usb2ByteType := (others => '0');
       ncmFifoOutLast       : out std_logic    := '0';
+      ncmFifoOutAbrt       : in  std_logic    := '0';
       ncmFifoOutEmpty      : out std_logic    := '0';
+      ncmFifoOutNeedCrc    : out std_logic    := '0';
       ncmFifoOutRen        : in  std_logic    := '1';
 
       ncmFifoInpDat        : in  Usb2ByteType := (others => '0');
       ncmFifoInpLast       : in  std_logic    := '1';
+      ncmFifoInpAbrt       : in  std_logic    := '0';
       ncmFifoInpBusy       : out std_logic    := '1';
       ncmFifoInpFull       : out std_logic    := '0';
       ncmFifoInpAvail      : out signed(15 downto 0) := (others => '0');
@@ -690,6 +693,7 @@ begin
             -- FIFO Interface
             fifoDataInp                => ncmFifoInpDat,
             fifoLastInp                => ncmFifoInpLast,
+            fifoAbrtInp                => ncmFifoInpAbrt,
             fifoWenaInp                => ncmFifoInpWen,
             fifoFullInp                => ncmFifoInpFull,
             fifoBusyInp                => ncmFifoInpBusy,
@@ -697,8 +701,10 @@ begin
 
             fifoDataOut                => ncmFifoOutDat,
             fifoLastOut                => ncmFifoOutLast,
+            fifoAbrtOut                => ncmFifoOutAbrt,
             fifoRenaOut                => ncmFifoOutRen,
             fifoEmptyOut               => ncmFifoEmptyOut,
+            fifoCrcOut                 => ncmFifoOutNeedCrc,
 
             carrier                    => ncmCarrier
          );

@@ -42,6 +42,7 @@ architecture Sim of Usb2EpCDCNCMInpTb is
    signal   fifoWenaLoc     : std_logic          := '0';
    signal   fifoFullInp     : std_logic          := '0';
    signal   fifoBusyInp     : std_logic          := '0';
+   signal   fifoAbrtInp     : std_logic          := '0';
 
    signal   timeout         : unsigned(TMO_WIDTH_C - 1 downto 0) := to_unsigned( 100, TMO_WIDTH_C );
 
@@ -92,6 +93,8 @@ architecture Sim of Usb2EpCDCNCMInpTb is
 
    constant tstVec          : Slv9Array := frd( "NCMInpTst.txt" );
    signal   tstIdx          : natural   := tstVec'low;
+   signal   tstIdxSav       : natural   := tstVec'low;
+   signal   tstIdxAbr       : natural   := tstVec'low;
 
    procedure usb2Tick is
    begin
@@ -120,16 +123,24 @@ begin
    begin
       if ( rising_edge( epClk ) ) then
          chopEp         <= (chopEp(0) xor chopEp(2)) & chopEp(chopEp'left downto 1);
+         fifoAbrtInp    <= '0';
 
          if ( tstIdx = tstVec'low ) then
             fifoWenaLoc    <= '1';
          end if;
 
-         if ( (fifoWenaInp and not fifoBusyInp and not fifoFullInp ) = '1' ) then
+         if ( (fifoWenaInp and not fifoBusyInp and not fifoFullInp and not fifoAbrtInp ) = '1' ) then
             if ( tstIdx = tstVec'high ) then
                fifoWenaLoc <= '0';
             else
                tstIdx      <= tstIdx + 1;
+               if ( fifoLastInp = '1' ) then
+                  tstIdxSav  <= tstIdx + 1;
+               elsif ( tstIdx /= tstIdxAbr and tstIdx = tstIdxSav + 3 ) then
+                  tstIdxAbr   <= tstIdx;
+                  tstIdx      <= tstIdxSav;
+                  fifoAbrtInp <= '1';
+               end if;
             end if;
          end if;
       end if;
@@ -212,6 +223,7 @@ begin
          fifoLastInp            => fifoLastInp,
          fifoFullInp            => fifoFullInp,
          fifoWenaInp            => fifoWenaInp,
+         fifoAbrtInp            => fifoAbrtInp,
          fifoBusyInp            => fifoBusyInp,
          fifoAvailInp           => open
       );

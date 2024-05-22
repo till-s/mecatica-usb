@@ -98,6 +98,7 @@ entity Usb2EpCDCNCM is
       -- I.e., it is safe to hold fifoDataInp/fifoWenaInp steady until fifoFullInp
       -- is deasserted.
       fifoLastInp                : in  std_logic;
+      fifoAbrtInp                : in  std_logic := '0';
       fifoWenaInp                : in  std_logic;
       fifoFullInp                : out std_logic;
       -- data are only accepted if Wena and not Full and not Busy
@@ -108,6 +109,7 @@ entity Usb2EpCDCNCM is
 
       fifoDataOut                : out Usb2ByteType;
       fifoLastOut                : out std_logic;
+      fifoAbrtOut                : in  std_logic := '0';
       -- read-enable; data are *not* read while fifoEmptyOut is asserted.
       -- I.e., it is safe to hold fifoRenaOut steady until fifoEmptyOut
       -- is deasserted.
@@ -264,6 +266,7 @@ begin
 
          fifoDataInp               => fifoDataInp,
          fifoLastInp               => fifoLastInp,
+         fifoAbrtInp               => fifoAbrtInp,
          fifoWenaInp               => fifoWenaInp,
          fifoFullInp               => fifoFullInp,
          fifoBusyInp               => fifoBusyInp,
@@ -293,6 +296,7 @@ begin
 
          fifoDataOut               => fifoDataOut,
          fifoLastOut               => fifoLastOut,
+         fifoAbrtOut               => fifoAbrtOut,
          fifoRenaOut               => fifoRenaOut,
          fifoCrcOut                => fifoCrcOut,
          fifoEmptyOut              => fifoEmptyOut

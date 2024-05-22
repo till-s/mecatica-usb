@@ -72,6 +72,8 @@ entity Usb2EpCDCNCMOut is
       -- when set then the transmitter must pad to min-length and append a CRC
       fifoCrcOut                 : out std_logic;
       fifoLastOut                : out std_logic;
+      -- abort output (e.g., due to collision)
+      fifoAbrtOut                : in  std_logic := '0';
       -- read-enable; data are *not* read while fifoEmptyOut is asserted.
       -- I.e., it is safe to hold fifoRenaOut steady until fifoEmptyOut
       -- is deasserted.
@@ -93,13 +95,14 @@ architecture Impl of Usb2EpCDCNCMOut is
 
    constant RAM_SIZE_C    : RamIdxType := to_unsigned( 2**LD_RAM_DEPTH_G, RamIdxType'length );
 
-   type RdStateType is ( IDLE, READ_SDP_SIG, READ_SDP, READ_DGRAM_IDX, READ_DGRAM_LEN, READ_NXT, READ_DGRAM );
+   type RdStateType is ( IDLE, READ_SDP_SIG, READ_SDP, READ_DGRAM_IDX, READ_DGRAM_LEN, READ_NXT, READ_DGRAM, ABORT );
 
    type RdRegType is record
       state          : RdStateType;
       rdPtr          : RamIdxType;
       sdpOff         : RamIdxType;
       sdpIdx         : RamIdxType;
+      sdpIdxSaved    : RamIdxType;
       rdOff          : RamIdxType;
       dgramLen       : RamIdxType;
       tmpLo          : Usb2ByteType;
@@ -112,6 +115,7 @@ architecture Impl of Usb2EpCDCNCMOut is
       rdPtr          => (others => '0'),
       sdpOff         => (others => '0'),
       sdpIdx         => (others => '0'),
+      sdpIdxSaved    => (others => '0'),
       rdOff          => NTH_OFF_NDP_C,
       dgramLen       => (others => '0'),
       tmpLo          => (others => '0'),
@@ -170,7 +174,7 @@ architecture Impl of Usb2EpCDCNCMOut is
 
 begin
 
-   P_RD_COMB : process ( rRd, ramWrPtrIb, rdData, fifoRenaOut ) is
+   P_RD_COMB : process ( rRd, ramWrPtrIb, rdData, fifoRenaOut, fifoAbrtOut ) is
       variable v         : RdRegType;
       variable lenMinus1 : RamIdxType;
    begin
@@ -220,6 +224,7 @@ begin
             v.needCrc     := rdData(0);
             rdAddr        <= rRd.rdPtr  + rRd.sdpOff + rRd.sdpIdx;
             v.sdpIdx      := rRd.sdpIdx + 1;
+            v.sdpIdxSaved := rRd.sdpIdx;
             v.state       := READ_DGRAM_IDX;
 
          when READ_DGRAM_IDX =>
@@ -268,11 +273,27 @@ begin
                v.dgramLen   := lenMinus1;
                v.rdOff      := rRd.rdOff    + 1;
                if ( lenMinus1( lenMinus1'left ) = '1' ) then
-                  rdAddr    <= rRd.rdPtr + rRd.sdpOff + rRd.sdpIdx;
-                  v.sdpIdx  := rRd.sdpIdx + 1;
-                  v.state   := READ_DGRAM_IDX;
+                  rdAddr        <= rRd.rdPtr + rRd.sdpOff + rRd.sdpIdx;
+                  v.sdpIdx      := rRd.sdpIdx + 1;
+                  v.sdpIdxSaved := rRd.sdpIdx;
+                  v.state       := READ_DGRAM_IDX;
                end if;
             end if;
+            if ( fifoAbrtOut = '1' ) then
+               -- rdOff and dgramLen are reloaded by READ_DGRAM_IDX, READ_DGRAM_LEN
+               v.sdpIdx      := rRd.sdpIdxSaved;
+               v.sdpIdxSaved := rRd.sdpIdxSaved;
+               v.state       := ABORT;
+            end if;
+
+         when ABORT =>
+            rdAddr <= rRd.rdPtr + rRd.sdpOff + rRd.sdpIdx;
+            if ( fifoAbrtOut <= '0' ) then
+               v.sdpIdx := rRd.sdpIdx + 1;
+               -- sdpIdxSaved is already = sdpIdx
+               v.state  := READ_DGRAM_IDX;
+            end if;
+       
       end case;
 
       fifoDataOut <= rdData(7 downto 0);

@@ -66,6 +66,8 @@ entity Usb2EpCDCNCMInp is
 
       fifoDataInp                : in  Usb2ByteType;
       fifoLastInp                : in  std_logic;
+      -- abort input (e.g., due to bad checksum or address filter match)
+      fifoAbrtInp                : in  std_logic := '0';
       -- write-enable; data are *not* read while fifoEmptyOut is asserted.
       -- I.e., it is safe to hold fifoRenaOut steady until fifoEmptyOut
       -- is deasserted.
@@ -467,7 +469,7 @@ begin
    P_WR_COMB : process (
       rWr,
       full,
-      fifoDataInp, fifoLastInp, fifoWenaInp,
+      fifoDataInp, fifoLastInp, fifoAbrtInp, fifoWenaInp,
       timeout, maxNTBSize
    ) is
       variable v     : WrRegType;
@@ -507,6 +509,14 @@ begin
                v.timer := resize( signed( timeout ), v.timer'length );
             else
                v.timer := rWr.timer - 1;
+            end if;
+            if ( fifoAbrtInp = '1' ) then
+               -- reset to datagram start
+               v.state  := IDLE;
+               v.timer  := resize( signed( timeout ), v.timer'length );
+               v.nDgram := rWr.nDgram;
+               v.hdPtr  := rWr.hdPtr;
+               v.wrPtr  := rWr.hdPtr + HDR_SPACE_C; -- reserve space for the next header
             end if;
 
          when WRITE_H1 =>

@@ -75,12 +75,15 @@ architecture sim of Usb2EpCDCNCMOutTb is
 
    signal   fifoDataOut     : Usb2ByteType       := ( others => '0');
    signal   fifoLastOut     : std_logic          := '0';
+   signal   fifoAbrtOut     : std_logic          := '0';
    signal   fifoRenaOut     : std_logic          := '0';
    signal   fifoRenaOutLoc  : std_logic          := '0';
    signal   fifoEmptyOut    : std_logic          := '0';
 
    signal   tstIdx          : natural            := tstVec'low;
    signal   cmpIdx          : natural            := cmpVec'low;
+   signal   cmpIdxSav       : natural            := cmpVec'low;
+   signal   cmpIdxAbr       : natural            := cmpVec'low;
 
    -- modulate the in-stream  'vld/don' with an LFSR
    signal   chopUsb2        : std_logic_vector( 10 downto 0 ) := ( 0 => '1', others => '0');
@@ -119,7 +122,7 @@ architecture sim of Usb2EpCDCNCMOutTb is
    begin
       if ( rising_edge( usb2Clk ) ) then
 
-	     chopUsb2 <= (chopUsb2(0) xor chopUsb2(2)) & chopUsb2(chopUsb2'left downto 1);
+	     chopUsb2    <= (chopUsb2(0) xor chopUsb2(2)) & chopUsb2(chopUsb2'left downto 1);
 
          if ( canSend = '0' ) then
             if ( epIb.subOut.rdy = '1' ) then
@@ -147,7 +150,8 @@ architecture sim of Usb2EpCDCNCMOutTb is
       if ( rising_edge( epClk ) ) then
 	     chopEp         <= (chopEp(0) xor chopEp(2)) & chopEp(chopEp'left downto 1);
 	     fifoRenaOutLoc <= '1';
-	     if ( (fifoRenaOut and not fifoEmptyOut) =  '1' ) then
+         fifoAbrtOut    <= '0';
+	     if ( (fifoRenaOut and not fifoEmptyOut and not fifoAbrtOut) =  '1' ) then
 		    assert cmpVec(cmpIdx) = fifoLastOut & fifoDataOut report "output data mismatch" severity failure;
 			if ( cmpIdx = cmpVec'high ) then
 			   fifoRenaOutLoc <= '0';
@@ -155,6 +159,13 @@ architecture sim of Usb2EpCDCNCMOutTb is
 			   report "Test PASSED";
 			else
 			   cmpIdx <= cmpIdx + 1;
+               if ( fifoLastOut = '1' ) then
+                  cmpIdxSav <= cmpIdx + 1;
+               elsif ( cmpIdx /= cmpIdxAbr and cmpIdx = cmpIdxSav + 3 ) then
+                  cmpIdxAbr   <= cmpIdx;
+                  cmpIdx      <= cmpIdxSav;
+                  fifoAbrtOut <= '1';
+               end if;
 			end if;
          end if;
       end if;
@@ -187,6 +198,7 @@ architecture sim of Usb2EpCDCNCMOutTb is
 
          fifoDataOut             => fifoDataOut,
          fifoLastOut             => fifoLastOut,
+         fifoAbrtOut             => fifoAbrtOut,
          fifoRenaOut             => fifoRenaOut,
          fifoEmptyOut            => fifoEmptyOut
       );
