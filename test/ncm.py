@@ -202,12 +202,7 @@ class Dgram(BitVecHolder):
     print()
 
   def bitVec(self, f = sys.stdout, m = 0x1ff, stripCRC=False):
-    if ( not stripCRC or not self.ndp_.hasCRC ):
-      super().bitVec( f = f, m = m, stripCRC = stripCRC )
-    else:
-      for x in self.bv_[0:-5]:
-        print("{:09b}".format(x & m), file = f)
-      print("{:09b}".format( self.bv_[-5] | 0x100 ), file = f )
+    super().bitVec( f = f, m = m, stripCRC = stripCRC )
 
   def getContent(self):
     return self.bv_
@@ -285,14 +280,14 @@ class NDP16(BitVecHolder):
 
   seq = 1
 
-  def __init__(self, hasCRC=False, l=None):
+  def __init__(self, addCRC=False, l=None):
     sig       = [0x4E, 0x43, 0x4D, 0x30]
     self.lck_ = False
     self.dgs_ = list()
     if l is None:
       l = list()
       l.extend( [0x4E, 0x43, 0x4D, 0x30] )
-      if (hasCRC):
+      if (addCRC):
          l[3] |= 1
       l.extend( [ 0,0] ) # Header Length
       l.extend( [ 0,0] ) # Next NDP
@@ -319,7 +314,7 @@ class NDP16(BitVecHolder):
     self.lck_ = True
 
   @property
-  def hasCRC(self):
+  def addCRC(self):
     return (self.bv_[3] & 1) != 0
 
   @property
@@ -344,8 +339,6 @@ class NDP16(BitVecHolder):
     self.bv_.set16LE(4, self.getLen())
 
   def add(self, dgram):
-    if ( self.hasCRC ):
-      dgram.extend([0,0,0,0])
     if ( len( self.dgs_ ) != 0 ):
       self.bv_.extend( [0,0,0,0] )
     # else use first slot
@@ -385,7 +378,7 @@ def genVecs(pre):
 
   n=NTB16()
   ndp=NDP16()
-  ndpc=NDP16( hasCRC=True )
+  ndpc=NDP16( addCRC=True )
   dg0=Dgram(ndp, [1,2,4])
   dg1=Dgram(ndp, [8,6,7])
   dg2=Dgram(ndpc, [1])
@@ -419,7 +412,7 @@ def genVecs(pre):
   ndp=NDP16()
   n2.add(ndp)
   n2.add( Dgram(ndp, random.randbytes(31)) )
-  ndp=NDP16(hasCRC=True)
+  ndp=NDP16(addCRC=True)
   n2.add(ndp)
   n2.add( Dgram(ndp, random.randbytes(30)) )
   n2.wrap(hasBlockLen=True)

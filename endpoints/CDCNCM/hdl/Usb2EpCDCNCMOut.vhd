@@ -69,6 +69,8 @@ entity Usb2EpCDCNCMOut is
       -- FIFO Interface
 
       fifoDataOut                : out Usb2ByteType;
+      -- when set then the transmitter must pad to min-length and append a CRC
+      fifoCrcOut                 : out std_logic;
       fifoLastOut                : out std_logic;
       -- read-enable; data are *not* read while fifoEmptyOut is asserted.
       -- I.e., it is safe to hold fifoRenaOut steady until fifoEmptyOut
@@ -102,7 +104,7 @@ architecture Impl of Usb2EpCDCNCMOut is
       dgramLen       : RamIdxType;
       tmpLo          : Usb2ByteType;
       dataHi         : boolean;
-      haveCrc        : boolean;
+      needCrc        : std_logic;
    end record RdRegType;
 
    constant RD_REG_INIT_C : RdRegType := (
@@ -114,7 +116,7 @@ architecture Impl of Usb2EpCDCNCMOut is
       dgramLen       => (others => '0'),
       tmpLo          => (others => '0'),
       dataHi         => false,
-      haveCrc        => false
+      needCrc        => '0'
    );
 
    type WrStateType is ( HDR, LEN, FILL, WRITE_LEN_1, DONE );
@@ -215,7 +217,7 @@ begin
             end if;
 
          when READ_SDP_SIG =>
-            v.haveCrc     := (rdData(0) = '1');
+            v.needCrc     := rdData(0);
             rdAddr        <= rRd.rdPtr  + rRd.sdpOff + rRd.sdpIdx;
             v.sdpIdx      := rRd.sdpIdx + 1;
             v.state       := READ_DGRAM_IDX;
@@ -248,9 +250,6 @@ begin
                v.sdpIdx := rRd.sdpIdx + 1;
             else
                v.dgramLen := toRamIdxType( rdData , rRd.tmpLo ) - 1;
-               if ( rRd.haveCrc ) then
-                  v.dgramLen := v.dgramLen - 4;
-               end if;
                if ( v.dgramLen(v.dgramLen'left) = '1' ) then -- end of table
                   rdAddr   <= rRd.rdPtr + rRd.sdpOff + NDP_OFF_NXT_C;
                   v.rdOff  := rRd.sdpOff + NDP_OFF_NXT_C + 1;
@@ -446,5 +445,7 @@ begin
 
    ramWrPtrOb <= rWr.wrTail;
    ramRdPtrOb <= rRd.rdPtr;
+
+   fifoCrcOut <= rRd.needCrc;
 
 end architecture Impl;

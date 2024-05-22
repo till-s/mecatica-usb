@@ -112,6 +112,8 @@ entity Usb2EpCDCNCM is
       -- I.e., it is safe to hold fifoRenaOut steady until fifoEmptyOut
       -- is deasserted.
       fifoRenaOut                : in  std_logic;
+      -- when set then the transmitter must pad to min-length and append a CRC
+      fifoCrcOut                 : out std_logic;
       fifoEmptyOut               : out std_logic;
 
       carrier                    : in  std_logic := CARRIER_DFLT_G
@@ -292,6 +294,7 @@ begin
          fifoDataOut               => fifoDataOut,
          fifoLastOut               => fifoLastOut,
          fifoRenaOut               => fifoRenaOut,
+         fifoCrcOut                => fifoCrcOut,
          fifoEmptyOut              => fifoEmptyOut
       );
 
