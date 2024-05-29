@@ -136,7 +136,7 @@ begin
       parmsIb( 1)  <= x"00";
       parmsIb( 2)  <= x"01"; -- 16-bit NTB only
       parmsIb( 3)  <= x"00";
-      -- should be supply the 'live' size or our max. supported size?
+      -- should we supply the 'live' size or our max. supported size?
       parmsIb( 4)  <= Usb2ByteType( to_unsigned( MAX_NTB_SIZE_INP_G, 32 )( 7 downto  0) );
       parmsIb( 5)  <= Usb2ByteType( to_unsigned( MAX_NTB_SIZE_INP_G, 32 )(15 downto  8) );
       parmsIb( 6)  <= Usb2ByteType( to_unsigned( MAX_NTB_SIZE_INP_G, 32 )(23 downto 16) );
