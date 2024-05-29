@@ -323,8 +323,8 @@ begin
 
    G_ASYNC : if ( ASYNC_G ) generate
 
-      constant A2B_L : natural := 2 + epMaxNTBSizeInp'length + usb2RamRdPtrInp'length + usb2RamWrPtrOut'length;
-      constant B2A_L : natural := 2 + usb2RamWrPtrInp'length + usb2RamRdPtrOut'length;
+      constant A2B_L : natural := epMaxNTBSizeInp'length + usb2RamRdPtrInp'length + usb2RamWrPtrOut'length + 1;
+      constant B2A_L : natural := usb2RamWrPtrInp'length + usb2RamRdPtrOut'length + 1;
 
       signal resettingA     : std_logic := '1'; -- signal initial reset
 
