@@ -341,7 +341,11 @@ begin
                   v.state    := NDP_HDR;
                   v.cnt      := NDH_SIZE_C - 1;
                   -- add alignment of the NDP
-                  v.cnt      := v.cnt + to_integer( unsigned( not rRd.nthAndPldLen(1 downto 0) ) + 1 );
+                  --  lsbits: 00 -> 00
+                  --          01 -> 11
+                  --          10 -> 10
+                  --          11 -> 01
+                  v.cnt      := v.cnt + to_integer( unsigned( - signed( rRd.nthAndPldLen(1 downto 0) ) ) );
                end if;
             end if;
 
@@ -525,6 +529,10 @@ begin
             wrAddr      <= rWr.wrTail;
             wrData      <= '0' & Usb2ByteType( size(  7 downto 0 ) );
             v.state     := WRITE_H2;
+            if ( fifoAbrtInp = '1' ) then
+               -- just need to rewind the write pointer
+               v.wrPtr  := rWr.hdPtr + HDR_SPACE_C; -- reserve space for the next header
+            end if;
 
          when WRITE_H2 =>
             fifoBusyInp <= '1'; -- hold off the source
@@ -535,6 +543,10 @@ begin
             -- yield to the reader
             v.wrTail    := rWr.hdPtr;
             v.state     := IDLE;
+            if ( fifoAbrtInp = '1' ) then
+               -- just need to rewind the write pointer
+               v.wrPtr  := rWr.hdPtr + HDR_SPACE_C; -- reserve space for the next header
+            end if;
 
       end case;
 
