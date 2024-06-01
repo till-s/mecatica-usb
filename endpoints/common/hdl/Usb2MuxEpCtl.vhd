@@ -72,7 +72,7 @@ architecture Impl of Usb2MuxEpCtl is
       if ( x.filtRecpt and ( p.recipient /= usb2ReqTypeGetRecipient( x.reqType ) ) ) then
          return false;
       end if;
-      if ( p.index(7 downto 0) /= x.reqIndex ) then
+      if ( x.filtIdx and ( p.index(7 downto 0) /= x.reqIndex ) ) then
          return false;
       end if ;
       return true;
