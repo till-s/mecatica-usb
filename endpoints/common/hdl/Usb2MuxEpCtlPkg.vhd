@@ -27,10 +27,10 @@ package Usb2MuxEpCtlPkg is
    end record Usb2CtlEpAgentConfigType;
 
    function usb2CtlEpMkAgentConfig(
-      constant recipient : in std_logic_vector(1 downto 0);
-      constant index     : in natural range 0 to 255;
+      constant recipient : in Usb2CtlRequestRecipientType;
+      constant index     : in integer range 0 to 255;
       constant dev2Host  : in std_logic := 'X';
-      constant reqType   : in std_logic_vector(1 downto 0) := "XX"
+      constant reqType   : in Usb2CtlRequestTypeType := "XX";
    ) return Usb2CtlEpAgentConfigType;
 
    constant USB2_CTL_EP_AGENT_CONFIG_INIT_C : Usb2CtlEpAgentConfigType := (
@@ -38,7 +38,7 @@ package Usb2MuxEpCtlPkg is
       filtDir   => false,
       filtType  => false,
       filtRecpt => false,
-      reqIndex  => (others => '0')
+      reqIndex  => (others => '0'),
    );
 
    type Usb2CtlEpAgentConfigArray is array (natural range <>) of Usb2CtlEpAgentConfigType;
@@ -61,7 +61,7 @@ package Usb2MuxEpCtlPkg is
    function usb2CtlEpMkIfcAgentConfig(
       constant index     : in natural range 0 to 255;
       constant dev2Host  : in std_logic := 'X';
-      constant reqType   : in std_logic_vector(1 downto 0) := "XX"
+      constant reqType   : in Usb2CtlRequestTypeType := "XX"
    ) return Usb2CtlEpAgentConfigType;
 
    function usb2CtlEpMkCsIfcAgentConfig(
@@ -72,7 +72,7 @@ package Usb2MuxEpCtlPkg is
    function usb2CtlEpMkEpAgentConfig(
       constant index     : in natural range 0 to 255;
       constant dev2Host  : in std_logic := 'X';
-      constant reqType   : in std_logic_vector(1 downto 0) := "XX"
+      constant reqType   : in Usb2CtlRequestTypeType := "XX"
    ) return Usb2CtlEpAgentConfigType;
 
 end package Usb2MuxEpCtlPkg;
@@ -80,15 +80,15 @@ end package Usb2MuxEpCtlPkg;
 package body Usb2MuxEpCtlPkg is
 
    function usb2CtlEpMkAgentConfig(
-      constant recipient : in std_logic_vector(1 downto 0);
-      constant index     : in natural range 0 to 255;
+      constant recipient : in Usb2CtlRequestRecipientType;
+      constant index     : in integer range 0 to 255;
       constant dev2Host  : in std_logic := 'X';
-      constant reqType   : in std_logic_vector(1 downto 0) := "XX"
+      constant reqType   : in Usb2CtlRequestTypeType := "XX";
    ) return Usb2CtlEpAgentConfigType is
       variable v   : Usb2CtlEpAgentConfigType;
       variable d2h : boolean;
-      variable typ : std_logic_vector(1 downto 0) := "00";
-      variable rcp : std_logic_vector(1 downto 0) := "00";
+      variable typ : Usb2CtlRequestTypeType      := "00";
+      variable rcp : Usb2CtlRequestRecipientType := "00";
    begin
       d2h         := (dev2Host   = '1');
       v.filtDir   := (dev2Host  /= 'X');
@@ -113,7 +113,7 @@ package body Usb2MuxEpCtlPkg is
    function usb2CtlEpMkIfcAgentConfig(
       constant index     : in natural range 0 to 255;
       constant dev2Host  : in std_logic := 'X';
-      constant reqType   : in std_logic_vector(1 downto 0) := "XX"
+      constant reqType   : in Usb2CtlRequestTypeType := "XX"
    ) return Usb2CtlEpAgentConfigType is
    begin
       return usb2CtlEpMkAgentConfig (
@@ -127,7 +127,7 @@ package body Usb2MuxEpCtlPkg is
    function usb2CtlEpMkEpAgentConfig(
       constant index     : in natural range 0 to 255;
       constant dev2Host  : in std_logic := 'X';
-      constant reqType   : in std_logic_vector(1 downto 0) := "XX"
+      constant reqType   : in Usb2CtlRequestTypeType := "XX"
    ) return Usb2CtlEpAgentConfigType is
    begin
       return usb2CtlEpMkAgentConfig (

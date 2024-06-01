@@ -323,23 +323,16 @@ package Usb2Pkg is
    type Usb2EndpPairIbArray       is array (natural range <>) of Usb2EndpPairIbType;
    type Usb2EndpPairObArray       is array (natural range <>) of Usb2EndpPairObType;
 
-   function usb2ReqTypeIsDev2Host  (constant reqTyp : in Usb2ByteType) return boolean;
-   function usb2ReqTypeGetType     (constant reqTyp : in Usb2ByteType) return std_logic_vector;
-   function usb2ReqTypeGetRecipient(constant reqTyp : in Usb2ByteType) return std_logic_vector;
+   subtype  Usb2CtlRequestTypeType                 is unsigned(1 downto 0);
+   constant USB2_REQ_TYP_TYPE_STANDARD_C           : Usb2CtlRequestTypeType := "00";
+   constant USB2_REQ_TYP_TYPE_CLASS_C              : Usb2CtlRequestTypeType := "01";
+   constant USB2_REQ_TYP_TYPE_VENDOR_C             : Usb2CtlRequestTypeType := "10";
 
-   function usb2MakeRequestType(
-      constant dev2Host  : in  boolean;
-      constant reqType   : in  std_logic_vector(1 downto 0);
-      constant recipient : in  std_logic_vector(1 downto 0)
-   ) return Usb2ByteType;
-
-   constant USB2_REQ_TYP_TYPE_STANDARD_C           : std_logic_vector(1 downto 0) := "00";
-   constant USB2_REQ_TYP_TYPE_CLASS_C              : std_logic_vector(1 downto 0) := "01";
-   constant USB2_REQ_TYP_TYPE_VENDOR_C             : std_logic_vector(1 downto 0) := "10";
-
-   constant USB2_REQ_TYP_RECIPIENT_DEV_C           : std_logic_vector(1 downto 0) := "00";
-   constant USB2_REQ_TYP_RECIPIENT_IFC_C           : std_logic_vector(1 downto 0) := "01";
-   constant USB2_REQ_TYP_RECIPIENT_EPT_C           : std_logic_vector(1 downto 0) := "10";
+   -- for now ignore the reserved bits
+   subtype  Usb2CtlRequestRecipientType            is unsigned(1 downto 0);
+   constant USB2_REQ_TYP_RECIPIENT_DEV_C           : Usb2CtlRequestRecipientType := "00";
+   constant USB2_REQ_TYP_RECIPIENT_IFC_C           : Usb2CtlRequestRecipientType := "01";
+   constant USB2_REQ_TYP_RECIPIENT_EPT_C           : Usb2CtlRequestRecipientType := "10";
 
    subtype  Usb2StdRequestCodeType                 is unsigned(3 downto 0);
    constant USB2_REQ_STD_GET_STATUS_C              : Usb2StdRequestCodeType     := x"0";
@@ -365,6 +358,16 @@ package Usb2Pkg is
    function toUsb2InterfaceNumType(
       constant x : in std_logic_vector
    ) return Usb2InterfaceNumType;
+
+   function usb2ReqTypeIsDev2Host  (constant reqTyp : in Usb2ByteType) return boolean;
+   function usb2ReqTypeGetType     (constant reqTyp : in Usb2ByteType) return Usb2CtlRequestTypeType;
+   function usb2ReqTypeGetRecipient(constant reqTyp : in Usb2ByteType) return Usb2CtlRequestRecipientType;
+
+   function usb2MakeRequestType(
+      constant dev2Host  : in  boolean;
+      constant reqType   : in  Usb2CtlRequestTypeType;
+      constant recipient : in  Usb2CtlRequestRecipientType
+   ) return Usb2ByteType;
 
    -- class-specific request
    constant USB2_REQ_CLS_CDC_SET_LINE_CODING_C             : Usb2CtlRequestCodeType     := x"20";
@@ -437,8 +440,8 @@ package Usb2Pkg is
 
    type     Usb2CtlReqParamType is record
       dev2Host  : boolean;
-      reqType   : std_logic_vector( 1 downto 0);
-      recipient : std_logic_vector( 1 downto 0);
+      reqType   : Usb2CtlRequestTypeType;
+      recipient : Usb2CtlRequestRecipientType;
       -- hold all bits to support non-std requests
       request   : Usb2CtlRequestCodeType;
       value     : std_logic_vector(15 downto 0);
@@ -636,13 +639,13 @@ package body Usb2Pkg is
    end function usb2ReqTypeIsDev2Host;
 
    function usb2ReqTypeGetType     (constant reqTyp : in Usb2ByteType)
-   return std_logic_vector is begin
-      return reqTyp(6 downto 5);
+   return Usb2CtlRequestTypeType is begin
+      return Usb2CtlRequestTypeType( reqTyp(6 downto 5) );
    end function usb2ReqTypeGetType;
 
    function usb2ReqTypeGetRecipient(constant reqTyp : in Usb2ByteType)
-   return std_logic_vector is begin
-      return reqTyp(1 downto 0);
+   return Usb2CtlRequestRecipientType is begin
+      return Usb2CtlRequestRecipientType( reqTyp(1 downto 0) );
    end function usb2ReqTypeGetRecipient;
 
    function usb2DescIsSentinel(constant x: Usb2ByteType)
@@ -684,7 +687,6 @@ package body Usb2Pkg is
       return usb2CtlReqDstInterface( p, toUsb2InterfaceNumType( i ) );
    end function usb2CtlReqDstInterface;
 
-
    function toUsb2InterfaceNumType(
       constant x : in natural
    ) return Usb2InterfaceNumType is
@@ -721,8 +723,8 @@ package body Usb2Pkg is
 
    function usb2MakeRequestType(
       constant dev2Host  : in  boolean;
-      constant reqType   : in  std_logic_vector(1 downto 0);
-      constant recipient : in  std_logic_vector(1 downto 0)
+      constant reqType   : in  Usb2CtlRequestTypeType;
+      constant recipient : in  Usb2CtlRequestRecipientType
    ) return Usb2ByteType is
       variable v : Usb2ByteType;
    begin
@@ -730,8 +732,8 @@ package body Usb2Pkg is
       if ( dev2Host ) then
          v(7) := '1';
       end if;
-      v(6 downto 5) := reqType;
-      v(1 downto 0) := recipient;
+      v(6 downto 5) := std_logic_vector( reqType );
+      v(1 downto 0) := std_logic_vector( recipient );
       return v;
    end function usb2MakeRequestType;
 
