@@ -63,7 +63,7 @@ end entity Usb2EpGenericCtl;
 
 architecture Impl of Usb2EpGenericCtl is
 
-   type StateType is ( IDLE, WAIT_RESP, SEND, RECV, DONE );
+   type StateType is ( IDLE, WAIT_RESP, SEND, RECV, STRMO, DONE );
 
    subtype IndexType is natural range HANDLE_REQUESTS_G'range;
 
@@ -113,6 +113,9 @@ begin
       usb2EpOb.mstInp.err  <= '0';
       usb2EpOb.mstInp.don  <= '0';
 
+      ctlReqVld            <= r.reqVld;
+      paramOb              <= r.buf;
+
       case ( r.state ) is
          when IDLE =>
             v.idx        := IndexType'low;
@@ -152,7 +155,11 @@ begin
                               else
                                  v.reqSel(i)  := '1';
                                  v.ctlExt.ack := '1';
-                                 v.state      := RECV;
+                                 if ( HANDLE_REQUESTS_G(i).stream ) then
+                                    v.state      := STRMO;
+                                 else
+                                    v.state      := RECV;
+                                 end if;
                               end if;
                            end if;
                         end if;
@@ -222,6 +229,33 @@ begin
                end if;
             end if;
 
+         when STRMO =>
+            paramOb(0) <= usb2EpIb.mstOut.dat;
+
+            if ( r.nbytes >= 0 ) then
+               usb2EpOb.subOut.rdy <= ctlReqAck;
+               for i in ctlReqVld'range loop
+                  ctlReqVld(i) <= r.reqSel(i) and usb2EpIb.mstOut.vld;
+               end loop;
+               if ( ( usb2EpIb.mstOut.vld and ctlReqAck ) = '1' ) then
+                  v.nBytes := r.nBytes - 1;
+               end if;
+            else
+               -- drain
+               usb2EpOb.subOut.rdy <= '1';
+            end if;
+            if ( usb2EpIb.mstOut.don = '1' ) then
+               v.reqSel     := (others => '0');
+               v.ctlExt.don := '1';
+               v.ctlExt.ack := '1';
+               if ( r.nbytes < 0 ) then
+                  v.ctlExt.err := '0';
+               else
+                  v.ctlExt.err := '1';
+               end if;
+               v.state      := DONE;
+            end if;
+
          when DONE =>
             if ( usb2CtlReqParam.vld = '0' ) then
                v.state := IDLE;
@@ -244,8 +278,6 @@ begin
       end if;
    end process P_SEQ;
 
-   ctlReqVld  <= r.reqVld;
-   paramOb    <= r.buf;
    usb2CtlExt <= r.ctlExt;
 
 end architecture Impl;
