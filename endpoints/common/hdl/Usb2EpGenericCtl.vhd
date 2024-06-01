@@ -16,7 +16,9 @@ use     work.Usb2EpGenericCtlPkg.all;
 entity Usb2EpGenericCtl is
 
    generic (
-      CTL_IFC_NUM_G     : natural;
+      -- set to -1 to disable check; e.g., the Usb2MuxEpCtl
+      -- already filters requests...
+      CTL_IFC_NUM_G     : integer;
       HANDLE_REQUESTS_G : Usb2EpGenericReqDefArray;
       MARK_DEBUG_G      : boolean := false
    );
@@ -88,9 +90,15 @@ architecture Impl of Usb2EpGenericCtl is
    signal r       : RegType := REG_INIT_C;
    signal rin     : RegType := REG_INIT_C;
 
+   signal filter  : boolean := true;
+
 begin
 
-   P_COMB : process ( r, usb2CtlReqParam, ctlReqAck, ctlReqErr, paramIb, usb2EpIb ) is
+   G_FILT : if ( CTL_IFC_NUM_G >= 0 ) generate
+      filter <= usb2CtlReqDstInterface( usb2CtlReqParam, CTL_IFC_NUM_G );
+   end generate G_FILT;
+
+   P_COMB : process ( r, usb2CtlReqParam, ctlReqAck, ctlReqErr, paramIb, usb2EpIb, filter ) is
       variable v : RegType;
    begin
       v                    := r;
@@ -115,7 +123,7 @@ begin
                v.ctlExt.don := '1';
                v.state      := DONE;
 
-               if ( usb2CtlReqDstInterface( usb2CtlReqParam, CTL_IFC_NUM_G ) ) then
+               if ( filter ) then
 
                   for i in HANDLE_REQUESTS_G'range loop
                      if (      HANDLE_REQUESTS_G(i).dev2Host = toSl( usb2CtlReqParam.dev2Host )
