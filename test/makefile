@@ -64,7 +64,7 @@ SRCS += Usb2FSLSRx.vhd
 SRCS += Usb2FSLSRxBitShift.vhd
 SRCS += Usb2FSLSTx.vhd
 SRCS += Usb2FSLSTb.vhd
-SRCS += Usb2FSLSEmul.vhd
+SRCS += UlpiFSLSEmul.vhd
 SRCS += Usb2PktProcFSLSTb.vhd
 
 
