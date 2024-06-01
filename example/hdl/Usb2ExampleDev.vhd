@@ -44,6 +44,8 @@ entity Usb2ExampleDev is
       -- asynchronous EP clock ?
       CDC_NCM_ASYNC_G                    : boolean         := false;
 
+      -- external control-endpoint agents
+      CTL_EP0_AGENTS_CONFIG_G            : Usb2CtlEpAgentConfigArray := USB2_CTL_EP_AGENT_CONFIG_EMPTY_C;
 
       MARK_DEBUG_EP0_CTL_MUX_G           : boolean         := false;
       MARK_DEBUG_ULPI_IO_G               : boolean         := false;
@@ -92,6 +94,12 @@ entity Usb2ExampleDev is
       usb2DescRWClk        : in  std_logic                                      := '0';
       usb2DescRWIb         : in  Usb2DescRWIbType                               := USB2_DESC_RW_IB_INIT_C;
       usb2DescRWOb         : out Usb2DescRWObType                               := USB2_DESC_RW_OB_INIT_C;
+
+      -- External EP0 agent(s)
+      usb2Ep0ReqParam      : out Usb2CtlReqParamType;
+      usb2Ep0ObExt         : out Usb2EndpPairObType;
+      usb2Ep0IbExt         : in  Usb2EndpPairIbArray( CTL_EP0_AGENTS_CONFIG_G'range ) := (others => USB2_ENDP_PAIR_IB_INIT_C );
+      usb2Ep0CtlExt        : in  Usb2CtlExtArray( CTL_EP0_AGENTS_CONFIG_G'range ):= (others => USB2_CTL_EXT_NAK_C);
 
       -- ACM FIFO CLOCK DOMAIN
       acmFifoClk           : in  std_logic := '0';
@@ -217,7 +225,7 @@ architecture Impl of Usb2ExampleDev is
            USB2_IFC_SUBCLASS_CDC_ACM_C,
            USB2_IFC_PROTOCOL_NONE_C
         ) >= 0 );
-           
+
    constant HAVE_BADD_C                        : boolean :=
       ( usb2NextIfcAssocDescriptor(
            DESCRIPTORS_G,
@@ -244,7 +252,7 @@ architecture Impl of Usb2ExampleDev is
            USB2_IFC_SUBCLASS_CDC_NCM_C,
            USB2_IFC_PROTOCOL_NONE_C
         ) >= 0 );
- 
+
    constant N_EP_C                             : natural := usb2AppGetMaxEndpointAddr(DESCRIPTORS_G);
 
    constant CDC_ACM_BULK_EP_IDX_C              : natural := 0                       + ite( HAVE_ACM_C,  1, 0 );
@@ -270,7 +278,8 @@ architecture Impl of Usb2ExampleDev is
    constant BADD_EP0_AGENT_IDX_C               : natural := CDC_ACM_EP0_AGENT_IDX_C + ite( HAVE_ACM_AGENT_C,  1, 0 );
    constant CDC_ECM_EP0_AGENT_IDX_C            : natural := BADD_EP0_AGENT_IDX_C    + ite( HAVE_BADD_C,       1, 0 );
    constant CDC_NCM_EP0_AGENT_IDX_C            : natural := CDC_ECM_EP0_AGENT_IDX_C + ite( HAVE_ECM_C,        1, 0 );
-   constant NUM_EP0_AGENTS_C                   : natural := CDC_NCM_EP0_AGENT_IDX_C + ite( HAVE_NCM_C,        1, 0 );
+   constant EXT_EP0_AGENTS_IDX_C               : natural := CDC_NCM_EP0_AGENT_IDX_C + ite( HAVE_NCM_C,        1, 0 );
+   constant NUM_EP0_AGENTS_C                   : natural := EXT_EP0_AGENTS_IDX_C    + CTL_EP0_AGENTS_CONFIG_G'length;
 
    signal acmFifoDatInp                        : Usb2ByteType := (others => '0');
    signal acmFifoWenInp                        : std_logic    := '0';
@@ -293,9 +302,9 @@ architecture Impl of Usb2ExampleDev is
    signal usb2RstLoc                           : std_logic;
 
    signal usb2Ep0ReqParamIn                    : Usb2CtlReqParamType;
-   signal usb2Ep0ReqParam                      : Usb2CtlReqParamType;
+   signal usb2Ep0ReqParamLoc                   : Usb2CtlReqParamType := USB2_CTL_REQ_PARAM_INIT_C;
 
-   signal usb2Ep0CtlExt                        : Usb2CtlExtType     := USB2_CTL_EXT_NAK_C;
+   signal usb2Ep0CtlExtLoc                     : Usb2CtlExtType      := USB2_CTL_EXT_NAK_C;
 
    signal usb2Ep0CtlExtArr                     : Usb2CtlExtArray(0 to NUM_EP0_AGENTS_C - 1)     := ( others => USB2_CTL_EXT_NAK_C );
    signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType                             := USB2_ENDP_PAIR_IB_INIT_C;
@@ -318,8 +327,8 @@ architecture Impl of Usb2ExampleDev is
    signal usb2EpOb                             : Usb2EndpPairObArray(0 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_OB_INIT_C );
 
 
-   attribute MARK_DEBUG                        of usb2Ep0ReqParam   : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
-   attribute MARK_DEBUG                        of usb2Ep0CtlExt     : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
+   attribute MARK_DEBUG                        of usb2Ep0ReqParamLoc: signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
+   attribute MARK_DEBUG                        of usb2Ep0CtlExtLoc  : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
    attribute MARK_DEBUG                        of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
 
 begin
@@ -379,7 +388,7 @@ begin
          usb2Rx                       => usb2Rx,
 
          usb2Ep0ReqParam              => usb2Ep0ReqParamIn,
-         usb2Ep0CtlExt                => usb2Ep0CtlExt,
+         usb2Ep0CtlExt                => usb2Ep0CtlExtLoc,
 
          usb2HiSpeedEn                => usb2HiSpeedEn,
          usb2RemoteWake               => usb2RemoteWake,
@@ -406,10 +415,20 @@ begin
          ite( HAVE_ACM_AGENT_C, usb2CtlEpMkCsIfcAgentConfig( CDC_ACM_CTL_IFC_NUM_C ) ) &
          ite( HAVE_BADD_C     , usb2CtlEpMkCsIfcAgentConfig( BADD_CTL_IFC_NUM_C    ) ) &
          ite( HAVE_ECM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_ECM_CTL_IFC_NUM_C ) ) &
-         ite( HAVE_NCM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_NCM_CTL_IFC_NUM_C ) )
+         ite( HAVE_NCM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_NCM_CTL_IFC_NUM_C ) ) &
+         CTL_EP0_AGENTS_CONFIG_G
       );
 
-   begin
+  begin
+
+      -- splice in external agents
+      G_EXT_AGENTS : if ( CTL_EP0_AGENTS_CONFIG_G'length > 0 ) generate
+         constant l : natural := EXT_EP0_AGENTS_IDX_C + CTL_EP0_AGENTS_CONFIG_G'low;
+         constant h : natural := EXT_EP0_AGENTS_IDX_C + CTL_EP0_AGENTS_CONFIG_G'high;
+      begin
+         usb2Ep0CtlExtArr  ( l to h ) <= usb2Ep0CtlExt;
+         usb2Ep0CtlEpExtArr( l to h ) <= usb2Ep0IbExt;
+      end generate G_EXT_AGENTS;
 
       -- Control EP-0 mux
 
@@ -422,10 +441,10 @@ begin
             usb2Rst           => usb2RstLoc,
 
             usb2CtlReqParamIb => usb2Ep0ReqParamIn,
-            usb2CtlExtOb      => usb2Ep0CtlExt,
+            usb2CtlExtOb      => usb2Ep0CtlExtLoc,
             usb2CtlEpExtOb    => usb2Ep0CtlEpExt,
 
-            usb2CtlReqParamOb => usb2Ep0ReqParam,
+            usb2CtlReqParamOb => usb2Ep0ReqParamLoc,
             usb2CtlExtIb      => usb2Ep0CtlExtArr,
             usb2CtlEpExtIb    => usb2Ep0CtlEpExtArr
          );
@@ -434,6 +453,8 @@ begin
 
    end generate G_EP0_MUX;
 
+   usb2Ep0ReqParam      <= usb2Ep0ReqParamLoc;
+   usb2Ep0ObExt         <= usb2EpOb(0);
 
    -- CDC ACM Endpoint
    G_EP_CDCACM : if ( HAVE_ACM_C ) generate
@@ -463,7 +484,7 @@ begin
 
             usb2Rx                     => usb2Rx,
 
-            usb2Ep0ReqParam            => usb2Ep0ReqParam,
+            usb2Ep0ReqParam            => usb2Ep0ReqParamLoc,
             usb2Ep0CtlExt              => acmEp0CtlExt,
             usb2Ep0ObExt               => acmEp0ObExt,
             usb2Ep0IbExt               => usb2EpOb(0),
@@ -574,7 +595,7 @@ begin
             usb2Rst                   => usb2RstLoc,
             usb2RstBsy                => open,
 
-            usb2Ep0ReqParam           => usb2Ep0ReqParam,
+            usb2Ep0ReqParam           => usb2Ep0ReqParamLoc,
             usb2Ep0CtlExt             => usb2Ep0CtlExtArr( BADD_EP0_AGENT_IDX_C ),
             usb2Ep0ObExt              => usb2Ep0CtlEpExtArr( BADD_EP0_AGENT_IDX_C ),
             usb2Ep0IbExt              => usb2EpOb(0),
@@ -614,7 +635,7 @@ begin
             usb2Clk                    => usb2Clk,
             usb2Rst                    => usb2RstLoc,
 
-            usb2Ep0ReqParam            => usb2Ep0ReqParam,
+            usb2Ep0ReqParam            => usb2Ep0ReqParamLoc,
             usb2Ep0CtlExt              => usb2Ep0CtlExtArr( CDC_ECM_EP0_AGENT_IDX_C ),
 
             usb2DataEpIb               => usb2EpOb(CDC_ECM_BULK_EP_IDX_C),
@@ -670,7 +691,7 @@ begin
             usb2Rst                    => usb2RstLoc,
             usb2EpRstOut               => open,
 
-            usb2Ep0ReqParam            => usb2Ep0ReqParam,
+            usb2Ep0ReqParam            => usb2Ep0ReqParamLoc,
             usb2Ep0CtlExt              => usb2Ep0CtlExtArr( CDC_NCM_EP0_AGENT_IDX_C ),
 
             usb2CtlEpIb                => usb2EpOb(0),
