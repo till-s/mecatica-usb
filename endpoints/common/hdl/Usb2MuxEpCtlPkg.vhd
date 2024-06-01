@@ -23,6 +23,7 @@ package Usb2MuxEpCtlPkg is
       filtDir  : boolean;
       filtType : boolean;
       filtRecpt: boolean;
+      filtIdx  : boolean;
       reqIndex : Usb2ByteType;
    end record Usb2CtlEpAgentConfigType;
 
@@ -31,6 +32,7 @@ package Usb2MuxEpCtlPkg is
       constant index     : in integer range 0 to 255;
       constant dev2Host  : in std_logic := 'X';
       constant reqType   : in Usb2CtlRequestTypeType := "XX";
+      constant filtIdx   : in boolean := true
    ) return Usb2CtlEpAgentConfigType;
 
    constant USB2_CTL_EP_AGENT_CONFIG_INIT_C : Usb2CtlEpAgentConfigType := (
@@ -39,6 +41,7 @@ package Usb2MuxEpCtlPkg is
       filtType  => false,
       filtRecpt => false,
       reqIndex  => (others => '0'),
+      filtIdx   => true
    );
 
    type Usb2CtlEpAgentConfigArray is array (natural range <>) of Usb2CtlEpAgentConfigType;
@@ -84,6 +87,7 @@ package body Usb2MuxEpCtlPkg is
       constant index     : in integer range 0 to 255;
       constant dev2Host  : in std_logic := 'X';
       constant reqType   : in Usb2CtlRequestTypeType := "XX";
+      constant filtIdx   : in boolean := true
    ) return Usb2CtlEpAgentConfigType is
       variable v   : Usb2CtlEpAgentConfigType;
       variable d2h : boolean;
@@ -94,6 +98,7 @@ package body Usb2MuxEpCtlPkg is
       v.filtDir   := (dev2Host  /= 'X');
       v.filtType  := (reqType   /= "XX");
       v.filtRecpt := (recipient /= "XX");
+      v.filtIdx   := filtIdx;
 
       if ( v.filtType ) then
          typ := reqType;
