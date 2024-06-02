@@ -146,6 +146,8 @@ package Usb2Pkg is
       clrHaltedInp     : std_logic_vector(15 downto 0);
       clrHaltedOut     : std_logic_vector(15 downto 0);
       usb2Rst          : std_logic;
+      -- for convenience; reflects STATE = SUSPENDED
+      suspended        : std_logic;
    end record;
 
    constant USB2_DEV_STATUS_INIT_C : Usb2DevStatusType := (
@@ -157,7 +159,8 @@ package Usb2Pkg is
       haltedOut         => (others => '0'),
       clrHaltedInp      => (others => '0'),
       clrHaltedOut      => (others => '0'),
-      usb2Rst           => '0'
+      usb2Rst           => '0',
+      suspended         => '0'
    );
 
    subtype Usb2TransferType is std_logic_vector(1 downto 0);
