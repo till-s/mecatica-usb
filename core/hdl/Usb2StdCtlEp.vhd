@@ -1019,6 +1019,7 @@ report integer'image( to_integer(unsigned(r.readVal)) ) & " " & integer'image( r
       if ( suspend = '1' ) then
          devStatus.state <= SUSPENDED;
       end if;
+      devStatus.suspended <= suspend;
 
       rin <= v;
    end process P_COMB;
