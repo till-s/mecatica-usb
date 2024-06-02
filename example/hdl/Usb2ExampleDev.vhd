@@ -3,7 +3,7 @@
 --   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
 -- This notice must not be removed.
 
--- Instantiation of a multiple endpoints.
+-- Instantiation of a multiple functions.
 
 library ieee;
 use     ieee.std_logic_1164.all;
@@ -46,6 +46,10 @@ entity Usb2ExampleDev is
 
       -- external control-endpoint agents
       CTL_EP0_AGENTS_CONFIG_G            : Usb2CtlEpAgentConfigArray := USB2_CTL_EP_AGENT_CONFIG_EMPTY_C;
+
+      -- automatically request remote-wakeup when at least one
+      -- inbound endpoint has data
+      AUTO_REMWAKE_G                     : boolean         := true;
 
       MARK_DEBUG_EP0_CTL_MUX_G           : boolean         := false;
       MARK_DEBUG_ULPI_IO_G               : boolean         := false;
@@ -360,6 +364,7 @@ begin
          ULPI_STP_MODE_G              => NORMAL,
          ULPI_EMU_MODE_G              => ULPI_EMU_MODE_G,
          FSLS_INPUT_MODE_VPVM_G       => FSLS_INPUT_MODE_VPVM_G,
+         AUTO_REMWAKE_G               => AUTO_REMWAKE_G,
          DESCRIPTORS_G                => DESCRIPTORS_G,
          DESCRIPTOR_BRAM_G            => DESCRIPTORS_BRAM_G
       )

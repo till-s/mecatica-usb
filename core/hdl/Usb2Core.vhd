@@ -43,6 +43,9 @@ entity Usb2Core is
       ULPI_EMU_MODE_G              : UlpiEmuModeType := NONE;
       DESCRIPTORS_G                : Usb2ByteArray;
       DESCRIPTOR_BRAM_G            : boolean         := false;
+      -- automatically issue remote-wake if any inbound
+      -- endpoint has data
+      AUTO_REMWAKE_G               : boolean         := true;
       FSLS_INPUT_MODE_VPVM_G       : boolean         := true
    );
 
@@ -156,8 +159,7 @@ architecture Impl of Usb2Core is
 
    signal regMux            : RegMuxState := IDLE;
    signal regMuxIn          : RegMuxState;
-
-   signal remWake           : std_logic;
+   signal regWake           : std_logic   := '0';
 
 --   attribute MARK_DEBUG    of regMux : signal is "TRUE";
 
@@ -178,19 +180,28 @@ begin
       lineStateRegReq,
       ulpiRegReq,
       regRep,
-      regMux
-   ) is 
-      variable v      : RegMuxState;
-      variable selExt : boolean;
+      regMux,
+      regWake,
+      epIb
+   ) is
+      variable v           : RegMuxState;
+      variable selExt      : boolean;
+      variable autoWakeReq : std_logic;
    begin
       v                          := regMux;
       usb2DevStatus              <= devStatus;
       usb2DevStatus.usb2Rst      <= rstReq;
+      autoWakeReq                := '0';
+      if ( AUTO_REMWAKE_G and ( suspend = '1' ) ) then
+         for i in epIb'range loop
+            autoWakeReq := autoWakeReq or epIb(i).mstInp.vld;
+         end loop;
+      end if;
       -- is remote wakeup enabled?
       if ( not devStatus.remWakeup ) then
-         remWake <= '0';
+         regWake <= '0';
       else
-         remWake <= usb2RemoteWake;
+         regWake <= usb2RemoteWake or autoWakeReq;
       end if;
       ulpiTxReq <= ulpiPktTxReq;
       if ( ( rstReq or suspend ) = '1' ) then
@@ -282,7 +293,7 @@ begin
          usb2Suspend  => suspend,
          usb2HiSpeed  => isHiSpeedNego,
 
-         usb2RemWake  => remWake
+         usb2RemWake  => regWake
       );
 
    end generate G_ULPI;
@@ -306,7 +317,7 @@ begin
             ulpiTxReq          => ulpiTxReq,
             ulpiTxRep          => ulpiTxRep,
 
-            usb2RemWake        => remWake,
+            usb2RemWake        => regWake,
             usb2Rst            => rstReq,
             usb2Suspend        => suspend
          );
