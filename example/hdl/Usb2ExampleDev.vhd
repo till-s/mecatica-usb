@@ -178,9 +178,12 @@ entity Usb2ExampleDev is
       ecmFifoInpMinFill    : in  unsigned(LD_ECM_FIFO_DEPTH_INP_G - 1 downto 0) := (others => '0');
       ecmFifoInpTimer      : in  unsigned(31 downto 0)                          := (others => '0');
 
-      ecmPacketFilter      : out std_logic_vector(4 downto 0)                   := (others => '0');
-
       ecmCarrier           : in  std_logic    := '0';
+
+      -- other ECM status signals in usb2Clk domain!
+      ecmPacketFilter      : out std_logic_vector(4 downto 0)                   := (others => '0');
+      ecmSpeedInp          : in  unsigned(31 downto 0)                          := to_unsigned( 100000000, 32 );
+      ecmSpeedOut          : in  unsigned(31 downto 0)                          := to_unsigned( 100000000, 32 );
 
       -- NCM FIFO CLOCK DOMAIN
       ncmFifoClk           : in  std_logic    := '0';
@@ -203,6 +206,12 @@ entity Usb2ExampleDev is
 
       ncmCarrier           : in  std_logic    := '0';
 
+      -- other NCM status signals in usb2Clk domain!
+      ncmPacketFilter      : out std_logic_vector(4 downto 0) := (others => '0');
+      ncmSpeedInp          : in  unsigned(31 downto 0)        := to_unsigned( 100000000, 32 );
+      ncmSpeedOut          : in  unsigned(31 downto 0)        := to_unsigned( 100000000, 32 );
+
+      -- I2S
       i2sBCLK              : in  std_logic    := '0';
       i2sPBLRC             : in  std_logic    := '0';
       i2sPBDAT             : out std_logic    := '0'
@@ -656,6 +665,8 @@ begin
             fifoTimeFillInp            => ecmFifoInpTimer,
 
             packetFilter               => ecmPacketFilter,
+            speedOut                   => ecmSpeedOut,
+            speedInp                   => ecmSpeedInp,
 
             epClk                      => ecmFifoClk,
             epRstOut                   => ecmFifoRstOut,
@@ -712,10 +723,10 @@ begin
             usb2NotifyEpIb             => usb2EpOb(CDC_NCM_IRQ_EP_IDX_C),
             usb2NotifyEpOb             => usb2EpIb(CDC_NCM_IRQ_EP_IDX_C),
 
-            packetFilter               => open,
-            speedInp                   => open,
-            speedOut                   => open,
-            macAddress                 => open,
+            packetFilter               => ncmPacketFilter,
+            speedInp                   => ncmSpeedInp,
+            speedOut                   => ncmSpeedOut,
+            macAddress                 => open, -- not supported by linux ATM
 
             epClk                      => ncmFifoClk,
             epRstOut                   => ncmFifoRstOut,
