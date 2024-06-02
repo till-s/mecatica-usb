@@ -105,6 +105,9 @@ entity Usb2ExampleDev is
       usb2Ep0IbExt         : in  Usb2EndpPairIbArray( CTL_EP0_AGENTS_CONFIG_G'range ) := (others => USB2_ENDP_PAIR_IB_INIT_C );
       usb2Ep0CtlExt        : in  Usb2CtlExtArray( CTL_EP0_AGENTS_CONFIG_G'range ):= (others => USB2_CTL_EXT_NAK_C);
 
+      -- device status
+      usb2DevStatus        : out Usb2DevStatusType;
+
       -- ACM FIFO CLOCK DOMAIN
       acmFifoClk           : in  std_logic := '0';
       acmFifoRstOut        : out std_logic := '0';
@@ -314,7 +317,7 @@ architecture Impl of Usb2ExampleDev is
    signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType                             := USB2_ENDP_PAIR_IB_INIT_C;
    signal usb2Ep0CtlEpExtArr                   : Usb2EndpPairIbArray(0 to NUM_EP0_AGENTS_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
 
-   signal usb2DevStatus                        : Usb2DevStatusType;
+   signal usb2DevStatusLoc                     : Usb2DevStatusType;
 
    signal macAddrPatchDone                     : std_logic := '1';
 
@@ -339,8 +342,9 @@ begin
 
    -- Output assignments
 
-   usb2RstLoc      <= usb2DevStatus.usb2Rst or ulpiRst or usb2Rst;
-   usb2RstOut      <= usb2DevStatus.usb2Rst;
+   usb2RstLoc      <= usb2DevStatusLoc.usb2Rst or ulpiRst or usb2Rst;
+   usb2RstOut      <= usb2DevStatusLoc.usb2Rst;
+   usb2DevStatus   <= usb2DevStatus;
 
    acmDTR          <= DTR;
    acmRTS          <= RTS;
@@ -388,7 +392,7 @@ begin
 
          ulpiForceStp                 => ulpiForceStp,
 
-         usb2DevStatus                => usb2DevStatus,
+         usb2DevStatus                => usb2DevStatusLoc,
 
          usb2Rx                       => usb2Rx,
 
@@ -608,7 +612,7 @@ begin
             usb2Rx                    => usb2Rx,
             usb2EpIb                  => usb2EpOb(BADD_ISO_EP_IDX_C),
             usb2EpOb                  => usb2EpIb(BADD_ISO_EP_IDX_C),
-            usb2DevStatus             => usb2DevStatus,
+            usb2DevStatus             => usb2DevStatusLoc,
 
             volMaster                 => baddVolMaster,
             muteMaster                => baddMuteMaster,
