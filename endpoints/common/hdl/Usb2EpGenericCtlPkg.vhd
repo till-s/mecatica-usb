@@ -76,7 +76,13 @@ package body Usb2EpGenericCtlPkg is
       variable rv : natural := 0;
    begin
       for i in x'range loop
-         if ( x(i).dataSize > rv ) then
+         if ( x(i).stream ) then
+            -- need at least two bytes; one for data, the other
+            -- for flags...
+            if ( 2 > rv ) then
+               rv := 2;
+            end if;
+         elsif ( x(i).dataSize > rv ) then
             rv := x(i).dataSize;
          end if;
       end loop;

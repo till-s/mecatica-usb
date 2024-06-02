@@ -51,6 +51,10 @@ entity Usb2EpGenericCtl is
       --    (this happens if the host does not send the
       --    correct amount of data). The user must then
       --    ignore the entire request.
+      --  - streamed host2cdev requests are just pumped
+      --    out. The receiver cannot throttle; the data
+      --    are output in paramOb(0), paramOb(1)(7) ships
+      --    a 'last' indicator.
       ctlReqVld         : out std_logic_vector( HANDLE_REQUESTS_G'range );
       ctlReqAck         : in  std_logic;
       ctlReqErr         : in  std_logic;
@@ -67,10 +71,23 @@ architecture Impl of Usb2EpGenericCtl is
 
    subtype IndexType is natural range HANDLE_REQUESTS_G'range;
 
+   function nBytesMax(constant cfg : Usb2EpGenericReqDefArray)
+   return integer is
+      variable v : integer;
+   begin
+      v := maxParamSize(cfg);
+      for i in cfg'range loop
+         if ( cfg(i).stream and ( 0 = cfg(i).dataSize ) and (v < 2**16) ) then
+            v := 2**16;
+         end if;
+      end loop;
+      return v;
+   end function nBytesMax;
+
    type RegType is record
       state       : StateType;
       idx         : natural range  0 to maxParamSize( HANDLE_REQUESTS_G ) - 1;
-      nBytes      : integer range -1 to maxParamSize( HANDLE_REQUESTS_G ) - 1;
+      nBytes      : integer range -1 to nBytesMax   ( HANDLE_REQUESTS_G ) - 1;
       ctlExt      : Usb2CtlExtType;
       buf         : Usb2ByteArray( paramIb'range );
       reqVld      : std_logic_vector(HANDLE_REQUESTS_G'range);
@@ -93,6 +110,8 @@ architecture Impl of Usb2EpGenericCtl is
    signal filter  : boolean := true;
 
 begin
+
+   assert false report integer'image( nBytesMax( HANDLE_REQUESTS_G ) ) severity note;
 
    G_FILT : if ( CTL_IFC_NUM_G >= 0 ) generate
       filter <= usb2CtlReqDstInterface( usb2CtlReqParam, CTL_IFC_NUM_G );
@@ -144,8 +163,17 @@ begin
                               v.nBytes  := HANDLE_REQUESTS_G(i).dataSize - 1;
                            end if;
                         else
-                           -- allow short writes - assuming they know what they are doing
-                           if ( usb2CtlReqParam.length <= HANDLE_REQUESTS_G(i).dataSize ) then
+                           if ( HANDLE_REQUESTS_G(i).stream ) then
+                              if ( HANDLE_REQUESTS_G(i).dataSize > 0 and usb2CtlReqParam.length > HANDLE_REQUESTS_G(i).dataSize ) then
+                                 v.nBytes  := HANDLE_REQUESTS_G(i).dataSize - 1;
+                              end if;
+                              v.reqSel(i)  := '1';
+                              v.ctlExt.ack := '1';
+                              v.ctlExt.err := '0';
+                              v.ctlExt.don := '0';
+                              v.state      := STRMO;
+                           elsif ( ( usb2CtlReqParam.length <= HANDLE_REQUESTS_G(i).dataSize ) ) then
+                              -- allow short writes - assuming they know what they are doing
                               v.ctlExt.ack := '0';
                               v.ctlExt.err := '0';
                               v.ctlExt.don := '0';
@@ -155,11 +183,7 @@ begin
                               else
                                  v.reqSel(i)  := '1';
                                  v.ctlExt.ack := '1';
-                                 if ( HANDLE_REQUESTS_G(i).stream ) then
-                                    v.state      := STRMO;
-                                 else
-                                    v.state      := RECV;
-                                 end if;
+                                 v.state      := RECV;
                               end if;
                            end if;
                         end if;
@@ -230,25 +254,27 @@ begin
             end if;
 
          when STRMO =>
-            paramOb(0) <= usb2EpIb.mstOut.dat;
-
-            if ( r.nbytes >= 0 ) then
-               usb2EpOb.subOut.rdy <= ctlReqAck;
-               for i in ctlReqVld'range loop
-                  ctlReqVld(i) <= r.reqSel(i) and usb2EpIb.mstOut.vld;
-               end loop;
-               if ( ( usb2EpIb.mstOut.vld and ctlReqAck ) = '1' ) then
-                  v.nBytes := r.nBytes - 1;
-               end if;
-            else
-               -- drain
-               usb2EpOb.subOut.rdy <= '1';
+            usb2EpOb.subOut.rdy <= '1';
+            paramOb(0)          <= usb2EpIb.mstOut.dat;
+            paramOb(1)(7)       <= '0'; -- 'LAST' flag
+            if ( r.nBytes = 0 ) then
+               paramOb(1)(7)  <= '1'; -- 'LAST' flag
             end if;
+
+            ctlReqVld <= (others => '0');
+
+            if ( ( r.nBytes >= 0 ) and ( usb2EpIb.mstOut.vld = '1' ) ) then
+               for i in ctlReqVld'range loop
+                  ctlReqVld(i) <= r.reqSel(i);
+               end loop;
+               v.nBytes := r.nBytes - 1;
+            end if;
+
             if ( usb2EpIb.mstOut.don = '1' ) then
                v.reqSel     := (others => '0');
                v.ctlExt.don := '1';
                v.ctlExt.ack := '1';
-               if ( r.nbytes < 0 ) then
+               if ( r.nBytes < 0 ) then
                   v.ctlExt.err := '0';
                else
                   v.ctlExt.err := '1';
