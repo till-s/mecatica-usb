@@ -181,7 +181,7 @@ entity Usb2ExampleDev is
       ecmCarrier           : in  std_logic    := '0';
 
       -- other ECM status signals in usb2Clk domain!
-      ecmPacketFilter      : out std_logic_vector(4 downto 0)                   := (others => '0');
+      ecmPacketFilter      : out std_logic_vector(4 downto 0)                   := (others => '1');
       ecmSpeedInp          : in  unsigned(31 downto 0)                          := to_unsigned( 100000000, 32 );
       ecmSpeedOut          : in  unsigned(31 downto 0)                          := to_unsigned( 100000000, 32 );
 
@@ -207,7 +207,7 @@ entity Usb2ExampleDev is
       ncmCarrier           : in  std_logic    := '0';
 
       -- other NCM status signals in usb2Clk domain!
-      ncmPacketFilter      : out std_logic_vector(4 downto 0) := (others => '0');
+      ncmPacketFilter      : out std_logic_vector(4 downto 0) := (others => '1');
       ncmSpeedInp          : in  unsigned(31 downto 0)        := to_unsigned( 100000000, 32 );
       ncmSpeedOut          : in  unsigned(31 downto 0)        := to_unsigned( 100000000, 32 );
 
