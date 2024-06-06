@@ -131,6 +131,15 @@ package Usb2DescPkg is
       constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
    ) return integer;
 
+   -- convert a sequence of ascii characters into binary.
+   -- i.e., the character string "42ABCD" (represented
+   -- by the byte array ( x"34", x"32", x"41", x"42", x"43", x"44 )
+   -- is converted into (x"42", x"AB", x"CD")
+   -- The constant 'd' must span an even number of bytes!
+   function usb2HexStrToBin(
+      constant d : Usb2ByteArray
+   ) return Usb2ByteArray;
+
    function usb2NextIfcAssocDescriptor(
       constant d : Usb2ByteArray;
       constant i : integer; 
@@ -443,5 +452,27 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       end loop;
       return x;
    end function usb2NextIfcAssocDescriptor;
+
+   function usb2HexStrToBin(
+      constant d : Usb2ByteArray
+   ) return Usb2ByteArray is
+      variable v     : Usb2ByteArray(0 to d'length/2 - 1);
+      variable nibhi : unsigned(3 downto 0);
+      variable niblo : unsigned(3 downto 0);
+      constant A_C   : std_logic_vector := x"41";
+   begin
+      for i in 0 to d'length/2 - 1 loop
+         nibhi := unsigned(d(d'low + 2*i + 0)(3 downto 0));
+         if ( unsigned(d(d'low + 2*i + 0)) >= unsigned(A_C) ) then
+            nibhi := nibhi + 9;
+         end if;
+         niblo := unsigned(d(d'low + 2*i + 1)(3 downto 0));
+         if ( unsigned(d(d'low + 2*i + 1)) >= unsigned(A_C) ) then
+            niblo := niblo + 9;
+         end if;
+         v(i) := std_logic_vector(nibhi & niblo);
+       end loop;
+       return v;
+   end function usb2HexStrToBin;
 
 end package body Usb2DescPkg;
