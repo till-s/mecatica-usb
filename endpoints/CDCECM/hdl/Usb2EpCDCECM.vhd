@@ -151,7 +151,7 @@ begin
    begin
       if ( rising_edge( usb2Clk ) ) then
          if ( usb2Rst = '1' ) then
-            packetFilter <= (others => '0');
+            packetFilter <= (others => '1');
          elsif ( cen = '1' ) then
             packetFilter <= usb2Ep0ReqParam.value( packetFilter'range );
          end if;
