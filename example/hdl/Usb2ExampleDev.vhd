@@ -210,6 +210,7 @@ entity Usb2ExampleDev is
       ncmPacketFilter      : out std_logic_vector(4 downto 0) := (others => '1');
       ncmSpeedInp          : in  unsigned(31 downto 0)        := to_unsigned( 100000000, 32 );
       ncmSpeedOut          : in  unsigned(31 downto 0)        := to_unsigned( 100000000, 32 );
+      ncmMacAddr           : out Usb2ByteArray(0 to 5)        := (others => (others => '0'));
 
       -- I2S
       i2sBCLK              : in  std_logic    := '0';
@@ -696,6 +697,9 @@ begin
    end generate G_EP_CDCECM;
 
    G_EP_CDCNCM : if ( HAVE_NCM_C ) generate
+      constant MAC_ADDR_IDX_C : integer := usb2EthMacAddrStringDescriptor( DESCRIPTORS_G );
+      constant MAC_ADDR_STR_C : Usb2ByteArray(0 to 11) := DESCRIPTORS_G(MAC_ADDR_IDX_C to MAC_ADDR_IDX_C + 11);
+      constant NCM_MAC_ADDR_C : Usb2ByteArray(0 to 5)  := usb2HexStrToBin( MAC_ADDR_STR_C );
    begin
 
       U_CDCNCM : entity work.Usb2EpCDCNCM
@@ -704,6 +708,7 @@ begin
             ASYNC_G                    => CDC_NCM_ASYNC_G,
             LD_RAM_DEPTH_INP_G         => LD_NCM_RAM_DEPTH_INP_G,
             LD_RAM_DEPTH_OUT_G         => LD_NCM_RAM_DEPTH_OUT_G,
+            DFLT_MAC_ADDR_G            => NCM_MAC_ADDR_C,
             CARRIER_DFLT_G             => '0'
          )
          port map (
@@ -726,7 +731,7 @@ begin
             packetFilter               => ncmPacketFilter,
             speedInp                   => ncmSpeedInp,
             speedOut                   => ncmSpeedOut,
-            macAddress                 => open, -- not supported by linux ATM
+            macAddress                 => ncmMacAddr,
 
             epClk                      => ncmFifoClk,
             epRstOut                   => ncmFifoRstOut,
