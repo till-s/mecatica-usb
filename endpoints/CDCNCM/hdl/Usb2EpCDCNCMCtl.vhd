@@ -36,7 +36,8 @@ entity Usb2EpCDCNCMCtl is
       -- you need to synchronize your self (if ASYNC_G)
       maxNTBSizeInp                     : out unsigned(31 downto 0);
       -- network-byte order
-      macAddress                        : out Usb2ByteArray(0 to 5 )
+      macAddress                        : out Usb2ByteArray(0 to 5 );
+      packetFilter                      : out std_logic_vector(4 downto 0)
    );
 end entity Usb2EpCDCNCMCtl;
 
@@ -59,6 +60,12 @@ architecture Impl of Usb2EpCDCNCMCtl is
          dev2Host => '0',
          request  =>  USB2_REQ_CLS_CDC_SET_NTB_INPUT_SIZE_C,
          dataSize =>  4
+      ),
+      -- this is not mandatory but comes almost for free
+      usb2MkEpGeneriqReqDef(
+         dev2Host => '0',
+         request  =>  USB2_REQ_CLS_CDC_SET_ETHERNET_PACKET_FILTER_C,
+         dataSize =>  0
       )
    );
 
@@ -81,11 +88,13 @@ architecture Impl of Usb2EpCDCNCMCtl is
    type RegType is record
       maxNTBSizeInp  : unsigned(31 downto 0);
       macAddr        : Usb2ByteArray(0 to 5);
+      packetFilter   : std_logic_vector(packetFilter'range);
    end record RegType;
 
    constant REG_INIT_C : RegType := (
       maxNTBSizeInp  =>  to_unsigned( MAX_NTB_SIZE_INP_G, 32 ),
-      macAddr        =>  MAC_ADDR_G
+      macAddr        =>  MAC_ADDR_G,
+      packetFilter   => (others => '1')
    );
 
    signal r          : RegType := REG_INIT_C;
@@ -189,6 +198,10 @@ begin
          end loop;
          ctlReqErr      <= '0';
       end if;
+      if ( selected( ctlReqVld, USB2_REQ_CLS_CDC_SET_ETHERNET_PACKET_FILTER_C, HANDLE_REQUESTS_C ) ) then
+         v.packetFilter := usb2Ep0ReqParam.value(v.packetFilter'range);
+         ctlReqErr      <= '0';
+      end if;
 
       rin <= v;
    end process P_COMB;
@@ -206,5 +219,6 @@ begin
 
    macAddress    <= r.macAddr;
    maxNTBSizeInp <= r.maxNTBSizeInp;
+   packetFilter  <= r.packetFilter;
 
 end architecture Impl;

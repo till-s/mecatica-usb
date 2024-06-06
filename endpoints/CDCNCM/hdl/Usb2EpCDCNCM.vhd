@@ -216,7 +216,8 @@ begin
          usb2Ep0ObExt              => usb2CtlEpOb,
 
          maxNTBSizeInp             => usb2MaxNTBSizeInp,
-         macAddress                => macAddress
+         macAddress                => macAddress,
+         packetFilter              => packetFilter
       );
 
    U_EP_NOT : entity work.Usb2EpCDCEtherNotify

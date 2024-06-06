@@ -738,12 +738,13 @@ class Usb2DescContext(list):
   class Usb2CDCFuncNCMDesc(Usb2CDCDesc.clazz):
 
     DSC_NCM_SUP_NET_ADDRESS = 0x02
+    DSC_NCM_SUP_PKT_FILTER  = 0x01
 
     def __init__(self):
       super().__init__( 6, self.DSC_TYPE_CS_INTERFACE )
       self.bDescriptorSubtype( self.DSC_SUBTYPE_NCM )
       self.bcdNcmVersion( 0x0100 )
-      self.bmNetworkCapabilities( 0x00 )
+      self.bmNetworkCapabilities( self.DSC_NCM_SUP_PKT_FILTER )
 
     @acc(3,2)
     def bcdNcmVersion(self, v): return v
