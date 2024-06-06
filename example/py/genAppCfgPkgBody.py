@@ -37,6 +37,7 @@ if __name__ == "__main__":
   dualSpeed           = True
   hiSpeed             = True
 
+  cmdline             = os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:])
 
   (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:s:FSNEAL:")
   for o in opt:
@@ -109,5 +110,6 @@ if __name__ == "__main__":
               haveACMLineBreak=haveACMLineBreak
   )
 
+  comment = 'Generated with: {}'.format(cmdline)
   with io.open( fnam, 'x' ) as f:
-    ctxt.genAppCfgPkgBody( f )
+    ctxt.genAppCfgPkgBody( f, comment )
