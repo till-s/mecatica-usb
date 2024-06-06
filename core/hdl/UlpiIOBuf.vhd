@@ -38,7 +38,9 @@ entity UlpiIOBuf is
       -- indicated that this actually caused malfunction but
       -- asserting STP (after the last data are consumed)
       -- regardless of NXT being hi or lo worked as it should.
-      ULPI_STP_MODE_G : UlpiStpModeType := NORMAL
+      ULPI_STP_MODE_G : UlpiStpModeType := NORMAL;
+      -- use external registers for din,dou,stp,stp_i
+      ULPI_EXT_REG_G  : boolean := false
    );
    port (
       ulpiClk    : in  std_logic;
@@ -85,6 +87,8 @@ architecture Impl of UlpiIOBuf is
    signal dir_r            : std_logic                    := '1';
    signal stp_i            : std_logic                    := '0';
    signal nxt_r            : std_logic                    := '0';
+   signal stp_r_in         : std_logic;
+   signal dou_r_in         : std_logic_vector(7 downto 0);
    attribute IOB of dou_r  : signal is "TRUE";
    attribute IOB of stp_r  : signal is "TRUE";
    attribute IOB of din_r  : signal is toStr( ULPI_DIN_IOB_G );
@@ -136,6 +140,10 @@ architecture Impl of UlpiIOBuf is
 
 begin
 
+   assert not ULPI_EXT_REG_G or ( ULPI_STP_MODE_G /=  WAIT_FOR_NXT_MASKED )
+      report "Cannot use external registers with this STP_MODE"
+      severity failure;
+
    P_MUX : process ( bufVld, buf, txDat, last ) is
    begin
       if ( ( bufVld or last ) = '1' ) then
@@ -150,14 +158,32 @@ begin
    bufRST  <= dir_r;
    bufCE   <= not (bufVld and not ulpiIb.nxt) or not douVld;
 
+
+   P_COMB : process ( dou_r, douRst, douCE, dou_i, stp_r, stopRst, stopCE, genStp, frcStp ) is
+   begin
+      if    ( douRst = '1' ) then
+         dou_r_in <= (others => '0');
+      elsif ( douCE  = '1' ) then
+         dou_r_in <= dou_i;
+      else
+         dou_r_in <= dou_r;
+      end if;
+
+      if    ( stopRst = '1' ) then
+         stp_r_in <= '0';
+      elsif ( stopCE  = '1' ) then
+         stp_r_in <= genStp or frcStp;
+      else
+         stp_r_in <= stp_r;
+      end if;
+   end process P_COMB;
+
    P_SEQ : process ( ulpiClk ) is
    begin
       if ( rising_edge( ulpiClk ) ) then
-         if ( douRst = '1' ) then
-            dou_r <= (others => '0');
-         elsif ( douCE = '1' ) then
-            dou_r <= dou_i;
-         end if;
+
+         dou_r <= dou_r_in;
+
          if ( (last or dir_r) = '1' ) then
             douVld <= '0';
          elsif ( txVld = '1' ) then
@@ -186,11 +212,7 @@ begin
             lst_r <= '1';
          end if;
 
-         if ( stopRst = '1' ) then
-            stp_r <= '0';
-         elsif ( stopCE = '1' ) then
-            stp_r <= genStp or frcStp;
-         end if;
+         stp_r             <= stp_r_in;
 
          lstFrcStp         <= frcStp;
 
@@ -212,15 +234,24 @@ begin
 
    txRdy      <= ( not douVld or not bufVld );
 
-   ulpiOb.dat <= dou_r;
+   G_EXT_REG : if ( ULPI_EXT_REG_G ) generate
+      ulpiOb.dat <= dou_r_in;
+      ulpiOb.stp <= stp_r_in;
+      ulpiRx.dat <= ulpiIb.dat;
+      ulpiRx.stp <= ulpiIb.stp;
+   end generate G_EXT_REG;
 
+   G_INT_REG : if ( not ULPI_EXT_REG_G ) generate
+      ulpiOb.dat <= dou_r;
+      ulpiOb.stp <= stp_r;
+      ulpiRx.dat <= din_r;
+      ulpiRx.stp <= stp_i;
+   end generate G_INT_REG;
+
+   -- WAIT_FOR_NXT_MASKED_G implies ULPI_EXT_REG_G == false
    G_MSKD_STP : if ( ULPI_STP_MODE_G =  WAIT_FOR_NXT_MASKED ) generate
       ulpiOb.stp <= stp_r and (ulpiIb.nxt or not waiNxtLoc);
    end generate G_MSKD_STP;
-
-   G_UNMSKD_STP : if ( ULPI_STP_MODE_G /=  WAIT_FOR_NXT_MASKED ) generate
-      ulpiOb.stp <= stp_r;
-   end generate G_UNMSKD_STP;
 
    G_WAI_STP : if ( ULPI_STP_MODE_G /= NORMAL ) generate
       waiNxtLoc  <= waiNxt;
@@ -234,10 +265,8 @@ begin
    txDon      <= err_i or don_r;
    txErr      <= err_i;
 
-   ulpiRx.dat <= din_r;
    ulpiRx.nxt <= nxt_r;
    ulpiRx.dir <= dir_r;
    ulpiRx.trn <= trn_r;
-   ulpiRx.stp <= stp_i;
 
 end architecture Impl;

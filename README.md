@@ -1042,8 +1042,8 @@ Usb descriptors for the project.
      descriptors:
 
        - `-S` disables the sound (ISO) function.
-       - `-E` disables the CDC ECM ethernet function
-       - `-N` disables the CDC NCM ethernet function
+       - `-E <macAddr>` enables the CDC ECM ethernet function
+       - `-N <macAddr>` enables the CDC NCM ethernet function
        - `-A` disables the CDC ACM function
 
 #### Generate the Vivado Project
