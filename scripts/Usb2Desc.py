@@ -1130,7 +1130,7 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
-def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True, fcnTitle=None):
+def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True, fcnTitle=None, dynAddr=False):
   numIfcs = 0
   numEPPs = 0
   if epPktSize is None:
@@ -1169,6 +1169,8 @@ def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
 
   # functional descriptors; NCM
   d = ctxt.Usb2CDCFuncNCMDesc()
+  if ( dynAddr ):
+    d.bmNetworkCapabilities( d.bmNetworkCapabilities() | d.DSC_NCM_SUP_NET_ADDRESS )
 
   # endpoint 2, IRQ IN
   d = ctxt.Usb2EndpointDesc()

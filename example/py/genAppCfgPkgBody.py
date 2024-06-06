@@ -31,6 +31,7 @@ if __name__ == "__main__":
   # one MAC address is patched by the firmware using DeviceDNA
   iECMMACAddr         ="02DEADBEEF34"
   iNCMMACAddr         ="02DEADBEEF31"
+  haveNCMDynAddr      = False
   haveACM             = True
   haveACMLineBreak    = True
   haveACMLineState    = True
@@ -39,7 +40,7 @@ if __name__ == "__main__":
 
   cmdline             = os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:])
 
-  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:s:FSNEAL:")
+  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:s:FSNEAL:a")
   for o in opt:
     if o[0] in ("-h"):
        print("usage: {} [-h] [-v <vendor_id>] [-f <output_file>] -p <product_id>".format(sys.argv[0]))
@@ -52,6 +53,7 @@ if __name__ == "__main__":
        print("          -S               : Disable sound function")
        print("          -E               : Disable ECM ethernet function")
        print("          -N               : Disable NCM ethernet function")
+       print("          -a               : Enable support for SET_NET_ADDRESS (NCM)")
        print("          -A               : Disable ACM function")
        print("          -L break         : Disable ACM line-break support")
        print("          -L state         : Disable ACM line-state support")
@@ -84,6 +86,8 @@ if __name__ == "__main__":
          haveACMLineState = False
        else:
          raise RuntimeError("invalid argument to '-L' option")
+    elif o[0] in ("-a"):
+       haveNCMDynAddr     = True
 
   if idProduct is None:
     raise RuntimeError(
@@ -107,7 +111,8 @@ if __name__ == "__main__":
               uacProto=uacProto,
               haveACM=haveACM,
               haveACMLineState=haveACMLineState,
-              haveACMLineBreak=haveACMLineBreak
+              haveACMLineBreak=haveACMLineBreak,
+              haveNCMDynAddr=haveNCMDynAddr
   )
 
   comment = 'Generated with: {}'.format(cmdline)
