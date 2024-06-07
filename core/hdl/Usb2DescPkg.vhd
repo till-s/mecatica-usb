@@ -88,6 +88,14 @@ package Usb2DescPkg is
       constant a: boolean := false -- terminate at sentinel?
    ) return integer;
 
+   -- finds next interface descriptor of given class/subclass;
+   -- returns -1 if none found.
+   function usb2NextIfcDescriptor(
+      constant d : Usb2ByteArray;
+      constant c : Usb2ByteType;
+      constant s : Usb2ByteType
+   ) return integer;
+
    -- find next descriptor of a certain class-specific subtype starting at index s; returns -1 if none found
    function usb2NextCsDescriptor(
       constant  d: Usb2ByteArray;
@@ -376,18 +384,15 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return i;
    end function usb2NthStringDescriptor;
 
-   function usb2EthMacAddrStringDescriptor(
+   function usb2NextIfcDescriptor(
       constant d : Usb2ByteArray;
-      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
-      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant c : Usb2ByteType;
+      constant s : Usb2ByteType
    ) return integer is
       variable i                    : integer;
-      variable si                   : integer;
-      constant IDX_MAC_ADDR_SIDX_C  : natural      := 3;
       constant IDX_CLS_C            : natural      := 5;
       constant IDX_SUBCLS_C         : natural      := 6;
    begin
-
       i := 0;
       L_IFC : while true loop
 
@@ -396,8 +401,8 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
             return -1;
          end if;
 
-         if (     ( d( i + IDX_CLS_C    ) = USB2_IFC_CLASS_CDC_C )
-              and ( d( i + IDX_SUBCLS_C ) = s                    ) ) then
+         if (     ( d( i + IDX_CLS_C    ) = c )
+              and ( d( i + IDX_SUBCLS_C ) = s ) ) then
             exit L_IFC;
          end if;
 
@@ -405,8 +410,24 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
          if ( i < 0 ) then
             return -1;
          end if;
-
       end loop;
+      return i;
+   end function usb2NextIfcDescriptor;
+
+   function usb2EthMacAddrStringDescriptor(
+      constant d : Usb2ByteArray;
+      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
+   ) return integer is
+      variable i                    : integer;
+      variable si                   : integer;
+      constant IDX_MAC_ADDR_SIDX_C  : natural      := 3;
+   begin
+
+      i := usb2NextIfcDescriptor( d, USB2_IFC_CLASS_CDC_C, s );
+      if ( i < 0 ) then
+         return -1;
+      end if;
 
       -- ECM and NCM both use this subtype of descriptor for the mac addres
       i  := usb2NextCsDescriptor( d, i, USB2_CS_DESC_SUBTYPE_CDC_ECM_C, a => true );
