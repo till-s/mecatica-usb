@@ -697,9 +697,17 @@ begin
    end generate G_EP_CDCECM;
 
    G_EP_CDCNCM : if ( HAVE_NCM_C ) generate
+      -- extract MAC address from descriptors
       constant MAC_ADDR_IDX_C : integer := usb2EthMacAddrStringDescriptor( DESCRIPTORS_G );
-      constant MAC_ADDR_STR_C : Usb2ByteArray(0 to 11) := DESCRIPTORS_G(MAC_ADDR_IDX_C to MAC_ADDR_IDX_C + 11);
+      constant MAC_ADDR_STR_C : Usb2ByteArray(0 to 11) := DESCRIPTORS_G(MAC_ADDR_IDX_C + 2 to MAC_ADDR_IDX_C + 13);
       constant NCM_MAC_ADDR_C : Usb2ByteArray(0 to 5)  := usb2HexStrToBin( MAC_ADDR_STR_C );
+
+      constant NCM_IFC_IDX_C  : integer := usb2NextIfcDescriptor(DESCRIPTORS_G, USB2_IFC_CLASS_CDC_C, USB2_IFC_SUBCLASS_CDC_NCM_C);
+      constant NCM_CS_IDX_C   : integer := ite( NCM_IFC_IDX_C > 0, usb2NextCsDescriptor(DESCRIPTORS_G, NCM_IFC_IDX_C, USB2_CS_DESC_SUBTYPE_CDC_NCM_C, a =>true ), -1);
+
+      -- extract bmNetworkCapabilities from NCM functional descriptor
+      constant BM_NET_CAPA_C  : Usb2ByteType := ite( NCM_CS_IDX_C  > 0, DESCRIPTORS_G(NCM_CS_IDX_C + 5), x"00" );
+      constant SET_NET_ADDR_C : boolean      := ( BM_NET_CAPA_C(1) = '1');
    begin
 
       U_CDCNCM : entity work.Usb2EpCDCNCM
@@ -709,6 +717,7 @@ begin
             LD_RAM_DEPTH_INP_G         => LD_NCM_RAM_DEPTH_INP_G,
             LD_RAM_DEPTH_OUT_G         => LD_NCM_RAM_DEPTH_OUT_G,
             DFLT_MAC_ADDR_G            => NCM_MAC_ADDR_C,
+            SUPPORT_NET_ADDRESS_G      => SET_NET_ADDR_C,
             CARRIER_DFLT_G             => '0'
          )
          port map (
