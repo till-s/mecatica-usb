@@ -698,9 +698,7 @@ begin
 
    G_EP_CDCNCM : if ( HAVE_NCM_C ) generate
       -- extract MAC address from descriptors
-      constant MAC_ADDR_IDX_C : integer := usb2EthMacAddrStringDescriptor( DESCRIPTORS_G );
-      constant MAC_ADDR_STR_C : Usb2ByteArray(0 to 11) := DESCRIPTORS_G(MAC_ADDR_IDX_C + 2 to MAC_ADDR_IDX_C + 13);
-      constant NCM_MAC_ADDR_C : Usb2ByteArray(0 to 5)  := usb2HexStrToBin( MAC_ADDR_STR_C );
+      constant NCM_MAC_ADDR_C : Usb2ByteArray := usb2GetNCMMacAddrFromDescriptor( DESCRIPTORS_G );
 
       constant NCM_IFC_IDX_C  : integer := usb2NextIfcDescriptor(DESCRIPTORS_G, USB2_IFC_CLASS_CDC_C, USB2_IFC_SUBCLASS_CDC_NCM_C);
       constant NCM_CS_IDX_C   : integer := ite( NCM_IFC_IDX_C > 0, usb2NextCsDescriptor(DESCRIPTORS_G, NCM_IFC_IDX_C, USB2_CS_DESC_SUBTYPE_CDC_NCM_C, a =>true ), -1);
@@ -709,6 +707,8 @@ begin
       constant BM_NET_CAPA_C  : Usb2ByteType := ite( NCM_CS_IDX_C  > 0, DESCRIPTORS_G(NCM_CS_IDX_C + 5), x"00" );
       constant SET_NET_ADDR_C : boolean      := ( BM_NET_CAPA_C(1) = '1');
    begin
+
+      assert NCM_MAC_ADDR_C'length = 6 report "No NCM MAC Address found in descriptors" severity failure;
 
       U_CDCNCM : entity work.Usb2EpCDCNCM
          generic map (

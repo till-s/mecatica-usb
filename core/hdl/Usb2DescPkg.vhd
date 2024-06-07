@@ -141,13 +141,24 @@ package Usb2DescPkg is
 
    -- convert a sequence of ascii characters into binary.
    -- i.e., the character string "42ABCD" (represented
-   -- by the byte array ( x"34", x"32", x"41", x"42", x"43", x"44 )
+   -- by the byte array ( x"34", x"00", x"32", x"00", x"41", x"00", x"42", x"00", x"43", x"00", x"44", x"00" )
+   -- (string encoded as unicode!)
    -- is converted into (x"42", x"AB", x"CD")
    -- The constant 'd' must span an even number of bytes!
    function usb2HexStrToBin(
       constant d : Usb2ByteArray
    ) return Usb2ByteArray;
 
+   -- find ECM or NCM MAC address and convert to 'binary'
+   -- Usb2ByteArray of length 6 or 0 (if address is not found).
+   function usb2GetECMMacAddrFromDescriptor(
+      constant d : Usb2ByteArray
+   ) return Usb2ByteArray;
+
+   function usb2GetNCMMacAddrFromDescriptor(
+      constant d : Usb2ByteArray
+   ) return Usb2ByteArray;
+ 
    function usb2NextIfcAssocDescriptor(
       constant d : Usb2ByteArray;
       constant i : integer; 
@@ -482,12 +493,12 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       variable niblo : unsigned(3 downto 0);
       constant A_C   : std_logic_vector := x"41";
    begin
-      for i in 0 to d'length/2 - 1 loop
-         nibhi := unsigned(d(d'low + 2*i + 0)(3 downto 0));
+      for i in 0 to d'length/4 - 1 loop
+         nibhi := unsigned(d(d'low + 4*i + 0)(3 downto 0));
          if ( unsigned(d(d'low + 2*i + 0)) >= unsigned(A_C) ) then
             nibhi := nibhi + 9;
          end if;
-         niblo := unsigned(d(d'low + 2*i + 1)(3 downto 0));
+         niblo := unsigned(d(d'low + 4*i + 2)(3 downto 0));
          if ( unsigned(d(d'low + 2*i + 1)) >= unsigned(A_C) ) then
             niblo := niblo + 9;
          end if;
@@ -496,4 +507,37 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
        return v;
    end function usb2HexStrToBin;
 
+   function getMacAddrFromDescriptor(
+      constant d : Usb2ByteArray;
+      constant w : boolean
+   ) return Usb2ByteArray is
+      constant NOTFOUND_C : Usb2ByteArray(0 to -1) := (others => (others => '0'));
+      variable idx        : integer;
+   begin
+      if ( w ) then
+         idx := usb2EthMacAddrStringDescriptor( d, USB2_IFC_SUBCLASS_CDC_NCM_C );
+      else
+         idx := usb2EthMacAddrStringDescriptor( d, USB2_IFC_SUBCLASS_CDC_ECM_C );
+      end if;
+      if ( idx < 0 ) then
+         return NOTFOUND_C;
+      end if;
+      return usb2HexStrToBin( d(idx + 2 to idx + 2 + 12 - 1 ) );
+   end function getMacAddrFromDescriptor;
+
+
+   function usb2GetECMMacAddrFromDescriptor(
+      constant d : Usb2ByteArray
+   ) return Usb2ByteArray is
+   begin
+      return getMacAddrFromDescriptor( d, false );
+   end function usb2GetECMMacAddrFromDescriptor;
+
+   function usb2GetNCMMacAddrFromDescriptor(
+      constant d : Usb2ByteArray
+   ) return Usb2ByteArray is
+   begin
+      return getMacAddrFromDescriptor( d, true );
+   end function usb2GetNCMMacAddrFromDescriptor;
+ 
 end package body Usb2DescPkg;
