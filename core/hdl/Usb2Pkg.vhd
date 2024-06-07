@@ -408,7 +408,7 @@ package Usb2Pkg is
    constant USB2_STD_DESC_TYPE_SENTINEL_C                  : Usb2ByteType               := x"FF";
 
    constant USB2_CS_DESC_SUBTYPE_CDC_ACM_C                 : Usb2ByteType               := x"02";
-   constant USB2_CS_DESC_SUBTYPE_CDC_NCM_C                 : Usb2ByteType               := x"0D";
+   constant USB2_CS_DESC_SUBTYPE_CDC_NCM_C                 : Usb2ByteType               := x"1A";
    constant USB2_CS_DESC_SUBTYPE_CDC_ECM_C                 : Usb2ByteType               := x"0F";
 
    -- class and subclass codes
