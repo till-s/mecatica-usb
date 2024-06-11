@@ -46,23 +46,23 @@ architecture Impl of Usb2EpCDCNCMCtl is
    constant CTL_IFC_NUM_C                     : Usb2InterfaceNumType     := toUsb2InterfaceNumType( CTL_IFC_NUM_G );
 
    constant MANDATORY_REQS_C                  : Usb2EpGenericReqDefArray := (
-      usb2MkEpGeneriqReqDef(
+      usb2MkEpGenericReqDef(
          dev2Host => '1',
          request  =>  USB2_REQ_CLS_CDC_GET_NTB_PARAMETERS_C,
          dataSize => 28
       ),
-      usb2MkEpGeneriqReqDef(
+      usb2MkEpGenericReqDef(
          dev2Host => '1',
          request  =>  USB2_REQ_CLS_CDC_GET_NTB_INPUT_SIZE_C,
          dataSize =>  4
       ),
-      usb2MkEpGeneriqReqDef(
+      usb2MkEpGenericReqDef(
          dev2Host => '0',
          request  =>  USB2_REQ_CLS_CDC_SET_NTB_INPUT_SIZE_C,
          dataSize =>  4
       ),
       -- this is not mandatory but comes almost for free
-      usb2MkEpGeneriqReqDef(
+      usb2MkEpGenericReqDef(
          dev2Host => '0',
          request  =>  USB2_REQ_CLS_CDC_SET_ETHERNET_PACKET_FILTER_C,
          dataSize =>  0
@@ -70,12 +70,12 @@ architecture Impl of Usb2EpCDCNCMCtl is
    );
 
    constant NET_ADDR_REQS_C                   : Usb2EpGenericReqDefArray := (
-      usb2MkEpGeneriqReqDef(
+      usb2MkEpGenericReqDef(
          dev2Host => '1',
          request  =>  USB2_REQ_CLS_CDC_GET_NET_ADDRESS_C,
          dataSize =>  6
       ),
-      usb2MkEpGeneriqReqDef(
+      usb2MkEpGenericReqDef(
          dev2Host => '0',
          request  =>  USB2_REQ_CLS_CDC_SET_NET_ADDRESS_C,
          dataSize =>  6

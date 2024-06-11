@@ -24,15 +24,14 @@ package Usb2EpGenericCtlPkg is
       stream             : boolean;
    end record Usb2EpGenericReqDefType;
 
-   function usb2MkEpGeneriqReqDef (
+   function usb2MkEpGenericReqDef (
       dev2Host           : std_logic := '0';
       request            : Usb2CtlRequestCodeType := (others => '0');
       dataSize           : natural   := 0;
       stream             : boolean   := false
    ) return Usb2EpGenericReqDefType;
 
-   constant USB2_EP_GENERIC_REQ_DEF_INIT_C : Usb2EpGenericReqDefType := usb2MkEpGeneriqReqDef;
-
+   constant USB2_EP_GENERIC_REQ_DEF_INIT_C : Usb2EpGenericReqDefType := usb2MkEpGenericReqDef;
 
    type Usb2EpGenericReqDefArray is array (natural range <>) of Usb2EpGenericReqDefType;
 
@@ -49,7 +48,7 @@ package Usb2EpGenericCtlPkg is
       constant r: in Usb2CtlRequestCodeType;
       constant x: in Usb2EpGenericReqDefArray
    ) return boolean;
- 
+
    function idxOf(
       constant r: in Usb2CtlRequestCodeType;
       constant x: in Usb2EpGenericReqDefArray
@@ -115,7 +114,7 @@ package body Usb2EpGenericCtlPkg is
       end if;
       return v(i) = '1';
    end function selected;
- 
+
    function concat(
       constant x: in Usb2EpGenericReqDefArray := USB2_EP_GENERIC_REQ_DEF_ARRAY_EMPTY_C;
       constant y: in Usb2EpGenericReqDefArray := USB2_EP_GENERIC_REQ_DEF_ARRAY_EMPTY_C
@@ -139,7 +138,7 @@ package body Usb2EpGenericCtlPkg is
       if ( b ) then return x; else return y; end if;
    end function ite;
 
-   function usb2MkEpGeneriqReqDef (
+   function usb2MkEpGenericReqDef (
       dev2Host           : std_logic := '0';
       request            : Usb2CtlRequestCodeType := (others => '0');
       dataSize           : natural   := 0;
@@ -152,6 +151,6 @@ package body Usb2EpGenericCtlPkg is
       v.dataSize := dataSize;
       v.stream   := stream;
       return v;
-   end function usb2MkEpGeneriqReqDef;
+   end function usb2MkEpGenericReqDef;
 
-end package body Usb2EpGenericCtlPkg;
+ end package body Usb2EpGenericCtlPkg;

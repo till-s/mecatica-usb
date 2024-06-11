@@ -58,7 +58,7 @@ architecture Impl of Usb2EpCDCACMCtl is
    constant CTL_IFC_NUM_C                     : Usb2InterfaceNumType := toUsb2InterfaceNumType( CTL_IFC_NUM_G );
 
    constant REQS_BREAK_C                      : Usb2EpGenericReqDefArray := (
-      0 => usb2MkEpGeneriqReqDef (
+      0 => usb2MkEpGenericReqDef (
       dev2Host  => '0',
       request   => USB2_REQ_CLS_CDC_SEND_BREAK_C,
       dataSize  => 0
@@ -66,17 +66,17 @@ architecture Impl of Usb2EpCDCACMCtl is
    );
 
    constant REQS_LINE_C                       : Usb2EpGenericReqDefArray := (
-      usb2MkEpGeneriqReqDef (
+      usb2MkEpGenericReqDef (
       dev2Host  => '0',
       request   => USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE_C,
       dataSize  => 0
       ),
-      usb2MkEpGeneriqReqDef (
+      usb2MkEpGenericReqDef (
       dev2Host  => '0',
       request   => USB2_REQ_CLS_CDC_SET_LINE_CODING_C,
       dataSize  => LCODING_SZ_C
       ),
-      usb2MkEpGeneriqReqDef (
+      usb2MkEpGenericReqDef (
       dev2Host  => '1',
       request   => USB2_REQ_CLS_CDC_GET_LINE_CODING_C,
       dataSize  => LCODING_SZ_C
