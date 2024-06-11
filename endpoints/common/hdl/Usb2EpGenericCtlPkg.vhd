@@ -65,6 +65,24 @@ package Usb2EpGenericCtlPkg is
       constant y: in Usb2EpGenericReqDefArray := USB2_EP_GENERIC_REQ_DEF_ARRAY_EMPTY_C
    ) return Usb2EpGenericReqDefArray;
 
+   constant USB2_EP_GENERIC_STRM_DAT_IDX_C : natural := 0;
+   constant USB2_EP_GENERIC_STRM_LST_IDX_C : natural := 1;
+   constant USB2_EP_GENERIC_STRM_LST_BIT_C : natural := 7;
+   constant USB2_EP_GENERIC_STRM_DON_IDX_C : natural := 1;
+   constant USB2_EP_GENERIC_STRM_DON_BIT_C : natural := 6;
+
+   function usb2EpGenericStrmDat(
+      constant param : Usb2ByteArray
+   ) return Usb2ByteType;
+
+   function usb2EpGenericStrmLst(
+      constant param : Usb2ByteArray
+   ) return std_logic;
+
+   function usb2EpGenericStrmDon(
+      constant param : Usb2ByteArray
+   ) return std_logic;
+
 end package Usb2EpGenericCtlPkg;
 
 package body Usb2EpGenericCtlPkg is
@@ -152,5 +170,26 @@ package body Usb2EpGenericCtlPkg is
       v.stream   := stream;
       return v;
    end function usb2MkEpGenericReqDef;
+
+   function usb2EpGenericStrmDat(
+      constant param : Usb2ByteArray
+   ) return Usb2ByteType is
+   begin
+      return param(USB2_EP_GENERIC_STRM_DAT_IDX_C);
+   end function usb2EpGenericStrmDat;
+
+   function usb2EpGenericStrmLst(
+      constant param : Usb2ByteArray
+   ) return std_logic is
+   begin
+      return param(USB2_EP_GENERIC_STRM_LST_IDX_C)(USB2_EP_GENERIC_STRM_LST_BIT_C);
+   end function usb2EpGenericStrmLst;
+
+   function usb2EpGenericStrmDon(
+      constant param : Usb2ByteArray
+   ) return std_logic is
+   begin
+      return param(USB2_EP_GENERIC_STRM_DON_IDX_C)(USB2_EP_GENERIC_STRM_DON_BIT_C);
+   end function usb2EpGenericStrmDon;
 
  end package body Usb2EpGenericCtlPkg;

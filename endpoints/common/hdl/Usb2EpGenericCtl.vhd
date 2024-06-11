@@ -54,7 +54,12 @@ entity Usb2EpGenericCtl is
       --  - streamed host2cdev requests are just pumped
       --    out. The receiver cannot throttle; the data
       --    are output in paramOb(0), paramOb(1)(7) ships
-      --    a 'last' indicator.
+      --    a 'last' indicator. paramOb(1)(6) is a 'don'
+      --    flag that indicates that the transfer is over.
+      --    Data are *invalid* during the 'don' cycle even
+      --    though ctlReqVld(x) is asserted. The 'don' flag
+      --    is useful to indicate 'empty' transfers: a
+      --    single cycle with ( ctlReqVld(x) and don = '1' )
       ctlReqVld         : out std_logic_vector( HANDLE_REQUESTS_G'range );
       ctlReqAck         : in  std_logic;
       ctlReqErr         : in  std_logic;
@@ -254,11 +259,16 @@ begin
             end if;
 
          when STRMO =>
-            usb2EpOb.subOut.rdy <= '1';
-            paramOb(0)          <= usb2EpIb.mstOut.dat;
-            paramOb(1)(7)       <= '0'; -- 'LAST' flag
+            usb2EpOb.subOut.rdy                     <= '1';
+            paramOb(USB2_EP_GENERIC_STRM_DAT_IDX_C) <= usb2EpIb.mstOut.dat;
+            paramOb(USB2_EP_GENERIC_STRM_LST_IDX_C)
+                   (USB2_EP_GENERIC_STRM_LST_BIT_C) <= '0';
+            paramOb(USB2_EP_GENERIC_STRM_DON_IDX_C)
+                   (USB2_EP_GENERIC_STRM_DON_BIT_C) <= '0';
+
             if ( r.nBytes = 0 ) then
-               paramOb(1)(7)  <= '1'; -- 'LAST' flag
+               paramOb(USB2_EP_GENERIC_STRM_LST_IDX_C)
+                      (USB2_EP_GENERIC_STRM_LST_BIT_C) <= '1';
             end if;
 
             ctlReqVld <= (others => '0');
@@ -271,6 +281,12 @@ begin
             end if;
 
             if ( usb2EpIb.mstOut.don = '1' ) then
+               paramOb(USB2_EP_GENERIC_STRM_DON_IDX_C)
+                      (USB2_EP_GENERIC_STRM_DON_BIT_C) <= '1';
+               -- mark the 'don cycle as valid
+               for i in ctlReqVld'range loop
+                  ctlReqVld(i) <= r.reqSel(i);
+               end loop;
                v.reqSel     := (others => '0');
                v.ctlExt.don := '1';
                v.ctlExt.ack := '1';
