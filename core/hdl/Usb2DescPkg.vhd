@@ -44,7 +44,7 @@ package Usb2DescPkg is
 
    -- max. number of interfaces among all configurations
    -- e.g., if config 1 has 1 interface and config 2 has
-   -- 2 interfaces then the max would be 2.  
+   -- 2 interfaces then the max would be 2.
    function usb2AppGetMaxInterfaces(constant d: Usb2ByteArray) return natural;
    -- max. number of alt. settings of any interface of
    -- any configuration.
@@ -123,7 +123,7 @@ package Usb2DescPkg is
    -- descriptor (-1 if not found).
    --
    -- It is OK to pass -1 (NOP, returns -1)
-   -- 
+   --
    -- n = 0 finds the languages
    function usb2NthStringDescriptor(
       constant d : Usb2ByteArray;
@@ -151,21 +151,26 @@ package Usb2DescPkg is
 
    -- find ECM or NCM MAC address and convert to 'binary'
    -- Usb2ByteArray of length 6 or 0 (if address is not found).
-   function usb2GetECMMacAddrFromDescriptor(
+   function usb2GetECMMacAddr(
       constant d : Usb2ByteArray
    ) return Usb2ByteArray;
 
-   function usb2GetNCMMacAddrFromDescriptor(
+   function usb2GetNCMMacAddr(
       constant d : Usb2ByteArray
    ) return Usb2ByteArray;
- 
+
+   -- fetch bmNetworkCapabilities from NCM functional descriptor
+   function usb2GetNCMNetworkCapabilities(
+      constant d : Usb2ByteArray
+   ) return std_logic_vector;
+
    function usb2NextIfcAssocDescriptor(
       constant d : Usb2ByteArray;
-      constant i : integer; 
+      constant i : integer;
       constant c : Usb2ByteType;
       constant s : Usb2ByteType;
       constant p : Usb2ByteType := (others => 'X');
-      constant a : boolean      := true 
+      constant a : boolean      := true
    ) return integer;
 
 end package Usb2DescPkg;
@@ -312,8 +317,8 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       end loop;
       return n;
    end function usb2CountDescriptors;
-  
-   -- count number of configurations; if 
+
+   -- count number of configurations; if
    -- a => false then both speeds are counted
    function Usb2AppGetNumConfigurations(
       constant d: Usb2ByteArray;
@@ -456,11 +461,11 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
 
    function usb2NextIfcAssocDescriptor(
       constant d : Usb2ByteArray;
-      constant i : integer; 
+      constant i : integer;
       constant c : Usb2ByteType;
       constant s : Usb2ByteType;
       constant p : Usb2ByteType := (others => 'X');
-      constant a : boolean      := true 
+      constant a : boolean      := true
    ) return integer is
       variable x              : integer;
       constant IDX_FCN_CLSS_C : natural := 4;
@@ -507,7 +512,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
        return v;
    end function usb2HexStrToBin;
 
-   function getMacAddrFromDescriptor(
+   function getMacAddr(
       constant d : Usb2ByteArray;
       constant w : boolean
    ) return Usb2ByteArray is
@@ -523,21 +528,35 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
          return NOTFOUND_C;
       end if;
       return usb2HexStrToBin( d(idx + 2 to idx + 2 + 12 - 1 ) );
-   end function getMacAddrFromDescriptor;
+   end function getMacAddr;
 
 
-   function usb2GetECMMacAddrFromDescriptor(
+   function usb2GetECMMacAddr(
       constant d : Usb2ByteArray
    ) return Usb2ByteArray is
    begin
-      return getMacAddrFromDescriptor( d, false );
-   end function usb2GetECMMacAddrFromDescriptor;
+      return getMacAddr( d, false );
+   end function usb2GetECMMacAddr;
 
-   function usb2GetNCMMacAddrFromDescriptor(
+   function usb2GetNCMMacAddr(
       constant d : Usb2ByteArray
    ) return Usb2ByteArray is
    begin
-      return getMacAddrFromDescriptor( d, true );
-   end function usb2GetNCMMacAddrFromDescriptor;
- 
+      return getMacAddr( d, true );
+   end function usb2GetNCMMacAddr;
+
+   function usb2GetNCMNetworkCapabilities(
+      constant d : Usb2ByteArray
+   ) return std_logic_vector is
+      constant NCM_IFC_IDX_C  : integer :=
+         usb2NextIfcDescriptor(d, USB2_IFC_CLASS_CDC_C, USB2_IFC_SUBCLASS_CDC_NCM_C);
+      constant NCM_CS_IDX_C   : integer :=
+         ite( NCM_IFC_IDX_C > 0,
+              usb2NextCsDescriptor(d, NCM_IFC_IDX_C, USB2_CS_DESC_SUBTYPE_CDC_NCM_C, a =>true ),
+              -1 );
+      constant NOT_FOUND_C    : std_logic_vector( -1 downto 0 ) := (others => '0');
+   begin
+      return ite( NCM_CS_IDX_C  > 0, std_logic_vector( d(NCM_CS_IDX_C + 5) ), NOT_FOUND_C );
+   end function usb2GetNCMNetworkCapabilities;
+
 end package body Usb2DescPkg;
