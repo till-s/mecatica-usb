@@ -378,6 +378,8 @@ package Usb2Pkg is
    constant USB2_REQ_CLS_CDC_SET_CONTROL_LINE_STATE_C      : Usb2CtlRequestCodeType     := x"22";
    constant USB2_REQ_CLS_CDC_SEND_BREAK_C                  : Usb2CtlRequestCodeType     := x"23";
 
+   constant USB2_REQ_CLS_CDC_SET_ETHERNET_MC_FILTERS_C     : Usb2CtlRequestCodeType     := x"40";
+
    constant USB2_REQ_CLS_CDC_SET_ETHERNET_PACKET_FILTER_C  : Usb2CtlRequestCodeType     := x"43";
 
    constant USB2_REQ_CLS_CDC_GET_NTB_PARAMETERS_C          : Usb2CtlRequestCodeType     := x"80";
