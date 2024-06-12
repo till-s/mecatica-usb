@@ -706,14 +706,14 @@ class Usb2DescContext(list):
   @factory
   class Usb2CDCFuncEthernetDesc(Usb2CDCDesc.clazz):
 
-    DSC_ETH_SUP_MC_PERFECT = 0x8000 # flag in wNumberMCFilters
+    DSC_ETH_SUP_MC_IMPERFECT = 0x8000 # flag in wNumberMCFilters
 
     def __init__(self):
       super().__init__(13, self.DSC_TYPE_CS_INTERFACE)
       self.bDescriptorSubtype( self.DSC_SUBTYPE_ETHERNET_NETWORKING )
       self.bmEthernetStatistics( 0 )
       self.wMaxSegmentSize( 1514 )
-      self.wNumberMCFilters( 0x8000 )
+      self.wNumberMCFilters( self.DSC_ETH_SUP_MC_IMPERFECT );
       self.bNumberPowerFilters( 0 )
 
     @acc(3)
@@ -1131,7 +1131,7 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
-def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True, fcnTitle=None, dynAddr=False):
+def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True, fcnTitle=None, dynAddr=False, numMCFilters=-1):
   numIfcs = 0
   numEPPs = 0
   if epPktSize is None:
@@ -1167,6 +1167,8 @@ def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   # functional descriptors; ethernet
   d = ctxt.Usb2CDCFuncEthernetDesc()
   d.iMACAddress( iMACAddr )
+  if ( numMCFilters >= 0 and numMCFilters <= 65535 ):
+    d.wNumberMCFilters( numMCFilters )
 
   # functional descriptors; NCM
   d = ctxt.Usb2CDCFuncNCMDesc()

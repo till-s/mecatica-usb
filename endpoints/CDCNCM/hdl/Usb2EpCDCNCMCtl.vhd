@@ -20,6 +20,7 @@ entity Usb2EpCDCNCMCtl is
       MAX_NTB_SIZE_OUT_G                : natural;
       MAX_DGRAMS_OUT_G                  : natural;
       SUPPORT_NET_ADDRESS_G             : boolean               := false;
+      SUPPORT_SET_MC_FILT_G             : boolean               := false;
       MAC_ADDR_G                        : Usb2ByteArray(0 to 5) := (others => (others => '0'))
    );
    port (
@@ -37,7 +38,18 @@ entity Usb2EpCDCNCMCtl is
       maxNTBSizeInp                     : out unsigned(31 downto 0);
       -- network-byte order
       macAddress                        : out Usb2ByteArray(0 to 5 );
-      packetFilter                      : out std_logic_vector(4 downto 0)
+      packetFilter                      : out std_logic_vector(4 downto 0);
+      -- set multicast filters request is streamed out here
+      mcFilterDat                       : out Usb2ByteType := (others => '0');
+      -- request is terminated by vld = '1', don = '1'. During this
+      -- cycle the data are *not* valid (allows for clearing the filters
+      -- with a single cycle (vld = don = '1'). 'lst' is asserted during
+      -- the last data-valid cycle.
+      -- There might be gaps with 'vld' deasserted. Receiver must wait for
+      -- 'don' to terminate reception.
+      mcFilterVld                       : out std_logic := '0';
+      mcFilterLst                       : out std_logic := '0';
+      mcFilterDon                       : out std_logic := '0'
    );
 end entity Usb2EpCDCNCMCtl;
 
@@ -82,8 +94,21 @@ architecture Impl of Usb2EpCDCNCMCtl is
       )
    );
 
+   constant MC_FILTER_REQ_C                   : Usb2EpGenericReqDefArray := (
+     0 => usb2MkEpGenericReqDef(
+         dev2Host => '0',
+         request  =>  USB2_REQ_CLS_CDC_SET_ETHERNET_MC_FILTERS_C,
+         dataSize =>  0,
+         stream   =>  true
+      )
+   );
+
    constant HANDLE_REQUESTS_C                 : Usb2EpGenericReqDefArray :=
-      concat( MANDATORY_REQS_C, ite( SUPPORT_NET_ADDRESS_G, NET_ADDR_REQS_C ) );
+      concat( MANDATORY_REQS_C,
+         concat( ite( SUPPORT_NET_ADDRESS_G, NET_ADDR_REQS_C ),
+                 ite( SUPPORT_SET_MC_FILT_G, MC_FILTER_REQ_C )
+         )
+      );
 
    type RegType is record
       maxNTBSizeInp  : unsigned(31 downto 0);
@@ -139,6 +164,7 @@ begin
 
       ctlReqAck    <= '1';
       ctlReqErr    <= '1';
+      mcFilterVld  <= '0';
 
       -- NTB parameters (default)
       parmsIb( 0)  <= x"1C"; -- struct size
@@ -202,6 +228,10 @@ begin
          v.packetFilter := usb2Ep0ReqParam.value(v.packetFilter'range);
          ctlReqErr      <= '0';
       end if;
+      if ( selected( ctlReqVld, USB2_REQ_CLS_CDC_SET_ETHERNET_MC_FILTERS_C, HANDLE_REQUESTS_C ) ) then
+         mcFilterVld    <= '1';
+         ctlReqErr      <= '0';
+      end if;
 
       rin <= v;
    end process P_COMB;
@@ -220,5 +250,11 @@ begin
    macAddress    <= r.macAddr;
    maxNTBSizeInp <= r.maxNTBSizeInp;
    packetFilter  <= r.packetFilter;
+
+   G_MC_FILTER_STRM : if ( SUPPORT_SET_MC_FILT_G ) generate
+      mcFilterDat   <= usb2EpGenericStrmDat( parmsOb );
+      mcFilterLst   <= usb2EpGenericStrmLst( parmsOb );
+      mcFilterDon   <= usb2EpGenericStrmDon( parmsOb );
+   end generate G_MC_FILTER_STRM;
 
 end architecture Impl;

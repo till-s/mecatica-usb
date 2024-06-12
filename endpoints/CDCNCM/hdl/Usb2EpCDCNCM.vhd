@@ -41,6 +41,8 @@ entity Usb2EpCDCNCM is
 
       -- support the GET_NET_ADDRESS/SET_NET_ADDRESS requests
       SUPPORT_NET_ADDRESS_G      : boolean   := false;
+      -- support SET_MULTICAST_FILTERS request
+      SUPPORT_SET_MC_FILT_G      : boolean   := false;
       DFLT_MAC_ADDR_G            : Usb2ByteArray(0 to 5) := (others => (others => '0'));
 
       CARRIER_DFLT_G             : std_logic := '1';
@@ -81,6 +83,18 @@ entity Usb2EpCDCNCM is
 
       -- mac address (network-byte order; only valid if SUPPORT_NET_ADDRESS_G)
       macAddress                 : out Usb2ByteArray(0 to 5);
+
+      -- set multicast filters request is streamed out here
+      mcFilterDat                : out Usb2ByteType := (others => '0');
+      -- request is terminated by vld = '1', don = '1'. During this
+      -- cycle the data are *not* valid (allows for clearing the filters
+      -- with a single cycle (vld = don = '1'). 'lst' is asserted during
+      -- the last data-valid cycle.
+      -- There might be gaps with 'vld' deasserted. Receiver must wait for
+      -- 'don' to terminate reception.
+      mcFilterVld                : out std_logic := '0';
+      mcFilterLst                : out std_logic := '0';
+      mcFilterDon                : out std_logic := '0';
 
       -- *******************************************************
       -- signals below here are in the epClk domain (if ASYNC_G)
@@ -203,6 +217,7 @@ begin
          MAX_NTB_SIZE_OUT_G        => MAX_NTB_SIZE_OUT_F,
          MAX_DGRAMS_OUT_G          => MAX_DGRAMS_OUT_G,
          SUPPORT_NET_ADDRESS_G     => SUPPORT_NET_ADDRESS_G,
+         SUPPORT_SET_MC_FILT_G     => SUPPORT_SET_MC_FILT_G,
          MAC_ADDR_G                => DFLT_MAC_ADDR_G
       )
       port map (
@@ -217,7 +232,12 @@ begin
 
          maxNTBSizeInp             => usb2MaxNTBSizeInp,
          macAddress                => macAddress,
-         packetFilter              => packetFilter
+         packetFilter              => packetFilter,
+
+         mcFilterDat               => mcFilterDat,
+         mcFilterVld               => mcFilterVld,
+         mcFilterLst               => mcFilterLst,
+         mcFilterDon               => mcFilterDon
       );
 
    U_EP_NOT : entity work.Usb2EpCDCEtherNotify

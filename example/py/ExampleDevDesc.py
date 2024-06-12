@@ -29,6 +29,7 @@ def mkExampleDevDescriptors(
   # NCM Function
   iNCMMACAddr         = None,
   haveNCMDynAddr      = False,
+  numNCMMcFilters     = -1,
   # Sound Function
   uacProto            = "UAC2",
   # Wrap up the descriptors
@@ -87,7 +88,7 @@ def mkExampleDevDescriptors(
       epAddr_    += eps
 
     if not iNCMMACAddr is None:
-      ifs, eps = Usb2Desc.addBasicNCM( c, ifcNumber_, epAddr_, iMACAddr = iNCMMACAddr, hiSpeed = speed, fcnTitle = "Mecatica NCM", dynAddr = haveNCMDynAddr)
+      ifs, eps = Usb2Desc.addBasicNCM( c, ifcNumber_, epAddr_, iMACAddr = iNCMMACAddr, hiSpeed = speed, fcnTitle = "Mecatica NCM", dynAddr = haveNCMDynAddr, numMCFilters = numNCMMcFilters)
       ifcNumber_ += ifs
       epAddr_    += eps
 

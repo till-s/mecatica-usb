@@ -47,10 +47,11 @@ if __name__ == "__main__":
   haveACMLineState    = True
   dualSpeed           = True
   hiSpeed             = True
+  numNCMMcFilters     = -1
 
   cmdline             = os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:])
 
-  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:s:FSN:E:AL:a")
+  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:s:FSN:E:AL:am:")
   for o in opt:
     if o[0] in ("-h"):
        print("usage: {} [-h] [-v <vendor_id>] [-f <output_file>] -p <product_id>".format(sys.argv[0]))
@@ -61,9 +62,11 @@ if __name__ == "__main__":
        print("          -s serial_number : (string) goes into the device descriptor")
        print("          -F               : Full-speed only")
        print("          -S               : Disable sound function")
-       print("          -E macAddr       : Enable ECM ethernet function")
-       print("          -N macAddr       : Enable NCM ethernet function")
-       print("          -a               : Enable support for SET_NET_ADDRESS (NCM)")
+       print("          -E macAddr       : Enable ECM ethernet function; mac-addr in hex, e.g., 02deadbeef33")
+       print("          -N macAddr       : Enable NCM ethernet function; mac-addr in hex, e.g., 02deadbeef33")
+       print("          -a               : Enable support for SET_NET_ADDRESS (NCM only)")
+       print("          -m numMcFilters  : Set wNumberMCFilters (NCM only, bit 15 indicates that filtering is imperfect\n")
+       print("                             -m 0x8000 disables support for setting MC filters\n")
        print("          -A               : Disable ACM function")
        print("          -L break         : Disable ACM line-break support")
        print("          -L state         : Disable ACM line-state support")
@@ -98,6 +101,10 @@ if __name__ == "__main__":
          raise RuntimeError("invalid argument to '-L' option")
     elif o[0] in ("-a"):
        haveNCMDynAddr     = True
+    elif o[0] in ("-m"):
+       numNCMMcFilters = int(o[1],0)
+       if ( numNCMMcFilters < 0 or numNCMMcFilters > 65535 ):
+         raise RuntimeError("invalid argument to '-m' option (0 <= val <= 65535)")
 
   if idProduct is None:
     raise RuntimeError(
@@ -122,7 +129,8 @@ if __name__ == "__main__":
               haveACM=haveACM,
               haveACMLineState=haveACMLineState,
               haveACMLineBreak=haveACMLineBreak,
-              haveNCMDynAddr=haveNCMDynAddr
+              haveNCMDynAddr=haveNCMDynAddr,
+              numNCMMcFilters=numNCMMcFilters
   )
 
   comment = 'Generated with: {}'.format(cmdline)

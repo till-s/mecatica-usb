@@ -211,6 +211,17 @@ entity Usb2ExampleDev is
       ncmSpeedInp          : in  unsigned(31 downto 0)        := to_unsigned( 100000000, 32 );
       ncmSpeedOut          : in  unsigned(31 downto 0)        := to_unsigned( 100000000, 32 );
       ncmMacAddr           : out Usb2ByteArray(0 to 5)        := (others => (others => '0'));
+      -- set multicast filters request is streamed out here
+      ncmMcFilterDat       : out Usb2ByteType := (others => '0');
+      -- request is terminated by vld = '1', don = '1'. During this
+      -- cycle the data are *not* valid (allows for clearing the filters
+      -- with a single cycle (vld = don = '1'). 'lst' is asserted during
+      -- the last data-valid cycle.
+      -- There might be gaps with 'vld' deasserted. Receiver must wait for
+      -- 'don' to terminate reception.
+      ncmMcFilterVld       : out std_logic := '0';
+      ncmMcFilterLst       : out std_logic := '0';
+      ncmMcFilterDon       : out std_logic := '0'
 
       -- I2S
       i2sBCLK              : in  std_logic    := '0';
@@ -701,10 +712,14 @@ begin
       constant NCM_MAC_ADDR_C : Usb2ByteArray    := usb2GetNCMMacAddr( DESCRIPTORS_G );
 
       constant BM_NET_CAPA_C  : std_logic_vector := usb2GetNCMNetworkCapabilities( DESCRIPTORS_G );
+
+      constant SET_MC_FILT_C  : boolean          := (usb2GetNumMCFilters( DESCRIPTORS_G, USB2_IFC_SUBCLASS_CDC_NCM_C ) > 0);
       constant SET_NET_ADDR_C : boolean          := ( BM_NET_CAPA_C(1) = '1');
    begin
 
       assert NCM_MAC_ADDR_C'length = 6 report "No NCM MAC Address found in descriptors" severity failure;
+
+      assert false report "NUM MC FILTERS " & integer'image( usb2GetNumMCFilters( DESCRIPTORS_G ) ) severity failure;
 
       U_CDCNCM : entity work.Usb2EpCDCNCM
          generic map (
@@ -714,6 +729,7 @@ begin
             LD_RAM_DEPTH_OUT_G         => LD_NCM_RAM_DEPTH_OUT_G,
             DFLT_MAC_ADDR_G            => NCM_MAC_ADDR_C,
             SUPPORT_NET_ADDRESS_G      => SET_NET_ADDR_C,
+            SUPPORT_SET_MC_FILT_G      => SET_MC_FILT_C,
             CARRIER_DFLT_G             => '0'
          )
          port map (
@@ -738,6 +754,11 @@ begin
             speedOut                   => ncmSpeedOut,
             macAddress                 => ncmMacAddr,
 
+            mcFilterDat                => ncmMcFilterDat,
+            mcFilterVld                => ncmMcFilterVld,
+            mcFilterLst                => ncmMcFilterLst,
+            mcFilterDon                => ncmMcFilterDon,
+ 
             epClk                      => ncmFifoClk,
             epRstOut                   => ncmFifoRstOut,
 

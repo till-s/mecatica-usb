@@ -130,6 +130,14 @@ package Usb2DescPkg is
       constant n : integer
    ) return integer;
 
+   -- find ethernet functional descriptor associated with interface of
+   -- subclass 's'.
+   function usb2EthNetworkingDescriptor(
+      constant d : Usb2ByteArray;
+      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
+   ) return integer;
+
    -- Find the string descriptor index pointing to the MAC address
    -- of the first interface of desired subclass.
    -- Returns -1 if not found
@@ -163,6 +171,12 @@ package Usb2DescPkg is
    function usb2GetNCMNetworkCapabilities(
       constant d : Usb2ByteArray
    ) return std_logic_vector;
+
+   function usb2GetNumMcFilters(
+      constant d : Usb2ByteArray;
+      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
+   ) return integer;
 
    function usb2NextIfcAssocDescriptor(
       constant d : Usb2ByteArray;
@@ -430,6 +444,27 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return i;
    end function usb2NextIfcDescriptor;
 
+   function usb2EthNetworkingDescriptor(
+      constant d : Usb2ByteArray;
+      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
+   ) return integer is
+      variable i                    : integer;
+   begin
+      i := usb2NextIfcDescriptor( d, USB2_IFC_CLASS_CDC_C, s );
+      if ( i < 0 ) then
+         return -1;
+      end if;
+
+      -- ECM and NCM both use this subtype of descriptor
+      i  := usb2NextCsDescriptor( d, i, USB2_CS_DESC_SUBTYPE_CDC_ECM_C, a => true );
+      assert i > 0 report " Ethernet functional descriptor not found" severity warning;
+      if ( i < 0 ) then
+         return -1;
+      end if;
+      return i;
+   end function usb2EthNetworkingDescriptor;
+
    function usb2EthMacAddrStringDescriptor(
       constant d : Usb2ByteArray;
       -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
@@ -440,14 +475,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       constant IDX_MAC_ADDR_SIDX_C  : natural      := 3;
    begin
 
-      i := usb2NextIfcDescriptor( d, USB2_IFC_CLASS_CDC_C, s );
-      if ( i < 0 ) then
-         return -1;
-      end if;
-
-      -- ECM and NCM both use this subtype of descriptor for the mac addres
-      i  := usb2NextCsDescriptor( d, i, USB2_CS_DESC_SUBTYPE_CDC_ECM_C, a => true );
-      assert i > 0 report " Ethernet functional descriptor not found" severity warning;
+      i := usb2EthNetworkingDescriptor( d, s );
       if ( i < 0 ) then
          return -1;
       end if;
@@ -530,7 +558,6 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return usb2HexStrToBin( d(idx + 2 to idx + 2 + 12 - 1 ) );
    end function getMacAddr;
 
-
    function usb2GetECMMacAddr(
       constant d : Usb2ByteArray
    ) return Usb2ByteArray is
@@ -558,5 +585,22 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
    begin
       return ite( NCM_CS_IDX_C  > 0, std_logic_vector( d(NCM_CS_IDX_C + 5) ), NOT_FOUND_C );
    end function usb2GetNCMNetworkCapabilities;
+
+   function usb2GetNumMcFilters(
+      constant d : Usb2ByteArray;
+      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
+   ) return integer is
+      variable i : integer;
+      variable v : integer;
+   begin
+      i := usb2EthNetworkingDescriptor(d, s);
+      if ( i < 0 ) then
+         return i;
+      end if;
+      v := to_integer(unsigned(d(i + 10)));
+      v := v + 256*to_integer(unsigned(d(i+11)(6 downto 0)));
+      return v;
+   end function usb2GetNumMcFilters;
 
 end package body Usb2DescPkg;
