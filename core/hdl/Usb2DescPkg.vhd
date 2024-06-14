@@ -524,6 +524,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return x;
    end function usb2NextIfcAssocDescriptor;
 
+   -- unicode 
    function usb2HexStrToBin(
       constant d : Usb2ByteArray
    ) return Usb2ByteArray is
@@ -534,11 +535,13 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
    begin
       for i in 0 to d'length/4 - 1 loop
          nibhi := unsigned(d(d'low + 4*i + 0)(3 downto 0));
-         if ( unsigned(d(d'low + 2*i + 0)) >= unsigned(A_C) ) then
+         -- note that this hack also works for lower-case 0x61 since
+         -- we just looked at the nibble...
+         if ( unsigned(d(d'low + 4*i + 0)) >= unsigned(A_C) ) then
             nibhi := nibhi + 9;
          end if;
          niblo := unsigned(d(d'low + 4*i + 2)(3 downto 0));
-         if ( unsigned(d(d'low + 2*i + 1)) >= unsigned(A_C) ) then
+         if ( unsigned(d(d'low + 4*i + 2)) >= unsigned(A_C) ) then
             niblo := niblo + 9;
          end if;
          v(i) := std_logic_vector(nibhi & niblo);
@@ -561,7 +564,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       if ( idx < 0 ) then
          return NOTFOUND_C;
       end if;
-      return usb2HexStrToBin( d(idx + 2 to idx + 2 + 12 - 1 ) );
+      return usb2HexStrToBin( d(idx + 2 to idx + 2 + 24 - 1 ) );
    end function getMacAddr;
 
    function usb2GetECMMacAddr(

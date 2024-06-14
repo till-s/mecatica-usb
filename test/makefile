@@ -66,6 +66,7 @@ SRCS += Usb2FSLSTx.vhd
 SRCS += Usb2FSLSTb.vhd
 SRCS += UlpiFSLSEmul.vhd
 SRCS += Usb2PktProcFSLSTb.vhd
+SRCS += Usb2ExtractMacAddrTb.vhd
 
 
 PROG+=UlpiIOTb
@@ -91,6 +92,7 @@ PROG += Usb2Ep0StringTb
 PROG += Usb2CDCACMTb
 PROG += Usb2FSLSTb
 PROG += Usb2PktProcFSLSTb
+PROG += Usb2ExtractMacAddrTb
 
 all: test
 
@@ -169,6 +171,8 @@ Usb2CDCACMTb.o: Usb2Core.o Usb2EpCDCACM.o
 
 Usb2FSLSRx.o: UlpiPkg.o Usb2FSLSRxBitShift.o
 Usb2FSLSTx.o: UlpiPkg.o
+
+Usb2ExtractMacAddrTb.o: Usb2Pkg.o UlpiPkg.o Usb2UtilPkg.o Usb2DescPkg.o Usb2AppCfgPkg.o
 
 Usb2FSLSTb.o: UlpiPkg.o Usb2FSLSRx.o Usb2FSLSTx.o
 Usb2PktProcFSLSTb.o: UlpiPkg.o Usb2Pkg.o Usb2PrivPkg.o Usb2UtilPkg.o Usb2TstPkg.o UlpiFSLSEmul.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o
