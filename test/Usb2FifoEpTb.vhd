@@ -424,7 +424,6 @@ begin
 
    U_BRK : entity work.Usb2EpCDCACMCtl
       generic map (
-         CTL_IFC_NUM_G  => IFC_NUM_C,
          SUPPORT_LINE_G => true
       )
       port map (
