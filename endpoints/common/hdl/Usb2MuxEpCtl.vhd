@@ -31,7 +31,7 @@ entity Usb2MuxEpCtl is
       -- connections to all the agents
       -- do *NOT* connect any of the agents to usb2CtlReqParamIb !
       -- The mux propagates 'vld' once it went through its arbitration
-      usb2CtlReqParamOb : out Usb2CtlReqParamType;
+      usb2CtlReqParamOb : out Usb2CtlReqParamArray( AGENTS_G'range );
       usb2CtlExtIb      : in  Usb2CtlExtArray( AGENTS_G'range )     := ( others => USB2_CTL_EXT_NAK_C );
 
       usb2CtlEpExtIb    : in  Usb2EndpPairIbArray( AGENTS_G'range ) := ( others => USB2_ENDP_PAIR_IB_INIT_C )
@@ -87,7 +87,11 @@ begin
 
       usb2CtlExtOb      <= USB2_CTL_EXT_NAK_C;
       usb2CtlEpExtOb    <= usb2CtlEpExtIb( r.sel );
-      usb2CtlReqParamOb <= usb2CtlReqParamIb;
+      usb2CtlReqParamOb <= ( others => usb2CtlReqParamIb );
+
+      for i in usb2CtlReqParamOb'range loop
+         usb2CtlReqParamOb(i).vld <= '0';
+      end loop;
 
       if ( usb2CtlReqParamIb.vld = '0' ) then
          v.state := ARB;
@@ -96,7 +100,6 @@ begin
       case ( r.state ) is
          when ARB =>
             -- don't propagate 'vld' to the EPs until a choice is made
-            usb2CtlReqParamOb.vld <= '0';
 
             if ( usb2CtlReqParamIb.vld = '1' ) then
                L_ARB : for i in AGENTS_G'range loop
@@ -111,7 +114,8 @@ begin
             end if;
 
          when FWD =>
-            usb2CtlExtOb <= usb2CtlExtIb( r.sel );
+            usb2CtlReqParamOb(r.sel).vld <= usb2CtlReqParamIb.vld;
+            usb2CtlExtOb                 <= usb2CtlExtIb( r.sel );
       end case;
 
       rin               <= v;

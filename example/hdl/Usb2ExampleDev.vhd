@@ -100,7 +100,7 @@ entity Usb2ExampleDev is
       usb2DescRWOb         : out Usb2DescRWObType                               := USB2_DESC_RW_OB_INIT_C;
 
       -- External EP0 agent(s)
-      usb2Ep0ReqParam      : out Usb2CtlReqParamType;
+      usb2Ep0ReqParam      : out Usb2CtlReqParamArray( CTL_EP0_AGENTS_CONFIG_G'range );
       usb2Ep0ObExt         : out Usb2EndpPairObType;
       usb2Ep0IbExt         : in  Usb2EndpPairIbArray( CTL_EP0_AGENTS_CONFIG_G'range ) := (others => USB2_ENDP_PAIR_IB_INIT_C );
       usb2Ep0CtlExt        : in  Usb2CtlExtArray( CTL_EP0_AGENTS_CONFIG_G'range ):= (others => USB2_CTL_EXT_NAK_C);
@@ -212,16 +212,16 @@ entity Usb2ExampleDev is
       ncmSpeedOut          : in  unsigned(31 downto 0)        := to_unsigned( 100000000, 32 );
       ncmMacAddr           : out Usb2ByteArray(0 to 5)        := (others => (others => '0'));
       -- set multicast filters request is streamed out here
-      ncmMcFilterDat       : out Usb2ByteType := (others => '0');
+      ncmMCFilterDat       : out Usb2ByteType := (others => '0');
       -- request is terminated by vld = '1', don = '1'. During this
       -- cycle the data are *not* valid (allows for clearing the filters
       -- with a single cycle (vld = don = '1'). 'lst' is asserted during
       -- the last data-valid cycle.
       -- There might be gaps with 'vld' deasserted. Receiver must wait for
       -- 'don' to terminate reception.
-      ncmMcFilterVld       : out std_logic := '0';
-      ncmMcFilterLst       : out std_logic := '0';
-      ncmMcFilterDon       : out std_logic := '0'
+      ncmMCFilterVld       : out std_logic := '0';
+      ncmMCFilterLst       : out std_logic := '0';
+      ncmMCFilterDon       : out std_logic := '0';
 
       -- I2S
       i2sBCLK              : in  std_logic    := '0';
@@ -330,7 +330,9 @@ architecture Impl of Usb2ExampleDev is
    signal usb2RstLoc                           : std_logic;
 
    signal usb2Ep0ReqParamIn                    : Usb2CtlReqParamType;
-   signal usb2Ep0ReqParamLoc                   : Usb2CtlReqParamType := USB2_CTL_REQ_PARAM_INIT_C;
+   signal usb2Ep0ReqParamLoc                   : Usb2CtlReqParamArray( 0 to NUM_EP0_AGENTS_C - 1 ) := (
+         others => USB2_CTL_REQ_PARAM_INIT_C
+      );
 
    signal usb2Ep0CtlExtLoc                     : Usb2CtlExtType      := USB2_CTL_EXT_NAK_C;
 
@@ -458,6 +460,7 @@ begin
       begin
          usb2Ep0CtlExtArr  ( l to h ) <= usb2Ep0CtlExt;
          usb2Ep0CtlEpExtArr( l to h ) <= usb2Ep0IbExt;
+         usb2Ep0ReqParam              <= usb2Ep0ReqParamLoc( l to h );
       end generate G_EXT_AGENTS;
 
       -- Control EP-0 mux
@@ -483,7 +486,6 @@ begin
 
    end generate G_EP0_MUX;
 
-   usb2Ep0ReqParam      <= usb2Ep0ReqParamLoc;
    usb2Ep0ObExt         <= usb2EpOb(0);
 
    -- CDC ACM Endpoint
@@ -491,11 +493,13 @@ begin
       signal cnt : unsigned(7 downto 0) := (others => '0');
       signal acmEp0CtlExt        : Usb2CtlExtType;
       signal acmEp0ObExt         : Usb2EndpPairIbType;
+      signal acmEp0ReqParam      : Usb2CtlReqParamType;
    begin
 
       G_ACM_CTL_EXT : if ( HAVE_ACM_AGENT_C ) generate
          usb2Ep0CtlExtArr( CDC_ACM_EP0_AGENT_IDX_C )   <= acmEp0CtlExt;
          usb2Ep0CtlEpExtArr( CDC_ACM_EP0_AGENT_IDX_C ) <= acmEp0ObExt;
+         acmEp0ReqParam                                <= usb2Ep0ReqParamLoc( CDC_ACM_EP0_AGENT_IDX_C );
       end generate G_ACM_CTL_EXT;
 
       U_CDCACM : entity work.Usb2EpCDCACM
@@ -514,7 +518,7 @@ begin
 
             usb2Rx                     => usb2Rx,
 
-            usb2Ep0ReqParam            => usb2Ep0ReqParamLoc,
+            usb2Ep0ReqParam            => acmEp0ReqParam,
             usb2Ep0CtlExt              => acmEp0CtlExt,
             usb2Ep0ObExt               => acmEp0ObExt,
             usb2Ep0IbExt               => usb2EpOb(0),
@@ -625,7 +629,7 @@ begin
             usb2Rst                   => usb2RstLoc,
             usb2RstBsy                => open,
 
-            usb2Ep0ReqParam           => usb2Ep0ReqParamLoc,
+            usb2Ep0ReqParam           => usb2Ep0ReqParamLoc( BADD_EP0_AGENT_IDX_C ),
             usb2Ep0CtlExt             => usb2Ep0CtlExtArr( BADD_EP0_AGENT_IDX_C ),
             usb2Ep0ObExt              => usb2Ep0CtlEpExtArr( BADD_EP0_AGENT_IDX_C ),
             usb2Ep0IbExt              => usb2EpOb(0),
@@ -665,7 +669,7 @@ begin
             usb2Clk                    => usb2Clk,
             usb2Rst                    => usb2RstLoc,
 
-            usb2Ep0ReqParam            => usb2Ep0ReqParamLoc,
+            usb2Ep0ReqParam            => usb2Ep0ReqParamLoc( CDC_ECM_EP0_AGENT_IDX_C ),
             usb2Ep0CtlExt              => usb2Ep0CtlExtArr( CDC_ECM_EP0_AGENT_IDX_C ),
 
             usb2DataEpIb               => usb2EpOb(CDC_ECM_BULK_EP_IDX_C),
@@ -719,8 +723,6 @@ begin
 
       assert NCM_MAC_ADDR_C'length = 6 report "No NCM MAC Address found in descriptors" severity failure;
 
-      assert false report "NUM MC FILTERS " & integer'image( usb2GetNumMCFilters( DESCRIPTORS_G ) ) severity failure;
-
       U_CDCNCM : entity work.Usb2EpCDCNCM
          generic map (
             CTL_IFC_NUM_G              => CDC_NCM_CTL_IFC_NUM_C,
@@ -737,7 +739,7 @@ begin
             usb2Rst                    => usb2RstLoc,
             usb2EpRstOut               => open,
 
-            usb2Ep0ReqParam            => usb2Ep0ReqParamLoc,
+            usb2Ep0ReqParam            => usb2Ep0ReqParamLoc( CDC_NCM_EP0_AGENT_IDX_C ),
             usb2Ep0CtlExt              => usb2Ep0CtlExtArr( CDC_NCM_EP0_AGENT_IDX_C ),
 
             usb2CtlEpIb                => usb2EpOb(0),
@@ -754,10 +756,10 @@ begin
             speedOut                   => ncmSpeedOut,
             macAddress                 => ncmMacAddr,
 
-            mcFilterDat                => ncmMcFilterDat,
-            mcFilterVld                => ncmMcFilterVld,
-            mcFilterLst                => ncmMcFilterLst,
-            mcFilterDon                => ncmMcFilterDon,
+            mcFilterDat                => ncmMCFilterDat,
+            mcFilterVld                => ncmMCFilterVld,
+            mcFilterLst                => ncmMCFilterLst,
+            mcFilterDon                => ncmMCFilterDon,
  
             epClk                      => ncmFifoClk,
             epRstOut                   => ncmFifoRstOut,
