@@ -466,6 +466,8 @@ package Usb2Pkg is
       vld       => '0'
     );
 
+   type Usb2CtlReqParamArray is array (natural range <>) of Usb2CtlReqParamType;
+
    type Usb2CtlExtType is record
       -- 'ack' the param's 'vld' flag
       ack       : std_logic;
