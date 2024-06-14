@@ -17,7 +17,6 @@ use     work.Usb2EpGenericCtlPkg.all;
 
 entity Usb2EpCDCACMCtl is
    generic (
-      CTL_IFC_NUM_G   : natural;
       ASYNC_G         : boolean := false;
       -- whether to enable support for set/get line coding, set line-state
       -- if this is enabled then usb2Ep0ObExt/usb2EpIbExt must be connected!
@@ -54,8 +53,6 @@ end entity Usb2EpCDCACMCtl;
 architecture Impl of Usb2EpCDCACMCtl is
 
    constant LCODING_SZ_C                      : natural := 7;
-
-   constant CTL_IFC_NUM_C                     : Usb2InterfaceNumType := toUsb2InterfaceNumType( CTL_IFC_NUM_G );
 
    constant REQS_BREAK_C                      : Usb2EpGenericReqDefArray := (
       0 => usb2MkEpGenericReqDef (
@@ -114,7 +111,6 @@ begin
    -- assume at least one of SUPPORT_BREAK_G or SUPPORT_LINE_G is enabled
    U_CTL : entity work.Usb2EpGenericCtl
       generic map (
-         CTL_IFC_NUM_G           => CTL_IFC_NUM_G,
          HANDLE_REQUESTS_G       => HANDLE_REQUESTS_C
       )
       port map (

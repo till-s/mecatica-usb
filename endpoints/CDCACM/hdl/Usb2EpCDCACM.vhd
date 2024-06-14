@@ -137,7 +137,6 @@ begin
    begin
       U_BRK : entity work.Usb2EpCDCACMCtl
          generic map (
-            CTL_IFC_NUM_G               => CTL_IFC_NUM_G,
             ASYNC_G                     => ASYNC_G,
             SUPPORT_LINE_G              => ENBL_LINE_STATE_G,
             SUPPORT_BREAK_G             => ENBL_LINE_BREAK_G

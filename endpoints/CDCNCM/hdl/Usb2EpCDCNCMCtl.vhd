@@ -15,7 +15,6 @@ use     work.Usb2EpGenericCtlPkg.all;
 
 entity Usb2EpCDCNCMCtl is
    generic (
-      CTL_IFC_NUM_G                     : natural;
       MAX_NTB_SIZE_INP_G                : natural;
       MAX_NTB_SIZE_OUT_G                : natural;
       MAX_DGRAMS_OUT_G                  : natural;
@@ -54,8 +53,6 @@ entity Usb2EpCDCNCMCtl is
 end entity Usb2EpCDCNCMCtl;
 
 architecture Impl of Usb2EpCDCNCMCtl is
-
-   constant CTL_IFC_NUM_C                     : Usb2InterfaceNumType     := toUsb2InterfaceNumType( CTL_IFC_NUM_G );
 
    constant MANDATORY_REQS_C                  : Usb2EpGenericReqDefArray := (
       usb2MkEpGenericReqDef(
@@ -136,7 +133,6 @@ begin
    -- assume at least one of SUPPORT_BREAK_G or SUPPORT_LINE_G is enabled
    U_CTL : entity work.Usb2EpGenericCtl
       generic map (
-         CTL_IFC_NUM_G           => CTL_IFC_NUM_G,
          HANDLE_REQUESTS_G       => HANDLE_REQUESTS_C
       )
       port map (

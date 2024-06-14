@@ -16,9 +16,6 @@ use     work.Usb2EpGenericCtlPkg.all;
 entity Usb2EpGenericCtl is
 
    generic (
-      -- set to -1 to disable check; e.g., the Usb2MuxEpCtl
-      -- already filters requests...
-      CTL_IFC_NUM_G     : integer;
       HANDLE_REQUESTS_G : Usb2EpGenericReqDefArray;
       MARK_DEBUG_G      : boolean := false
    );
@@ -112,17 +109,11 @@ architecture Impl of Usb2EpGenericCtl is
    signal r       : RegType := REG_INIT_C;
    signal rin     : RegType := REG_INIT_C;
 
-   signal filter  : boolean := true;
-
 begin
 
    assert false report integer'image( nBytesMax( HANDLE_REQUESTS_G ) ) severity note;
 
-   G_FILT : if ( CTL_IFC_NUM_G >= 0 ) generate
-      filter <= usb2CtlReqDstInterface( usb2CtlReqParam, CTL_IFC_NUM_G );
-   end generate G_FILT;
-
-   P_COMB : process ( r, usb2CtlReqParam, ctlReqAck, ctlReqErr, paramIb, usb2EpIb, filter ) is
+   P_COMB : process ( r, usb2CtlReqParam, ctlReqAck, ctlReqErr, paramIb, usb2EpIb ) is
       variable v : RegType;
    begin
       v                    := r;
@@ -150,51 +141,48 @@ begin
                v.ctlExt.don := '1';
                v.state      := DONE;
 
-               if ( filter ) then
+               for i in HANDLE_REQUESTS_G'range loop
+                  if (      HANDLE_REQUESTS_G(i).dev2Host = toSl( usb2CtlReqParam.dev2Host )
+                       and  HANDLE_REQUESTS_G(i).request  = usb2CtlReqParam.request
+                     ) then
 
-                  for i in HANDLE_REQUESTS_G'range loop
-                     if (      HANDLE_REQUESTS_G(i).dev2Host = toSl( usb2CtlReqParam.dev2Host )
-                          and  HANDLE_REQUESTS_G(i).request  = usb2CtlReqParam.request
-                        ) then
-
-                        if ( usb2CtlReqParam.dev2Host ) then
-                           v.reqVld(i)  := '1';
+                     if ( usb2CtlReqParam.dev2Host ) then
+                        v.reqVld(i)  := '1';
+                        v.ctlExt.ack := '0';
+                        v.ctlExt.err := '0';
+                        v.ctlExt.don := '0';
+                        v.state      := WAIT_RESP;
+                        -- clip to what we actually have
+                        if ( usb2CtlReqParam.length > HANDLE_REQUESTS_G(i).dataSize ) then
+                           v.nBytes  := HANDLE_REQUESTS_G(i).dataSize - 1;
+                        end if;
+                     else
+                        if ( HANDLE_REQUESTS_G(i).stream ) then
+                           if ( HANDLE_REQUESTS_G(i).dataSize > 0 and usb2CtlReqParam.length > HANDLE_REQUESTS_G(i).dataSize ) then
+                              v.nBytes  := HANDLE_REQUESTS_G(i).dataSize - 1;
+                           end if;
+                           v.reqSel(i)  := '1';
+                           v.ctlExt.ack := '1';
+                           v.ctlExt.err := '0';
+                           v.ctlExt.don := '0';
+                           v.state      := STRMO;
+                        elsif ( ( usb2CtlReqParam.length <= HANDLE_REQUESTS_G(i).dataSize ) ) then
+                           -- allow short writes - assuming they know what they are doing
                            v.ctlExt.ack := '0';
                            v.ctlExt.err := '0';
                            v.ctlExt.don := '0';
-                           v.state      := WAIT_RESP;
-                           -- clip to what we actually have
-                           if ( usb2CtlReqParam.length > HANDLE_REQUESTS_G(i).dataSize ) then
-                              v.nBytes  := HANDLE_REQUESTS_G(i).dataSize - 1;
-                           end if;
-                        else
-                           if ( HANDLE_REQUESTS_G(i).stream ) then
-                              if ( HANDLE_REQUESTS_G(i).dataSize > 0 and usb2CtlReqParam.length > HANDLE_REQUESTS_G(i).dataSize ) then
-                                 v.nBytes  := HANDLE_REQUESTS_G(i).dataSize - 1;
-                              end if;
+                           if ( v.nBytes < 0 ) then
+                              v.reqVld(i)  := '1';
+                              v.state      := WAIT_RESP;
+                           else
                               v.reqSel(i)  := '1';
                               v.ctlExt.ack := '1';
-                              v.ctlExt.err := '0';
-                              v.ctlExt.don := '0';
-                              v.state      := STRMO;
-                           elsif ( ( usb2CtlReqParam.length <= HANDLE_REQUESTS_G(i).dataSize ) ) then
-                              -- allow short writes - assuming they know what they are doing
-                              v.ctlExt.ack := '0';
-                              v.ctlExt.err := '0';
-                              v.ctlExt.don := '0';
-                              if ( v.nBytes < 0 ) then
-                                 v.reqVld(i)  := '1';
-                                 v.state      := WAIT_RESP;
-                              else
-                                 v.reqSel(i)  := '1';
-                                 v.ctlExt.ack := '1';
-                                 v.state      := RECV;
-                              end if;
+                              v.state      := RECV;
                            end if;
                         end if;
                      end if;
-                  end loop;
-               end if;
+                  end if;
+               end loop;
             end if;
 
          when WAIT_RESP =>

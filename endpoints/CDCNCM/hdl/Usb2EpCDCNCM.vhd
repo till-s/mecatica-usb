@@ -212,7 +212,6 @@ begin
 
    U_EP_CTL : entity work.Usb2EpCDCNCMCtl
       generic map (
-         CTL_IFC_NUM_G             => CTL_IFC_NUM_G,
          MAX_NTB_SIZE_INP_G        => MAX_NTB_SIZE_INP_F,
          MAX_NTB_SIZE_OUT_G        => MAX_NTB_SIZE_OUT_F,
          MAX_DGRAMS_OUT_G          => MAX_DGRAMS_OUT_G,
