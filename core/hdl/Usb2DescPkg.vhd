@@ -172,11 +172,17 @@ package Usb2DescPkg is
       constant d : Usb2ByteArray
    ) return std_logic_vector;
 
-   function usb2GetNumMcFilters(
+   function usb2GetNumMCFilters(
       constant d : Usb2ByteArray;
       -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
       constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
    ) return integer;
+
+   function usb2GetMCFilterPerfect(
+      constant d : Usb2ByteArray;
+      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
+   ) return boolean;
 
    function usb2NextIfcAssocDescriptor(
       constant d : Usb2ByteArray;
@@ -586,7 +592,7 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return ite( NCM_CS_IDX_C  > 0, std_logic_vector( d(NCM_CS_IDX_C + 5) ), NOT_FOUND_C );
    end function usb2GetNCMNetworkCapabilities;
 
-   function usb2GetNumMcFilters(
+   function usb2GetNumMCFilters(
       constant d : Usb2ByteArray;
       -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
       constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
@@ -595,12 +601,22 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       variable v : integer;
    begin
       i := usb2EthNetworkingDescriptor(d, s);
-      if ( i < 0 ) then
-         return i;
-      end if;
+      assert (i >= 0) report "Ethernet Networking Functional Desciptor not found" severity failure;
       v := to_integer(unsigned(d(i + 10)));
       v := v + 256*to_integer(unsigned(d(i+11)(6 downto 0)));
       return v;
-   end function usb2GetNumMcFilters;
+   end function usb2GetNumMCFilters;
+
+   function usb2GetMCFilterPerfect(
+      constant d : Usb2ByteArray;
+      -- must be one of USB2_IFC_SUBCLASS_CDC_ECM_C, USB2_IFC_SUBCLASS_CDC_NCM_C
+      constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
+   ) return boolean is
+      variable i : integer;
+   begin
+      i := usb2EthNetworkingDescriptor(d, s);
+      assert (i >= 0) report "Ethernet Networking Functional Desciptor not found" severity failure;
+      return d(i+11)(7) = '0';
+   end function usb2GetMCFilterPerfect;
 
 end package body Usb2DescPkg;
