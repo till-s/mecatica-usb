@@ -114,8 +114,8 @@ architecture Impl of Usb2EpCDCNCMCtl is
    end record RegType;
 
    constant REG_INIT_C : RegType := (
-      maxNTBSizeInp  =>  to_unsigned( MAX_NTB_SIZE_INP_G, 32 ),
-      macAddr        =>  MAC_ADDR_G,
+      maxNTBSizeInp  => to_unsigned( MAX_NTB_SIZE_INP_G, 32 ),
+      macAddr        => MAC_ADDR_G,
       packetFilter   => (others => '1')
    );
 
