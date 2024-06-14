@@ -634,6 +634,7 @@ begin
          -- report integer'image(to_integer(unsigned(MACA_C(i)))) & " =? " & integer'image(to_integer(unsigned(CMP_C(i))));
          assert CMP_C(i) = MACA_C(i) report "Extracted address is WRONG @ index " & integer'image(i) severity failure;
       end loop;
+      assert CMP_C = MACA_C report "Extracted address is WRONG - maybe wrong length: " & integer'image(MACA_C'length) severity failure;
       report "Test PASSED"; 
       wait;
    end process;

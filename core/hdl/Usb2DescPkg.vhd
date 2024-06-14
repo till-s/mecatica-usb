@@ -524,16 +524,16 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return x;
    end function usb2NextIfcAssocDescriptor;
 
-   -- unicode 
+   -- unicode!
    function usb2HexStrToBin(
       constant d : Usb2ByteArray
    ) return Usb2ByteArray is
-      variable v     : Usb2ByteArray(0 to d'length/2 - 1);
+      variable v     : Usb2ByteArray(0 to d'length/4 - 1);
       variable nibhi : unsigned(3 downto 0);
       variable niblo : unsigned(3 downto 0);
       constant A_C   : std_logic_vector := x"41";
    begin
-      for i in 0 to d'length/4 - 1 loop
+      for i in v'range loop
          nibhi := unsigned(d(d'low + 4*i + 0)(3 downto 0));
          -- note that this hack also works for lower-case 0x61 since
          -- we just looked at the nibble...
