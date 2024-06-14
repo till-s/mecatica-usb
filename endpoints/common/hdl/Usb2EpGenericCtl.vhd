@@ -94,6 +94,7 @@ architecture Impl of Usb2EpGenericCtl is
       buf         : Usb2ByteArray( paramIb'range );
       reqVld      : std_logic_vector(HANDLE_REQUESTS_G'range);
       reqSel      : std_logic_vector(HANDLE_REQUESTS_G'range);
+      strmNil     : std_logic;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -103,7 +104,8 @@ architecture Impl of Usb2EpGenericCtl is
       ctlExt      => USB2_CTL_EXT_INIT_C,
       buf         => ( others => ( others => '0') ),
       reqVld      => ( others => '0' ),
-      reqSel      => ( others => '0' )
+      reqSel      => ( others => '0' ),
+      strmNil     => '0'
    );
 
    signal r       : RegType := REG_INIT_C;
@@ -165,6 +167,10 @@ begin
                            v.ctlExt.ack := '1';
                            v.ctlExt.err := '0';
                            v.ctlExt.don := '0';
+                           v.strmNil    := '0';
+                           if ( v.nBytes < 0 ) then
+                              v.strmNil := '1'; -- there will never be a data phase!
+                           end if;
                            v.state      := STRMO;
                         elsif ( ( usb2CtlReqParam.length <= HANDLE_REQUESTS_G(i).dataSize ) ) then
                            -- allow short writes - assuming they know what they are doing
@@ -268,7 +274,7 @@ begin
                v.nBytes := r.nBytes - 1;
             end if;
 
-            if ( usb2EpIb.mstOut.don = '1' ) then
+            if ( (r.strmNil or usb2EpIb.mstOut.don) = '1' ) then
                paramOb(USB2_EP_GENERIC_STRM_DON_IDX_C)
                       (USB2_EP_GENERIC_STRM_DON_BIT_C) <= '1';
                -- mark the 'don cycle as valid
