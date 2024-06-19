@@ -70,6 +70,7 @@ if __name__ == "__main__":
        print("          -A               : Disable ACM function")
        print("          -L break         : Disable ACM line-break support")
        print("          -L state         : Disable ACM line-state support")
+       sys.exit(0)
     elif o[0] in ("-v"):
        idVendor          = int(o[1], 0)
     elif o[0] in ("-p"):
