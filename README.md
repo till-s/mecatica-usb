@@ -36,7 +36,7 @@ License](https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12)
 which is released under the
 [GNU GPLv3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html).
 
-The EUPL permits including/merging/distributing the licensed code with 
+The EUPL permits including/merging/distributing the licensed code with
 products released under some other licenses, e.g., the GPL variants.
 
 I'm also open to use a different license.
@@ -902,7 +902,7 @@ ports as the other CDC functions.
 
 This FIFO interface is less complex than the endpoint interface to the `Usb2Core`.
 
-The interface uses 
+The interface uses
 
  - a data port including a `LAST` flag which is asserted during the last transfer
    of a frame (only applicable if the function uses frames such as ethernet).
@@ -990,8 +990,87 @@ feedback functionality.
 </details>
 
 <details><summary><h2>
+Example Device
+</h2></summary>
+
+The "Example Device" is a wrapper which instantiates all necessary
+components as well as all implemented endpoints. It has ports that
+connect to all the endpoints (including the control endpoint) and makes
+suitable and simple interfaces available to the user.
+
+For most applications the "Example Device" provides a 'plug-and-play'
+USB solution. E.g., the ACM function -- from the viewpoint of the
+firmware application -- is accessible as a simple pair of FIFOs.
+
+Many features of the "Example Device" are configurable and where possible
+the configuration settings are automatically extracted from the application's
+USB descriptors which in turn are generated with a python tool.
+
+E.g., if the descriptors do not list a NCM interface then the NCM function
+is disabled in the HDL (i.e., the respective components are not instantiated)
+and no FPGA resources are spent. All ports of the "Example Device" are
+tied-off to suitable default values so that an instantiation of the device
+with a small set of enabled features does not unnecessarily clutter
+application HDL.
+
+</details>
+
+<details><summary><h2>
 Descriptor-Generating Tool
 </h2></summary>
+
+### Overview
+
+USB Descriptors for Mecatica are normally generated using a tool written
+in python. The core of this tool resides in `scripts/Usb2Desc.py` which
+features comments explaining it's use. `Usb2Desc.py` is, however, rarely
+used directly as higher level scripts are available.
+
+A brief summary of its workings shall nevertheless be given: descriptors
+are represented by python classes with properties that represent items
+present in a descriptor. Descriptor objects are always connected to a "context"
+and their order in which they appear on USB is the order in which they
+were created in the "context".
+
+After all descriptors have been created and populated with their desired
+values the context is "wrapped-up". During this step some automatically
+generated information (e.g., enumeration of interfaces and endpoints etc.)
+is inserted.
+
+Eventually, the tool generates VHDL code for the body of the VHDL package
+`AppCfgPkg`. This VHDL file must be included with the set of files handed
+to the FPGA toolchain. For convenience the VHDL is annotated with comments
+that are helpful when details need to be inspected.
+
+### High-Level Scripts
+
+The higher-level scripts are intended to generate suitable descriptors
+for the Mecatica "Example Device" (which is of quite generic use, see
+above). `example/py/ExampleDevDesc.py` provides a function that
+creates customized descriptors for the "Example Device" based on a
+number of parameters. Many of these influence the instantiation of
+subcomponents in the "Example Device" and can be used to "prune"
+functionality in order to save resources.
+
+Finally, there is the `example/py/genAppCfgPkgBody.py` script which is
+a CLI-style driver for `ExampleDevDesc.py`. It can be executed from a
+shell and accepts options (use `-h` for help) that are translated
+into parameters which are passed to `ExampleDevDesc.py`.
+
+Note that the default output file path is set such that the generated
+VHDL ends up as `<script_location>/../example/hdl/AppCfgPkgBody.vhd`.
+Thus, unless you plan to create the Zynq example design you must make
+sure to use `-f` to generate the file in the desired location and with
+the desired name.
+
+Note also that you *must* provide a suitable vendor/product ID; the
+tool has not set a default.
+
+Use
+
+      example/py/genAppCfgPkgBody.py -h
+
+for a summary of the available options.
 
 </details>
 
@@ -1152,7 +1231,7 @@ stack available on the Zynq/ZYBO target (assuming you have linux installed there
 There is a trivial [driver](./example/sw/drv_fifo_eth.c) available which talks to the
 ECM device's FIFO interface via AXI and presents an ethernet device *on the target
 linux system*. Note that this is a driver which must be cross-compiled and loaded
-on the *target*. Also note that this is an extremely inefficient driver. It's for 
+on the *target*. Also note that this is an extremely inefficient driver. It's for
 *demonstration*.
 
 Edit the [Makefile](./example/sw/Makefile) or add a `./example/sw/config-local.mk`
