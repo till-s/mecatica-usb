@@ -367,7 +367,7 @@ begin
 
    usb2RstLoc      <= usb2DevStatusLoc.usb2Rst or ulpiRst or usb2Rst;
    usb2RstOut      <= usb2DevStatusLoc.usb2Rst;
-   usb2DevStatus   <= usb2DevStatus;
+   usb2DevStatus   <= usb2DevStatusLoc;
 
    acmDTR          <= DTR;
    acmRTS          <= RTS;
