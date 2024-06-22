@@ -151,6 +151,11 @@ begin
             v.blank    := '0';
             if ( ( ulpiRxLoc.dir = '0' ) ) then
                if    ( ulpiTxReq.vld = '1' ) then
+                  -- claim the ULPI interface ASAP
+                  txNxt        <= ulpiTxReq.vld and txRdy;
+                  txDat        <= ulpiTxReq.dat;
+                  txVld        <= ulpiTxReq.vld;
+                  txSta        <= ulpiTxReq.err;
                   v.state      := TX;
                   v.stpWaiNxt  := '1';
                   v.genStp     := '1';
