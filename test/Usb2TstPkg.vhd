@@ -1013,6 +1013,18 @@ report "status end";
       ulpiTstRegWait(ob, regAddr, regIsRd, regDat);
 
       assert not regIsRd report "ulpiTstHandlePhyInit: Register write expected" severity failure;
+      assert regAddr = to_integer(unsigned(ULPI_REG_CLR_IRQ_ENAR_C)) report "ulpiTstHandlePhyInit: unexpected register address (not CLR_IRQ_ENA_RISING)" severity failure;
+      assert regDat  = x"1F" report "ulpiTstHandlePhyInit: unexpected CLR_IRQ_ENA_RISING register contents" severity failure;
+
+      ulpiTstRegWait(ob, regAddr, regIsRd, regDat);
+
+      assert not regIsRd report "ulpiTstHandlePhyInit: Register write expected" severity failure;
+      assert regAddr = to_integer(unsigned(ULPI_REG_CLR_IRQ_ENAF_C)) report "ulpiTstHandlePhyInit: unexpected register address (not CLR_IRQ_ENA_FALLING)" severity failure;
+      assert regDat  = x"1F" report "ulpiTstHandlePhyInit: unexpected CLR_IRQ_ENA_FALLING register contents" severity failure;
+
+      ulpiTstRegWait(ob, regAddr, regIsRd, regDat);
+
+      assert not regIsRd report "ulpiTstHandlePhyInit: Register write expected" severity failure;
       assert regAddr = to_integer(unsigned(ULPI_REG_FUN_CTL_C)) report "ulpiTstHandlePhyInit: unexpected register address (not FUNCTL)" severity failure;
       assert regDat  = x"45" report "ulpiTstHandlePhyInit: unexpected FUN register contents" severity failure;
 

@@ -134,6 +134,26 @@ architecture Impl of UlpiLineState is
    -- hopefully this can be used as a 'never seen a RXCMD' marker...
    constant ULPI_LINE_STATE_INI_C   : std_logic_vector(1 downto 0) := "11";
 
+   type RegWriteCmdType is record
+      addr  : std_logic_vector(5 downto 0);
+      val   : std_logic_vector(7 downto 0);
+   end record RegWriteCmdType;
+
+   type RegWriteCmdArray is array (natural range <>) of RegWriteCmdType;
+
+   -- this array is worked on in falling index order (makes easier to
+   -- stop at -1).
+   constant ULPI_REGS_INIT_C : RegWriteCmdArray := (
+      2 => ( addr => ULPI_REG_OTG_CTL_C,      val => ULPI_OTG_CTL_INI_C),
+      -- shut off all interrupts; got a lot of VBUS valid (>VA_VBUS_VLD) on and off
+      -- interrupts reported as RXCMD when we were trying to send. VBUS should
+      -- *not* be used by devices anyways (this for hosts which are unable to drive
+      -- more than 100mA). See ULPI, 3.8.7.3, footnote 13:
+      --   "A standard peripheral should not use Vbus Valid to begin operation."
+      1 => ( addr => ULPI_REG_CLR_IRQ_ENAR_C, val => ULPI_IRQ_MSK_ALL_C),
+      0 => ( addr => ULPI_REG_CLR_IRQ_ENAF_C, val => ULPI_IRQ_MSK_ALL_C)
+   );
+
    type StateType is (
       RESET,
       INIT,
@@ -164,6 +184,7 @@ architecture Impl of UlpiLineState is
       nxtState    : StateType;
       txReq       : UlpiTxReqType;
       regReq      : UlpiRegReqType;
+      regIdx      : integer range ULPI_REGS_INIT_C'high downto -1;
       lineState   : std_logic_vector(1 downto 0);
       lineWanted  : std_logic_vector(1 downto 0);
       usb2Rst     : std_logic;
@@ -185,6 +206,7 @@ architecture Impl of UlpiLineState is
       nxtState    => RESET,
       txReq       => ULPI_TX_REQ_INIT_C,
       regReq      => ULPI_REG_REQ_INIT_C,
+      regIdx      => ULPI_REGS_INIT_C'high,
       lineState   => ULPI_LINE_STATE_INI_C,
       lineWanted  => ULPI_LINE_STATE_INI_C,
       usb2Rst     => '0',
@@ -241,12 +263,12 @@ architecture Impl of UlpiLineState is
 
    procedure writeReg(
       variable q : inout RegType;
-      constant a : in    std_logic_vector(3 downto 0);
+      constant a : in    std_logic_vector(5 downto 0);
       constant v : in    std_logic_vector(7 downto 0)
    ) is
    begin
       q              := q;
-      q.regReq.addr  := x"0" & a;
+      q.regReq.addr  := "00" & a;
       q.regReq.wdat  := v;
       q.nxtState     := q.state;
       q.state        := WRITE_REG;
@@ -309,8 +331,12 @@ begin
          when INIT  =>
             -- wait for the PHY to deassert DIR
             if ( expiredTimer( r.time5060 ) and ulpiRx.dir = '0' ) then
-               writeReg(v, ULPI_REG_OTG_CTL_C, ULPI_OTG_CTL_INI_C);
-               v.nxtState := INIT1;
+               if ( r.regIdx < 0 ) then
+                  v.state  := INIT1;
+               else
+                  writeReg(v, ULPI_REGS_INIT_C( r.regIdx ).addr, ULPI_REGS_INIT_C( r.regIdx ).val );
+                  v.regIdx := r.regIdx - 1;
+               end if;
             end if;
 
          when INIT1 =>

@@ -296,6 +296,19 @@ A number of generics controls the properties of the ULPI interface:
 
 </dd></dl>
 
+#### Limitations
+
+Due to the registers in the input and output path the ULPI interface
+does not tolerate unexpected incoming traffic too gracefully. It is
+unable to drive `TXCMD` on the same cycle `dir = '0'` is observed
+and thus unsolicited `RXCMD` reports that happen concurrently -- i.e.,
+within a window of a few cycles -- with an attempt to transmit may cause
+the transmission to be aborted.
+
+For this reason the various voltage comparator interrupts are disabled.
+The especially problematic `VBUS > VA_VBUS_VALID` comparator should not
+be used by peripheral devices (see ULPI spec.) anyways.
+
 ### Serial Interface
 
 Mecatica supports the use of legacy full- or low-speed transceivers over
