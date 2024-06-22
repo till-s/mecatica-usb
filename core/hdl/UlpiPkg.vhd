@@ -18,8 +18,21 @@ package UlpiPkg is
    constant ULPI_RXCMD_LINE_STATE_FS_J_C   : std_logic_vector(1 downto 0) := "01";
    constant ULPI_RXCMD_LINE_STATE_FS_K_C   : std_logic_vector(1 downto 0) := "10";
 
-   constant ULPI_REG_FUN_CTL_C      : std_logic_vector(3 downto 0) := x"4";
-   constant ULPI_REG_OTG_CTL_C      : std_logic_vector(3 downto 0) := x"A";
+   constant ULPI_REG_FUN_CTL_C      : std_logic_vector(5 downto 0) := "00" & x"4";
+   constant ULPI_REG_OTG_CTL_C      : std_logic_vector(5 downto 0) := "00" & x"A";
+   constant ULPI_REG_WRT_IRQ_ENAR_C : std_logic_vector(5 downto 0) := "00" & x"D";
+   constant ULPI_REG_SET_IRQ_ENAR_C : std_logic_vector(5 downto 0) := "00" & x"E";
+   constant ULPI_REG_CLR_IRQ_ENAR_C : std_logic_vector(5 downto 0) := "00" & x"F";
+   constant ULPI_REG_WRT_IRQ_ENAF_C : std_logic_vector(5 downto 0) := "01" & x"0";
+   constant ULPI_REG_SET_IRQ_ENAF_C : std_logic_vector(5 downto 0) := "01" & x"1";
+   constant ULPI_REG_CLR_IRQ_ENAF_C : std_logic_vector(5 downto 0) := "01" & x"2";
+
+   constant ULPI_IRQ_HOSTDIS_C      : std_logic_vector(7 downto 0) := x"01";
+   constant ULPI_IRQ_VBUS_VALID_C   : std_logic_vector(7 downto 0) := x"02";
+   constant ULPI_IRQ_SESS_VALID_C   : std_logic_vector(7 downto 0) := x"04";
+   constant ULPI_IRQ_SESS_END_C     : std_logic_vector(7 downto 0) := x"08";
+   constant ULPI_IRQ_ID_GND_C       : std_logic_vector(7 downto 0) := x"10";
+   constant ULPI_IRQ_MSK_ALL_C      : std_logic_vector(7 downto 0) := x"1F";
 
    -- disable D-/D+ pull-down resistors
    constant ULPI_OTG_CTL_INI_C      : std_logic_vector(7 downto 0) := x"00";
