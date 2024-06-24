@@ -179,6 +179,7 @@ architecture Sim of UlpiIOTb is
               if ( rxVec( idx )(8) = '1' ) then
                  mst.vld <= '0';
                  mst.don <= '1';
+                 mst.dat <= (others => '0');
               else
                  idx     <= idx + 1;
                  mst.dat <= rxVec( idx )(7 downto 0);
@@ -352,6 +353,8 @@ begin
          tick;
       end loop;
 
+      report "B2B read/TX done";
+
       -- DATA0 transaction (crc16 verification)
       startTx <= DATA0_START_IDX_C;
       checkRx <= checkRx + 1;
@@ -361,6 +364,7 @@ begin
          tick;
       end loop;
 
+      report "DATA0 transaction done";
       -- empty data packet
       startTx <= DATA0_START_EMPTY_IDX_C;
       checkRx <= checkRx + 1;
@@ -381,15 +385,21 @@ begin
          passed := passed + 1;
       end loop;
 
+      report "empty packet done";
+
       -- underrun should produce an error and abort
       chkDly <= 0;
       sndPkt( 0, sndIdx, chkIdx, jam, txDataMst, underrun => 2 );
       passed := passed + 1;
 
+      report "underrun done";
+
       -- jam should produce an error and abort
       chkDly <= 0;
       sndPkt( 0, sndIdx, chkIdx, jam, txDataMst, jamidx => 3 );
       passed := passed + 1;
+
+      report "jam done";
 
       -- try empty packet
       for i in 0 to 3 loop
@@ -462,8 +472,6 @@ begin
          v       := v;
          if ( v.jam >= 0 ) then
             if ( v.jam = 0 ) then
-               v.dir   := '1';
-               v.nxt   := '1';
                v.state := JAMMED;
             else
                v.jam := v.jam - 1;

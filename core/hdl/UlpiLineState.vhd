@@ -144,14 +144,15 @@ architecture Impl of UlpiLineState is
    -- this array is worked on in falling index order (makes easier to
    -- stop at -1).
    constant ULPI_REGS_INIT_C : RegWriteCmdArray := (
-      2 => ( addr => ULPI_REG_OTG_CTL_C,      val => ULPI_OTG_CTL_INI_C),
-      -- shut off all interrupts; got a lot of VBUS valid (>VA_VBUS_VLD) on and off
-      -- interrupts reported as RXCMD when we were trying to send. VBUS should
-      -- *not* be used by devices anyways (this for hosts which are unable to drive
-      -- more than 100mA). See ULPI, 3.8.7.3, footnote 13:
-      --   "A standard peripheral should not use Vbus Valid to begin operation."
-      1 => ( addr => ULPI_REG_CLR_IRQ_ENAR_C, val => ULPI_IRQ_MSK_ALL_C),
-      0 => ( addr => ULPI_REG_CLR_IRQ_ENAF_C, val => ULPI_IRQ_MSK_ALL_C)
+      0 => ( addr => ULPI_REG_OTG_CTL_C,      val => ULPI_OTG_CTL_INI_C)
+--      2 => ( addr => ULPI_REG_OTG_CTL_C,      val => ULPI_OTG_CTL_INI_C),
+--      -- shut off all interrupts; got a lot of VBUS valid (>VA_VBUS_VLD) on and off
+--      -- interrupts reported as RXCMD when we were trying to send. VBUS should
+--      -- *not* be used by devices anyways (this for hosts which are unable to drive
+--      -- more than 100mA). See ULPI, 3.8.7.3, footnote 13:
+--      --   "A standard peripheral should not use Vbus Valid to begin operation."
+--      1 => ( addr => ULPI_REG_CLR_IRQ_ENAR_C, val => ULPI_IRQ_MSK_ALL_C),
+--      0 => ( addr => ULPI_REG_CLR_IRQ_ENAF_C, val => ULPI_IRQ_MSK_ALL_C)
    );
 
    type StateType is (

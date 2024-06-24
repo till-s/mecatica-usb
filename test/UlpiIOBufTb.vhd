@@ -13,6 +13,7 @@ end entity UlpiIOBufTb;
 use work.UlpiPkg.all;
 
 architecture sim of UlpiIOBufTb is
+signal phas : natural := 0;
    signal clk : std_logic := '0';
    signal dat : std_logic_vector(7 downto 0) := (others => 'X');
    signal dou : std_logic_vector(7 downto 0) := (others => 'X');
@@ -72,19 +73,22 @@ architecture sim of UlpiIOBufTb is
      end loop;
      exp := 1;
      while ( stp = '0' ) loop
-       for i in 0 to w loop
+       L_W : for i in 0 to w loop
           n <= '0';
           if ( i = w ) then
              n <= '1';
           end if;
           tick;
-          if ( n = '1' ) then
-             if ( stp = '1' ) then
-                exp := 0;
-             end if;
+          if ( stp = '1' ) then
+             exp := 0;
+          end if;
+          if ( (n or stp) = '1' ) then
              assert exp = to_integer( unsigned( dou ) ) report "unexpected data" severity failure;
              exp := exp + 1;
              p   <= p + 1;
+          end if;
+          if ( stp = '1' ) then
+             exit L_W;
           end if;
        end loop;
      end loop;
@@ -115,12 +119,16 @@ begin
    begin
       tick;
       rcv(nxt, 0, pass);
+phas <= phas + 1;
       tick;
       rcv(nxt, 0, pass);
+phas <= phas + 1;
       tick;
       rcv(nxt, 1, pass);
+phas <= phas + 1;
       tick;
       rcv(nxt, 2, pass);
+phas <= phas + 1;
       tick;
       -- includes comparison of data during STP
       assert pass = 2 + 3*5 report "missed some test" severity failure;
@@ -138,7 +146,7 @@ begin
 
    U_DUT : entity work.UlpiIOBuf
       generic map (
-         ULPI_STP_MODE_G => WAIT_FOR_NXT_MASKED
+         ULPI_STP_MODE_G => NORMAL
       )
       port map (
          ulpiClk    => clk,
