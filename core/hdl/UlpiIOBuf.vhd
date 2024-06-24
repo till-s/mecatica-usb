@@ -230,7 +230,7 @@ begin
       waiNxtLoc  <= '0';
    end generate G_NO_WAI_STP;
 
-   err_i      <= dir_r and (douVld or lst_r or bufVld or txVld);
+   err_i      <= dir_r and (douVld or lst_r or bufVld); -- or txVld);
    txDon      <= err_i or don_r;
    txErr      <= err_i;
 
