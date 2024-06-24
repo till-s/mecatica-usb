@@ -158,6 +158,7 @@ entity X7Wrapper is
       acmLineBreak         : out   std_logic := '0';
       acmDTR               : out   std_logic := '0';
       acmRTS               : out   std_logic := '0';
+      acmDCD               : in    std_logic := '0';
 
       baddVolMaster        : out signed(15 downto 0)  := (others => '0');
       baddVolLeft          : out signed(15 downto 0)  := (others => '0');
@@ -338,7 +339,7 @@ begin
    acmLineBreak    <= lineBreak;
    acmFifoMinFill  <= unsigned(iRegs(0,0)(acmFifoMinFill'range));
    acmFifoTimer    <= unsigned(iRegs(0,1)(acmFifoTimer'range));
-   DCD             <= iRegs(0,0)(31);
+   DCD             <= iRegs(0,0)(31) or acmDCD;
    ulpiForceStp    <= iRegs(0,0)(29);
    acmFifoLocal    <= iRegs(0,0)(28);
    usb2RemoteWake  <= iRegs(0,0)(27);
