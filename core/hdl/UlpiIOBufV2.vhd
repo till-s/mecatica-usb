@@ -80,26 +80,18 @@ architecture rtl of UlpiIOBuf is
    attribute MARK_DEBUG : string;
 
    type RegType is record
-      dou    : std_logic_vector(7 downto 0);
       buf    : std_logic_vector(7 downto 0);
       douVld : std_logic;
       bufVld : std_logic;
-      stp    : std_logic;
-      dir    : std_logic;
-      nxt    : std_logic;
       trn    : std_logic;
       txBsy  : std_logic;
       sta    : std_logic;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
-      dou    => (others => '0'),
       buf    => (others => '0'),
       douVld => '0',
       bufVld => '0',
-      stp    => '0',
-      dir    => '0',
-      nxt    => '0',
       trn    => '0',
       txBsy  => '0',
       sta    => '0'
@@ -134,16 +126,14 @@ begin
 
    assert ULPI_STP_MODE_G = NORMAL report "other ULPI_STOP_MODE settings not implemented" severity failure;
 
-   P_COMB : process (r, dou_r, stp_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp, regOpr) is
+   P_COMB : process (r, dou_r, stp_r, dir_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp, regOpr) is
       variable v : RegType;
    begin
       v     := r;
       douin <= dou_r;
 
-      v.dir := ulpiIb.dir;
-      v.trn := ulpiIb.dir xor r.dir;
+      v.trn := ulpiIb.dir xor dir_r;
 
-      v.stp := frcStp;
       stpin <= frcStp;
       v.sta := '0';
 
@@ -154,15 +144,12 @@ begin
       if ( txVld = '1' ) then
          if ( r.douVld = '0' ) then
             v.douVld := '1';
-            v.dou    := txDat;
             douin    <= txDat;
          elsif ( ulpiIb.nxt = '1' ) then
             if ( r.bufVld = '1' ) then
-               v.dou    := r.buf;
                douin    <= r.buf;
                v.bufVld := '0';
             else
-               v.dou    := txDat;
                douin    <= txDat;
             end if;
          elsif ( r.bufVld = '0' ) then
@@ -173,7 +160,6 @@ begin
          if ( ulpiIb.nxt = '1' ) then
             if ( r.bufVld = '1' ) then
                v.bufVld := '0';
-               v.dou    := r.buf;
                douin    <= r.buf;
             elsif ( r.douVld = '1' ) then
                if ( regOpr = '1' ) then
@@ -182,15 +168,12 @@ begin
                   -- not an error; the PHY does not use any data/status
                   -- send by the link during STP (3.8.3.3, fig. 27)
                   v.douVld := '0';
-                  v.dou    := (others => '0');
                   douin    <= (others => '0');
                   stpin    <= genStp;
                   v.sta    := genStp;
                elsif ( r.sta = '0' ) then
                   -- append status + STP cycle
-                  v.dou    := (others => txSta);
                   douin    <= (others => txSta);
-                  v.stp    := '1';
                   stpin    <= '1';
                   v.sta    := '1'; 
                end if;
@@ -201,7 +184,6 @@ begin
       -- status cycle done
       if ( r.sta = '1' ) then
          v.douVld := '0';
-         v.dou    := (others => '0');
          douin    <= (others => '0');
       end if;
 
@@ -213,15 +195,13 @@ begin
          txDon    <= '1';
       end if;
 
-      if ( ( r.txBsy and r.dir ) = '1' ) then
+      if ( ( r.txBsy and dir_r ) = '1' ) then
          txErr    <= '1';
          txDon    <= '1';
          v.bufVld := '0';
          v.douVld := '0';
          v.txBsy  := '0';
-         v.stp    := '0';
          stpin    <= '0';
-         v.dou    := (others => '0');
          douin    <= (others => '0');
       end if;
 
