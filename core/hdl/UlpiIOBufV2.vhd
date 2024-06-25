@@ -77,7 +77,6 @@ architecture rtl of UlpiIOBuf is
       douVld : std_logic;
       bufVld : std_logic;
       stp    : std_logic;
-      dir    : std_logic;
       nxt    : std_logic;
       trn    : std_logic;
       txBsy  : std_logic;
@@ -90,7 +89,6 @@ architecture rtl of UlpiIOBuf is
       douVld => '0',
       bufVld => '0',
       stp    => '0',
-      dir    => '0',
       nxt    => '0',
       trn    => '0',
       txBsy  => '0',
@@ -100,6 +98,8 @@ architecture rtl of UlpiIOBuf is
    signal r     : RegType                      := REG_INIT_C;
    signal rin   : RegType;
 
+   -- keep these registers out of RegType to allow for setting
+   -- of IOB attributes etc.
    signal din_r : std_logic_vector(7 downto 0) := (others => '0');
    signal dir_r : std_logic                    := '1';
    signal nxt_r : std_logic                    := '0';
@@ -126,14 +126,13 @@ begin
 
    assert ULPI_STP_MODE_G = NORMAL report "other ULPI_STOP_MODE settings not implemented" severity failure;
 
-   P_COMB : process (r, dou_r, stp_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp) is
+   P_COMB : process (r, dir_r, dou_r, stp_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp) is
       variable v : RegType;
    begin
       v     := r;
       douin <= dou_r;
 
-      v.dir := ulpiIb.dir;
-      v.trn := ulpiIb.dir xor r.dir;
+      v.trn := ulpiIb.dir xor dir_r;
 
       v.stp := frcStp;
       stpin <= frcStp;
@@ -180,7 +179,11 @@ begin
          end if;
       end if;
 
-      -- status cycle done
+      -- status/STP cycle; keep txBsy
+      -- asserted during this cycle because
+      -- there could still be a collision (phy abort)
+      -- during this cycle which we would notice
+      -- during the following cycle when txBsy and dir_r = '1'
       if ( r.sta = '1' ) then
          v.douVld := '0';
          v.txBsy  := '0';
@@ -189,9 +192,14 @@ begin
       end if;
 
       txErr <= '0';
-      txDon <= r.stp;
+      txDon <= '1';
 
-      if ( ( r.txBsy and r.dir ) = '1' ) then
+      if ( (r.txBsy and not r.douVld ) = '1' ) then
+         txDon    <= '1';
+         v.txBsy  := '0';
+      end if;
+
+      if ( ( r.txBsy and dir_r ) = '1' ) then
          txErr    <= '1';
          txDon    <= '1';
          v.bufVld := '0';
