@@ -1,3 +1,8 @@
+-- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.
+-- You may obtain a copy of the license at
+--   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+-- This notice must not be removed.
+
 library ieee;
 use     ieee.std_logic_1164.all;
 
@@ -36,6 +41,9 @@ entity UlpiIOBuf is
       -- whether to generate a stop after transmitting
       -- (must be suppressed in the case of a register read)
       genStp     : in  std_logic;
+      -- whether this is a register operation (turn-around cycle
+      -- must be treated differently)
+      regOpr     : in  std_logic;
       -- whether NXT must be asserted during STP (UNUSED/unsupporte by this architecture)
       waiNxt     : in  std_logic;
       -- force stop (if PHY has dir asserted)
@@ -77,6 +85,7 @@ architecture rtl of UlpiIOBuf is
       douVld : std_logic;
       bufVld : std_logic;
       stp    : std_logic;
+      dir    : std_logic;
       nxt    : std_logic;
       trn    : std_logic;
       txBsy  : std_logic;
@@ -89,6 +98,7 @@ architecture rtl of UlpiIOBuf is
       douVld => '0',
       bufVld => '0',
       stp    => '0',
+      dir    => '0',
       nxt    => '0',
       trn    => '0',
       txBsy  => '0',
@@ -98,8 +108,6 @@ architecture rtl of UlpiIOBuf is
    signal r     : RegType                      := REG_INIT_C;
    signal rin   : RegType;
 
-   -- keep these registers out of RegType to allow for setting
-   -- of IOB attributes etc.
    signal din_r : std_logic_vector(7 downto 0) := (others => '0');
    signal dir_r : std_logic                    := '1';
    signal nxt_r : std_logic                    := '0';
@@ -126,13 +134,14 @@ begin
 
    assert ULPI_STP_MODE_G = NORMAL report "other ULPI_STOP_MODE settings not implemented" severity failure;
 
-   P_COMB : process (r, dir_r, dou_r, stp_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp) is
+   P_COMB : process (r, dou_r, stp_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp, regOpr) is
       variable v : RegType;
    begin
       v     := r;
       douin <= dou_r;
 
-      v.trn := ulpiIb.dir xor dir_r;
+      v.dir := ulpiIb.dir;
+      v.trn := ulpiIb.dir xor r.dir;
 
       v.stp := frcStp;
       stpin <= frcStp;
@@ -167,39 +176,44 @@ begin
                v.dou    := r.buf;
                douin    <= r.buf;
             elsif ( r.douVld = '1' ) then
-               if ( r.sta = '0' ) then
+               if ( regOpr = '1' ) then
+                  -- turn-around during STP may be taken over
+                  -- by a back-to-back RX operation and this is
+                  -- not an error; the PHY does not use any data/status
+                  -- send by the link during STP (3.8.3.3, fig. 27)
+                  v.douVld := '0';
+                  v.dou    := (others => '0');
+                  douin    <= (others => '0');
+                  stpin    <= genStp;
+                  v.sta    := genStp;
+               elsif ( r.sta = '0' ) then
                   -- append status + STP cycle
-                  v.dou   := (others => txSta);
-                  douin   <= (others => txSta);
-                  v.stp   := genStp;
-                  stpin   <= genStp;
-                  v.sta   := '1'; 
+                  v.dou    := (others => txSta);
+                  douin    <= (others => txSta);
+                  v.stp    := '1';
+                  stpin    <= '1';
+                  v.sta    := '1'; 
                end if;
             end if;
          end if;
       end if;
 
-      -- status/STP cycle; keep txBsy
-      -- asserted during this cycle because
-      -- there could still be a collision (phy abort)
-      -- during this cycle which we would notice
-      -- during the following cycle when txBsy and dir_r = '1'
+      -- status cycle done
       if ( r.sta = '1' ) then
          v.douVld := '0';
-         v.txBsy  := '0';
          v.dou    := (others => '0');
          douin    <= (others => '0');
       end if;
 
       txErr <= '0';
-      txDon <= '1';
+      txDon <= '0';
 
-      if ( (r.txBsy and not r.douVld ) = '1' ) then
-         txDon    <= '1';
+      if ( ( r.txBsy and not r.douVld ) = '1' ) then
          v.txBsy  := '0';
+         txDon    <= '1';
       end if;
 
-      if ( ( r.txBsy and dir_r ) = '1' ) then
+      if ( ( r.txBsy and r.dir ) = '1' ) then
          txErr    <= '1';
          txDon    <= '1';
          v.bufVld := '0';

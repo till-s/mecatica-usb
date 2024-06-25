@@ -55,6 +55,7 @@ architecture Impl of UlpiIO is
       state       : TxStateType;
       rep         : UlpiRegRepType;
       genStp      : std_logic;
+      regOpr      : std_logic;
       stpWaiNxt   : std_logic;
       -- blank DIR for the RX channel during register-RX back-to-back cycle
       blank       : std_logic;
@@ -64,6 +65,7 @@ architecture Impl of UlpiIO is
       state       => INIT,
       rep         => ULPI_REG_REP_INIT_C,
       genStp      => '1',
+      regOpr      => '0',
       stpWaiNxt   => '0',
       blank       => '0'
    );
@@ -116,6 +118,7 @@ begin
          ulpiOb          => ulpiOb,
 
          genStp          => rTx.genStp,
+         regOpr          => rTx.regOpr,
          waiNxt          => rTx.stpWaiNxt,
          frcStp          => forceStp,
 
@@ -149,6 +152,7 @@ begin
          when IDLE =>
             v.rep.err  := '0';
             v.blank    := '0';
+            v.regOpr   := '0';
             if ( ( ulpiRxLoc.dir = '0' ) ) then
                if    ( ulpiTxReq.vld = '1' ) then
                   -- claim the ULPI interface ASAP
@@ -163,6 +167,7 @@ begin
                   txDat(7 downto 6) <= "1" & regReq.rdnwr;
                   v.stpWaiNxt  := '0';
                   v.genStp     := not regReq.rdnwr;
+                  v.regOpr     := '1';
                   v.blank      := '1';
                   if ( regReq.extnd = '1' ) then
                      txDat(5 downto 0)  <= "101111";

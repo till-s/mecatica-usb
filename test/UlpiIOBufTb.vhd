@@ -152,6 +152,7 @@ phas <= phas + 1;
          ulpiClk    => clk,
 
          genStp     => '1',
+         regOpr     => '0',
          waiNxt     => '1',
          frcStp     => '0',
  

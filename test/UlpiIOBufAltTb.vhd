@@ -92,6 +92,7 @@ begin
       port map (
          ulpiClk     => clk,
          genStp      => '1',
+         regOpr      => '0',
          frcStp      => '0',
          waiNxt      => '0',
          txVld       => txVld,

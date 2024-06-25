@@ -137,8 +137,8 @@ Usb2PktProc.o: Usb2Bram.o
 Usb2PktRx.o: UsbCrcTbl.o
 Usb2PktTx.o: UsbCrcTbl.o
 
-UlpiIOBufTb.o: UlpiIOBuf.o
-UlpiIOBufAltTb.o: UlpiIOBuf.o
+UlpiIOBufTb.o: $(IOBUF).o
+UlpiIOBufAltTb.o: $(IOBUF).o
 UlpiIOTb.o: UlpiIO.o Usb2PktRx.o Usb2PktTx.o
 Usb2FifoEpTb.o: Usb2Core.o Usb2FifoEp.o Usb2EpCDCACMCtl.o
 Usb2EpCDCACMCtl.o: Usb2EpGenericCtlPkg.o Usb2EpGenericCtl.o
@@ -203,6 +203,6 @@ Usb2FifoEpFrmdLstTb: Usb2FifoEpFrmdTb_RUNFLAGS=-gDON_IS_LAST_G=true
 	
 
 clean:
-	$(RM) $(SRCS:%.vhd=%.o) work-*.cf ulpiiotb e~*.o $(PROG) dump.ghw
+	$(RM) $(SRCS:%.vhd=%.o) work-*.cf ulpiiotb e~*.o $(PROG) dump.ghw $(IOBUF).o
 	$(RM) NCMOutTst.txt NCMOutCmp.txt
 	$(RM) NCMInpTst.txt NCMInpCmp.txt

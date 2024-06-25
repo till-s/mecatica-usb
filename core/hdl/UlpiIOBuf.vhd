@@ -46,6 +46,8 @@ entity UlpiIOBuf is
       -- whether to generate a stop after transmitting
       -- (must be suppressed in the case of a register read)
       genStp     : in  std_logic;
+      -- whether this is a register operation (unused by this architecture)
+      regOpr     : in  std_logic;
       -- whether NXT must be asserted during STP
       waiNxt     : in  std_logic;
       -- force stop (if PHY has dir asserted)
