@@ -137,7 +137,16 @@ begin
       stpin <= frcStp;
       v.sta := '0';
 
-      if ( ( r.douVld and not ulpiIb.dir ) = '1' ) then
+      -- apparently (found with logic-analyzer) the USB3340 can still
+      -- send RXCMD-interrupts even after we put a TXCMD on the bus; it seems
+      -- they only consider a TX 'started' once they ack with 'nxt'.
+      -- While the ULPI spec says that TX and RX have higher priority than
+      -- RXCMD it does not specify the precise starting point of a TX...
+      -- OTOH, the spec says that a register operation has lower priority
+      -- than RXCMD which may preempt a register op.
+      -- Once txBsy is set we start checking for ( txBsy and dir ) to detect
+      -- an abort condition.
+      if ( ( r.douVld and not ulpiIb.dir and ( ulpiIb.nxt or regOpr ) ) = '1' ) then
          v.txBsy := '1';
       end if;
 
