@@ -10,7 +10,7 @@ GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
 -include config.mk
 
-IOBUF=UlpiIOBufV2
+IOBUF=UlpiIOBuf
 
 SRCS+= Usb2UtilPkg.vhd
 SRCS+= UlpiPkg.vhd Usb2Pkg.vhd Usb2PrivPkg.vhd
