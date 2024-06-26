@@ -109,7 +109,7 @@ architecture sim of UlpiIOBufAltTb is
    ) is
       variable i : integer;
    begin
-      while ( ulpiOb.dat = x"00" ) loop tick; end loop;
+      while ( ulpiOb.dat = x"00" or ulpiIb.dir = '1' ) loop tick; end loop;
       nxt <= '1';
       tick;
       i   := vec'low;
@@ -125,6 +125,24 @@ architecture sim of UlpiIOBufAltTb is
       nxt <= '0';
       tick;
    end procedure rcvVec;
+
+      type RxCmdStateType is (RXCMD_IDLE, RXCMD_WAI, RXCMD_EXE);
+
+      type RxCmdRegType is record
+         state : RxCmdStateType;
+         ack   : std_logic;
+         idx   : integer;
+      end record RxCmdRegType;
+
+      constant RX_CMD_REG_INIT_C : RxCmdRegType := (
+         state => RXCMD_IDLE,
+         ack   => '0',
+         idx   => 1
+      );
+
+      signal r  : RxCmdRegType := RX_CMD_REG_INIT_C;
+
+   signal dbg : RxCmdRegType;
 
 begin
 
@@ -192,20 +210,49 @@ begin
       tick;
    end process P_SND;
 
-   P_RXCMD : process is
+   P_RXCMD : process (r, clk, txSync, rxCmdDly, ulpiIb) is
+      variable v  : RxCmdRegType := RX_CMD_REG_INIT_C;
    begin
-      while not txSync loop tick; end loop;
-      rxCmdAck <= '0';
-      for i in 1 to rxCmdDly loop tick; end loop;
-      dir1   <= '1';
-      dat1   <= (others => 'X');
-      tick;
-      dat1   <= x"4a";
-      tick;
-      dat1   <= (others => 'X');
-      dir1   <= '0';
-      rxCmdAck <= '1';
-      tick;
+
+      v    := r;
+      dir1 <= '0';
+      dat1 <= (others => 'X');
+
+      case ( r.state ) is
+         when RXCMD_IDLE =>
+            if ( txSync ) then
+               v.ack   := '0';
+               v.state := RXCMD_WAI;
+               v.idx   := 1;
+            end if;
+         when RXCMD_WAI =>
+            if ( r.idx < rxCmdDly ) then
+               v.idx := r.idx + 1;
+            else
+               if ( ulpiIb.nxt = '0' ) then
+                  dir1    <= '1';
+                  v.state := RXCMD_EXE;
+               else
+                  -- TX already starting during this cycle
+                  v.ack   := '1';
+                  v.state := RXCMD_IDLE;
+               end if;
+            end if;
+         when RXCMD_EXE =>
+            dat1    <= x"4a";
+            dir1    <= '1';
+            v.ack   := '1';
+            v.state := RXCMD_IDLE;
+      end case;
+
+      rxCmdAck <= v.ack;
+
+      if ( rising_edge( clk ) ) then
+         r <= v;
+      end if;
+
+      dbg <= r;
+
    end process P_RXCMD;
 
    P_MON : process (clk) is
@@ -214,7 +261,7 @@ begin
          if ( txStarted and ulpiIb.dir = '1' ) then
             aborted   <= '1';
          end if;
-         if ( (ulpiIb.dir = '0') and (ulpiOb.dat /= x"00") ) then
+         if ( ((ulpiIb.nxt and not ulpiIb.dir) = '1') and (ulpiOb.dat /= x"00") ) then
             txStarted <= true;
          end if;
          if ( ulpiOb.stp = '1' ) then

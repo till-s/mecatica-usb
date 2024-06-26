@@ -9,6 +9,10 @@ use     ieee.std_logic_1164.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
+-- NOTE: there is one corner-case that causes undefined behaviour
+--       by this implementation:
+--         If a
+
 entity UlpiIOBuf is
    generic (
       MARK_DEBUG_G    : boolean := true;
@@ -33,6 +37,8 @@ entity UlpiIOBuf is
       -- indicated that this actually caused malfunction but
       -- asserting STP (after the last data are consumed)
       -- regardless of NXT being hi or lo worked as it should.
+      -- NOTE: this implementation of UlpiIOBuf does *not* support settings
+      --       other than 'NORMAL' -- generic kept for bwds compatibility.
       ULPI_STP_MODE_G : UlpiStpModeType := NORMAL
    );
    port (
@@ -66,14 +72,6 @@ entity UlpiIOBuf is
    );
 end entity UlpiIOBuf;
 
---   dir   nxt nxtr  dou   douvld  buf   bufVld  txVld   txRdy   txD
---    0     0   0     0      0                     1       1      d0
---    0     0   0     d0     1                     1       1      d1
---    0     1   0     d0     1     d1       1      1       0      d1
---    0     1   1     d1     1      x       0      1       1      d2
---    0     0   1     d2     1              0      1       1      d3   
---    0     1   0     d2     1      d3             1              d4
---    0         1     d3
 architecture rtl of UlpiIOBuf is
 
    attribute IOB        : string;
@@ -154,7 +152,7 @@ begin
          if ( r.douVld = '0' ) then
             v.douVld := '1';
             douin    <= txDat;
-         elsif ( ulpiIb.nxt = '1' ) then
+         elsif ( ( not ulpiIb.dir and ulpiIb.nxt ) = '1' ) then
             if ( r.bufVld = '1' ) then
                douin    <= r.buf;
                v.bufVld := '0';
@@ -166,7 +164,7 @@ begin
             v.buf    := txDat;
          end if;
       else
-         if ( ulpiIb.nxt = '1' ) then
+         if ( ( not ulpiIb.dir and ulpiIb.nxt ) = '1' ) then
             if ( r.bufVld = '1' ) then
                v.bufVld := '0';
                douin    <= r.buf;
