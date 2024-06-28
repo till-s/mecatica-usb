@@ -5,14 +5,9 @@
 
 library ieee;
 use     ieee.std_logic_1164.all;
-use     ieee.numeric_std.all;
 
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
-
--- Buffering module that aims at keeping the combinatorial path
--- for NXT and DIR as short as possible: a single 6-input LUT.
--- Critical registers are placed in IOBs.
 
 entity UlpiIOBuf is
    generic (
@@ -38,6 +33,8 @@ entity UlpiIOBuf is
       -- indicated that this actually caused malfunction but
       -- asserting STP (after the last data are consumed)
       -- regardless of NXT being hi or lo worked as it should.
+      -- NOTE: this implementation of UlpiIOBuf does *not* support settings
+      --       other than 'NORMAL' -- generic kept for bwds compatibility.
       ULPI_STP_MODE_G : UlpiStpModeType := NORMAL
    );
    port (
@@ -46,9 +43,10 @@ entity UlpiIOBuf is
       -- whether to generate a stop after transmitting
       -- (must be suppressed in the case of a register read)
       genStp     : in  std_logic;
-      -- whether this is a register operation (unused by this architecture)
+      -- whether this is a register operation (turn-around cycle
+      -- must be treated differently)
       regOpr     : in  std_logic;
-      -- whether NXT must be asserted during STP
+      -- whether NXT must be asserted during STP (UNUSED/unsupporte by this architecture)
       waiNxt     : in  std_logic;
       -- force stop (if PHY has dir asserted)
       frcStp     : in  std_logic;
@@ -70,176 +68,227 @@ entity UlpiIOBuf is
    );
 end entity UlpiIOBuf;
 
-architecture Impl of UlpiIOBuf is
+architecture rtl of UlpiIOBuf is
 
-   -- direct synthesis to use RST and CE as coded (minimize lut cascading for timing)
-   attribute DIRECT_ENABLE : string;
-   attribute DIRECT_RESET  : string;
-   attribute IOB           : string;
-   attribute MARK_DEBUG    : string;
+   attribute IOB        : string;
+   attribute MARK_DEBUG : string;
 
-   -- registers that should be pushed into IOBs (except for input-clock mode
-   -- when we want to keep nxt/dir/din in the fabric so the tool can adjust
-   -- hold timing
-   signal dou_r            : std_logic_vector(7 downto 0) := (others => '0');
-   signal stp_r            : std_logic                    := '0';
-   signal din_r            : std_logic_vector(7 downto 0) := (others => '0');
-   signal dir_r            : std_logic                    := '1';
-   signal stp_i            : std_logic                    := '0';
-   signal nxt_r            : std_logic                    := '0';
-   attribute IOB of dou_r  : signal is "TRUE";
+   type RegType is record
+      buf               : std_logic_vector(7 downto 0);
+      douVld            : std_logic;
+      bufVld            : std_logic;
+      trn               : std_logic;
+      txBsy             : std_logic;
+      sta               : std_logic;
+   end record RegType;
+
+   constant REG_INIT_C : RegType := (
+      buf               => (others => '0'),
+      douVld            => '0',
+      bufVld            => '0',
+      trn               => '0',
+      txBsy             => '0',
+      sta               => '0'
+   );
+
+   signal r     : RegType                      := REG_INIT_C;
+   signal rin   : RegType;
+
+   signal din_r : std_logic_vector(7 downto 0) := (others => '0');
+   signal dir_r : std_logic                    := '1';
+   signal nxt_r : std_logic                    := '0';
+   signal stp_i : std_logic                    := '0';
+   signal stp_r : std_logic                    := '0';
+   signal stpin : std_logic                    := '0';
+   signal dou_r : std_logic_vector(7 downto 0) := (others => '0');
+   signal douin : std_logic_vector(7 downto 0) := (others => '0');
+
    attribute IOB of stp_r  : signal is "TRUE";
+   attribute IOB of dou_r  : signal is "TRUE";
    attribute IOB of din_r  : signal is toStr( ULPI_DIN_IOB_G );
    attribute IOB of dir_r  : signal is toStr( ULPI_DIR_IOB_G );
    attribute IOB of nxt_r  : signal is toStr( ULPI_NXT_IOB_G );
    attribute IOB of stp_i  : signal is toStr( ULPI_NXT_IOB_G );
 
-   -- fabric registers and combinatorial signals
-   signal douVld           : std_logic                    := '0';
-   signal buf              : std_logic_vector(7 downto 0) := (others => '0');
-   signal bufVld           : std_logic                    := '0';
-   signal dou_i            : std_logic_vector(7 downto 0) := (others => '0');
-   signal last             : std_logic;
-   signal lst_r            : std_logic                    := '0';
-   signal trn_r            : std_logic                    := '0';
-   signal don_r            : std_logic                    := '0';
-   signal err_i            : std_logic;
-   signal waiNxtLoc        : std_logic                    := '0';
-   signal lstFrcStp        : std_logic                    := '0';
-
-   -- combinatorial signals we direct the tool to use CE and R
-   -- this helps keeping lut cascading down.
-   signal douRst           : std_logic                    := '1';
-   attribute DIRECT_RESET  of douRst   : signal is "TRUE";
-   signal douCE            : std_logic                    := '0';
-   attribute DIRECT_ENABLE of douCE    : signal is "TRUE";
-   signal lastCE           : std_logic;
-   attribute DIRECT_ENABLE of lastCE   : signal is "TRUE";
-   signal stopCE           : std_logic;
-   attribute DIRECT_ENABLE of stopCE   : signal is "TRUE";
-   signal stopRst          : std_logic;
-   attribute DIRECT_RESET  of stopRst  : signal is "TRUE";
-   signal bufCE            : std_logic;
-   attribute DIRECT_ENABLE of bufCE    : signal is "TRUE";
-   signal bufRST           : std_logic;
-   attribute DIRECT_RESET  of bufRST   : signal is "TRUE";
-
-   -- debugging
-   attribute MARK_DEBUG    of lst_r    : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG    of din_r    : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG    of dir_r    : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG    of nxt_r    : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG    of trn_r    : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG    of don_r    : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG    of stp_i    : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG    of dou_i    : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG    of douCE    : signal is toStr( MARK_DEBUG_G );
-   attribute MARK_DEBUG    of douRst   : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of r     : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of din_r : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of dir_r : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of nxt_r : signal is toStr( MARK_DEBUG_G );
+   attribute MARK_DEBUG of stp_i : signal is toStr( MARK_DEBUG_G );
 
 begin
 
-   P_MUX : process ( bufVld, buf, txDat, last ) is
-   begin
-      if ( ( bufVld or last ) = '1' ) then
-         dou_i <= buf;
-      else
-         dou_i <= txDat;
-      end if;
-   end process P_MUX;
+   assert ULPI_STP_MODE_G = NORMAL report "other ULPI_STOP_MODE settings not implemented" severity failure;
 
-   last    <= not txVld and not bufVld and ( douVld and ulpiIb.nxt );
-   douCE   <= ( ( ulpiIb.nxt or not douVld ) and ( txVld or bufVld ) ) or last;
-   bufRST  <= dir_r;
-   bufCE   <= not (bufVld and not ulpiIb.nxt) or not douVld;
+   P_COMB : process (r, dou_r, stp_r, dir_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp, regOpr) is
+      variable v : RegType;
+   begin
+      v           := r;
+      douin       <= dou_r;
+
+      v.trn       := ulpiIb.dir xor dir_r;
+
+      stpin       <= frcStp;
+      v.sta       := '0';
+
+      -- apparently (found with logic-analyzer) the USB3340 can still
+      -- send RXCMD-interrupts even after we put a TXCMD on the bus; it seems
+      -- they only consider a TX 'started' once they ack with 'nxt'.
+      -- While the ULPI spec says that TX and RX have higher priority than
+      -- RXCMD it does not specify the precise starting point of a TX...
+      -- OTOH, the spec says that a register operation has lower priority
+      -- than RXCMD which may preempt a register op.
+      -- Once txBsy is set we start checking for ( txBsy and dir ) to detect
+      -- an abort condition.
+      if ( ( r.douVld and not ulpiIb.dir and ( ulpiIb.nxt or regOpr ) ) = '1' ) then
+         v.txBsy := '1';
+      end if;
+
+      if ( txVld = '1' ) then
+         if ( r.douVld = '0' ) then
+            v.douVld := '1';
+            douin    <= txDat;
+         elsif ( ulpiIb.nxt = '1' ) then
+            if ( r.bufVld = '1' ) then
+               douin    <= r.buf;
+               v.bufVld := '0';
+            else
+               douin    <= txDat;
+            end if;
+         elsif ( r.bufVld = '0' ) then
+            v.bufVld := '1';
+            v.buf    := txDat;
+         end if;
+      else
+         if ( ulpiIb.nxt = '1' ) then
+            if ( r.bufVld = '1' ) then
+               v.bufVld := '0';
+               douin    <= r.buf;
+            elsif ( r.douVld = '1' ) then
+               if ( regOpr = '1' ) then
+                  -- turn-around during STP may be taken over
+                  -- by a back-to-back RX operation and this is
+                  -- not an error; the PHY does not use any data/status
+                  -- send by the link during STP (3.8.3.3, fig. 27)
+                  v.douVld := '0';
+                  douin    <= (others => '0');
+                  stpin    <= genStp;
+                  v.sta    := genStp;
+               elsif ( r.sta = '0' ) then
+                  -- append status + STP cycle
+                  douin    <= (others => txSta);
+                  stpin    <= '1';
+                  v.sta    := '1'; 
+               end if;
+            end if;
+         end if;
+      end if;
+
+      -- status cycle done
+      if ( r.sta = '1' ) then
+         v.douVld := '0';
+         douin    <= (others => '0');
+      end if;
+
+      txErr <= '0';
+      txDon <= '0';
+
+      if ( ( r.txBsy and not r.douVld ) = '1' ) then
+         v.txBsy      := '0';
+         txDon        <= '1';
+      end if;
+
+      -- there is a corner case where the PHY
+      -- aborts a transmission before we got a chance
+      -- to set 'txBsy'; catch that be checking if
+      -- 'nxt_r' is asserted when we already had data in
+      -- 'dou'; note that his *only* affects an abort that
+      -- intends to receive (dir and nxt = '1'); mere RXCMD (nxt ='0')
+      -- is handled by 'txBsy' which delays until RXCMD is done.
+
+      -- A: dir is asserted during same cycle as txVld (UlpiIO checks for
+      --    dir_r = '0' when asserting txVld (combinatorial) but does not
+      --    see a potential dir going high:
+      --
+      -- a) dir asserted during the same cycle as txVld
+      --  dir  nxt dir_r  nxt_r   txVld  douVld   txBsy
+      --            1      1       0       1        0
+      --
+      --   0    0   0      0       0       0        0
+      --   1    1   0      0       1       0        0
+      --            1      1       0       1        0 <= MISSED
+      --
+      -- c) dir+nxt asserted a cycle following TXCMD, (not dir_r and nxt_r)
+      --    never seen
+      --    (shortest command: just TXCMD) => CAUGHT by txBsy and dir_r
+      -- 
+      --  dir  nxt dir_r  nxt_r   txVld  douVld  sta  txBsy
+      --   0    0   0      0       0       0      0     0
+      --   0    0   0      0       1       0      0     0
+      --   0    0   0      0       0       1      0     0  *
+      --   1    1   0      0       0       1      0     0
+      --   1    x   1      1       0       1      0     0
+      --
+       -- c) dir+nxt asserted after the cycle accepting the TXCMD
+      --    (shortest command: just TXCMD) => CAUGHT by txBsy and dir_r
+      -- 
+      --  dir  nxt dir_r  nxt_r   txVld  douVld  sta  txBsy
+      --   0    0   0      0       0       0      0     0
+      --   0    1   0      0       1       0      0     0
+      --   1    1   0      1       0       1      0     1
+      --   1    x   1      1       0       1      1     1
+      --
+      --
+      --
+      -- B: back-to-back register->RCV: no stop cycle; regop exception
+      --
+      -- a) too early, dir asserted during last write op => CAUGHT (txBsy and dir_r)
+      --  dir  nxt dir_r  nxt_r   txVld  douVld  txBsy
+      --   1    1   0      1        0      1       1     <= regop last write
+      --            1      1        0      0       1        (either write or 
+      --                                                    addr phase of read)
+      -- b) back-to-back => OK (txBsy and dir_r = '0')
+      --  dir  nxt dir_r  nxt_r   txVld  douVld  txBsy
+      --   0    0   0      1        0      1       1     <= regop last write
+      --   1    1   0      0        0      0       1        (either write or 
+      --            1      1        0      0       0        addr phase of read)
+      -- 
+
+      if ( ( dir_r and (r.txBsy or (r.douVld and nxt_r) ) ) = '1' ) then
+         txErr        <= '1';
+         txDon        <= '1';
+         v.bufVld     := '0';
+         v.douVld     := '0';
+         v.txBsy      := '0';
+         stpin        <= '0';
+         douin        <= (others => '0');
+      end if;
+
+      rin <= v;
+   end process P_COMB;
 
    P_SEQ : process ( ulpiClk ) is
    begin
       if ( rising_edge( ulpiClk ) ) then
-         if ( douRst = '1' ) then
-            dou_r <= (others => '0');
-         elsif ( douCE = '1' ) then
-            dou_r <= dou_i;
-         end if;
-         if ( (last or dir_r) = '1' ) then
-            douVld <= '0';
-         elsif ( txVld = '1' ) then
-            douVld <= '1';
-         end if;
-
-         if ( ( ( bufVld and ulpiIb.nxt ) or dir_r ) = '1' ) then
-            bufVld <= '0';
-         elsif ( ( txVld and not ulpiIb.nxt and douVld ) = '1' ) then
-            bufVld <= '1';
-         end if;
-
-         if ( bufRST = '1' ) then
-            buf    <= (others => '0');
-         elsif ( bufCE = '1' ) then
-            if ( ( douVld and not bufVld and txVld and not ulpiIb.nxt ) = '1' )  then
-               buf <= txDat;
-            else
-               buf <= (others => txSta);
-            end if;
-         end if;
-
-         if ( douRst = '1' ) then
-            lst_r <= '0';
-         elsif ( lastCE = '1' ) then
-            lst_r <= '1';
-         end if;
-
-         if ( stopRst = '1' ) then
-            stp_r <= '0';
-         elsif ( stopCE = '1' ) then
-            stp_r <= genStp or frcStp;
-         end if;
-
-         lstFrcStp         <= frcStp;
-
-         don_r             <= ( lst_r and (ulpiIb.nxt or not waiNxtLoc) ) and not dir_r;
-         dir_r             <= ulpiIb.dir;
-         din_r             <= ulpiIb.dat;
-         nxt_r             <= ulpiIb.nxt;
-         stp_i             <= ulpiIb.stp;
-         -- is the registered cycle a turn-around cycle?
-         trn_r             <= ( ulpiIb.dir xor dir_r );
+         r     <= rin;
+         din_r <= ulpiIb.dat;
+         nxt_r <= ulpiIb.nxt;
+         stp_i <= ulpiIb.stp;
+         dir_r <= ulpiIb.dir;
+         dou_r <= douin;
+         stp_r <= stpin;
       end if;
    end process P_SEQ;
 
-   lastCE     <= last;
-   stopRst    <= not lstFrcStp and ( ( lst_r and (ulpiIb.nxt or not waiNxtLoc) ) or dir_r );
-   stopCE     <= last or lstFrcStp;
-
-   douRst     <= ( lst_r and (ulpiIb.nxt or not waiNxtLoc) ) or dir_r;
-
-   txRdy      <= ( not douVld or not bufVld );
-
-   ulpiOb.dat <= dou_r;
-
-   G_MSKD_STP : if ( ULPI_STP_MODE_G =  WAIT_FOR_NXT_MASKED ) generate
-      ulpiOb.stp <= stp_r and (ulpiIb.nxt or not waiNxtLoc);
-   end generate G_MSKD_STP;
-
-   G_UNMSKD_STP : if ( ULPI_STP_MODE_G /=  WAIT_FOR_NXT_MASKED ) generate
-      ulpiOb.stp <= stp_r;
-   end generate G_UNMSKD_STP;
-
-   G_WAI_STP : if ( ULPI_STP_MODE_G /= NORMAL ) generate
-      waiNxtLoc  <= waiNxt;
-   end generate G_WAI_STP;
-
-   G_NO_WAI_STP : if ( ULPI_STP_MODE_G = NORMAL ) generate
-      waiNxtLoc  <= '0';
-   end generate G_NO_WAI_STP;
-
-   err_i      <= dir_r and (douVld or lst_r or bufVld); -- or txVld);
-   txDon      <= err_i or don_r;
-   txErr      <= err_i;
+   txRdy      <= (not r.bufVld or not r.douVld);
 
    ulpiRx.dat <= din_r;
    ulpiRx.nxt <= nxt_r;
    ulpiRx.dir <= dir_r;
-   ulpiRx.trn <= trn_r;
+   ulpiRx.trn <= r.trn;
    ulpiRx.stp <= stp_i;
 
-end architecture Impl;
+   ulpiOb.dat <= dou_r;
+   ulpiOb.stp <= stp_r;
+
+end architecture rtl;

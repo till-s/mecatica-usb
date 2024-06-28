@@ -200,7 +200,7 @@ set vhdl_files [list \
  [file normalize "${origin_dir}/../../core/hdl/Usb2UtilPkg.vhd"] \
  [file normalize "${origin_dir}/../../core/hdl/Usb2AppCfgPkg.vhd"] \
  [file normalize "${origin_dir}/../../core/hdl/Usb2DescPkg.vhd"] \
- [file normalize "${origin_dir}/../../core/hdl/UlpiIOBufV2.vhd"] \
+ [file normalize "${origin_dir}/../../core/hdl/UlpiIOBuf.vhd"] \
  [file normalize "${origin_dir}/../../core/hdl/UlpiIO.vhd"] \
  [file normalize "${origin_dir}/../../core/hdl/UlpiLineState.vhd"] \
  [file normalize "${origin_dir}/../../core/hdl/Usb2Bram.vhd"] \
