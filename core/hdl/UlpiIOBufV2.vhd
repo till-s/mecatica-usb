@@ -9,10 +9,6 @@ use     ieee.std_logic_1164.all;
 use     work.UlpiPkg.all;
 use     work.Usb2UtilPkg.all;
 
--- NOTE: there is one corner-case that causes undefined behaviour
---       by this implementation:
---         If a
-
 entity UlpiIOBuf is
    generic (
       MARK_DEBUG_G    : boolean := true;
@@ -78,21 +74,21 @@ architecture rtl of UlpiIOBuf is
    attribute MARK_DEBUG : string;
 
    type RegType is record
-      buf    : std_logic_vector(7 downto 0);
-      douVld : std_logic;
-      bufVld : std_logic;
-      trn    : std_logic;
-      txBsy  : std_logic;
-      sta    : std_logic;
+      buf               : std_logic_vector(7 downto 0);
+      douVld            : std_logic;
+      bufVld            : std_logic;
+      trn               : std_logic;
+      txBsy             : std_logic;
+      sta               : std_logic;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
-      buf    => (others => '0'),
-      douVld => '0',
-      bufVld => '0',
-      trn    => '0',
-      txBsy  => '0',
-      sta    => '0'
+      buf               => (others => '0'),
+      douVld            => '0',
+      bufVld            => '0',
+      trn               => '0',
+      txBsy             => '0',
+      sta               => '0'
    );
 
    signal r     : RegType                      := REG_INIT_C;
@@ -127,13 +123,13 @@ begin
    P_COMB : process (r, dou_r, stp_r, dir_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp, regOpr) is
       variable v : RegType;
    begin
-      v     := r;
-      douin <= dou_r;
+      v           := r;
+      douin       <= dou_r;
 
-      v.trn := ulpiIb.dir xor dir_r;
+      v.trn       := ulpiIb.dir xor dir_r;
 
-      stpin <= frcStp;
-      v.sta := '0';
+      stpin       <= frcStp;
+      v.sta       := '0';
 
       -- apparently (found with logic-analyzer) the USB3340 can still
       -- send RXCMD-interrupts even after we put a TXCMD on the bus; it seems
@@ -152,7 +148,7 @@ begin
          if ( r.douVld = '0' ) then
             v.douVld := '1';
             douin    <= txDat;
-         elsif ( ( not ulpiIb.dir and ulpiIb.nxt ) = '1' ) then
+         elsif ( ulpiIb.nxt = '1' ) then
             if ( r.bufVld = '1' ) then
                douin    <= r.buf;
                v.bufVld := '0';
@@ -164,7 +160,7 @@ begin
             v.buf    := txDat;
          end if;
       else
-         if ( ( not ulpiIb.dir and ulpiIb.nxt ) = '1' ) then
+         if ( ulpiIb.nxt = '1' ) then
             if ( r.bufVld = '1' ) then
                v.bufVld := '0';
                douin    <= r.buf;
@@ -198,18 +194,74 @@ begin
       txDon <= '0';
 
       if ( ( r.txBsy and not r.douVld ) = '1' ) then
-         v.txBsy  := '0';
-         txDon    <= '1';
+         v.txBsy      := '0';
+         txDon        <= '1';
       end if;
 
-      if ( ( r.txBsy and dir_r ) = '1' ) then
-         txErr    <= '1';
-         txDon    <= '1';
-         v.bufVld := '0';
-         v.douVld := '0';
-         v.txBsy  := '0';
-         stpin    <= '0';
-         douin    <= (others => '0');
+      -- there is a corner case where the PHY
+      -- aborts a transmission before we got a chance
+      -- to set 'txBsy'; catch that be checking if
+      -- 'nxt_r' is asserted when we already had data in
+      -- 'dou'; note that his *only* affects an abort that
+      -- intends to receive (dir and nxt = '1'); mere RXCMD (nxt ='0')
+      -- is handled by 'txBsy' which delays until RXCMD is done.
+
+      -- A: dir is asserted during same cycle as txVld (UlpiIO checks for
+      --    dir_r = '0' when asserting txVld (combinatorial) but does not
+      --    see a potential dir going high:
+      --
+      -- a) dir asserted during the same cycle as txVld
+      --  dir  nxt dir_r  nxt_r   txVld  douVld   txBsy
+      --            1      1       0       1        0
+      --
+      --   0    0   0      0       0       0        0
+      --   1    1   0      0       1       0        0
+      --            1      1       0       1        0 <= MISSED
+      --
+      -- c) dir+nxt asserted a cycle following TXCMD, (not dir_r and nxt_r)
+      --    never seen
+      --    (shortest command: just TXCMD) => CAUGHT by txBsy and dir_r
+      -- 
+      --  dir  nxt dir_r  nxt_r   txVld  douVld  sta  txBsy
+      --   0    0   0      0       0       0      0     0
+      --   0    0   0      0       1       0      0     0
+      --   0    0   0      0       0       1      0     0  *
+      --   1    1   0      0       0       1      0     0
+      --   1    x   1      1       0       1      0     0
+      --
+       -- c) dir+nxt asserted after the cycle accepting the TXCMD
+      --    (shortest command: just TXCMD) => CAUGHT by txBsy and dir_r
+      -- 
+      --  dir  nxt dir_r  nxt_r   txVld  douVld  sta  txBsy
+      --   0    0   0      0       0       0      0     0
+      --   0    1   0      0       1       0      0     0
+      --   1    1   0      1       0       1      0     1
+      --   1    x   1      1       0       1      1     1
+      --
+      --
+      --
+      -- B: back-to-back register->RCV: no stop cycle; regop exception
+      --
+      -- a) too early, dir asserted during last write op => CAUGHT (txBsy and dir_r)
+      --  dir  nxt dir_r  nxt_r   txVld  douVld  txBsy
+      --   1    1   0      1        0      1       1     <= regop last write
+      --            1      1        0      0       1        (either write or 
+      --                                                    addr phase of read)
+      -- b) back-to-back => OK (txBsy and dir_r = '0')
+      --  dir  nxt dir_r  nxt_r   txVld  douVld  txBsy
+      --   0    0   0      1        0      1       1     <= regop last write
+      --   1    1   0      0        0      0       1        (either write or 
+      --            1      1        0      0       0        addr phase of read)
+      -- 
+
+      if ( ( dir_r and (r.txBsy or (r.douVld and nxt_r) ) ) = '1' ) then
+         txErr        <= '1';
+         txDon        <= '1';
+         v.bufVld     := '0';
+         v.douVld     := '0';
+         v.txBsy      := '0';
+         stpin        <= '0';
+         douin        <= (others => '0');
       end if;
 
       rin <= v;

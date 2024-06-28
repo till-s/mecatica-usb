@@ -19,9 +19,12 @@ architecture sim of UlpiIOBufAltTb is
    signal clk     : std_logic := '0';
    signal nxt0    : std_logic := '0';
    signal nxt1    : std_logic := '0';
+   signal nxt2    : std_logic := '0';
    signal dir0    : std_logic := '0';
    signal dir1    : std_logic := '0';
-   signal dat1    : std_logic_vector(7 downto 0) := (others => 'X');
+   signal dir2    : std_logic := '0';
+   signal dat1    : std_logic_vector(7 downto 0) := (others => '0');
+   signal dat2    : std_logic_vector(7 downto 0) := (others => '0');
    signal stp     : std_logic := '0';
    signal dou     : std_logic_vector(7 downto 0);
    signal txVld   : std_logic := '0';
@@ -50,7 +53,7 @@ architecture sim of UlpiIOBufAltTb is
    signal rxProcErr : std_logic := '0';
    signal rxProcAck : std_logic := '0';
    signal rxCmdAck  : std_logic := '0';
-   signal rxCmdDly  : integer   := 0;
+   signal rxCmdDly  : integer   := -1;
 
    signal txStarted : boolean   := false;
    signal aborted   : std_logic := '0';
@@ -210,6 +213,7 @@ begin
       tick;
    end process P_SND;
 
+   -- rxCmdDly < 0 disables this process
    P_RXCMD : process (r, clk, txSync, rxCmdDly, ulpiIb) is
       variable v  : RxCmdRegType := RX_CMD_REG_INIT_C;
    begin
@@ -220,7 +224,7 @@ begin
 
       case ( r.state ) is
          when RXCMD_IDLE =>
-            if ( txSync ) then
+            if ( txSync and rxCmdDly >= 0 ) then
                v.ack   := '0';
                v.state := RXCMD_WAI;
                v.idx   := 1;
@@ -300,15 +304,41 @@ begin
          assert txProcErr = aborted report "incorrect collision handling" severity failure;
       end loop;
 
+      -- test tx abort (before TX accepted first 'nxt')
+      rxCmdDly <= -1;
+      txProcDly <= 0;
+
       tick;
+
+      for dly in 0 to 4 loop
+         txSync <= true;
+         tick;
+         txSync <= false;
+         -- txVld is asserted during this cycle
+         for i in 1 to dly loop
+            tick;
+         end loop;
+         -- signal starting of RX -> should abort TX!
+         dir2   <= '1';
+         nxt2   <= '1';
+         tick;
+         nxt2   <= '0';
+         while ( txDon = '0' ) loop
+            tick;
+         end loop;
+         assert ( txErr = '1' ) report "TX abort was not detected" severity failure;
+         dir2   <= '0';
+         tick;
+      end loop;
+
       run <= false;
       report "TEST PASSED";
       wait;
    end process P_RXCMD_TEST;
 
-   ulpiIb.nxt <= nxt0 or nxt1;
-   ulpiIb.dir <= dir0 or dir1;
-   ulpiIb.dat <= dat1;
+   ulpiIb.nxt <= nxt0 or nxt1 or nxt2;
+   ulpiIb.dir <= dir0 or dir1 or dir2;
+   ulpiIb.dat <= dat1 or dat2;
    ulpiIb.stp <= ulpiOb.stp;
    stp        <= ulpiOb.stp;
    dou        <= ulpiOb.dat;
