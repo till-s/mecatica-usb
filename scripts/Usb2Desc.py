@@ -717,7 +717,7 @@ class Usb2DescContext(list):
       self.bNumberPowerFilters( 0 )
 
     @acc(3)
-    def iMACAddress(self, v): return self.cvtString(v)
+    def iMACAddress(self, v): return self.checkMAC(v)
     @acc(4,4)
     def bmEthernetStatistics(self, v): return v
     @acc(8,2)
@@ -730,8 +730,12 @@ class Usb2DescContext(list):
     def checkMAC(self, v):
       if not isinstance(v,CvtReader):
         # check format
-        if re.match('^[0-9a-fA-F]{3}$', v) is None:
-          raise RuntimeError("Invalid MAC address - must be 12 hex chars")
+        if not re.match("^[0-9a-fA-F]{12}$", v):
+          raise RuntimeError("Invalid MAC Address {} (must specify exactly 12 hex chars w/o spaces or separators".format(v))
+        if 0 == int(v,16):
+          raise RuntimeError("Invalid MAC Address {} (must not be all-zeros)".format(v))
+        if 0 != (int(v[1],16) & 1):
+          raise RuntimeError("Invalid MAC Address {} (not unicast)".format(v))
       return self.cvtString(v)
 
   @factory

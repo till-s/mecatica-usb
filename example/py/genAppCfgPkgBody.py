@@ -21,15 +21,6 @@ sys.path.append( here + '/../../scripts' )
 import Usb2Desc
 import ExampleDevDesc
 
-def checkMacAddr(a):
-  if not re.match("^[0-9a-fA-F]{12}$", a):
-    raise RuntimeError("Invalid MAC Address {} (must specify exactly 12 hex chars w/o spaces or separators".format(a))
-  if 0 == int(a,16):
-    raise RuntimeError("Invalid MAC Address {} (must not be all-zeros)".format(a))
-  if 0 != (int(a[1],16) & 1):
-    raise RuntimeError("Invalid MAC Address {} (not unicast)".format(a))
-  return a
-
 if __name__ == "__main__":
 
   fnam                = here + '/../hdl/AppCfgPkgBody.vhd'
@@ -84,9 +75,9 @@ if __name__ == "__main__":
     elif o[0] in ("-S"):
        uacProto          = None
     elif o[0] in ("-E"):
-       iECMMACAddr       = checkMacAddr(o[1])
+       iECMMACAddr       = o[1]
     elif o[0] in ("-N"):
-       iNCMMACAddr       = checkMacAddr(o[1])
+       iNCMMACAddr       = o[1]
     elif o[0] in ("-A"):
        haveACM           = False
     elif o[0] in ("-F"):
