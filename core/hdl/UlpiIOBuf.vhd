@@ -23,19 +23,7 @@ entity UlpiIOBuf is
       ULPI_DIR_IOB_G  : boolean := true;
       -- whether to request the data input registers to be placed in IOB;
       -- (see additional comments above)
-      ULPI_DIN_IOB_G  : boolean := true;
-      -- whether STP must not be asserted while NXT is low
-      -- during transmit (USB3340) - bad because it requires
-      -- combinatorials after the STP register which means
-      -- this register cannot be placed into IOB :-(
-      -- The 3340 datasheet claims that STP must not be
-      -- asserted while NXT is low -- however, experiments
-      -- indicated that this actually caused malfunction but
-      -- asserting STP (after the last data are consumed)
-      -- regardless of NXT being hi or lo worked as it should.
-      -- NOTE: this implementation of UlpiIOBuf does *not* support settings
-      --       other than 'NORMAL' -- generic kept for bwds compatibility.
-      ULPI_STP_MODE_G : UlpiStpModeType := NORMAL
+      ULPI_DIN_IOB_G  : boolean := true
    );
    port (
       ulpiClk    : in  std_logic;
@@ -67,6 +55,16 @@ entity UlpiIOBuf is
       ulpiOb     : out UlpiObType
    );
 end entity UlpiIOBuf;
+
+-- NOTE (about STP and USB3340):
+--
+-- Whether STP must not be asserted while NXT is low
+-- during transmit (USB3340):
+-- The 3340 datasheet claims that STP must not be
+-- asserted while NXT is low -- however, experiments
+-- indicated that this actually caused malfunction but
+-- asserting STP (after the last data are consumed)
+-- regardless of NXT being hi or lo worked as it should.
 
 architecture rtl of UlpiIOBuf is
 
@@ -117,8 +115,6 @@ architecture rtl of UlpiIOBuf is
    attribute MARK_DEBUG of stp_i : signal is toStr( MARK_DEBUG_G );
 
 begin
-
-   assert ULPI_STP_MODE_G = NORMAL report "other ULPI_STOP_MODE settings not implemented" severity failure;
 
    P_COMB : process (r, dou_r, stp_r, dir_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp, regOpr) is
       variable v : RegType;

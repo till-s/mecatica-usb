@@ -18,8 +18,7 @@ entity UlpiIO is
       MARK_DEBUG_G       : boolean         := true;
       ULPI_NXT_IOB_G     : boolean         := true;
       ULPI_DIR_IOB_G     : boolean         := true;
-      ULPI_DIN_IOB_G     : boolean         := true;
-      ULPI_STP_MODE_G    : UlpiStpModeType := NORMAL
+      ULPI_DIN_IOB_G     : boolean         := true
    );
    port (
       ulpiClk            : in    std_logic;
@@ -109,8 +108,7 @@ begin
          MARK_DEBUG_G    => MARK_DEBUG_G,
          ULPI_NXT_IOB_G  => ULPI_NXT_IOB_G,
          ULPI_DIR_IOB_G  => ULPI_DIR_IOB_G,
-         ULPI_DIN_IOB_G  => ULPI_DIN_IOB_G,
-         ULPI_STP_MODE_G => ULPI_STP_MODE_G
+         ULPI_DIN_IOB_G  => ULPI_DIN_IOB_G
       )
       port map (
          ulpiClk         => ulpiClk,

@@ -388,7 +388,6 @@ begin
          ULPI_NXT_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIR_IOB_G               => not ULPI_CLK_MODE_INP_G,
          ULPI_DIN_IOB_G               => not ULPI_CLK_MODE_INP_G,
-         ULPI_STP_MODE_G              => NORMAL,
          ULPI_EMU_MODE_G              => ULPI_EMU_MODE_G,
          FSLS_INPUT_MODE_VPVM_G       => FSLS_INPUT_MODE_VPVM_G,
          AUTO_REMWAKE_G               => AUTO_REMWAKE_G,

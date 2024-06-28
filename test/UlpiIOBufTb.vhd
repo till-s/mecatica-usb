@@ -145,9 +145,6 @@ phas <= phas + 1;
    dou    <= uo.dat;
 
    U_DUT : entity work.UlpiIOBuf
-      generic map (
-         ULPI_STP_MODE_G => NORMAL
-      )
       port map (
          ulpiClk    => clk,
 

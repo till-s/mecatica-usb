@@ -32,7 +32,6 @@ entity Usb2Core is
       ULPI_NXT_IOB_G               : boolean         := true;
       ULPI_DIR_IOB_G               : boolean         := true;
       ULPI_DIN_IOB_G               : boolean         := true;
-      ULPI_STP_MODE_G              : UlpiStpModeType := NORMAL;
       -- ULPI emulation mode:
       --   NONE     => use regular ULPI transceiver
       --   FS_ONLY  => use serial (non-ULPI) full-speed transceiver
@@ -251,8 +250,7 @@ begin
       MARK_DEBUG_G    => MARK_DEBUG_ULPI_IO_G,
       ULPI_NXT_IOB_G  => ULPI_NXT_IOB_G,
       ULPI_DIR_IOB_G  => ULPI_DIR_IOB_G,
-      ULPI_DIN_IOB_G  => ULPI_DIN_IOB_G,
-      ULPI_STP_MODE_G => ULPI_STP_MODE_G
+      ULPI_DIN_IOB_G  => ULPI_DIN_IOB_G
    )
    port map (
       ulpiClk         => ulpiClk,
