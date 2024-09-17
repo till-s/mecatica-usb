@@ -141,7 +141,8 @@ begin
          when IDLE =>
             v.ldat := dou;
             -- raising edge on the 'transient' signals, diff on the consistent signals triggers
-            -- notification
+            -- notification; use 'v.edge' in order not to lose an edge that was just detected
+            -- during this cycle.
             if ( ( (v.edge and not DIFF_MSK_C) or ( (r.dat xor dou) and DIFF_MSK_C ) ) /= ALL_ZERO_C ) then
                v.dat    := (v.edge and not DIFF_MSK_C) or (dou and DIFF_MSK_C);
                v.edge   := (others => '0');
