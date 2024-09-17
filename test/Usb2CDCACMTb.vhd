@@ -1249,6 +1249,10 @@ architecture sim of Usb2CDCACMTb is
    signal fifoRenaOut              : std_logic     := '0';
    signal fifoEmptyOut             : std_logic;
 
+   signal parityError              : std_logic     := '0';
+   signal framingError             : std_logic     := '0';
+   signal rxCarrier                : std_logic     := '0';
+
    constant tstVecOut              : Usb2ByteArray := (
       x"ac",
       x"01",
@@ -1262,6 +1266,10 @@ begin
    U_TST : entity work.Usb2TstPkgProcesses;
 
    P_TST : process is
+      variable rdata  : Usb2ByteArray(0 to 63);
+      variable rdatal : integer;
+      variable expl   : integer;
+      variable expdat : Usb2ByteType;
 
    begin
       ulpiTstHandlePhyInit( ulpiTstOb );
@@ -1377,6 +1385,65 @@ begin
 
       ulpiClkTick;
 
+      for i in 3 to 14 loop
+
+         parityError  <= '0';
+         framingError <= '0';
+         expl         := 0;
+
+         case i is
+            when 4 | 7 =>
+               expl := 10; expdat := x"20"; parityError <= '1';
+            when 5 =>
+               expl := 10; expdat := x"10"; framingError <= '1';
+            when 8 =>
+               -- keep parityError asserted; only new framingError and rxCarrier should be reported 
+               expl := 10; parityError <= '1'; framingError <= '1';
+               rxCarrier <= '1';
+               expdat    := x"11";
+            when 9  =>
+               -- keep framingError asserted
+               framingError <= '1';
+            when 10 =>
+               framingError <= '1';
+               expl := 10; rxCarrier <= '0'; expdat := x"00";
+
+            when 12 =>
+               expl := 10; parityError <= '1';
+               ulpiClkTick;
+               ulpiClkTick;
+               ulpiClkTick;
+               -- notification should be on the way already;
+               -- framing error should be latched but only reported
+               -- next time!
+               framingError <= '1'; expdat := x"20";
+               ulpiClkTick;
+               framingError <= '0';
+               ulpiClkTick;
+            when 13 =>
+               expl := 10; expdat := x"10";
+            when others =>
+         end case;
+
+         ulpiTstRecvDat(
+            ulpiTstOb,
+            rdata,
+            rdatal,
+            to_unsigned( NOTE_EP_IDX_C, Usb2EndpIdxType'length ),
+            DEV_ADDR_C
+         );
+
+         if expl = 0 then
+            assert rdatal = 0 report "Unexpected ACM endpoint notification" severity failure;
+         else
+            assert rdatal = expl report "Ill-formed ACM endpoint notification" severity failure;
+            for ii in 0 to expl - 1 loop
+               report integer'image(to_integer(unsigned(rdata(ii))));
+            end loop;
+            assert rdata(8) = expdat report "Unexpected ACM endpoint notification" severity failure;
+         end if;
+      end loop;
+
       ulpiTstSendDat(
          ulpiTstOb,
          tstVecOut,
@@ -1439,7 +1506,7 @@ begin
       generic map (
          CTL_IFC_NUM_G             => CTL_IFC_IDX_C,
          ENBL_LINE_BREAK_G         => false,
-         ENBL_LINE_STATE_G         => false,
+         ENBL_LINE_STATE_G         => true,
          LD_FIFO_DEPTH_INP_G       => 4,
          LD_FIFO_DEPTH_OUT_G       => 4
       )
@@ -1460,6 +1527,10 @@ begin
 
          epClk                     => ulpiTstClk,
          epRstOut                  => open,
+
+         parityError               => parityError,
+         framingError              => framingError,
+         rxCarrier                 => rxCarrier,
 
          fifoDataInp               => fifoDataInp,
          fifoWenaInp               => fifoWenaInp,

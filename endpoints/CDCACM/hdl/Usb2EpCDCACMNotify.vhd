@@ -75,7 +75,8 @@ architecture Impl of Usb2EpCDCACMNotify is
    type RegType is record
       state        : StateType;
       idx          : natural range 0 to MAX_MSG_SIZE_C - 1;
-      dat          : std_logic_vector(7 downto 0);
+      dat          : std_logic_vector(din'range);
+      edge         : std_logic_vector(din'range);
       ldat         : std_logic_vector(din'range);
    end record RegType;
 
@@ -83,6 +84,7 @@ architecture Impl of Usb2EpCDCACMNotify is
       state        => IDLE,
       idx          => 0,
       dat          => (others => '0'),
+      edge         => (others => '0'),
       ldat         => (others => '0')
    );
 
@@ -130,14 +132,20 @@ begin
       v               := r;
       usb2NotifyEpOb  <= USB2_ENDP_PAIR_IB_INIT_C;
 
+      v.ldat          := dou;
+
+      -- detect raising edge in the 'transient' signals and latch in 'edge'
+      v.edge := r.edge or (dou and not r.ldat and not DIFF_MSK_C);
+
       case ( r.state ) is
          when IDLE =>
             v.ldat := dou;
             -- raising edge on the 'transient' signals, diff on the consistent signals triggers
             -- notification
-            if ( ( (not r.ldat and dou and not DIFF_MSK_C) or ( (r.ldat xor dou) and DIFF_MSK_C ) ) /= ALL_ZERO_C ) then
-               v.dat( dou'range) := dou;
-               v.state           := SEND;
+            if ( ( (v.edge and not DIFF_MSK_C) or ( (r.dat xor dou) and DIFF_MSK_C ) ) /= ALL_ZERO_C ) then
+               v.dat    := (v.edge and not DIFF_MSK_C) or (dou and DIFF_MSK_C);
+               v.edge   := (others => '0');
+               v.state  := SEND;
             end if;
 
          when SEND =>
@@ -162,20 +170,23 @@ begin
                -- when 5 => covered by others
                when  6 => usb2NotifyEpOb.mstInp.dat <= MSZ_C;
                -- when 7 => covered by others
-               when  8 => usb2NotifyEpOb.mstInp.dat <= r.dat;
+               when  8 => usb2NotifyEpOb.mstInp.dat              <= (others => '0');
+                          usb2NotifyEpOb.mstInp.dat(r.dat'range) <= r.dat;
                -- when 9 => covered by others
                when others =>  null;
             end case;
 
          when DONE =>
             v.idx := 0;
+                          v.dat := r.dat and DIFF_MSK_C;
             usb2NotifyEpOb.mstInp.don <= '1';
             usb2NotifyEpOb.mstInp.vld <= '0';
             if ( usb2NotifyEpIb.subinp.rdy = '1' ) then
                v.state      := IDLE;
             end if;
       end case;
-      rin <= v;
+
+      rin    <= v;
    end process P_COMB_NOTE;
 
    P_SEQ_NOTE : process ( usb2Clk ) is
