@@ -178,8 +178,7 @@ begin
             end case;
 
          when DONE =>
-            v.idx := 0;
-                          v.dat := r.dat and DIFF_MSK_C;
+            v.idx                     := 0;
             usb2NotifyEpOb.mstInp.don <= '1';
             usb2NotifyEpOb.mstInp.vld <= '0';
             if ( usb2NotifyEpIb.subinp.rdy = '1' ) then
