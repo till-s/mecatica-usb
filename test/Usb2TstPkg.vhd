@@ -792,11 +792,18 @@ end if;
                   ra := ra + 1;
                end if;
             end loop L_NAK;
+            -- allow return with no data if they don't want us to check
+            -- and we don't have a partial packet
+            if ( pid = USB2_PID_HSK_NAK_C and not chk and edal = 0 ) then
+               return;
+            end if;
             if ( estl ) then
                assert ( pid = USB2_PID_HSK_STALL_C ) report "ulpiTstWaitDat: expected STALL" severity failure;
                return;
             else
-               assert ( pid = epid ) report "ulpiTstWaitDat: IN transaction failed" severity failure;
+               report "PID " & integer'image(to_integer(unsigned(pid)));
+               report "EPID " & integer'image(to_integer(unsigned(epid)));
+               assert ( pid = epid ) report "ulpiTstWaitDat: IN transaction failed (retry " & integer'image(rr) & ")" severity failure;
             end if;
             if ( rr = rtr ) then
                ulpiTstSendHsk(ob, USB2_PID_HSK_ACK_C);
