@@ -116,7 +116,7 @@ architecture rtl of UlpiIOBuf is
 
 begin
 
-   P_COMB : process (r, dou_r, stp_r, dir_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp, regOpr) is
+   P_COMB : process (r, dou_r, stp_r, dir_r, nxt_r, ulpiIb, txVld, txDat, frcStp, txSta, genStp, regOpr) is
       variable v : RegType;
    begin
       v           := r;
