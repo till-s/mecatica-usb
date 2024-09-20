@@ -178,7 +178,7 @@ begin
       signal fifoDin      : std_logic_vector(FIFO_WIDTH_F(DIR_INP) - 1 downto 0);
       signal fifoDou      : std_logic_vector(FIFO_WIDTH_F(DIR_INP) - 1 downto 0);
       signal numFramesInp : unsigned(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
-      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_INP_G downto 0);
+      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
       signal numFramesOut : unsigned(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
       signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_INP_G downto 0);
       signal haveAFrame   : std_logic := '1';
@@ -328,7 +328,7 @@ begin
       signal fifoDon      : std_logic := '0';
       signal maxPktSz     : Usb2PktSizeType;
       signal numFramesInp : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
-      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0);
+      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
       signal numFramesOut : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
       signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0);
       signal epRunning    : std_logic;
