@@ -1397,7 +1397,7 @@ begin
             when 5 =>
                expl := 10; expdat := x"10"; framingError <= '1';
             when 8 =>
-               -- keep parityError asserted; only new framingError and rxCarrier should be reported 
+               -- keep parityError asserted; only new framingError and rxCarrier should be reported
                expl := 10; parityError <= '1'; framingError <= '1';
                rxCarrier <= '1';
                expdat    := x"11";
