@@ -27,6 +27,7 @@ if __name__ == "__main__":
 
   idVendor            = 0x1209
   idProduct           = None
+  iProduct            = "Till's Mecatica USB Example Device"
   iSerial             = None
   uacProto            = "UAC2"
   # one MAC address is patched by the firmware using DeviceDNA
@@ -42,7 +43,7 @@ if __name__ == "__main__":
 
   cmdline             = os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:])
 
-  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:s:FSN:E:AL:am:")
+  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:d:s:FSN:E:AL:am:")
   for o in opt:
     if o[0] in ("-h"):
        print("usage: {} [-h] [-v <vendor_id>] [-f <output_file>] -p <product_id>".format(sys.argv[0]))
@@ -51,6 +52,7 @@ if __name__ == "__main__":
        print("          -p product_id    : product_id (use 0x0001 for private testing *only*)")
        print("          -f file_name     : output file name, defaults to '{}'".format(fnam))
        print("          -s serial_number : (string) goes into the device descriptor")
+       print("          -d description   : product description (iProduct string); goes into the device descriptor")
        print("          -F               : Full-speed only")
        print("          -S               : Disable sound function")
        print("          -E macAddr       : Enable ECM ethernet function; mac-addr in hex, e.g., 02deadbeef33")
@@ -70,6 +72,10 @@ if __name__ == "__main__":
        fnam              = o[1]
     elif o[0] in ("-s"):
        iSerial           = o[1]
+    elif o[0] in ("-d"):
+       iProduct          = o[1]
+       if ( len(iProduct) == 0 ):
+         iProduct = None
     elif o[0] in ("-S"):
        uacProto          = None
     elif o[0] in ("-E"):
@@ -103,7 +109,6 @@ if __name__ == "__main__":
             "use -p 0x0001\n\n" +
             "see https://pid.codes/1209/0001/")
 
-  iProduct="Till's Mecatica USB Example Device"
   ctxt = ExampleDevDesc.mkExampleDevDescriptors(
               idVendor=idVendor,
               idProduct=idProduct,
