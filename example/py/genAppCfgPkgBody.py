@@ -68,10 +68,8 @@ if __name__ == "__main__":
        idProduct         = int(o[1], 0)
     elif o[0] in ("-f"):
        fnam              = o[1]
-    elif o[0] in ("-2"):
+    elif o[0] in ("-s"):
        iSerial           = o[1]
-    elif o[0] in ("-S"):
-       uacProto          = None
     elif o[0] in ("-S"):
        uacProto          = None
     elif o[0] in ("-E"):
