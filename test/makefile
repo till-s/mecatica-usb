@@ -5,7 +5,7 @@
 
 GHDL=ghdl
 VIVADO=/opt/ghdl/v2.0.0-gcc/vivado-2021.2/
-vpath %.vhd ../core/hdl ../endpoints/BADDSpeaker/hdl $(wildcard ../endpoints/*/hdl)
+vpath %.vhd ../core/hdl $(wildcard ../endpoints/*/hdl)
 GHDLFLAGS=$(addprefix -P,$(VIVADO)) -g
 
 -include config.mk
