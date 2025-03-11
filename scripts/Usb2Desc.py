@@ -1328,6 +1328,9 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineSt
   return numIfcs, numEPPs
 
 def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None, numChannels=2):
+  return addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed, has24Bits, isAsync, fcnTitle, numChannels, True)
+
+def addUAC2Microphone(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None, numChannels=2):
   return addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed, has24Bits, isAsync, fcnTitle, numChannels, False)
 
 def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None, numChannels=2, spkrNotMic=True):
