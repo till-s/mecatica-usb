@@ -289,8 +289,10 @@ class Usb2DescContext(list):
     print("   begin", file=f)
     print("      return c;", file=f)
     print("   end function usb2AppGetDescriptors;", file=f)
+    print("", file=f)
+    print("   constant USB2_APP_DESCRIPTORS_C : Usb2ByteArray := usb2AppGetDescriptors;", file=f)
+    print("", file=f)
     print("end package body Usb2AppCfgPkg;", file=f)
-
 
   # the 'factory' decorator converts local classes
   # to factory methods of the context class. Subclasses

@@ -150,6 +150,8 @@ package body Usb2AppCfgPkg is
    return c;
    end function;
 
+   constant USB2_APP_DESCRIPTORS_C : Usb2ByteArray := usb2AppGetDescriptors;
+
 end package body Usb2AppCfgPkg;
 
 library ieee;

@@ -20,7 +20,7 @@ package Usb2AppCfgPkg is
 
    -- the actual descriptors are defined by the application
    -- which must supply the package body
-   constant USB2_APP_DESCRIPTORS_C    :  Usb2ByteArray := usb2AppGetDescriptors;
+   constant USB2_APP_DESCRIPTORS_C    :  Usb2ByteArray;
    -- number of endpoints (including EP 0)
 
 end package Usb2AppCfgPkg;
