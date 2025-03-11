@@ -410,6 +410,7 @@ package Usb2Pkg is
    constant USB2_STD_DESC_TYPE_SENTINEL_C                  : Usb2ByteType               := x"FF";
 
    constant USB2_CS_DESC_SUBTYPE_AUDIO_HEADER_C            : Usb2ByteType               := x"01";
+   constant USB2_CS_DESC_SUBTYPE_AUDIO_FORMAT_C            : Usb2ByteType               := x"02";
 
    constant USB2_CS_DESC_SUBTYPE_CDC_HEADER_C              : Usb2ByteType               := x"00";
    constant USB2_CS_DESC_SUBTYPE_CDC_ACM_C                 : Usb2ByteType               := x"02";
@@ -427,8 +428,9 @@ package Usb2Pkg is
    constant USB2_IFC_SUBCLASS_CDC_NCM_C                    : Usb2ByteType               := x"0D";
 
    constant USB2_IFC_CLASS_AUDIO_C                         : Usb2ByteType               := x"01";
-   constant USB2_IFC_SUBCLASS_AUDIO_UNDEFINED_C            : Usb2ByteType               := x"00";
-   constant USB2_IFC_SUBCLASS_AUDIO_SPEAKER_C              : Usb2ByteType               := x"22";
+   constant USB2_FCN_SUBCLASS_AUDIO_UNDEFINED_C            : Usb2ByteType               := x"00";
+   constant USB2_FCN_SUBCLASS_AUDIO_SPEAKER_C              : Usb2ByteType               := x"22";
+   constant USB2_IFC_SUBCLASS_AUDIO_CONTROL_C              : Usb2ByteType               := x"01";
 
    constant USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC2_C        : Usb2ByteType               := x"20";
    constant USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC3_C        : Usb2ByteType               := x"30";

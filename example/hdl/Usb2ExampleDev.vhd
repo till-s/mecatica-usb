@@ -244,57 +244,61 @@ architecture Impl of Usb2ExampleDev is
       return v;
    end function acmCapabilities;
 
-   constant HAVE_ACM_C                         : boolean :=
-      ( usb2NextIfcAssocDescriptor(
-           DESCRIPTORS_G,
-           0,
-           USB2_IFC_CLASS_CDC_C,
-           USB2_IFC_SUBCLASS_CDC_ACM_C,
-           USB2_IFC_PROTOCOL_NONE_C
-        ) >= 0 );
+   constant ACM_IFC_ASSOC_IDX_C                : integer :=
+      usb2NextIfcAssocDescriptor(
+         DESCRIPTORS_G,
+         0,
+         USB2_IFC_CLASS_CDC_C,
+         USB2_IFC_SUBCLASS_CDC_ACM_C,
+         USB2_IFC_PROTOCOL_NONE_C
+      );
+   constant HAVE_ACM_C                         : boolean := (ACM_IFC_ASSOC_IDX_C >= 0);
 
    -- accept UAC2 or UAC3/BADD
-   constant HAVE_SPKR_C                        : boolean :=
-      ( usb2NextIfcAssocDescriptor(
-           DESCRIPTORS_G,
-           0,
-           USB2_IFC_CLASS_AUDIO_C,
-           USB2_IFC_SUBCLASS_AUDIO_SPEAKER_C,
-           USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC3_C
-        ) >= 0
+   constant SPKR_UAC3_IFC_ASSOC_IDX_C          : integer :=
+      usb2NextIfcAssocDescriptor(
+         DESCRIPTORS_G,
+         0,
+         USB2_IFC_CLASS_AUDIO_C,
+         USB2_FCN_SUBCLASS_AUDIO_SPEAKER_C,
+         USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC3_C
+      );
 
-        or
+   constant SPKR_UAC2_CS_HEADER_IDX_C          : integer :=
+      usb2NextCsUAC2HeaderCategory(
+         DESCRIPTORS_G,
+         0,
+         USB2_CS_IFC_HDR_UAC2_CATEGORY_SPEAKER
+      );
+   constant HAVE_SPKR_C                        : boolean := (SPKR_UAC3_IFC_ASSOC_IDX_C >= 0) or (SPKR_UAC2_CS_HEADER_IDX_C >= 0);
 
-        usb2NextCsUAC2HeaderCategory(
-           DESCRIPTORS_G,
-	   0,
-           USB2_CS_IFC_HDR_UAC2_CATEGORY_SPEAKER
-        ) >= 0 );
+   constant MICR_UAC2_CS_HEADER_IDX_C          : integer :=
+      usb2NextCsUAC2HeaderCategory(
+         DESCRIPTORS_G,
+         0,
+         USB2_CS_IFC_HDR_UAC2_CATEGORY_MICROPHONE
+      );
+   constant HAVE_MICR_C                        : boolean := (MICR_UAC2_CS_HEADER_IDX_C >= 0);
 
-   constant HAVE_MICR_C                        : boolean :=
-      ( usb2NextCsUAC2HeaderCategory(
-           DESCRIPTORS_G,
-	   0,
-           USB2_CS_IFC_HDR_UAC2_CATEGORY_MICROPHONE
-        ) >= 0 );
+   constant ECM_IFC_ASSOC_IDX_C                : integer :=
+      usb2NextIfcAssocDescriptor(
+         DESCRIPTORS_G,
+         0,
+         USB2_IFC_CLASS_CDC_C,
+         USB2_IFC_SUBCLASS_CDC_ECM_C,
+         USB2_IFC_PROTOCOL_NONE_C
+      );
+   constant HAVE_ECM_C                         : boolean := (ECM_IFC_ASSOC_IDX_C >= 0);
 
-    constant HAVE_ECM_C                        : boolean :=
-      ( usb2NextIfcAssocDescriptor(
-           DESCRIPTORS_G,
-           0,
-           USB2_IFC_CLASS_CDC_C,
-           USB2_IFC_SUBCLASS_CDC_ECM_C,
-           USB2_IFC_PROTOCOL_NONE_C
-        ) >= 0 );
-
-    constant HAVE_NCM_C                        : boolean :=
-      ( usb2NextIfcAssocDescriptor(
-           DESCRIPTORS_G,
-           0,
-           USB2_IFC_CLASS_CDC_C,
-           USB2_IFC_SUBCLASS_CDC_NCM_C,
-           USB2_IFC_PROTOCOL_NONE_C
-        ) >= 0 );
+   constant NCM_IFC_ASSOC_IDX_C                : integer :=
+      usb2NextIfcAssocDescriptor(
+         DESCRIPTORS_G,
+         0,
+         USB2_IFC_CLASS_CDC_C,
+         USB2_IFC_SUBCLASS_CDC_NCM_C,
+         USB2_IFC_PROTOCOL_NONE_C
+      );
+   constant HAVE_NCM_C                         : boolean := (NCM_IFC_ASSOC_IDX_C >= 0);
 
    constant N_EP_C                             : natural := usb2AppGetMaxEndpointAddr(DESCRIPTORS_G);
 
@@ -639,6 +643,8 @@ begin
          generic map (
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(SPKR_CTL_IFC_NUM_C),
             SAMPLE_SIZE_G             => 3,
+            NUM_CHANNELS_G            => 2,
+            SAMPLING_FREQ_G           => 48000, -- must be 48k for BADD/UAC3
             MARK_DEBUG_G              => MARK_DEBUG_SND_G,
             MARK_DEBUG_BCLK_G         => false
          )
@@ -731,11 +737,11 @@ begin
 
    G_EP_CDCNCM : if ( HAVE_NCM_C ) generate
       -- extract MAC address from descriptors
-      constant NCM_MAC_ADDR_C : Usb2ByteArray    := usb2GetNCMMacAddr( DESCRIPTORS_G );
+      constant NCM_MAC_ADDR_C : Usb2ByteArray    := usb2GetNCMMacAddr( DESCRIPTORS_G, NCM_IFC_ASSOC_IDX_C );
 
-      constant BM_NET_CAPA_C  : std_logic_vector := usb2GetNCMNetworkCapabilities( DESCRIPTORS_G );
+      constant BM_NET_CAPA_C  : std_logic_vector := usb2GetNCMNetworkCapabilities( DESCRIPTORS_G, NCM_IFC_ASSOC_IDX_C );
 
-      constant SET_MC_FILT_C  : boolean          := (usb2GetNumMCFilters( DESCRIPTORS_G, USB2_IFC_SUBCLASS_CDC_NCM_C ) > 0);
+      constant SET_MC_FILT_C  : boolean          := (usb2GetNumMCFilters( DESCRIPTORS_G, NCM_IFC_ASSOC_IDX_C, USB2_IFC_SUBCLASS_CDC_NCM_C ) > 0);
       constant SET_NET_ADDR_C : boolean          := ( BM_NET_CAPA_C(1) = '1');
    begin
 
