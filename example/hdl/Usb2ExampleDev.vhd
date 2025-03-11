@@ -253,14 +253,33 @@ architecture Impl of Usb2ExampleDev is
            USB2_IFC_PROTOCOL_NONE_C
         ) >= 0 );
 
-   constant HAVE_BADD_C                        : boolean :=
+   -- accept UAC2 or UAC3/BADD
+   constant HAVE_BADD_SPKR_C                   : boolean :=
       ( usb2NextIfcAssocDescriptor(
            DESCRIPTORS_G,
            0,
            USB2_IFC_CLASS_AUDIO_C,
-           USB2_IFC_SUBCLASS_AUDIO_SPEAKER_C
-           -- accept UAC2 or UAC3
+           USB2_IFC_SUBCLASS_AUDIO_SPEAKER_C,
+           USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC3_C
+        ) >= 0
+
+        or
+
+        usb2NextCsUAC2HeaderCategory(
+           DESCRIPTORS_G,
+	   0,
+           USB2_CS_IFC_HDR_UAC2_CATEGORY_SPEAKER
         ) >= 0 );
+
+   constant HAVE_UAC2_MICR_C                   : boolean :=
+      ( usb2NextCsUAC2HeaderCategory(
+           DESCRIPTORS_G,
+	   0,
+           USB2_CS_IFC_HDR_UAC2_CATEGORY_MICROPHONE
+        ) >= 0 );
+
+    constant HAVE_BADD_C                       : boolean :=
+       HAVE_BADD_SPKR_C or HAVE_UAC2_MICR_C;
 
     constant HAVE_ECM_C                        : boolean :=
       ( usb2NextIfcAssocDescriptor(
@@ -613,7 +632,7 @@ begin
       acmFifoInpFill  <= resize( acmFifoFilledInp, acmFifoInpFill'length );
    end generate G_EP_CDCACM;
 
-   G_EP_ISO_BADD : if ( HAVE_BADD_C ) generate
+   G_EP_ISO_BADD : if ( HAVE_BADD_SPKR_C ) generate
    begin
       U_BADD : entity work.Usb2EpBADDSpkr
          generic map (

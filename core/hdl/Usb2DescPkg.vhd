@@ -193,6 +193,13 @@ package Usb2DescPkg is
       constant a : boolean      := true
    ) return integer;
 
+   function usb2NextCsUAC2HeaderCategory(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant c : Usb2ByteType;
+      constant a : boolean      := true
+   ) return integer;
+
 end package Usb2DescPkg;
 
 package body Usb2DescPkg is
@@ -621,5 +628,40 @@ report "i: " & integer'image(i) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       assert (i >= 0) report "Ethernet Networking Functional Desciptor not found" severity failure;
       return d(i+11)(7) = '0';
    end function usb2GetMCFilterPerfect;
+
+   function usb2NextCsUAC2HeaderCategory(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant c : Usb2ByteType;
+      constant a : boolean      := true
+   ) return integer is
+      variable x : integer;
+      constant IDX_CATEGORY_C : natural := 5;
+   begin
+      x := i;
+      x := usb2NextIfcAssocDescriptor(
+              d,
+              x,
+              USB2_IFC_CLASS_AUDIO_C,
+              USB2_IFC_SUBCLASS_AUDIO_UNDEFINED_C,
+              USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC2_C,
+	      a);
+      if ( x < 0 ) then
+         return x;
+      end if;
+      -- FIXME: should make sure the CS descriptor 'belongs' to
+      --        an associated interface?
+      x := usb2NextCsDescriptor(
+              d,
+              x,
+              USB2_CS_DESC_SUBTYPE_AUDIO_HEADER_C,
+	      false,
+	      a);
+      assert x >= 0 report "No audio class-specific interface header descriptor found" severity failure;
+      if ( d(x + IDX_CATEGORY_C) /= c ) then
+         return -1;
+      end if;
+      return x;
+   end function usb2NextCsUAC2HeaderCategory;
 
 end package body Usb2DescPkg;
