@@ -454,7 +454,6 @@ begin
    volMaster     <= r.volMaster;
    volLeft       <= r.volLeft;
    volRight      <= r.volRight;
-   volMaster     <= r.volMaster;
    muteLeft      <= r.muteLeft;
    muteRight     <= r.muteRight;
    muteMaster    <= r.muteMaster;
