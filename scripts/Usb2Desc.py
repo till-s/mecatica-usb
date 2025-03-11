@@ -1504,7 +1504,7 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
     else:
       d.wMaxPacketSize( 3 )
       d.bInterval(0x01)
-    numEPPs += 1
+  numEPPs += 1
 
   numIfcs += 1
   # return number of interfaces and endpoint pairs used
@@ -1585,7 +1585,7 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
     else:
       d.wMaxPacketSize( 3 )
       d.bInterval(0x01)
-    numEPPs += 1
+  numEPPs += 1
 
   numIfcs += 1
   # return number of interfaces and endpoint pairs used
