@@ -781,6 +781,7 @@ class Usb2DescContext(list):
     DSC_CATEGORY_OTHER                                   = 0xff
 
     DSC_AUDIO_TERMINAL_TYPE_STREAMING                    = 0x0101
+    DSC_AUDIO_TERMINAL_TYPE_INP_MICROPHONE               = 0x0201
     DSC_AUDIO_TERMINAL_TYPE_OUT_SPEAKER                  = 0x0301
 
     DSC_SUBTYPE_AS_GENERAL                               = 0x01
