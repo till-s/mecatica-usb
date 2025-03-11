@@ -1375,7 +1375,7 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, i
   hdr   = d
   totl += d.size
 
-  # IDs must match BADD profile for the BADDSpkrCtl to be
+  # IDs must match BADD profile for the Usb2EpAudioCtl to be
   # able to dispatch the requests to the correct unit
   clkID = 0x09
   inTID = 0x01

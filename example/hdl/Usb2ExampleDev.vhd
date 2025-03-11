@@ -254,7 +254,7 @@ architecture Impl of Usb2ExampleDev is
         ) >= 0 );
 
    -- accept UAC2 or UAC3/BADD
-   constant HAVE_BADD_SPKR_C                   : boolean :=
+   constant HAVE_SPKR_C                        : boolean :=
       ( usb2NextIfcAssocDescriptor(
            DESCRIPTORS_G,
            0,
@@ -271,15 +271,12 @@ architecture Impl of Usb2ExampleDev is
            USB2_CS_IFC_HDR_UAC2_CATEGORY_SPEAKER
         ) >= 0 );
 
-   constant HAVE_UAC2_MICR_C                   : boolean :=
+   constant HAVE_MICR_C                        : boolean :=
       ( usb2NextCsUAC2HeaderCategory(
            DESCRIPTORS_G,
 	   0,
            USB2_CS_IFC_HDR_UAC2_CATEGORY_MICROPHONE
         ) >= 0 );
-
-    constant HAVE_BADD_C                       : boolean :=
-       HAVE_BADD_SPKR_C or HAVE_UAC2_MICR_C;
 
     constant HAVE_ECM_C                        : boolean :=
       ( usb2NextIfcAssocDescriptor(
@@ -303,16 +300,18 @@ architecture Impl of Usb2ExampleDev is
 
    constant CDC_ACM_BULK_EP_IDX_C              : natural := 0                       + ite( HAVE_ACM_C,  1, 0 );
    constant CDC_ACM_IRQ_EP_IDX_C               : natural := CDC_ACM_BULK_EP_IDX_C   + ite( HAVE_ACM_C,  1, 0 );
-   constant BADD_ISO_EP_IDX_C                  : natural := CDC_ACM_IRQ_EP_IDX_C    + ite( HAVE_BADD_C, 1, 0 );
-   constant CDC_ECM_BULK_EP_IDX_C              : natural := BADD_ISO_EP_IDX_C       + ite( HAVE_ECM_C,  1, 0 );
+   constant SPKR_ISO_EP_IDX_C                  : natural := CDC_ACM_IRQ_EP_IDX_C    + ite( HAVE_SPKR_C, 1, 0 );
+   constant CDC_ECM_BULK_EP_IDX_C              : natural := SPKR_ISO_EP_IDX_C       + ite( HAVE_ECM_C,  1, 0 );
    constant CDC_ECM_IRQ_EP_IDX_C               : natural := CDC_ECM_BULK_EP_IDX_C   + ite( HAVE_ECM_C,  1, 0 );
    constant CDC_NCM_BULK_EP_IDX_C              : natural := CDC_ECM_IRQ_EP_IDX_C    + ite( HAVE_NCM_C,  1, 0 );
    constant CDC_NCM_IRQ_EP_IDX_C               : natural := CDC_NCM_BULK_EP_IDX_C   + ite( HAVE_NCM_C,  1, 0 );
+   constant MICR_ISO_EP_IDX_C                  : natural := CDC_NCM_IRQ_EP_IDX_C    + ite( HAVE_MICR_C, 1, 0 );
 
    constant CDC_ACM_CTL_IFC_NUM_C              : natural := 0; -- uses 2 interfaces
-   constant BADD_CTL_IFC_NUM_C                 : natural := CDC_ACM_CTL_IFC_NUM_C   + ite( HAVE_ACM_C,  2, 0 );
-   constant CDC_ECM_CTL_IFC_NUM_C              : natural := BADD_CTL_IFC_NUM_C      + ite( HAVE_BADD_C, 2, 0 );
+   constant SPKR_CTL_IFC_NUM_C                 : natural := CDC_ACM_CTL_IFC_NUM_C   + ite( HAVE_ACM_C,  2, 0 );
+   constant CDC_ECM_CTL_IFC_NUM_C              : natural := SPKR_CTL_IFC_NUM_C      + ite( HAVE_SPKR_C, 2, 0 );
    constant CDC_NCM_CTL_IFC_NUM_C              : natural := CDC_ECM_CTL_IFC_NUM_C   + ite( HAVE_ECM_C,  2, 0 );
+   constant MICR_CTL_IFC_NUM_C                 : natural := CDC_NCM_CTL_IFC_NUM_C   + ite( HAVE_NCM_C,  2, 0 );
 
    constant CDC_ACM_BM_CAPABILITIES            : Usb2ByteType := acmCapabilities;
    constant ENBL_LINE_BREAK_C                  : boolean      := (CDC_ACM_BM_CAPABILITIES(2) = '1');
@@ -321,11 +320,12 @@ architecture Impl of Usb2ExampleDev is
    constant HAVE_ACM_AGENT_C                   : boolean := HAVE_ACM_C and ( ENBL_LINE_BREAK_C or ENBL_LINE_STATE_C );
 
    constant CDC_ACM_EP0_AGENT_IDX_C            : natural := 0;
-   constant BADD_EP0_AGENT_IDX_C               : natural := CDC_ACM_EP0_AGENT_IDX_C + ite( HAVE_ACM_AGENT_C,  1, 0 );
-   constant CDC_ECM_EP0_AGENT_IDX_C            : natural := BADD_EP0_AGENT_IDX_C    + ite( HAVE_BADD_C,       1, 0 );
+   constant SPKR_EP0_AGENT_IDX_C               : natural := CDC_ACM_EP0_AGENT_IDX_C + ite( HAVE_ACM_AGENT_C,  1, 0 );
+   constant CDC_ECM_EP0_AGENT_IDX_C            : natural := SPKR_EP0_AGENT_IDX_C    + ite( HAVE_SPKR_C,       1, 0 );
    constant CDC_NCM_EP0_AGENT_IDX_C            : natural := CDC_ECM_EP0_AGENT_IDX_C + ite( HAVE_ECM_C,        1, 0 );
    constant EXT_EP0_AGENTS_IDX_C               : natural := CDC_NCM_EP0_AGENT_IDX_C + ite( HAVE_NCM_C,        1, 0 );
-   constant NUM_EP0_AGENTS_C                   : natural := EXT_EP0_AGENTS_IDX_C    + CTL_EP0_AGENTS_CONFIG_G'length;
+   constant MICR_EP0_AGENT_IDX_C               : natural := EXT_EP0_AGENTS_IDX_C    + CTL_EP0_AGENTS_CONFIG_G'length;
+   constant NUM_EP0_AGENTS_C                   : natural := MICR_EP0_AGENT_IDX_C    + ite( HAVE_MICR_C,       1, 0 );
 
    signal acmFifoDatInp                        : Usb2ByteType := (others => '0');
    signal acmFifoWenInp                        : std_logic    := '0';
@@ -462,10 +462,11 @@ begin
 
       constant EP0_AGENTS_C : Usb2CtlEpAgentConfigArray := (
          ite( HAVE_ACM_AGENT_C, usb2CtlEpMkCsIfcAgentConfig( CDC_ACM_CTL_IFC_NUM_C ) ) &
-         ite( HAVE_BADD_C     , usb2CtlEpMkCsIfcAgentConfig( BADD_CTL_IFC_NUM_C    ) ) &
+         ite( HAVE_SPKR_C     , usb2CtlEpMkCsIfcAgentConfig( SPKR_CTL_IFC_NUM_C    ) ) &
          ite( HAVE_ECM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_ECM_CTL_IFC_NUM_C ) ) &
          ite( HAVE_NCM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_NCM_CTL_IFC_NUM_C ) ) &
-         CTL_EP0_AGENTS_CONFIG_G
+         CTL_EP0_AGENTS_CONFIG_G &
+         ite( HAVE_MICR_C     , usb2CtlEpMkCsIfcAgentConfig( MICR_CTL_IFC_NUM_C    ) )
       );
 
   begin
@@ -632,11 +633,11 @@ begin
       acmFifoInpFill  <= resize( acmFifoFilledInp, acmFifoInpFill'length );
    end generate G_EP_CDCACM;
 
-   G_EP_ISO_BADD : if ( HAVE_BADD_SPKR_C ) generate
+   G_EP_ISO_SPKR : if ( HAVE_SPKR_C ) generate
    begin
-      U_BADD : entity work.Usb2EpBADDSpkr
+      U_SPKR : entity work.Usb2EpBADDSpkr
          generic map (
-            AC_IFC_NUM_G              => toUsb2InterfaceNumType(BADD_CTL_IFC_NUM_C),
+            AC_IFC_NUM_G              => toUsb2InterfaceNumType(SPKR_CTL_IFC_NUM_C),
             SAMPLE_SIZE_G             => 3,
             MARK_DEBUG_G              => MARK_DEBUG_SND_G,
             MARK_DEBUG_BCLK_G         => false
@@ -646,14 +647,14 @@ begin
             usb2Rst                   => usb2RstLoc,
             usb2RstBsy                => open,
 
-            usb2Ep0ReqParam           => usb2Ep0ReqParamLoc( BADD_EP0_AGENT_IDX_C ),
-            usb2Ep0CtlExt             => usb2Ep0CtlExtArr( BADD_EP0_AGENT_IDX_C ),
-            usb2Ep0ObExt              => usb2Ep0CtlEpExtArr( BADD_EP0_AGENT_IDX_C ),
+            usb2Ep0ReqParam           => usb2Ep0ReqParamLoc( SPKR_EP0_AGENT_IDX_C ),
+            usb2Ep0CtlExt             => usb2Ep0CtlExtArr( SPKR_EP0_AGENT_IDX_C ),
+            usb2Ep0ObExt              => usb2Ep0CtlEpExtArr( SPKR_EP0_AGENT_IDX_C ),
             usb2Ep0IbExt              => usb2EpOb(0),
 
             usb2Rx                    => usb2Rx,
-            usb2EpIb                  => usb2EpOb(BADD_ISO_EP_IDX_C),
-            usb2EpOb                  => usb2EpIb(BADD_ISO_EP_IDX_C),
+            usb2EpIb                  => usb2EpOb(SPKR_ISO_EP_IDX_C),
+            usb2EpOb                  => usb2EpIb(SPKR_ISO_EP_IDX_C),
             usb2DevStatus             => usb2DevStatusLoc,
 
             volMaster                 => baddVolMaster,
@@ -668,7 +669,7 @@ begin
             i2sPBLRC                  => i2sPBLRC,
             i2sPBDAT                  => i2sPBDAT
          );
-   end generate G_EP_ISO_BADD;
+   end generate G_EP_ISO_SPKR;
 
    G_EP_CDCECM : if ( HAVE_ECM_C ) generate
    begin
@@ -777,7 +778,7 @@ begin
             mcFilterVld                => ncmMCFilterVld,
             mcFilterLst                => ncmMCFilterLst,
             mcFilterDon                => ncmMCFilterDon,
- 
+
             epClk                      => ncmFifoClk,
             epRstOut                   => ncmFifoRstOut,
 

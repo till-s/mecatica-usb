@@ -222,7 +222,7 @@ set vhdl_files [list \
  [file normalize "${origin_dir}/../../endpoints/CDCACM/hdl/Usb2EpCDCACMCtl.vhd"] \
  [file normalize "${origin_dir}/../../endpoints/CDCACM/hdl/Usb2EpCDCACMNotify.vhd"] \
  [file normalize "${origin_dir}/../../endpoints/CDCACM/hdl/Usb2EpCDCACM.vhd"] \
- [file normalize "${origin_dir}/../../endpoints/AUDIO/hdl/Usb2EpBADDSpkrCtl.vhd"] \
+ [file normalize "${origin_dir}/../../endpoints/AUDIO/hdl/Usb2EpAudioCtl.vhd"] \
  [file normalize "${origin_dir}/../../endpoints/AUDIO/hdl/Usb2EpI2SPlayback.vhd"] \
  [file normalize "${origin_dir}/../../endpoints/AUDIO/hdl/Usb2EpBADDSpkr.vhd"] \
  [file normalize "${origin_dir}/../../endpoints/CDCECM/hdl/Usb2EpCDCECM.vhd"] \

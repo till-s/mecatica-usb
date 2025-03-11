@@ -128,10 +128,10 @@ use     work.Usb2TstPkg.all;
 use     work.Usb2AppCfgPkg.all;
 use     work.Usb2DescPkg.all;
 
-entity Usb2EpBADDSpkrCtlTb is
-end entity Usb2EpBADDSpkrCtlTb;
+entity Usb2EpAudioCtlTb is
+end entity Usb2EpAudioCtlTb;
 
-architecture sim of Usb2EpBADDSpkrCtlTb is
+architecture sim of Usb2EpAudioCtlTb is
 
    constant DEV_ADDR_C             : Usb2DevAddrType := Usb2DevAddrType( to_unsigned(66, Usb2DevAddrType'length) );
 
@@ -367,7 +367,7 @@ begin
       usb2EpOb                     => epOb
    );
 
-   U_DUT : entity work.Usb2EpBADDSpkrCtl
+   U_DUT : entity work.Usb2EpAudioCtl
       generic map (
          VOL_RNG_MIN_G             => -32767,
          VOL_RNG_MAX_G             => +32767,

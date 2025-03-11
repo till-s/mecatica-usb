@@ -75,7 +75,7 @@ end entity Usb2EpBADDSpkr;
 architecture Impl of Usb2EpBADDSpkr is
 begin
 
-   U_BADD_CTL : entity work.Usb2EpBADDSpkrCtl
+   U_BADD_CTL : entity work.Usb2EpAudioCtl
       generic map (
          VOL_RNG_MIN_G       => VOL_RNG_MIN_G,
          VOL_RNG_MAX_G       => VOL_RNG_MAX_G,

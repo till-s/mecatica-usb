@@ -418,10 +418,10 @@ begin
 
       end case;
 
+      usb2EpOb            <= USB2_ENDP_PAIR_IB_INIT_C;
       usb2EpOb.subOut.rdy <= rWr.rdy;
-      ramWen                  <= wen;
-
-      rInWr                   <= v;
+      ramWen              <= wen;
+      rInWr               <= v;
    end process P_WR_COMB;
 
    P_RD_SEQ : process ( epClk ) is

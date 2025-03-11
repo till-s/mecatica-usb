@@ -40,8 +40,8 @@ SRCS+= Usb2IsoTb.vhd
 SRCS+= UlpiIOBuf.vhd
 SRCS+= UlpiIOBufTb.vhd
 SRCS+= UlpiIOBufAltTb.vhd
-SRCS+= Usb2EpBADDSpkrCtl.vhd
-SRCS+= Usb2EpBADDSpkrCtlTb.vhd
+SRCS+= Usb2EpAudioCtl.vhd
+SRCS+= Usb2EpAudioCtlTb.vhd
 SRCS+= Usb2CCSync.vhd
 SRCS+= Usb2MboxSync.vhd
 ifneq ($(VIVADO),)
@@ -84,7 +84,7 @@ PROG+=Usb2HskTb
 PROG+=UlpiIOBufAltTb
 PROG+=UlpiIOBufTb
 PROG+=Usb2IsoTb
-PROG+=Usb2EpBADDSpkrCtlTb
+PROG+=Usb2EpAudioCtlTb
 PROG+=Usb2FifoAsyncTb
 ifneq ($(VIVADO),)
 PROG+=Usb2EpI2SPlaybackTb
@@ -157,7 +157,7 @@ Usb2PktTxTb.o: Usb2PktTx.o UlpiIO.o
 UsbCrcTblTb.o: UsbCrcTbl.o
 OthSpeedCfgTb.o: Usb2Core.o
 
-Usb2EpBADDSpkrCtlTb.o: Usb2Core.o Usb2EpBADDSpkrCtl.o
+Usb2EpAudioCtlTb.o: Usb2Core.o Usb2EpAudioCtl.o Usb2EpAudioInpStrm.o
 Usb2EpI2SPlayback.o: Usb2CCSync.o
 Usb2EpI2SPlaybackTb_GHDLFLAGS=-fsynopsys
 Usb2EpI2SPlaybackTb.o: Usb2Core.o Usb2EpI2SPlayback.o

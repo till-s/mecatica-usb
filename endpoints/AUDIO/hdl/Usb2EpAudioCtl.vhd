@@ -14,12 +14,13 @@ use     work.Usb2Pkg.all;
 -- This module implements the class-specific control endpoint requests for
 -- the UAC3 BADD speaker profile.
 
-entity Usb2EpBADDSpkrCtl is
+entity Usb2EpAudioCtl is
    generic (
       VOL_RNG_MIN_G   : integer range -32767 to 32767 := -32767; -- -128 + 1/156 db
       VOL_RNG_MAX_G   : integer range -32767 to 32767 := +32767; -- +128 - 1/156 db
       VOL_RNG_RES_G   : integer range      1 to 32767 := 256;    --    1         db
       AC_IFC_NUM_G    : Usb2InterfaceNumType;
+      AUDIO_FREQ_G    : natural                       := 48000;
       MARK_DEBUG_G    : boolean                       := false
    );
    port (
@@ -41,9 +42,9 @@ entity Usb2EpBADDSpkrCtl is
 
    attribute MARK_DEBUG of usb2Ep0ReqParam : signal is toStr(MARK_DEBUG_G);
 
-end entity Usb2EpBADDSpkrCtl;
+end entity Usb2EpAudioCtl;
 
-architecture Impl of Usb2EpBADDSpkrCtl is
+architecture Impl of Usb2EpAudioCtl is
 
    type StateType is (IDLE, SEND_DAT, GET_PARAM, DONE);
 
@@ -331,14 +332,14 @@ begin
                            v.ctlExt.don := '0';
                            v.state      := SEND_DAT;
                            if    ( acCtlReq = CUR ) then
-                              bufFill( v.buf, to_unsigned( 48000, 32 ) );
+                              bufFill( v.buf, to_unsigned( AUDIO_FREQ_G, 32 ) );
                            else
                               -- must be RNG
                               bufFill3(
                                  v.buf,
-                                 to_unsigned( 48000, 32 ),
-                                 to_unsigned( 48000, 32 ),
-                                 to_unsigned(     0, 32 )
+                                 to_unsigned( AUDIO_FREQ_G, 32 ),
+                                 to_unsigned( AUDIO_FREQ_G, 32 ),
+                                 to_unsigned(            0, 32 )
                               );
                            end if;
                         end if;
