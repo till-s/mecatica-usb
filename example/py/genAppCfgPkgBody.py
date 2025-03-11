@@ -29,7 +29,7 @@ if __name__ == "__main__":
   idProduct           = None
   iProduct            = "Till's Mecatica USB Example Device"
   iSerial             = None
-  uacProto            = "UAC2"
+  uacProto            = "UAC2Spkr"
   # one MAC address is patched by the firmware using DeviceDNA
   iECMMACAddr         = None
   iNCMMACAddr         = None

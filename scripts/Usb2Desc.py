@@ -1328,7 +1328,10 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineSt
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
-def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None):
+def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None, numChannels=2):
+  return addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed, has24Bits, isAsync, fcnTitle, numChannels, False)
+
+def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None, numChannels=2, spkrNotMic=True):
   numIfcs = 0
   numEPPs = 0
 
@@ -1362,10 +1365,12 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
 
   numIfcs += 1
 
-  numChannels = 2
   totl        = 0
   d = ctxt.Usb2UAC2FuncHeaderDesc()
-  d.bCategory( d.DSC_CATEGORY_DESKTOP_SPEAKER )
+  if ( spkrNotMic ):
+    d.bCategory( d.DSC_CATEGORY_DESKTOP_SPEAKER )
+  else:
+    d.bCategory( d.DSC_CATEGORY_MICROPHONE )
   d.bmControls( 0x00 )
   hdr   = d
   totl += d.size
@@ -1386,7 +1391,10 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
 
   d = ctxt.Usb2UAC2InputTerminalDesc()
   d.bTerminalID( inTID )
-  d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_STREAMING )
+  if ( spkrNotMic ):
+    d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_STREAMING )
+  else:
+    d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_INP_MICROPHONE )
   d.bAssocTerminal( 0x00 )
   d.bCSourceID( clkID )
   d.bNrChannels( numChannels )
@@ -1424,7 +1432,10 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
 
   d = ctxt.Usb2UAC2OutputTerminalDesc()
   d.bTerminalID( ouTID )
-  d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_OUT_SPEAKER )
+  if ( spkrNotMic ):
+    d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_OUT_SPEAKER )
+  else:
+    d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_STREAMING )
   d.bAssocTerminal( 0x00 )
   d.bSourceID( ftrID )
   d.bCSourceID( clkID )
@@ -1453,7 +1464,10 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
 
   # AS CS-specific interface
   d = ctxt.Usb2UAC2ClassSpecificASInterfaceDesc()
-  d.bTerminalLink( inTID )
+  if ( spkrNotMic ):
+    d.bTerminalLink( inTID )
+  else:
+    d.bTerminalLink( ouTID )
   d.bmControls( 0x00 )
   d.bFormatType( d.DSC_AS_FORMAT_TYPE_1 )
   d.bmFormats( d.DSC_AS_FORMAT_TYPE_1_PCM )
@@ -1471,7 +1485,11 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
 
   # endpoint 1, ISO OUT
   d = ctxt.Usb2EndpointDesc()
-  d.bEndpointAddress( d.ENDPOINT_OUT | (epAddr + numEPPs) )
+  if ( spkrNotMic ):
+    epDir = d.ENDPOINT_OUT;
+  else:
+    epDir = d.ENDPOINT_IN;
+  d.bEndpointAddress( epDir | (epAddr + numEPPs) )
   atts = d.ENDPOINT_TT_ISOCHRONOUS
   if ( isAsync ):
     atts |= d.ENDPOINT_SYNC_ASYNC
@@ -1495,7 +1513,7 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
   d = ctxt.Usb2UAC2ASISOEndpointDesc()
   d.bmAttributes( 0x00 )
 
-  if ( isAsync ):
+  if ( isAsync and spkrNotMic ):
     # endpoint 1, ISO INP -- feedback
     d = ctxt.Usb2EndpointDesc()
     d.bEndpointAddress( d.ENDPOINT_IN  | (epAddr + numEPPs) )
@@ -1507,6 +1525,7 @@ def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
     else:
       d.wMaxPacketSize( 3 )
       d.bInterval(0x01)
+  # feedback endpoint is member of the same pair
   numEPPs += 1
 
   numIfcs += 1
@@ -1588,6 +1607,7 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
     else:
       d.wMaxPacketSize( 3 )
       d.bInterval(0x01)
+  # feedback endpoint is member of the same pair
   numEPPs += 1
 
   numIfcs += 1

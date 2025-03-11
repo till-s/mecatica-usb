@@ -73,14 +73,18 @@ def mkExampleDevDescriptors(
       ifcNumber_ += ifs
       epAddr_    += eps
 
-    if ( uacProto == "UAC2" ):
+    if ( uacProto is None ):
+      pass
+    elif ( uacProto == "UAC2Sprk" ):
       ifs, eps = Usb2Desc.addUAC2Speaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC2 Speaker")
       ifcNumber_ += ifs
       epAddr_    += eps
-    elif ( uacProto == "UAC3" ):
+    elif ( uacProto == "UAC3Spkr" ):
       ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC3 Speaker")
       ifcNumber_ += ifs
       epAddr_    += eps
+    else:
+      raise RuntimeError("Unsupported uacProto argument")
 
     if not iECMMACAddr is None:
       ifs, eps = Usb2Desc.addBasicECM( c, ifcNumber_, epAddr_, iMACAddr = iECMMACAddr, hiSpeed = speed, fcnTitle = "Mecatica ECM")
