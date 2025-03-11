@@ -31,7 +31,7 @@ def mkExampleDevDescriptors(
   haveNCMDynAddr      = False,
   numNCMMcFilters     = -1,
   # Sound Function
-  uacProto            = "UAC2",
+  uacProto            = "UAC2Spkr",
   # Wrap up the descriptors
   doWrap              = True
   ):
@@ -75,7 +75,7 @@ def mkExampleDevDescriptors(
 
     if ( uacProto is None ):
       pass
-    elif ( uacProto == "UAC2Sprk" ):
+    elif ( uacProto == "UAC2Spkr" ):
       ifs, eps = Usb2Desc.addUAC2Speaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC2 Speaker")
       ifcNumber_ += ifs
       epAddr_    += eps
