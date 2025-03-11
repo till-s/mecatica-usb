@@ -43,6 +43,12 @@ entity Usb2ExampleDev is
       -- asynchronous EP clock ?
       CDC_NCM_ASYNC_G                    : boolean         := false;
 
+      -- asynchronous EP clock for audio IN (dev->host) interface
+      AUDIO_INP_ASYNC_G                  : boolean         := false;
+      -- cannot be read from descriptors but must be such that the
+      -- endpoint max. packet size is not overflown.
+      AUDIO_INP_SAMPLE_FREQ_G            : natural         := 48000;
+
       -- external control-endpoint agents
       CTL_EP0_AGENTS_CONFIG_G            : Usb2CtlEpAgentConfigArray := USB2_CTL_EP_AGENT_CONFIG_EMPTY_C;
 
@@ -223,9 +229,32 @@ entity Usb2ExampleDev is
       ncmMCFilterDon       : out std_logic := '0';
 
       -- I2S
-      i2sBCLK              : in  std_logic    := '0';
-      i2sPBLRC             : in  std_logic    := '0';
-      i2sPBDAT             : out std_logic    := '0'
+      i2sBCLK              : in  std_logic := '0';
+      i2sPBLRC             : in  std_logic := '0';
+      i2sPBDAT             : out std_logic := '0';
+
+      -- audio INP stream
+      -- clock -- unused if AUDIO_INP_ASYNC_G = false
+      -- the fifo clock must be synchronous to the audio sample clock
+      -- and at least num_channels*sample_size_in_bytes times faster
+      -- than the audio clock.
+      audioInpFifoClk      : in  std_logic := '0';
+      audioInpFifoRstOut   : out std_logic := '0';
+      -- up to 2-channels with 24 bits. Actual number of bits used is
+      -- defined by the descriptors.
+      audioInpFifoData     : in  std_logic_vector(47 downto 0) := (others => '0');
+      audioInpFifoDataVld  : in  std_logic := '0';
+      audioInpFifoDataRdy  : out std_logic := '1';
+
+      -- always in the usb clock domain!
+      audioInpVolMaster    : out signed(15 downto 0)  := (others => '0');
+      audioInpVolLeft      : out signed(15 downto 0)  := (others => '0');
+      audioInpVolRight     : out signed(15 downto 0)  := (others => '0');
+      audioInpMuteMaster   : out std_logic            := '0';
+      audioInpMuteLeft     : out std_logic            := '0';
+      audioInpMuteRight    : out std_logic            := '0';
+      audioInpPowerState   : out unsigned(1 downto 0) := (others => '0')
+
    );
 end entity Usb2ExampleDev;
 
@@ -676,6 +705,51 @@ begin
             i2sPBDAT                  => i2sPBDAT
          );
    end generate G_EP_ISO_SPKR;
+
+   G_EP_ISO_MICR : if ( HAVE_MICR_C ) generate
+      constant SAMPLE_SIZE_C          : natural := 3;
+      constant NUM_CHANNELS_C         : natural := 2;
+   begin
+      U_MICR : entity work.Usb2EpAudioInpStrm
+         generic map (
+            AC_IFC_NUM_G              => toUsb2InterfaceNumType(MICR_CTL_IFC_NUM_C),
+            SAMPLE_SIZE_G             => SAMPLE_SIZE_C,
+            NUM_CHANNELS_G            => NUM_CHANNELS_C,
+            AUDIO_FREQ_G              => AUDIO_INP_SAMPLE_FREQ_G,
+            MARK_DEBUG_G              => MARK_DEBUG_SND_G
+         )
+         port map (
+            usb2Clk                   => usb2Clk,
+            usb2Rst                   => usb2RstLoc,
+            usb2RstBsy                => open,
+
+            usb2Ep0ReqParam           => usb2Ep0ReqParamLoc( MICR_EP0_AGENT_IDX_C ),
+            usb2Ep0CtlExt             => usb2Ep0CtlExtArr( MICR_EP0_AGENT_IDX_C ),
+            usb2Ep0ObExt              => usb2Ep0CtlEpExtArr( MICR_EP0_AGENT_IDX_C ),
+            usb2Ep0IbExt              => usb2EpOb(0),
+
+            usb2Rx                    => usb2Rx,
+            usb2EpIb                  => usb2EpOb(MICR_ISO_EP_IDX_C),
+            usb2EpOb                  => usb2EpIb(MICR_ISO_EP_IDX_C),
+            usb2DevStatus             => usb2DevStatusLoc,
+
+            volMaster                 => audioInpVolMaster,
+            muteMaster                => audioInpMuteMaster,
+            volLeft                   => audioInpVolLeft,
+            volRight                  => audioInpVolRight,
+            muteLeft                  => audioInpMuteLeft,
+            muteRight                 => audioInpMuteRight,
+            powerState                => audioInpPowerState,
+
+
+            epClk                     => audioInpFifoClk,
+            epRstOut                  => audioInpFifoRstOut,
+            epData                    => audioInpFifoData(NUM_CHANNELS_C*SAMPLE_SIZE_C*8 - 1 downto 0),
+            epDataVld                 => audioInpFifoDataVld,
+            epDataRdy                 => audioInpFifoDataRdy
+         );
+   end generate G_EP_ISO_MICR;
+
 
    G_EP_CDCECM : if ( HAVE_ECM_C ) generate
    begin
