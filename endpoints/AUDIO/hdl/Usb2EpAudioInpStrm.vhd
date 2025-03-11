@@ -28,8 +28,7 @@ entity Usb2EpAudioInpStrm is
       ASYNC_G             : boolean              := false;
       LD_FIFO_DEPTH_INP_G : natural              := 8;
       -- Debugging
-      MARK_DEBUG_G        : boolean              := false;
-      MARK_DEBUG_BCLK_G   : boolean              := false
+      MARK_DEBUG_G        : boolean              := false
    );
    port (
       -- usb2 CLK Domain
