@@ -79,6 +79,10 @@ def mkExampleDevDescriptors(
       ifs, eps = Usb2Desc.addUAC2Speaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC2 Speaker")
       ifcNumber_ += ifs
       epAddr_    += eps
+    elif ( uacProto == "UAC2Micr" ):
+      ifs, eps = Usb2Desc.addUAC2Microphone( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC2 Microphone")
+      ifcNumber_ += ifs
+      epAddr_    += eps
     elif ( uacProto == "UAC3Spkr" ):
       ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC3 Speaker")
       ifcNumber_ += ifs
