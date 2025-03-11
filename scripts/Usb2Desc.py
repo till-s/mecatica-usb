@@ -277,7 +277,6 @@ class Usb2DescContext(list):
     print("use     ieee.math_real.all;", file=f)
     print("", file=f)
     print("use     work.Usb2Pkg.all;", file=f)
-    print("use     work.UlpiPkg.all;", file=f)
     print("use     work.Usb2UtilPkg.all;", file=f)
     print("use     work.Usb2DescPkg.all;", file=f)
     print("", file=f)
