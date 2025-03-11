@@ -31,13 +31,11 @@ package Usb2EpGenericCtlPkg is
       stream             : boolean   := false
    ) return Usb2EpGenericReqDefType;
 
-   constant USB2_EP_GENERIC_REQ_DEF_INIT_C : Usb2EpGenericReqDefType := usb2MkEpGenericReqDef;
+   constant USB2_EP_GENERIC_REQ_DEF_INIT_C : Usb2EpGenericReqDefType;
 
    type Usb2EpGenericReqDefArray is array (natural range <>) of Usb2EpGenericReqDefType;
 
-   constant USB2_EP_GENERIC_REQ_DEF_ARRAY_EMPTY_C : Usb2EpGenericReqDefArray(0 to -1 ) := (
-      others => USB2_EP_GENERIC_REQ_DEF_INIT_C
-   );
+   constant USB2_EP_GENERIC_REQ_DEF_ARRAY_EMPTY_C : Usb2EpGenericReqDefArray(0 to -1 );
 
    function maxParamSize(
       constant x: in Usb2EpGenericReqDefArray
@@ -191,5 +189,11 @@ package body Usb2EpGenericCtlPkg is
    begin
       return param(USB2_EP_GENERIC_STRM_DON_IDX_C)(USB2_EP_GENERIC_STRM_DON_BIT_C);
    end function usb2EpGenericStrmDon;
+
+   constant USB2_EP_GENERIC_REQ_DEF_INIT_C : Usb2EpGenericReqDefType := usb2MkEpGenericReqDef;
+
+   constant USB2_EP_GENERIC_REQ_DEF_ARRAY_EMPTY_C : Usb2EpGenericReqDefArray(0 to -1 ) := (
+      others => USB2_EP_GENERIC_REQ_DEF_INIT_C
+   );
 
  end package body Usb2EpGenericCtlPkg;
