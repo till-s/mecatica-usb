@@ -9,13 +9,13 @@ use     ieee.numeric_std.all;
 
 use     work.Usb2UtilPkg.all;
 use     work.Usb2Pkg.all;
-use     work.Usb2AppCfgPkg.all;
 
 -- Utilities to handle descriptors
 
 package Usb2DescPkg is
 
-   subtype  Usb2DescIdxType    is natural range 0 to USB2_APP_DESCRIPTORS_C'length - 1;
+   subtype  Usb2DescIdxType is natural;
+
    type Usb2DescIdxArray is array(natural range <>) of Usb2DescIdxType;
 
    constant USB2_DESC_IDX_LENGTH_C                        : natural := 0;

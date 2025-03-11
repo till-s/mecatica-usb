@@ -689,9 +689,7 @@ Further information is available in the comments of `Usb2Pkg.vhd`.
 Mecatica Usb uses a semi-static approach with regard to Usb descriptors.
 The `Usb2AppCfgPkg.vhd` package declares a constant `USB2_APP_DESCRIPTORS_C`
 which is a byte-array holding all descriptors. The contents of this constant
-are not directly used by the Usb2Core; however, it's size is used by the
-`Usb2DescPkg` to define a numerical data type (`Usb2DescIdxType`) which is
-large enough to navigate the entire array.
+are not directly used by the Usb2Core.
 
 The `Usb2DescPkg` also provides utility functions that can be used to navigate
 the descriptors in order to extract information for configuring details of

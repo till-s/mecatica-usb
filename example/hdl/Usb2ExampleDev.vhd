@@ -13,7 +13,6 @@ use     work.UlpiPkg.all;
 use     work.Usb2Pkg.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2DescPkg.all;
-use     work.Usb2AppCfgPkg.all;
 use     work.Usb2MuxEpCtlPkg.all;
 
 entity Usb2ExampleDev is

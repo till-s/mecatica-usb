@@ -89,6 +89,9 @@ architecture Impl of Usb2StdCtlEp is
       end loop;
    end procedure pr;
 
+   -- synthesized index type; prune to necessary range
+   subtype  SynthDescIdxType   is Usb2DescIdxType range DESCRIPTORS_G'range;
+
    constant MAX_ALTSETTINGS_C  : natural          := usb2AppGetMaxAltsettings( DESCRIPTORS_G );
    constant MAX_INTERFACES_C   : natural          := usb2AppGetMaxInterfaces ( DESCRIPTORS_G );
    constant NUM_STRINGS_C      : natural          := usb2AppGetNumStrings    ( DESCRIPTORS_G );
@@ -230,17 +233,17 @@ architecture Impl of Usb2StdCtlEp is
       epConfig    : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_G - 1);
       epAssocInp  : EndpAssocArray;
       epAssocOut  : EndpAssocArray;
-      cfgIdx      : Usb2DescIdxType;
+      cfgIdx      : SynthDescIdxType;
       cfgCurr     : CfgIdxType;
       retVal      : Usb2ByteType;
       readVal     : Usb2ByteType;
       tmpVal      : Usb2ByteType;
       retSz2      : boolean;
       flg         : std_logic;
-      tblIdx      : Usb2DescIdxType;
-      tblOff      : Usb2DescIdxType;
-      auxOff      : Usb2DescIdxType;
-      count       : Usb2DescIdxType;
+      tblIdx      : SynthDescIdxType;
+      tblOff      : SynthDescIdxType;
+      auxOff      : SynthDescIdxType;
+      count       : SynthDescIdxType;
       tblRdDone   : boolean;
       skipDesc    : boolean;
       altSettings : AltSetArray;
