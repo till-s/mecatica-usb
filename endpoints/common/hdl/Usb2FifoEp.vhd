@@ -116,7 +116,6 @@ architecture Impl of Usb2FifoEp is
    signal bFramedInp            : std_logic := '0';
    signal subOutRdy             : std_logic := '0';
    signal epRstOutLoc           : std_logic := '0';
-   signal epClkLoc              : std_logic;
    signal obFifoRstUsbClk       : std_logic := '0';
    signal ibFifoRstUsbClk       : std_logic := '0';
    signal obFifoRstEpClk        : std_logic := '0';
@@ -143,7 +142,6 @@ begin
 
    G_SYNC : if ( not ASYNC_G ) generate
    begin
-      epClkLoc       <= usb2Clk;
       haltedInpEpClk <= haltedInp;
       haltedOutEpClk <= haltedOut;
    end generate G_SYNC;
@@ -151,18 +149,16 @@ begin
    G_Usb2FifoAsyncCC : if ( ASYNC_G ) generate
    begin
 
-      epClkLoc    <= epClk;
-
       U_SYNC_HALT_INP : entity work.Usb2CCSync
          port map (
-            clk => epClkLoc,
+            clk => epClk,
             d   => haltedInp,
             q   => haltedInpEpClk
          );
 
       U_SYNC_HALT_OUT : entity work.Usb2CCSync
          port map (
-            clk => epClkLoc,
+            clk => epClk,
             d   => haltedOut,
             q   => haltedOutEpClk
          );
@@ -251,7 +247,6 @@ begin
             end if;
          end process P_WR_FRAMES;
 
-
          -- the xtra vector conveys the synchronized frame count we
          -- received from the writing end
          xtraInp    <= std_logic_vector( numFramesInp );
@@ -289,7 +284,7 @@ begin
             XTRA_W2R_G   => xtraInp'length
          )
          port map (
-            wrClk        => epClkLoc,
+            wrClk        => epClk,
             wrRst        => open, -- only allow to be reset from USB
             wrRstOut     => ibFifoRstEpClk,
 
@@ -489,7 +484,7 @@ begin
             wrFilled     => fifoFilled,
             wrXtraInp    => xtraInp,
 
-            rdClk        => epClkLoc,
+            rdClk        => epClk,
             rdRst        => open, -- only allow to be reset from USB
             rdRstOut     => obFifoRstEpClk,
             dou          => fifoDou,
