@@ -627,7 +627,7 @@ entity Usb2ExtractMacAddrTb is
 end entity Usb2ExtractMacAddrTb;
 
 architecture sim of Usb2ExtractMacAddrTb is
-   constant MACA_C : Usb2ByteArray := usb2GetNCMMacAddr( USB2_APP_DESCRIPTORS_C );
+   constant MACA_C : Usb2ByteArray := usb2GetNCMMacAddr( USB2_APP_DESCRIPTORS_C, 0 );
    constant CMP_C  : Usb2ByteArray := ( x"02", x"de", x"ad", x"be", x"ef", x"31" );
 begin
 
