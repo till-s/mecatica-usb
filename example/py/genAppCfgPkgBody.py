@@ -30,6 +30,10 @@ if __name__ == "__main__":
   iProduct            = "Till's Mecatica USB Example Device"
   iSerial             = None
   uacProto            = "UAC2Spkr"
+  uacNumBits          = 24
+  uacNumChannels      = 2
+  uacMaxSmplFreq      = 48000
+  uacConfig           = None
   # one MAC address is patched by the firmware using DeviceDNA
   iECMMACAddr         = None
   iNCMMACAddr         = None
@@ -43,7 +47,7 @@ if __name__ == "__main__":
 
   cmdline             = os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:])
 
-  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:d:s:FSN:E:AL:am:")
+  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:d:s:FSN:E:AL:am:U:")
   for o in opt:
     if o[0] in ("-h"):
        print("usage: {} [-h] [-v <vendor_id>] [-f <output_file>] -p <product_id>".format(sys.argv[0]))
@@ -55,6 +59,12 @@ if __name__ == "__main__":
        print("          -d description   : product description (iProduct string); goes into the device descriptor")
        print("          -F               : Full-speed only")
        print("          -S               : Disable sound function")
+       print("          -U uac_config    : Configure sound function; uac_config is a comma-separated string with")
+       print("                             four fields: <protocol>,<numBits>,<numChannels>,<maxSampleRate>")
+       print("                                 protocol   : 'UAC2Spkr', 'UAC2Micr' or 'UAC3Spkr'")
+       print("                                 numBits    : size of an audio sample")
+       print("                                 numChannels: how many channels to support")
+       print("                                 maxSmplFreq: max. sampling Frequency [Hz] (definex max. EP packet size)")
        print("          -E macAddr       : Enable ECM ethernet function; mac-addr in hex, e.g., 02deadbeef33")
        print("          -N macAddr       : Enable NCM ethernet function; mac-addr in hex, e.g., 02deadbeef33")
        print("          -a               : Enable support for SET_NET_ADDRESS (NCM only)")
@@ -101,6 +111,8 @@ if __name__ == "__main__":
        numNCMMcFilters = int(o[1],0)
        if ( numNCMMcFilters < 0 or numNCMMcFilters > 65535 ):
          raise RuntimeError("invalid argument to '-m' option (0 <= val <= 65535)")
+    elif o[0] in ("-U"):
+       uacConfig = o[1].split(',')
 
   if idProduct is None:
     raise RuntimeError(
@@ -108,6 +120,18 @@ if __name__ == "__main__":
             "for **private testing only** you may\n\n" +
             "use -p 0x0001\n\n" +
             "see https://pid.codes/1209/0001/")
+
+  if not uacConfig is None:
+    if len(uacConfig) != 4:
+       raise RuntimeError(
+            "-U arg. must have 4 comma-separated fields")
+    if ( uacConfig[0] not in ["UAC2Spkr", "UAC3Spkr", "UAC2Micr"] ):
+       raise RuntimeError(
+            "-U - invalid protocol: " + uacConfig[0])
+    uacProto = uacConfig[0]
+    uacNumBits = int(uacConfig[1])
+    uacNumChannels = int(uacConfig[2])
+    uacMaxSmplFreq = int(uacConfig[3])
 
   ctxt = ExampleDevDesc.mkExampleDevDescriptors(
               idVendor=idVendor,
@@ -121,6 +145,9 @@ if __name__ == "__main__":
               iProduct=iProduct,
               iSerial=iSerial,
               uacProto=uacProto,
+              uacNumBits=uacNumBits,
+              uacNumChannels=uacNumChannels,
+              uacMaxSmplFreq=uacMaxSmplFreq,
               haveACM=haveACM,
               haveACMLineState=haveACMLineState,
               haveACMLineBreak=haveACMLineBreak,

@@ -77,6 +77,7 @@ end entity Usb2EpAudioInpStrm;
 architecture Impl of Usb2EpAudioInpStrm is
    signal fifoDat        : Usb2ByteType    := (others => '0');
    signal fifoWen        : std_logic       := '0';
+   signal fifoFull       : std_logic       := '0';
    signal epClkLoc       : std_logic;
    signal epRstLoc       : std_logic;
 
@@ -84,12 +85,14 @@ architecture Impl of Usb2EpAudioInpStrm is
       delay              : std_logic_vector(NUM_CHANNELS_G*SAMPLE_SIZE_G - 1 downto 0);
       shiftReg           : std_logic_vector(epData'range);
       rdy                : std_logic;
+      wen                : std_logic;
    end record RegType;
 
    constant REG_INIT_C   : RegType := (
       delay              => (others => '0'),
       shiftReg           => (others => '0'),
-      rdy                => '1'
+      rdy                => '1',
+      wen                => '0'
    );
 
    signal r              : RegType := REG_INIT_C;
@@ -107,13 +110,13 @@ begin
 
    G_NO_SHIFTER : if ( epData'length <= Usb2ByteType'length ) generate
       fifoDat   <= std_logic_vector(resize( unsigned(epData), fifoDat'length ));
-      epDataRdy <= '1';
+      epDataRdy <= not fifoFull;
       fifoWen   <= epDataVld;
    end generate G_NO_SHIFTER;
 
    G_SHIFTER : if ( epData'length > Usb2ByteType'length ) generate
 
-      P_COMB : process (r, epData, epDataVld ) is
+      P_COMB : process ( r, epData, epDataVld ) is
          variable v : RegType;
       begin
          v := r;
@@ -126,12 +129,16 @@ begin
          if ( r.delay(1) = '1' ) then
             v.rdy := '1';
          end if;
+         if ( r.delay(0) = '1' ) then
+            v.wen := '0';
+         end if;
 
          -- consume the next sample set if possible
          if ( (epDataVld and r.rdy) = '1' ) then
             v.delay(v.delay'left) := '1';
-	 v.rdy                 := '0';
-	 v.shiftReg            := epData;
+            v.rdy                 := '0';
+            v.wen                 := '1';
+            v.shiftReg            := epData;
          end if;
 
          rin <= v;
@@ -149,7 +156,7 @@ begin
       end process P_SEQ;
 
       fifoDat   <= r.shiftReg(fifoDat'range);
-      fifoWen   <= r.delay(0);
+      fifoWen   <= r.wen;
       epDataRdy <= r.rdy;
    end generate G_SHIFTER;
 
@@ -211,7 +218,7 @@ begin
          donInp                       => open,
          wenInp                       => fifoWen,
          filledInp                    => open,
-         fullInp                      => open,
+         fullInp                      => fifoFull,
    
          -- FIFO Interface OUT (from USB); UNUSED/DISABLED
          datOut                       => open,

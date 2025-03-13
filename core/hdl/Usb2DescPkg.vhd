@@ -209,10 +209,36 @@ package Usb2DescPkg is
       constant a : boolean      := true
    ) return integer;
 
+   function usb2NextCsUAC2(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant t : Usb2ByteType;
+      constant s : boolean;
+      constant a : boolean      := true
+   ) return integer;
+
    function usb2NextCsUAC2HeaderCategory(
       constant d : Usb2ByteArray;
       constant i : integer;
       constant c : Usb2ByteType;
+      constant a : boolean      := true
+   ) return integer;
+
+   -- read the number of audio channels;
+   -- i must point to the first ifc association desc.
+   -- of the audio IFC
+   function usb2GetUAC2NumChannels(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant a : boolean      := true
+   ) return integer;
+
+   -- read the audio sub-slot size (bytes);
+   -- i must point to the first ifc association desc.
+   -- of the audio IFC
+   function usb2GetUAC2SubSlotSize(
+      constant d : Usb2ByteArray;
+      constant i : integer;
       constant a : boolean      := true
    ) return integer;
 
@@ -668,6 +694,45 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return d(x+11)(7) = '0';
    end function usb2GetMCFilterPerfect;
 
+   function usb2NextCsUAC2(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant t : Usb2ByteType;
+      constant s : boolean;
+      constant a : boolean      := true
+   ) return integer is
+      variable x : integer;
+      variable n : integer;
+      constant scl : Usb2ByteType := ite(s, USB2_IFC_SUBCLASS_AUDIO_STREAMING_C, USB2_IFC_SUBCLASS_AUDIO_CONTROL_C);
+   begin
+      x := i;
+      L_FIND_IFC : loop
+         x := usb2NextIfcDescriptor(d, x, USB2_IFC_CLASS_AUDIO_C, scl);
+         if ( x < 0 ) then
+            return x;
+         end if;
+         n := usb2NextDescriptor(d, x, a);
+         -- if there is no next descriptor there can be no next CS descriptor
+         if ( n < 0 ) then
+            return n;
+         end if;
+         if ( d( x + USB2_IFC_DESC_IFC_PROTOCOL_C ) = USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC2_C  ) then
+            -- streaming interface has a default altsetting (empty)
+            if ( d(n + USB2_DESC_IDX_TYPE_C) /= USB2_DESC_TYPE_INTERFACE_C ) then
+               exit L_FIND_IFC;
+            end if;
+         end if;
+         x := n;
+      end loop;
+      x := usb2NextCsDescriptor(
+              d,
+              x,
+              t,
+              false,
+              a);
+      return x;
+   end function usb2NextCsUAC2;
+
    function usb2NextCsUAC2HeaderCategory(
       constant d : Usb2ByteArray;
       constant i : integer;
@@ -675,30 +740,50 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       constant a : boolean      := true
    ) return integer is
       variable x : integer;
-      constant IDX_CATEGORY_C : natural := 5;
+      constant IDX_CATEGORY_C  : natural := 5;
+      constant STREAMING_IFC_C : boolean := true;
    begin
       x := i;
-      L_FIND_IFC : loop
-         x := usb2NextIfcDescriptor(d, x, USB2_IFC_CLASS_AUDIO_C, USB2_IFC_SUBCLASS_AUDIO_CONTROL_C);
-         if ( x < 0 ) then
-            return x;
-         end if;
-         if ( d( x + USB2_IFC_DESC_IFC_PROTOCOL_C ) = USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC2_C  ) then
-            exit L_FIND_IFC;
-         end if;
-         x := usb2NextDescriptor(d, x, a);
-      end loop;
-      x := usb2NextCsDescriptor(
-              d,
-              x,
-              USB2_CS_DESC_SUBTYPE_AUDIO_HEADER_C,
-	      false,
-	      a);
-      assert x >= 0 report "No audio class-specific interface header descriptor found" severity failure;
+      x := usb2NextCsUAC2(d, x, USB2_CS_DESC_SUBTYPE_AUDIO_HEADER_C, not STREAMING_IFC_C, a);
+      if ( x < 0 ) then
+         return x;
+      end if;
       if ( d(x + IDX_CATEGORY_C) /= c ) then
          return -1;
       end if;
       return x;
    end function usb2NextCsUAC2HeaderCategory;
+
+   function usb2GetUAC2NumChannels(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant a : boolean      := true
+   ) return integer is
+      variable x : integer;
+      constant STREAMING_IFC_C : boolean := true;
+      constant IDX_NUM_CHNS_C  : natural := 10;
+   begin
+      x := i;
+      x := usb2NextCsUAC2(d, x, USB2_CS_DESC_SUBTYPE_AUDIO_GENERAL_C, STREAMING_IFC_C, a);
+      assert x >= 0 report "No audio class-specific interface general descriptor found" severity failure;
+      
+      return to_integer( unsigned( d(x + IDX_NUM_CHNS_C) ) );
+   end function usb2GetUAC2NumChannels;
+
+   function usb2GetUAC2SubSlotSize(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant a : boolean      := true
+   ) return integer is
+      variable x : integer;
+      constant STREAMING_IFC_C : boolean := true;
+      constant IDX_SUBSLOTSZ_C : natural := 4;
+   begin
+      x := i;
+      x := usb2NextCsUAC2(d, x, USB2_CS_DESC_SUBTYPE_AUDIO_FORMAT_C, STREAMING_IFC_C, a);
+      assert x >= 0 report "No audio class-specific interface format descriptor found" severity failure;
+      
+      return to_integer( unsigned( d(x + IDX_SUBSLOTSZ_C) ) );
+   end function usb2GetUAC2SubSlotSize;
 
 end package body Usb2DescPkg;

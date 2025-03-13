@@ -32,6 +32,10 @@ def mkExampleDevDescriptors(
   numNCMMcFilters     = -1,
   # Sound Function
   uacProto            = "UAC2Spkr",
+  uacNumBits          = 24,
+  uacNumChannels      = 2,
+    # max. sampling freq. defines maxPktSize of endpoint
+  uacMaxSmplFreq      = 48000,
   # Wrap up the descriptors
   doWrap              = True
   ):
@@ -76,15 +80,15 @@ def mkExampleDevDescriptors(
     if ( uacProto is None ):
       pass
     elif ( uacProto == "UAC2Spkr" ):
-      ifs, eps = Usb2Desc.addUAC2Speaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC2 Speaker")
+      ifs, eps = Usb2Desc.addUAC2Speaker( c, ifcNumber_, epAddr_, hiSpeed = speed, numBits = uacNumBits, isAsync = True,  fcnTitle = "Mecatica UAC2 Speaker", numChannels = uacNumChannels, maxSmplFreq = uacMaxSmplFreq)
       ifcNumber_ += ifs
       epAddr_    += eps
     elif ( uacProto == "UAC2Micr" ):
-      ifs, eps = Usb2Desc.addUAC2Microphone( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC2 Microphone")
+      ifs, eps = Usb2Desc.addUAC2Microphone( c, ifcNumber_, epAddr_, hiSpeed = speed, numBits = uacNumBits, isAsync = True, fcnTitle = "Mecatica UAC2 Microphone", numChannels = uacNumChannels, maxSmplFreq = uacMaxSmplFreq)
       ifcNumber_ += ifs
       epAddr_    += eps
     elif ( uacProto == "UAC3Spkr" ):
-      ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, has24Bits = True, isAsync = True, fcnTitle = "Mecatica UAC3 Speaker")
+      ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, numBits = uacNumBits, isAsync = True, fcnTitle = "Mecatica UAC3 Speaker", numChannels = uacNumChannels, maxSmplFreq = uacMaxSmplFreq)
       ifcNumber_ += ifs
       epAddr_    += eps
     else:

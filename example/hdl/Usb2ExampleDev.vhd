@@ -44,10 +44,11 @@ entity Usb2ExampleDev is
       CDC_NCM_ASYNC_G                    : boolean         := false;
 
       -- asynchronous EP clock for audio IN (dev->host) interface
-      AUDIO_INP_ASYNC_G                  : boolean         := false;
+      AUD_INP_ASYNC_G                    : boolean         := false;
+      LD_AUD_INP_FIFO_DEPTH_G            : natural         := 8;
       -- cannot be read from descriptors but must be such that the
       -- endpoint max. packet size is not overflown.
-      AUDIO_INP_SAMPLE_FREQ_G            : natural         := 48000;
+      AUD_INP_SAMPLE_FREQ_G              : natural         := 48000;
 
       -- external control-endpoint agents
       CTL_EP0_AGENTS_CONFIG_G            : Usb2CtlEpAgentConfigArray := USB2_CTL_EP_AGENT_CONFIG_EMPTY_C;
@@ -234,7 +235,7 @@ entity Usb2ExampleDev is
       i2sPBDAT             : out std_logic := '0';
 
       -- audio INP stream
-      -- clock -- unused if AUDIO_INP_ASYNC_G = false
+      -- clock -- unused if AUD_INP_ASYNC_G = false
       -- the fifo clock must be synchronous to the audio sample clock
       -- and at least num_channels*sample_size_in_bytes times faster
       -- than the audio clock.
@@ -259,19 +260,6 @@ entity Usb2ExampleDev is
 end entity Usb2ExampleDev;
 
 architecture Impl of Usb2ExampleDev is
-
-   function acmCapabilities return Usb2ByteType is
-      variable i                     : integer;
-      variable v                     : Usb2ByteType := (others => '0');
-      constant IDX_BM_CAPABILITIES_C : natural      := 3;
-   begin
-      i := usb2NextCsDescriptor(DESCRIPTORS_G, 0, USB2_CS_DESC_SUBTYPE_CDC_ACM_C);
-      assert i >= 0 report "CDCACM functional descriptor not found" severity failure;
-      if ( i >= 0 ) then
-         v := DESCRIPTORS_G( i + IDX_BM_CAPABILITIES_C );
-      end if;
-      return v;
-   end function acmCapabilities;
 
    constant ACM_IFC_ASSOC_IDX_C                : integer :=
       usb2NextIfcAssocDescriptor(
@@ -329,22 +317,35 @@ architecture Impl of Usb2ExampleDev is
       );
    constant HAVE_NCM_C                         : boolean := (NCM_IFC_ASSOC_IDX_C >= 0);
 
+   function acmCapabilities return Usb2ByteType is
+      variable i                     : integer;
+      variable v                     : Usb2ByteType := (others => '0');
+      constant IDX_BM_CAPABILITIES_C : natural      := 3;
+   begin
+      i := usb2NextCsDescriptor(DESCRIPTORS_G, ACM_IFC_ASSOC_IDX_C, USB2_CS_DESC_SUBTYPE_CDC_ACM_C);
+      assert i >= 0 report "CDCACM functional descriptor not found" severity failure;
+      if ( i >= 0 ) then
+         v := DESCRIPTORS_G( i + IDX_BM_CAPABILITIES_C );
+      end if;
+      return v;
+   end function acmCapabilities;
+
    constant N_EP_C                             : natural := usb2AppGetMaxEndpointAddr(DESCRIPTORS_G);
 
    constant CDC_ACM_BULK_EP_IDX_C              : natural := 0                       + ite( HAVE_ACM_C,  1, 0 );
    constant CDC_ACM_IRQ_EP_IDX_C               : natural := CDC_ACM_BULK_EP_IDX_C   + ite( HAVE_ACM_C,  1, 0 );
    constant SPKR_ISO_EP_IDX_C                  : natural := CDC_ACM_IRQ_EP_IDX_C    + ite( HAVE_SPKR_C, 1, 0 );
-   constant CDC_ECM_BULK_EP_IDX_C              : natural := SPKR_ISO_EP_IDX_C       + ite( HAVE_ECM_C,  1, 0 );
+   constant MICR_ISO_EP_IDX_C                  : natural := SPKR_ISO_EP_IDX_C       + ite( HAVE_MICR_C, 1, 0 );
+   constant CDC_ECM_BULK_EP_IDX_C              : natural := MICR_ISO_EP_IDX_C       + ite( HAVE_ECM_C,  1, 0 );
    constant CDC_ECM_IRQ_EP_IDX_C               : natural := CDC_ECM_BULK_EP_IDX_C   + ite( HAVE_ECM_C,  1, 0 );
    constant CDC_NCM_BULK_EP_IDX_C              : natural := CDC_ECM_IRQ_EP_IDX_C    + ite( HAVE_NCM_C,  1, 0 );
    constant CDC_NCM_IRQ_EP_IDX_C               : natural := CDC_NCM_BULK_EP_IDX_C   + ite( HAVE_NCM_C,  1, 0 );
-   constant MICR_ISO_EP_IDX_C                  : natural := CDC_NCM_IRQ_EP_IDX_C    + ite( HAVE_MICR_C, 1, 0 );
 
    constant CDC_ACM_CTL_IFC_NUM_C              : natural := 0; -- uses 2 interfaces
    constant SPKR_CTL_IFC_NUM_C                 : natural := CDC_ACM_CTL_IFC_NUM_C   + ite( HAVE_ACM_C,  2, 0 );
-   constant CDC_ECM_CTL_IFC_NUM_C              : natural := SPKR_CTL_IFC_NUM_C      + ite( HAVE_SPKR_C, 2, 0 );
+   constant MICR_CTL_IFC_NUM_C                 : natural := SPKR_CTL_IFC_NUM_C      + ite( HAVE_SPKR_C, 2, 0 );
+   constant CDC_ECM_CTL_IFC_NUM_C              : natural := MICR_CTL_IFC_NUM_C      + ite( HAVE_MICR_C, 2, 0 );
    constant CDC_NCM_CTL_IFC_NUM_C              : natural := CDC_ECM_CTL_IFC_NUM_C   + ite( HAVE_ECM_C,  2, 0 );
-   constant MICR_CTL_IFC_NUM_C                 : natural := CDC_NCM_CTL_IFC_NUM_C   + ite( HAVE_NCM_C,  2, 0 );
 
    constant CDC_ACM_BM_CAPABILITIES            : Usb2ByteType := acmCapabilities;
    constant ENBL_LINE_BREAK_C                  : boolean      := (CDC_ACM_BM_CAPABILITIES(2) = '1');
@@ -354,11 +355,11 @@ architecture Impl of Usb2ExampleDev is
 
    constant CDC_ACM_EP0_AGENT_IDX_C            : natural := 0;
    constant SPKR_EP0_AGENT_IDX_C               : natural := CDC_ACM_EP0_AGENT_IDX_C + ite( HAVE_ACM_AGENT_C,  1, 0 );
-   constant CDC_ECM_EP0_AGENT_IDX_C            : natural := SPKR_EP0_AGENT_IDX_C    + ite( HAVE_SPKR_C,       1, 0 );
+   constant MICR_EP0_AGENT_IDX_C               : natural := SPKR_EP0_AGENT_IDX_C    + ite( HAVE_SPKR_C,       1, 0 );
+   constant CDC_ECM_EP0_AGENT_IDX_C            : natural := MICR_EP0_AGENT_IDX_C    + ite( HAVE_MICR_C,       1, 0 );
    constant CDC_NCM_EP0_AGENT_IDX_C            : natural := CDC_ECM_EP0_AGENT_IDX_C + ite( HAVE_ECM_C,        1, 0 );
    constant EXT_EP0_AGENTS_IDX_C               : natural := CDC_NCM_EP0_AGENT_IDX_C + ite( HAVE_NCM_C,        1, 0 );
-   constant MICR_EP0_AGENT_IDX_C               : natural := EXT_EP0_AGENTS_IDX_C    + CTL_EP0_AGENTS_CONFIG_G'length;
-   constant NUM_EP0_AGENTS_C                   : natural := MICR_EP0_AGENT_IDX_C    + ite( HAVE_MICR_C,       1, 0 );
+   constant NUM_EP0_AGENTS_C                   : natural := EXT_EP0_AGENTS_IDX_C    + CTL_EP0_AGENTS_CONFIG_G'length;
 
    signal acmFifoDatInp                        : Usb2ByteType := (others => '0');
    signal acmFifoWenInp                        : std_logic    := '0';
@@ -496,10 +497,10 @@ begin
       constant EP0_AGENTS_C : Usb2CtlEpAgentConfigArray := (
          ite( HAVE_ACM_AGENT_C, usb2CtlEpMkCsIfcAgentConfig( CDC_ACM_CTL_IFC_NUM_C ) ) &
          ite( HAVE_SPKR_C     , usb2CtlEpMkCsIfcAgentConfig( SPKR_CTL_IFC_NUM_C    ) ) &
+         ite( HAVE_MICR_C     , usb2CtlEpMkCsIfcAgentConfig( MICR_CTL_IFC_NUM_C    ) ) &
          ite( HAVE_ECM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_ECM_CTL_IFC_NUM_C ) ) &
          ite( HAVE_NCM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_NCM_CTL_IFC_NUM_C ) ) &
-         CTL_EP0_AGENTS_CONFIG_G &
-         ite( HAVE_MICR_C     , usb2CtlEpMkCsIfcAgentConfig( MICR_CTL_IFC_NUM_C    ) )
+         CTL_EP0_AGENTS_CONFIG_G 
       );
 
   begin
@@ -715,7 +716,9 @@ begin
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(MICR_CTL_IFC_NUM_C),
             SAMPLE_SIZE_G             => SAMPLE_SIZE_C,
             NUM_CHANNELS_G            => NUM_CHANNELS_C,
-            AUDIO_FREQ_G              => AUDIO_INP_SAMPLE_FREQ_G,
+            AUDIO_FREQ_G              => AUD_INP_SAMPLE_FREQ_G,
+            ASYNC_G                   => AUD_INP_ASYNC_G,
+            LD_FIFO_DEPTH_INP_G       => LD_AUD_INP_FIFO_DEPTH_G,
             MARK_DEBUG_G              => MARK_DEBUG_SND_G
          )
          port map (

@@ -277,8 +277,6 @@ class Usb2DescContext(list):
     print("use     ieee.math_real.all;", file=f)
     print("", file=f)
     print("use     work.Usb2Pkg.all;", file=f)
-    print("use     work.Usb2UtilPkg.all;", file=f)
-    print("use     work.Usb2DescPkg.all;", file=f)
     print("", file=f)
     print("package body Usb2AppCfgPkg is", file=f)
     print("   function usb2AppGetDescriptors return Usb2ByteArray is", file=f)
@@ -757,8 +755,6 @@ class Usb2DescContext(list):
     @acc(5)
     def bmNetworkCapabilities(self, v): return v
 
-
-
   @factory
   class Usb2UAC2Desc(Usb2Desc.clazz):
 
@@ -915,7 +911,7 @@ class Usb2DescContext(list):
   class Usb2UAC2MonoFeatureUnitDesc(Usb2UAC2Desc.clazz):
     def __init__(self):
       super().__init__(14, self.DSC_TYPE_CS_INTERFACE)
-      self.bDescriptorSubtype( d.DSC_SUBTYPE_FEATURE_UNIT )
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_FEATURE_UNIT )
 
     @acc(3)
     def bUnitID(self, v): return v
@@ -1327,13 +1323,13 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineSt
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
-def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None, numChannels=2):
-  return addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed, has24Bits, isAsync, fcnTitle, numChannels, True)
+def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsync = True, fcnTitle=None, numChannels=2, maxSmplFreq=48000):
+  return addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed, numBits, isAsync, fcnTitle, numChannels, maxSmplFreq, True)
 
-def addUAC2Microphone(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None, numChannels=2):
-  return addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed, has24Bits, isAsync, fcnTitle, numChannels, False)
+def addUAC2Microphone(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsync = True, fcnTitle=None, numChannels=2, maxSmplFreq=48000):
+  return addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed, numBits, isAsync, fcnTitle, numChannels, maxSmplFreq, False)
 
-def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None, numChannels=2, spkrNotMic=True):
+def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsync = True, fcnTitle=None, numChannels=2, maxSmplFreq=48000, spkrNotMic=True):
   numIfcs = 0
   numEPPs = 0
 
@@ -1478,12 +1474,11 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, i
 
   # AS CS-specific format
   d = ctxt.Usb2UAC2FormatType1Desc()
-  if ( has24Bits ):
-    d.bSubslotSize( 3 )
-    d.bBitResolution( 24 )
-  else:
-    d.bSubslotSize( 2 )
-    d.bBitResolution( 16 )
+  if ( numBits < 1 or numBits > 32 ):
+    raise RuntimeError("Invalid number of bits for audio")
+  smplSize = int( (numBits + 7) / 8 )
+  d.bBitResolution( numBits )
+  d.bSubslotSize( smplSize )
 
   # endpoint 1, ISO OUT
   d = ctxt.Usb2EndpointDesc()
@@ -1498,14 +1493,10 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, i
   else:
     atts |= d.ENDPOINT_SYNC_SYNCHRONOUS
   d.bmAttributes( atts )
-  if ( has24Bits ):
-    smpSize = 3
-  else:
-    smpSize = 2
-  # stereo, 48KHz sample size
-  pktSize = 48*numChannels*smpSize
+  # stereo, iso period 1ms
+  pktSize = int((maxSmplFreq + 999)/1000)*numChannels*smplSize
   if ( isAsync ):
-    pktSize += numChannels*smpSize
+    pktSize += numChannels*smplSize
   d.wMaxPacketSize( pktSize )
   if ( hiSpeed ):
     d.bInterval(0x04)
@@ -1534,7 +1525,15 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, i
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
-def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, isAsync = True, fcnTitle=None):
+def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsync = True, fcnTitle=None, numChannels=2, maxSmplFreq=48000):
+  if ( numChannels != 2 ):
+    raise RuntimeError("BADD allows only exactly 2 channels")
+  # stereo, 48KHz sample size
+  if ( maxSmplFreq != 48000 ):
+    raise RuntimeError("BADD allows only 48kHz sampling")
+  if ( numBits != 16 and numBits != 24 ):
+    # don't recall if the spec allows other sizes
+    raise RuntimeError("numBits (UAC3) must be 16 or 24")
   numIfcs = 0
   numEPPs = 0
   d = ctxt.Usb2InterfaceAssociationDesc()
@@ -1584,14 +1583,10 @@ def addBADDSpeaker(ctxt, ifcNumber, epAddr, hiSpeed = True, has24Bits = True, is
   else:
     atts |= d.ENDPOINT_SYNC_SYNCHRONOUS
   d.bmAttributes( atts )
-  if ( has24Bits ):
-    smpSize = 3
-  else:
-    smpSize = 2
-  # stereo, 48KHz sample size
-  pktSize = 48*2*smpSize
+  smplSize = int( (numBits + 7) / 8 )
+  pktSize = int( (maxSmplFreq + 999) / 1000 )*numChannels*smplSize
   if ( isAsync ):
-    pktSize += 2*smpSize
+    pktSize += numChannels*smplSize
   d.wMaxPacketSize( pktSize )
   if ( hiSpeed ):
     d.bInterval(0x04)
