@@ -181,7 +181,6 @@ begin
       signal usb2RstLoc   : std_logic;
       signal epRunning    : std_logic;
       signal donDly       : std_logic := '0';
-      signal numFramesDly : std_logic := '0';
    begin
 
       epRunning  <= epInpRunning( usb2EpIb );
@@ -240,10 +239,8 @@ begin
             if ( rising_edge( epClk ) ) then
                if ( epRstOutLoc = '1' ) then
                   numFramesInp <= (others => '0');
-                  numFramesDly <= '0';
                else
-		  numFramesDly <= (donInp and fifoWen);
-                  if (  numFramesDly = '1' ) then
+                  if ( (donInp and fifoWen) = '1' ) then
                      numFramesInp <= numFramesInp + 1;
                   end if;
                end if;
@@ -326,7 +323,6 @@ begin
       signal fifoDon      : std_logic := '0';
       signal maxPktSz     : Usb2PktSizeType;
       signal numFramesInp : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
-      signal numFramesDly : std_logic := '0';
       signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
       signal numFramesOut : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
       signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0);
@@ -397,10 +393,8 @@ begin
             if ( rising_edge( usb2Clk ) ) then
                if ( usb2RstLoc = '1' ) then
                   numFramesInp <= (others => '0');
-                  numFramesDly <= '0';
                else
-                  numFramesDly <= (usb2EpIb.mstOut.don and fifoWen);
-                  if ( numFramesDly = '1' ) then
+                  if ( (usb2EpIb.mstOut.don and fifoWen) = '1' ) then
                      numFramesInp <= numFramesInp + 1;
                   end if;
                end if;
