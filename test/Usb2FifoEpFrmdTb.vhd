@@ -560,7 +560,9 @@ begin
       while not startTstInp or epRstOut = '1' loop
          epTick;
       end loop;
+      report "FOO";
       fifoSendD2( fifoInp, frmsSentInp, 3 );
+      report "BAR";
       fifoSendD2( fifoInp, frmsSentInp, 3,  nxtNul => DNL_C );
       if ( DNL_C ) then
          fifoSendD2( fifoInp, frmsSentInp, 0 );

@@ -116,7 +116,6 @@ architecture Impl of Usb2FifoEp is
    signal bFramedInp            : std_logic := '0';
    signal subOutRdy             : std_logic := '0';
    signal epRstOutLoc           : std_logic := '0';
-   signal epClkLoc              : std_logic;
    signal obFifoRstUsbClk       : std_logic := '0';
    signal ibFifoRstUsbClk       : std_logic := '0';
    signal obFifoRstEpClk        : std_logic := '0';
@@ -143,7 +142,6 @@ begin
 
    G_SYNC : if ( not ASYNC_G ) generate
    begin
-      epClkLoc       <= usb2Clk;
       haltedInpEpClk <= haltedInp;
       haltedOutEpClk <= haltedOut;
    end generate G_SYNC;
@@ -151,18 +149,16 @@ begin
    G_Usb2FifoAsyncCC : if ( ASYNC_G ) generate
    begin
 
-      epClkLoc    <= epClk;
-
       U_SYNC_HALT_INP : entity work.Usb2CCSync
          port map (
-            clk => epClkLoc,
+            clk => epClk,
             d   => haltedInp,
             q   => haltedInpEpClk
          );
 
       U_SYNC_HALT_OUT : entity work.Usb2CCSync
          port map (
-            clk => epClkLoc,
+            clk => epClk,
             d   => haltedOut,
             q   => haltedOutEpClk
          );
@@ -185,6 +181,7 @@ begin
       signal usb2RstLoc   : std_logic;
       signal epRunning    : std_logic;
       signal donDly       : std_logic := '0';
+      signal numFramesDly : std_logic := '0';
    begin
 
       epRunning  <= epInpRunning( usb2EpIb );
@@ -243,14 +240,15 @@ begin
             if ( rising_edge( epClk ) ) then
                if ( epRstOutLoc = '1' ) then
                   numFramesInp <= (others => '0');
+                  numFramesDly <= '0';
                else
-                  if ( (donInp and fifoWen) = '1' ) then
+		  numFramesDly <= (donInp and fifoWen);
+                  if (  numFramesDly = '1' ) then
                      numFramesInp <= numFramesInp + 1;
                   end if;
                end if;
             end if;
          end process P_WR_FRAMES;
-
 
          -- the xtra vector conveys the synchronized frame count we
          -- received from the writing end
@@ -289,7 +287,7 @@ begin
             XTRA_W2R_G   => xtraInp'length
          )
          port map (
-            wrClk        => epClkLoc,
+            wrClk        => epClk,
             wrRst        => open, -- only allow to be reset from USB
             wrRstOut     => ibFifoRstEpClk,
 
@@ -328,6 +326,7 @@ begin
       signal fifoDon      : std_logic := '0';
       signal maxPktSz     : Usb2PktSizeType;
       signal numFramesInp : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
+      signal numFramesDly : std_logic := '0';
       signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
       signal numFramesOut : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
       signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0);
@@ -398,8 +397,10 @@ begin
             if ( rising_edge( usb2Clk ) ) then
                if ( usb2RstLoc = '1' ) then
                   numFramesInp <= (others => '0');
+                  numFramesDly <= '0';
                else
-                  if ( (usb2EpIb.mstOut.don and fifoWen) = '1' ) then
+                  numFramesDly <= (usb2EpIb.mstOut.don and fifoWen);
+                  if ( numFramesDly = '1' ) then
                      numFramesInp <= numFramesInp + 1;
                   end if;
                end if;
@@ -489,7 +490,7 @@ begin
             wrFilled     => fifoFilled,
             wrXtraInp    => xtraInp,
 
-            rdClk        => epClkLoc,
+            rdClk        => epClk,
             rdRst        => open, -- only allow to be reset from USB
             rdRstOut     => obFifoRstEpClk,
             dou          => fifoDou,
