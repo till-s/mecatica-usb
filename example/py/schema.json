@@ -1,0 +1,284 @@
+{
+	"type"                  : "object",
+	"unevaluatedProperties" : false,
+	"properties"            : {
+		"deviceDesc" : {
+			"type"                  : "object",
+			"unevaluatedProperties" : false,
+			"properties"            : {
+				"vendorId" :  {
+                    "description" : "USB Vendor ID; defaults to 0x1209 (PID Codes)",
+					"type"    : "integer",
+					"minimum" : 1,
+					"maximum" : 65535
+				},
+				"productId" :  {
+                    "description" : "USB Product ID; use one of the testing numbers for private use ONLY",
+					"type"    : "integer",
+					"minimum" : 1,
+					"maximum" : 65535
+				},
+				"iProduct" : {
+                    "description" : "Product name",
+					"type"    : "string"
+				},
+				"iSerialNumber" : {
+					"type"    : "string"
+				},
+				"iManufacturer" : {
+					"type"    : "string"
+				},
+				"speeds" : {
+					"description" : "Speeds the device should support (via USB Device Qualifier Descriptor)",
+					"type"    : "string",
+					"enum"    : [ "full", "high", "dual" ]
+				},
+				"configurationDesc" : {
+					"description" : "Container for everything in the (only) configuration",
+					"type"                  : "object",
+	        		"unevaluatedProperties" : false,
+					"properties"            : {
+						"iConfiguration" : {
+					        "description" : "Name (in configuration descriptor)",
+							"type" : "string"
+						},
+						"functionACM" : {
+					        "description" : "CDC ACM Function Support",
+							"type"                  :"object",
+			        		"unevaluatedProperties" : false,
+							"properties"            : {
+								"enabled"   : {
+					            	"description" : "Enable/disable the ACM Function",
+									"type"    : "boolean"
+								},
+								"iFunction" : {
+					            	"description" : "Function Name",
+									"type"    : "string"
+								},
+								"iInterfaceCtrl" : {
+									"type"    : "string"
+								},
+								"iInterfaceData" : {
+									"type"    : "string"
+								},
+								"haveSendBreak" : {
+									"description" : "Support the 'Send Break' control request",
+									"type"    : "boolean"
+								},
+								"haveLineState" : {
+									"description" : "Support the 'Line State' control request",
+									"type"    : "boolean"
+								},
+								"maxPktSizeIN" : {
+									"description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 512
+								},
+								"maxPktSizeOUT" : {
+									"description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 512
+								}
+							}
+						},
+						"functionECM" : {
+					        "description" : "CDC ECM Networking Function Support",
+							"type"                  :"object",
+			        		"unevaluatedProperties" : false,
+							"properties"            : {
+								"enabled"   : {
+					            	"description" : "Enable/disable the ECM Function",
+									"type"    : "boolean"
+								},
+								"iFunction" : {
+					            	"description" : "Function Name",
+									"type"    : "string"
+								},
+								"iInterfaceCtrl" : {
+									"type"    : "string"
+								},
+								"iInterfaceData" : {
+									"type"    : "string"
+								},
+								"iMACAddress" : {
+									"description" : "MAC Address (14 hex characters as string)",
+									"type"    : "string"
+								},
+								"maxPktSizeIN" : {
+									"description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 512
+								},
+								"maxPktSizeOUT" : {
+									"description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 512
+								}
+							},
+							"required" : [ "iMACAddress" ]
+						},
+						"functionNCM" : {
+					        "description" : "CDC NCM Networking Function Support",
+							"type"                  :"object",
+			        		"unevaluatedProperties" : false,
+							"properties"            : {
+								"enabled"   : {
+					            	"description" : "Enable/disable the NCM Function",
+									"type"    : "boolean"
+								},
+								"iFunction" : {
+					            	"description" : "Function Name",
+									"type"    : "string"
+								},
+								"iInterfaceCtrl" : {
+									"type"    : "string"
+								},
+								"iInterfaceData" : {
+									"type"    : "string"
+								},
+								"iMACAddress" : {
+									"description" : "MAC Address (14 hex characters as string)",
+									"type"    : "string"
+								},
+								"maxPktSizeIN" : {
+									"description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 512
+								},
+								"maxPktSizeOUT" : {
+									"description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 512
+								},
+								"numMulticastFilters" : {
+									"description" : "Number of multicast filters to support (see NCM spec for special flag(s)!)",
+									"type"    : "integer",
+									"minimum" : 0,
+									"maximum" : 65535
+								},
+								"haveDynamicMACAddress" : {
+									"description" : "Support control-req. to change MAC Address (unsupported by linux :-()",
+									"type" : "boolean"
+								}
+							},
+							"required" : [ "iMACAddress" ]
+						},
+						"functionUAC2Input" : {
+					        "description" : "UAC2 Audio Input Streaming Function",
+							"type"                  :"object",
+			        		"unevaluatedProperties" : false,
+							"properties"            : {
+								"enabled"   : {
+					            	"description" : "Enable/disable the UAC2 ISO Input Streaming Function",
+									"type"    : "boolean"
+								},
+								"iFunction" : {
+					            	"description" : "Function Name",
+									"type"    : "string"
+								},
+								"iInterfaceCtrl" : {
+									"type"    : "string"
+								},
+								"iInterfaceData" : {
+									"type"    : "string"
+								},
+								"numChannels" : {
+									"description" : "Number of audio channels (mono/stereo)",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 2
+								},
+								"numBits" : {
+									"description" : "Number of bits per audio sample per channel",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 32
+								},
+								"maxSamplingFrequency" : {
+									"description" : "Max. Frequency in Hz. required to calculate max. endpoint packet size",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 100000
+								},
+								"iInputTerminal" : {
+									"description" : "Name(s) of input terminals; if there is more than one then a Selector Unit will be enabled",
+									"type"    : "array",
+									"items"   : {
+										"type" : "string"
+									},
+									"minItems" : 1,
+									"maxItems" : 255
+								}
+							},
+                            "if" : {
+								"properties" : {
+									"iInputTerminal" : {
+										"minItems" : 2
+									}
+								}
+							},
+							"then" : {
+								"properties" : {
+									"iSelector" : {
+										"type" : "string"
+									}
+								}
+							}
+						},
+						"functionUAC2I2SOutput" : {
+					        "description" : "UAC2 Audio Output Streaming (to I2S) Function",
+							"type"                  :"object",
+			        		"unevaluatedProperties" : false,
+							"properties"            : {
+								"enabled"   : {
+					            	"description" : "Enable/disable the UAC2 ISO Output to I2S Streaming Function",
+									"type"    : "boolean"
+								},
+								"iFunction" : {
+					            	"description" : "Function Name",
+									"type"    : "string"
+								},
+								"iInterfaceCtrl" : {
+									"type"    : "string"
+								},
+								"iInterfaceData" : {
+									"type"    : "string"
+								},
+								"numChannels" : {
+									"description" : "Number of audio channels (mono/stereo)",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 2
+								},
+								"numBits" : {
+									"description" : "Number of bits per audio sample per channel",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 32
+								},
+								"maxSamplingFrequency" : {
+									"description" : "Max. Frequency in Hz. required to calculate max. endpoint packet size",
+									"type"    : "integer",
+									"minimum" : 1,
+									"maximum" : 100000
+								},
+								"iOutputTerminal" : {
+									"description" : "Name of Output Terminal",
+									"type"    : "string"
+								}
+							}
+						}
+					}
+				}
+			},
+			"required" : [ "productId" ]
+		}
+	},
+	"required" : [ "deviceDesc" ]
+}
