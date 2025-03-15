@@ -668,12 +668,22 @@ begin
    end generate G_EP_CDCACM;
 
    G_EP_ISO_SPKR : if ( HAVE_SPKR_C ) generate
+      constant SAMPLE_SIZE_C          : natural :=
+         ite( SPKR_UAC2_CS_HEADER_IDX_C >= 0,
+            usb2GetUAC2SubSlotSize( DESCRIPTORS_G, SPKR_UAC2_CS_HEADER_IDX_C ),
+            3 -- UAC3 extraction from desc. not supported :-(
+         );
+      constant NUM_CHANNELS_C         : natural :=
+         ite( SPKR_UAC2_CS_HEADER_IDX_C >= 0,
+            usb2GetUAC2NumChannels( DESCRIPTORS_G, SPKR_UAC2_CS_HEADER_IDX_C ),
+            2 -- UAC3 extraction from desc. not supported :-(
+         );
    begin
       U_SPKR : entity work.Usb2EpBADDSpkr
          generic map (
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(SPKR_CTL_IFC_NUM_C),
-            SAMPLE_SIZE_G             => 3,
-            NUM_CHANNELS_G            => 2,
+            SAMPLE_SIZE_G             => SAMPLE_SIZE_C,
+            NUM_CHANNELS_G            => NUM_CHANNELS_C,
             SAMPLING_FREQ_G           => 48000, -- must be 48k for BADD/UAC3
             MARK_DEBUG_G              => MARK_DEBUG_SND_G,
             MARK_DEBUG_BCLK_G         => false
@@ -708,9 +718,18 @@ begin
    end generate G_EP_ISO_SPKR;
 
    G_EP_ISO_MICR : if ( HAVE_MICR_C ) generate
-      constant SAMPLE_SIZE_C          : natural := 3;
-      constant NUM_CHANNELS_C         : natural := 2;
+      constant SAMPLE_SIZE_C          : natural :=
+         usb2GetUAC2SubSlotSize( DESCRIPTORS_G, MICR_UAC2_CS_HEADER_IDX_C );
+      constant NUM_CHANNELS_C         : natural :=
+         usb2GetUAC2NumChannels( DESCRIPTORS_G, MICR_UAC2_CS_HEADER_IDX_C );
    begin
+
+      assert audioInpFifoDat'length >= NUM_CHANNELS_C * SAMPLE_SIZE_C * 8
+         report "Usb2ExampleDev supports only up to "
+                 & integer'image(audioInpFifoDat'length)
+                 & " bits of audio data"
+         severity failure;
+
       U_MICR : entity work.Usb2EpAudioInpStrm
          generic map (
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(MICR_CTL_IFC_NUM_C),
