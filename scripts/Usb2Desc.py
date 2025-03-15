@@ -1454,13 +1454,41 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   d.bmChannelConfig( channelConfig )
   totl += d.size
 
+  # TEST START ========================
+  if ( not spkrNotMic ):
+    d = ctxt.Usb2UAC2InputTerminalDesc()
+    d.bTerminalID( 0x10 )
+    d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_INP_MICROPHONE )
+    d.bAssocTerminal( 0x00 )
+    d.bCSourceID( clkID )
+    d.bNrChannels( numChannels )
+    if ( 2 == numChannels ):
+      channelConfig = 0x3 # front left right
+    else:
+      channelConfig = 0x4 # front center
+    d.bmChannelConfig( channelConfig )
+    d.iTerminal("BarInp");
+    totl += d.size
+
+    d = ctxt.Usb2UAC2SelectorUnitDesc()
+    d.bUnitID( 0x20 )
+    d.bNrInPins( 2 )
+    d.baSourceID( bytearray([inTID, 0x10]) )
+    d.bmControls(3)
+    d.iSelector("MySel")
+    totl += d.size
+
+  # TEST END   ========================
+
+
   if ( 2 == numChannels ):
     d = ctxt.Usb2UAC2StereoFeatureUnitDesc()
   else:
     d = ctxt.Usb2UAC2MonoFeatureUnitDesc()
 
   d.bUnitID( ftrID )
-  d.bSourceID( inTID )
+# TEST d.bSourceID( inTID )
+  d.bSourceID( 0x20 )
 
   ctls = 0
   if ( haveMasterMute ):
