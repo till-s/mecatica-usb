@@ -97,6 +97,7 @@ def acc(off,sz=1):
       setattr(setter, "origFunc", func)
       setattr(setter, "origName", func.__name__)
       setattr(setter, "offset",   off          )
+      setattr(setter, "size",     sz           )
       return setter
     return deco
 
@@ -407,6 +408,21 @@ class Usb2DescContext(list):
         if tsto == off:
           return getattr( getattr(self, a), "origName" )
       return None
+
+    # Rebind a 'acc' decorated member with a new offset (and size)
+    # use as follows (on an @acc decorated member function!)
+    #
+    #   self.member = self.rebindOffset(self.member, newOffset)
+    def rebindOffset(self, member, newOffset, newSize = None):
+        # unfortunately, setattr(self.<member>, "offset", newOffset)
+        # does not work; method attributes are not writable.
+        # Re-wrap the methods with a new offset:
+        if newSize is None:
+           newSize = getattr(member, "size")
+        wrapped = acc(newOffset, newSize)( getattr(member, "origFunc") )
+        # found that one on the internet; bind new function to a instance
+        bound   = wrapped.__get__(self, self.__class__)
+        return bound
 
   @factory
   class Usb2SentinelDesc(Usb2Desc.clazz):
@@ -928,17 +944,10 @@ class Usb2DescContext(list):
         self.cont_[0:5] = old[0:5]
         self.cont_[-2:]  = old[-2:]
         self.bLength( newLen )
-        # unfortunately, setattr(self.iSelector, "offset", newOffset)
-        # does not work; method attributes are not writable.
-        # Re-wrap the methods with a new offset:
-        wrapped = acc(newLen - 2)( getattr(self.bmControls, "origFunc") )
-        # found that one on the internet; bind new function to a instance
-        bound   = wrapped.__get__(self, self.__class__)
-        self.bmControls  = bound
-
-        wrapped = acc(newLen - 1)( getattr(self.iSelector, "origFunc") )
-        bound   = wrapped.__get__(self, self.__class__)
-        self.iSelector  = bound
+        # length of this descriptor has changed; must rebind
+        # all the offsets behind the insertion
+        self.bmControls = self.rebindOffset(self.bmControls, newLen - 2)
+        self.iSelector  = self.rebindOffset(self.iSelector,  newLen - 1)
       return v
 
     # size 0 lets us deal with the conversion
