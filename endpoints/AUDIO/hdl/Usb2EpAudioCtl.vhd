@@ -209,10 +209,11 @@ architecture Impl of Usb2EpAudioCtl is
    constant REQ_AC_RANGE_C    : Usb2CtlRequestCodeType := x"02";
 
    -- NOTE: descriptors MUST use these hardcoded values
+   --       some of which are defined/inferred by UAC3/BADD!
    constant ID_FEATURE_UNIT_C : natural range 0 to 255 :=  2;
    constant ID_CLOCK_SOURCE_C : natural range 0 to 255 :=  9;
    constant ID_POWER_DOMAIN_C : natural range 0 to 255 := 10;
-   constant ID_SELECTOR_UNIT_C: natural range 0 to 255 := 32;
+   constant ID_SELECTOR_UNIT_C: natural range 0 to 255 := 15;
 
    constant FU_MUTE_CTL_C     : std_logic_vector(7 downto 0) := x"01";
    constant FU_VOLUME_CTL_C   : std_logic_vector(7 downto 0) := x"02";
@@ -380,7 +381,7 @@ begin
                            end if;
                         end if;
                      when ID_SELECTOR_UNIT_C =>
-                        if ( channel = CH_MASTER and code = SU_SELECTOR_CTL_C ) then
+                        if ( SEL_RNG_MAX_G > 0 and channel = CH_MASTER and code = SU_SELECTOR_CTL_C ) then
                            if ( usb2Ep0ReqParam.dev2Host ) then
                               v.ctlExt.err := '0';
                               v.ctlExt.don := '0';
@@ -455,7 +456,7 @@ begin
                         v.volMaster  := signed( r.buf.dat(0) ) & signed( r.buf.dat(1) );
                      end if;
                   end if;
-               elsif ( entityId = ID_SELECTOR_UNIT_C ) then
+               elsif ( SEL_RNG_MAX_G > 0 and entityId = ID_SELECTOR_UNIT_C ) then
                   v.selectorSel := unsigned( r.buf.dat(0) );
                else -- ID_POWER_DOMAIN_C
                   v.powerState  := unsigned( r.buf.dat(0)(1 downto 0) );

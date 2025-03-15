@@ -282,21 +282,21 @@ architecture Impl of Usb2ExampleDev is
          USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC3_C
       );
 
-   constant SPKR_UAC2_CS_HEADER_IDX_C          : integer :=
-      usb2NextCsUAC2HeaderCategory(
+   constant SPKR_UAC2_IFC_ASSOC_IDX_C          : integer :=
+      usb2NextUAC2IfcAssocDescriptor(
          DESCRIPTORS_G,
          0,
          USB2_CS_IFC_HDR_UAC2_CATEGORY_SPEAKER
       );
-   constant HAVE_SPKR_C                        : boolean := (SPKR_UAC3_IFC_ASSOC_IDX_C >= 0) or (SPKR_UAC2_CS_HEADER_IDX_C >= 0);
+   constant HAVE_SPKR_C                        : boolean := (SPKR_UAC3_IFC_ASSOC_IDX_C >= 0) or (SPKR_UAC2_IFC_ASSOC_IDX_C >= 0);
 
-   constant MICR_UAC2_CS_HEADER_IDX_C          : integer :=
-      usb2NextCsUAC2HeaderCategory(
+   constant MICR_UAC2_IFC_ASSOC_IDX_C          : integer :=
+      usb2NextUAC2IfcAssocDescriptor(
          DESCRIPTORS_G,
          0,
          USB2_CS_IFC_HDR_UAC2_CATEGORY_MICROPHONE
       );
-   constant HAVE_MICR_C                        : boolean := (MICR_UAC2_CS_HEADER_IDX_C >= 0);
+   constant HAVE_MICR_C                        : boolean := (MICR_UAC2_IFC_ASSOC_IDX_C >= 0);
 
    constant ECM_IFC_ASSOC_IDX_C                : integer :=
       usb2NextIfcAssocDescriptor(
@@ -670,13 +670,13 @@ begin
 
    G_EP_ISO_SPKR : if ( HAVE_SPKR_C ) generate
       constant SAMPLE_SIZE_C          : natural :=
-         ite( SPKR_UAC2_CS_HEADER_IDX_C >= 0,
-            usb2GetUAC2SubSlotSize( DESCRIPTORS_G, SPKR_UAC2_CS_HEADER_IDX_C ),
+         ite( SPKR_UAC2_IFC_ASSOC_IDX_C >= 0,
+            usb2GetUAC2SubSlotSize( DESCRIPTORS_G, SPKR_UAC2_IFC_ASSOC_IDX_C ),
             3 -- UAC3 extraction from desc. not supported :-(
          );
       constant NUM_CHANNELS_C         : natural :=
-         ite( SPKR_UAC2_CS_HEADER_IDX_C >= 0,
-            usb2GetUAC2NumChannels( DESCRIPTORS_G, SPKR_UAC2_CS_HEADER_IDX_C ),
+         ite( SPKR_UAC2_IFC_ASSOC_IDX_C >= 0,
+            usb2GetUAC2NumChannels( DESCRIPTORS_G, SPKR_UAC2_IFC_ASSOC_IDX_C ),
             2 -- UAC3 extraction from desc. not supported :-(
          );
    begin
@@ -720,9 +720,11 @@ begin
 
    G_EP_ISO_MICR : if ( HAVE_MICR_C ) generate
       constant SAMPLE_SIZE_C          : natural :=
-         usb2GetUAC2SubSlotSize( DESCRIPTORS_G, MICR_UAC2_CS_HEADER_IDX_C );
+         usb2GetUAC2SubSlotSize( DESCRIPTORS_G, MICR_UAC2_IFC_ASSOC_IDX_C );
       constant NUM_CHANNELS_C         : natural :=
-         usb2GetUAC2NumChannels( DESCRIPTORS_G, MICR_UAC2_CS_HEADER_IDX_C );
+         usb2GetUAC2NumChannels( DESCRIPTORS_G, MICR_UAC2_IFC_ASSOC_IDX_C );
+      constant SEL_RNG_MAX_C          : natural :=
+         usb2GetUAC2SelectorUnitPins( DESCRIPTORS_G, MICR_UAC2_IFC_ASSOC_IDX_C );
    begin
 
       assert audioInpFifoDat'length >= NUM_CHANNELS_C * SAMPLE_SIZE_C * 8
@@ -736,7 +738,7 @@ begin
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(MICR_CTL_IFC_NUM_C),
             SAMPLE_SIZE_G             => SAMPLE_SIZE_C,
             NUM_CHANNELS_G            => NUM_CHANNELS_C,
-            SEL_RNG_MAX_G             => 2,
+            SEL_RNG_MAX_G             => SEL_RNG_MAX_C,
             AUDIO_FREQ_G              => AUD_INP_SAMPLE_FREQ_G,
             ASYNC_G                   => AUD_INP_ASYNC_G,
             LD_FIFO_DEPTH_INP_G       => LD_AUD_INP_FIFO_DEPTH_G,

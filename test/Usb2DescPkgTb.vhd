@@ -24,14 +24,14 @@ architecture sim of Usb2DescPkgTb is
       );
 
    constant HAVE_UAC2_SPKR_C                        : integer :=
-      usb2NextCsUAC2HeaderCategory(
+      usb2NextUAC2IfcAssocDescriptor(
          USB2_APP_DESCRIPTORS_C,
          0,
          USB2_CS_IFC_HDR_UAC2_CATEGORY_SPEAKER
       );
 
    constant HAVE_UAC2_MICR_C                        : integer :=
-      usb2NextCsUAC2HeaderCategory(
+      usb2NextUAC2IfcAssocDescriptor(
          USB2_APP_DESCRIPTORS_C,
          0,
          USB2_CS_IFC_HDR_UAC2_CATEGORY_MICROPHONE
@@ -54,6 +54,7 @@ begin
       if ( i >= 0 ) then
          report "SubSlot Size " & integer'image( usb2GetUAC2SubSlotSize( USB2_APP_DESCRIPTORS_C, i ) );
          report "# Channels   " & integer'image( usb2GetUAC2NumChannels( USB2_APP_DESCRIPTORS_C, i ) );
+         report "Selector pins " & integer'image( usb2GetUAC2SelectorUnitPins( USB2_APP_DESCRIPTORS_C, i ) );
       end if;
       wait;
    end process;

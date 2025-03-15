@@ -217,7 +217,10 @@ package Usb2DescPkg is
       constant a : boolean      := true
    ) return integer;
 
-   function usb2NextCsUAC2HeaderCategory(
+   -- find next UAC2 interface association descriptor
+   -- followed by a header cs-descriptor of category 'c'
+
+   function usb2NextUAC2IfcAssocDescriptor(
       constant d : Usb2ByteArray;
       constant i : integer;
       constant c : Usb2ByteType;
@@ -237,6 +240,14 @@ package Usb2DescPkg is
    -- i must point to the first ifc association desc.
    -- of the audio IFC
    function usb2GetUAC2SubSlotSize(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant a : boolean      := true
+   ) return integer;
+
+   -- read the number of selector unit pins.
+   -- returns 0 if no selector unit was found
+   function usb2GetUAC2SelectorUnitPins(
       constant d : Usb2ByteArray;
       constant i : integer;
       constant a : boolean      := true
@@ -314,7 +325,7 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
             return -1;
          end if;
          if ( d(x + USB2_DESC_IDX_TYPE_C) = USB2_DESC_TYPE_INTERFACE_C ) then
-            -- next endpoint; there was not CS-specific descriptor in between
+            -- next interface; there was not CS-specific descriptor in between
             return -1;
          end if;
          if ( d(x + USB2_DESC_IDX_TYPE_C) = dt and d(x + USB2_CS_DESC_IDX_SUBTYPE_C) = st ) then
@@ -706,12 +717,15 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       constant scl : Usb2ByteType := ite(s, USB2_IFC_SUBCLASS_AUDIO_STREAMING_C, USB2_IFC_SUBCLASS_AUDIO_CONTROL_C);
    begin
       x := i;
+report "Next UAC2 CS Starting @" & integer'image(x);
       L_FIND_IFC : loop
          x := usb2NextIfcDescriptor(d, x, USB2_IFC_CLASS_AUDIO_C, scl);
+report "Next IF @" & integer'image(x);
          if ( x < 0 ) then
             return x;
          end if;
          n := usb2NextDescriptor(d, x, a);
+report "Testing next Desc @" & integer'image(n);
          -- if there is no next descriptor there can be no next CS descriptor
          if ( n < 0 ) then
             return n;
@@ -721,9 +735,11 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
             if ( d(n + USB2_DESC_IDX_TYPE_C) /= USB2_DESC_TYPE_INTERFACE_C ) then
                exit L_FIND_IFC;
             end if;
+report "Skipping because next is IFD";
          end if;
          x := n;
       end loop;
+report "Proceeding scanning for CS from " & integer'image(x);
       x := usb2NextCsDescriptor(
               d,
               x,
@@ -733,26 +749,39 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       return x;
    end function usb2NextCsUAC2;
 
-   function usb2NextCsUAC2HeaderCategory(
+   function usb2NextUAC2IfcAssocDescriptor(
       constant d : Usb2ByteArray;
       constant i : integer;
       constant c : Usb2ByteType;
       constant a : boolean      := true
    ) return integer is
       variable x : integer;
+      variable r : integer;
       constant IDX_CATEGORY_C  : natural := 5;
       constant STREAMING_IFC_C : boolean := true;
    begin
-      x := i;
-      x := usb2NextCsUAC2(d, x, USB2_CS_DESC_SUBTYPE_AUDIO_HEADER_C, not STREAMING_IFC_C, a);
-      if ( x < 0 ) then
-         return x;
-      end if;
-      if ( d(x + IDX_CATEGORY_C) /= c ) then
-         return -1;
-      end if;
-      return x;
-   end function usb2NextCsUAC2HeaderCategory;
+      r := i;
+      while r >= 0 loop
+         r := usb2NextIfcAssocDescriptor(
+                 d,
+                 r,
+                 USB2_IFC_CLASS_AUDIO_C,
+                 USB2_FCN_SUBCLASS_AUDIO_UNDEFINED_C,
+                 USB2_IFC_SUBCLASS_AUDIO_PROTOCOL_UAC2_C,
+                 a
+              );
+
+         x := usb2NextCsUAC2(d, r, USB2_CS_DESC_SUBTYPE_AUDIO_HEADER_C, not STREAMING_IFC_C, a);
+         if ( x < 0 ) then
+            return x;
+         end if;
+         if ( d(x + IDX_CATEGORY_C) = c ) then
+            return r;
+         end if;
+         r := usb2NextDescriptor( d, r, a );
+      end loop;
+      return r;
+   end function usb2NextUAC2IfcAssocDescriptor;
 
    function usb2GetUAC2NumChannels(
       constant d : Usb2ByteArray;
@@ -785,5 +814,24 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       
       return to_integer( unsigned( d(x + IDX_SUBSLOTSZ_C) ) );
    end function usb2GetUAC2SubSlotSize;
+
+   -- read the number of selector unit pins.
+   -- returns 0 if no selector unit was found
+   function usb2GetUAC2SelectorUnitPins(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant a : boolean      := true
+   ) return integer is
+      variable x : integer;
+      constant STREAMING_IFC_C : boolean := true;
+      constant IDX_NUM_PINS_C  : integer := 4;
+   begin
+      x := i;
+      x := usb2NextCsUAC2(d, x, USB2_CS_DESC_SUBTYPE_AUDIO_SELECTOR_UNIT_C, not STREAMING_IFC_C, a);
+      if ( x < 0 ) then
+         return 0;
+      end if;
+      return to_integer( unsigned( d(x + IDX_NUM_PINS_C) ) );
+   end function usb2GetUAC2SelectorUnitPins;
 
 end package body Usb2DescPkg;

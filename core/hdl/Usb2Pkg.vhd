@@ -411,6 +411,12 @@ package Usb2Pkg is
 
    -- audio control interface subtypes
    constant USB2_CS_DESC_SUBTYPE_AUDIO_HEADER_C            : Usb2ByteType               := x"01";
+   constant USB2_CS_DESC_SUBTYPE_AUDIO_INPUT_TERMINAL_C    : Usb2ByteType               := x"02";
+   constant USB2_CS_DESC_SUBTYPE_AUDIO_OUTPUT_TERMINAL_C   : Usb2ByteType               := x"03";
+   constant USB2_CS_DESC_SUBTYPE_AUDIO_MIXER_UNIT_C        : Usb2ByteType               := x"04";
+   constant USB2_CS_DESC_SUBTYPE_AUDIO_SELECTOR_UNIT_C     : Usb2ByteType               := x"05";
+   constant USB2_CS_DESC_SUBTYPE_AUDIO_FEATURE_UNIT_C      : Usb2ByteType               := x"06";
+   constant USB2_CS_DESC_SUBTYPE_AUDIO_CLOCK_SOURCE_C      : Usb2ByteType               := x"0A";
    -- audio streaming interface subtypes
    constant USB2_CS_DESC_SUBTYPE_AUDIO_GENERAL_C           : Usb2ByteType               := x"01";
    constant USB2_CS_DESC_SUBTYPE_AUDIO_FORMAT_C            : Usb2ByteType               := x"02";
