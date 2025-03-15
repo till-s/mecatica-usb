@@ -243,9 +243,9 @@ entity Usb2ExampleDev is
       audioInpFifoRstOut   : out std_logic := '0';
       -- up to 2-channels with 24 bits. Actual number of bits used is
       -- defined by the descriptors.
-      audioInpFifoData     : in  std_logic_vector(47 downto 0) := (others => '0');
-      audioInpFifoDataVld  : in  std_logic := '0';
-      audioInpFifoDataRdy  : out std_logic := '1';
+      audioInpFifoDat      : in  std_logic_vector(47 downto 0) := (others => '0');
+      audioInpFifoVld      : in  std_logic := '0';
+      audioInpFifoRdy      : out std_logic := '1';
 
       -- always in the usb clock domain!
       audioInpVolMaster    : out signed(15 downto 0)  := (others => '0');
@@ -766,9 +766,9 @@ begin
 
             epClk                     => audioInpFifoClk,
             epRstOut                  => audioInpFifoRstOut,
-            epData                    => audioInpFifoData(NUM_CHANNELS_C*SAMPLE_SIZE_C*8 - 1 downto 0),
-            epDataVld                 => audioInpFifoDataVld,
-            epDataRdy                 => audioInpFifoDataRdy
+            epData                    => audioInpFifoDat(NUM_CHANNELS_C*SAMPLE_SIZE_C*8 - 1 downto 0),
+            epDataVld                 => audioInpFifoVld,
+            epDataRdy                 => audioInpFifoRdy
          );
    end generate G_EP_ISO_MICR;
 
