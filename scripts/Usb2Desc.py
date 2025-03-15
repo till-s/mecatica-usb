@@ -94,6 +94,7 @@ def acc(off,sz=1):
             self.cont[off + i] = (v & 0xff)
             v >>= 8
          return self
+      setattr(setter, "origFunc", func)
       setattr(setter, "origName", func.__name__)
       setattr(setter, "offset",   off          )
       return setter
@@ -547,6 +548,7 @@ class Usb2DescContext(list):
       else:
         v |= 0x80
       return v
+
     @acc(8)
     def bMaxPower(self, v): return v
 
@@ -906,6 +908,58 @@ class Usb2DescContext(list):
 
     @acc(11)
     def iTerminal(self, v): return self.cvtString(v)
+
+  @factory
+  class Usb2UAC2SelectorUnitDesc(Usb2UAC2Desc.clazz):
+    def __init__(self):
+      super().__init__(7, self.DSC_TYPE_CS_INTERFACE)
+      self.bDescriptorSubtype( self.DSC_SUBTYPE_SELECTOR_UNIT )
+
+    @acc(3)
+    def bUnitID(self, v): return v
+
+    @acc(4)
+    def bNrInPins(self, v):
+      if not isinstance(v,CvtReader):
+        old = self.cont
+        # resize content
+        newLen = 7 + v
+        self.cont_ = bytearray(newLen)
+        self.cont_[0:5] = old[0:5]
+        self.cont_[-2:]  = old[-2:]
+        self.bLength( newLen )
+        # unfortunately, setattr(self.iSelector, "offset", newOffset)
+        # does not work; method attributes are not writable.
+        # Re-wrap the methods with a new offset:
+        wrapped = acc(newLen - 2)( getattr(self.bmControls, "origFunc") )
+        # found that one on the internet; bind new function to a instance
+        bound   = wrapped.__get__(self, self.__class__)
+        self.bmControls  = bound
+
+        wrapped = acc(newLen - 1)( getattr(self.iSelector, "origFunc") )
+        bound   = wrapped.__get__(self, self.__class__)
+        self.iSelector  = bound
+      return v
+
+    # size 0 lets us deal with the conversion
+    # directly
+    @acc(5,0)
+    def baSourceID(self, v):
+      if isinstance(v,CvtReader):
+        v.obj = self.cont[5:-2]
+      else:
+        if not isinstance(v, bytearray) or len(v) != self.bNrInPins():
+          raise RuntimeError("baSourceID must be a bytearray with bNrInPins elements")
+        self.cont_[5:-2] = v
+      return v
+
+    # offset is not fixed but is not used since sz = 0
+    @acc(5)
+    def bmControls(self, v): return v
+
+    # offset is not fixed but will be hacked by bNrInPins
+    @acc(6)
+    def iSelector(self, v): return self.cvtString(v)
 
   @factory
   class Usb2UAC2MonoFeatureUnitDesc(Usb2UAC2Desc.clazz):
