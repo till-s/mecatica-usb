@@ -254,7 +254,8 @@ entity Usb2ExampleDev is
       audioInpMuteMaster   : out std_logic            := '0';
       audioInpMuteLeft     : out std_logic            := '0';
       audioInpMuteRight    : out std_logic            := '0';
-      audioInpPowerState   : out unsigned(1 downto 0) := (others => '0')
+      audioInpPowerState   : out unsigned(1 downto 0) := (others => '0');
+      audioInpSelectorSel  : out unsigned(7 downto 0) := (others => '0')
 
    );
 end entity Usb2ExampleDev;
@@ -735,6 +736,7 @@ begin
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(MICR_CTL_IFC_NUM_C),
             SAMPLE_SIZE_G             => SAMPLE_SIZE_C,
             NUM_CHANNELS_G            => NUM_CHANNELS_C,
+            SEL_RNG_MAX_G             => 2,
             AUDIO_FREQ_G              => AUD_INP_SAMPLE_FREQ_G,
             ASYNC_G                   => AUD_INP_ASYNC_G,
             LD_FIFO_DEPTH_INP_G       => LD_AUD_INP_FIFO_DEPTH_G,
@@ -762,7 +764,7 @@ begin
             muteLeft                  => audioInpMuteLeft,
             muteRight                 => audioInpMuteRight,
             powerState                => audioInpPowerState,
-
+            selectorSel               => audioInpSelectorSel,
 
             epClk                     => audioInpFifoClk,
             epRstOut                  => audioInpFifoRstOut,

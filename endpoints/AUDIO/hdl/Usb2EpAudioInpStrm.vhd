@@ -19,6 +19,7 @@ entity Usb2EpAudioInpStrm is
       VOL_RNG_MIN_G       : integer range -32767 to 32767 := -32767; -- -128 + 1/156 db
       VOL_RNG_MAX_G       : integer range -32767 to 32767 := +32767; -- +128 - 1/156 db
       VOL_RNG_RES_G       : integer range      1 to 32767 := 256;    --    1         db
+      SEL_RNG_MAX_G       : integer range      0 to 255   :=   0;
       -- audio sample size in byte (per channel)
       SAMPLE_SIZE_G       : natural range 1 to 4 := 3;
       -- stereo/mono
@@ -58,10 +59,10 @@ entity Usb2EpAudioInpStrm is
       muteLeft            : out std_logic;
       muteRight           : out std_logic;
       powerState          : out unsigned(1 downto 0);
+      selectorSel         : out unsigned(7 downto 0);
 
       -- Endpoint clock must be >= audio clock * SAMPLE_SIZE_G * NUM_CHANNELS_G but synchronous
       -- to the audio clock.
-      -- If ASYNC_G is false then epClk is ignored and usb2Clk is used instead
       epClk               : in  std_logic := '0';
       -- endpoint reset from USB
       epRstOut            : out std_logic := '0';
@@ -78,7 +79,6 @@ architecture Impl of Usb2EpAudioInpStrm is
    signal fifoDat        : Usb2ByteType    := (others => '0');
    signal fifoWen        : std_logic       := '0';
    signal fifoFull       : std_logic       := '0';
-   signal epClkLoc       : std_logic;
    signal epRstLoc       : std_logic;
 
    type   RegType        is record
@@ -99,14 +99,6 @@ architecture Impl of Usb2EpAudioInpStrm is
    signal rin            : RegType;
 
 begin
-
-   G_MAP_CLK_USB : if ( not ASYNC_G ) generate
-      epClkLoc           <= usb2Clk;
-   end generate G_MAP_CLK_USB;
-
-   G_MAP_CLK_EXT : if ( ASYNC_G ) generate
-      epClkLoc           <= epClk;
-   end generate G_MAP_CLK_EXT;
 
    G_NO_SHIFTER : if ( epData'length <= Usb2ByteType'length ) generate
       fifoDat   <= std_logic_vector(resize( unsigned(epData), fifoDat'length ));
@@ -144,9 +136,9 @@ begin
          rin <= v;
       end process P_COMB;
 
-      P_SEQ : process ( epClkLoc ) is
+      P_SEQ : process ( epClk ) is
       begin
-         if ( rising_edge( epClkLoc ) ) then
+         if ( rising_edge( epClk ) ) then
             if ( epRstLoc = '1' ) then
                r <= REG_INIT_C;
 	    else
@@ -165,6 +157,7 @@ begin
          VOL_RNG_MIN_G       => VOL_RNG_MIN_G,
          VOL_RNG_MAX_G       => VOL_RNG_MAX_G,
          VOL_RNG_RES_G       => VOL_RNG_RES_G,
+         SEL_RNG_MAX_G       => SEL_RNG_MAX_G,
          AC_IFC_NUM_G        => AC_IFC_NUM_G,
 	 AUDIO_FREQ_G        => AUDIO_FREQ_G
       )
@@ -182,7 +175,8 @@ begin
          muteMaster          => muteMaster,
          muteLeft            => muteLeft,
          muteRight           => muteRight,
-         powerState          => powerState
+         powerState          => powerState,
+         selectorSel         => selectorSel
       );
 
    U_FIFO : entity work.Usb2FifoEp

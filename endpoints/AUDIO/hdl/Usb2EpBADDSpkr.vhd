@@ -22,6 +22,7 @@ entity Usb2EpBADDSpkr is
       VOL_RNG_MIN_G       : integer range -32767 to 32767 := -32767; -- -128 + 1/156 db
       VOL_RNG_MAX_G       : integer range -32767 to 32767 := +32767; -- +128 - 1/156 db
       VOL_RNG_RES_G       : integer range      1 to 32767 := 256;    --    1         db
+      SEL_RNG_MAX_G       : integer range      0 to 255   :=   0;
       -- audio sample size in byte (per channel)
       SAMPLE_SIZE_G       : natural range 1 to 4 := 3;
       -- stereo/mono
@@ -64,6 +65,7 @@ entity Usb2EpBADDSpkr is
       muteLeft            : out std_logic;
       muteRight           : out std_logic;
       powerState          : out unsigned(1 downto 0);
+      selectorSel         : out unsigned(7 downto 0);
 
       -- i2s BCLK domain
       i2sBCLK             : in  std_logic;
@@ -80,6 +82,7 @@ begin
          VOL_RNG_MIN_G       => VOL_RNG_MIN_G,
          VOL_RNG_MAX_G       => VOL_RNG_MAX_G,
          VOL_RNG_RES_G       => VOL_RNG_RES_G,
+         SEL_RNG_MAX_G       => SEL_RNG_MAX_G,
          AC_IFC_NUM_G        => AC_IFC_NUM_G
       )
       port map (
@@ -96,7 +99,8 @@ begin
          muteMaster          => muteMaster,
          muteLeft            => muteLeft,
          muteRight           => muteRight,
-         powerState          => powerState
+         powerState          => powerState,
+         selectorSel         => selectorSel
       );
 
    U_I2S_PLAYBACK : entity work.Usb2EpI2SPlayback

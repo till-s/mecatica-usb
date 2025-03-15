@@ -21,6 +21,7 @@ entity Usb2EpAudioCtl is
       VOL_RNG_RES_G   : integer range      1 to 32767 := 256;    --    1         db
       AC_IFC_NUM_G    : Usb2InterfaceNumType;
       AUDIO_FREQ_G    : natural                       := 48000;
+      SEL_RNG_MAX_G   : integer range      0 to   255 := 0;
       MARK_DEBUG_G    : boolean                       := false
    );
    port (
@@ -37,7 +38,8 @@ entity Usb2EpAudioCtl is
       muteMaster      : out std_logic;
       muteLeft        : out std_logic;
       muteRight       : out std_logic;
-      powerState      : out unsigned(1 downto 0)
+      powerState      : out unsigned(1 downto 0);
+      selectorSel     : out unsigned(7 downto 0)
    );
 
    attribute MARK_DEBUG of usb2Ep0ReqParam : signal is toStr(MARK_DEBUG_G);
@@ -124,6 +126,21 @@ architecture Impl of Usb2EpAudioCtl is
       bufFill( b, unsigned( v ) );
    end procedure bufFill;
 
+   procedure bufFill1(
+      variable b : out BufType;
+      constant l : in  signed  (7 downto 0);
+      constant h : in  signed  (7 downto 0);
+      constant r : in  unsigned(7 downto 0)
+   ) is
+   begin
+      b.idx    := to_signed( 5 - 1, b.idx'length );
+      b.dat(4) := x"01";
+      b.dat(3) := x"00";
+      b.dat(2) := Usb2ByteType( l );
+      b.dat(1) := Usb2ByteType( h );
+      b.dat(0) := Usb2ByteType( r );
+   end procedure bufFill1;
+
    procedure bufFill2(
       variable b : out BufType;
       constant l : in  signed  (15 downto 0);
@@ -164,6 +181,7 @@ architecture Impl of Usb2EpAudioCtl is
       muteLeft        : std_logic;
       muteRight       : std_logic;
       powerState      : unsigned(1 downto 0);
+      selectorSel     : unsigned(7 downto 0);
       buf             : bufType;
       len             : IdxType;
    end record RegType;
@@ -179,6 +197,7 @@ architecture Impl of Usb2EpAudioCtl is
       muteLeft        => '0',
       muteRight       => '0',
       powerState      => to_unsigned(1, 2),
+      selectorSel     => (others => '0'),
       buf             => BUF_INIT_C,
       len             => (others => '1')
    );
@@ -189,12 +208,17 @@ architecture Impl of Usb2EpAudioCtl is
    constant REQ_AC_CUR_C      : Usb2CtlRequestCodeType := x"01";
    constant REQ_AC_RANGE_C    : Usb2CtlRequestCodeType := x"02";
 
+   -- NOTE: descriptors MUST use these hardcoded values
    constant ID_FEATURE_UNIT_C : natural range 0 to 255 :=  2;
    constant ID_CLOCK_SOURCE_C : natural range 0 to 255 :=  9;
    constant ID_POWER_DOMAIN_C : natural range 0 to 255 := 10;
+   constant ID_SELECTOR_UNIT_C: natural range 0 to 255 := 32;
 
    constant FU_MUTE_CTL_C     : std_logic_vector(7 downto 0) := x"01";
    constant FU_VOLUME_CTL_C   : std_logic_vector(7 downto 0) := x"02";
+
+   constant SU_SELECTOR_CTL_C : std_logic_vector(7 downto 0) := x"01";
+   constant SU_LATENCY_CTL_C  : std_logic_vector(7 downto 0) := x"02";
 
    constant CS_SAM_FREQ_CTL_C : std_logic_vector(7 downto 0) := x"01";
    constant AC_PWR_DOM_CTL_C  : std_logic_vector(7 downto 0) := x"02";
@@ -355,7 +379,32 @@ begin
                               v.state     := GET_PARAM;
                            end if;
                         end if;
+                     when ID_SELECTOR_UNIT_C =>
+                        if ( channel = CH_MASTER and code = SU_SELECTOR_CTL_C ) then
+                           if ( usb2Ep0ReqParam.dev2Host ) then
+                              v.ctlExt.err := '0';
+                              v.ctlExt.don := '0';
+                              v.state := SEND_DAT;
+                              if ( acCtlReq = CUR ) then
+                                 bufFill( v.buf, r.selectorSel );
+                              else -- must be RNG
+                                 bufFill1(
+                                    v.buf,
+                                    to_signed  (             0, 8 ),
+                                    to_signed  ( SEL_RNG_MAX_G, 8 ),
+                                    to_unsigned(             1, 8 )
+                                 );
+                              end if;
+                           elsif ( acCtlReq = CUR ) then
+                              v.ctlExt.err := '0';
+                              v.ctlExt.don := '0';
+                              v.buf.idx    := to_signed( 0, v.buf.idx'length );
+                              v.state      := GET_PARAM;
+                           end if;
+                        end if;
+
                      when others            =>
+
                   end case;
 
                   v.len := v.buf.idx;
@@ -406,8 +455,10 @@ begin
                         v.volMaster  := signed( r.buf.dat(0) ) & signed( r.buf.dat(1) );
                      end if;
                   end if;
+               elsif ( entityId = ID_SELECTOR_UNIT_C ) then
+                  v.selectorSel := unsigned( r.buf.dat(0) );
                else -- ID_POWER_DOMAIN_C
-                  v.powerState := unsigned( r.buf.dat(0)(1 downto 0) );
+                  v.powerState  := unsigned( r.buf.dat(0)(1 downto 0) );
                end if;
             end if;
 
@@ -458,5 +509,6 @@ begin
    muteRight     <= r.muteRight;
    muteMaster    <= r.muteMaster;
    powerState    <= r.powerState;
+   selectorSel   <= r.selectorSel;
 
 end architecture Impl;
