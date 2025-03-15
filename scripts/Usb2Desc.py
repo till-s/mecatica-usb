@@ -964,7 +964,7 @@ class Usb2DescContext(list):
   @factory
   class Usb2UAC2MonoFeatureUnitDesc(Usb2UAC2Desc.clazz):
     def __init__(self):
-      super().__init__(14, self.DSC_TYPE_CS_INTERFACE)
+      super().__init__(10, self.DSC_TYPE_CS_INTERFACE)
       self.bDescriptorSubtype( self.DSC_SUBTYPE_FEATURE_UNIT )
 
     @acc(3)
@@ -976,10 +976,7 @@ class Usb2DescContext(list):
     @acc(5, 4)
     def bmaControls0(self, v): return v
 
-    @acc(9, 4)
-    def bmaControls1(self, v): return v
-
-    @acc(13)
+    @acc(9)
     def iFeature(self,v): return self.cvtString(v)
 
   @factory
@@ -1473,14 +1470,14 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   d.bmaControls0( ctls )
 
   ctls = 0
-  if ( haveLRMute ):
-    ctls |= 3
-  if ( haveLRVolume ):
-    ctls |= 0xc
-  d.bmaControls1( ctls )
   if ( 2 == numChannels ):
+    if ( haveLRMute ):
+      ctls |= 3
+    if ( haveLRVolume ):
+      ctls |= 0xc
+    d.bmaControls1( ctls )
     d.bmaControls2( ctls )
-  totl += d.size
+    totl += d.size
 
   d = ctxt.Usb2UAC2OutputTerminalDesc()
   d.bTerminalID( ouTID )
