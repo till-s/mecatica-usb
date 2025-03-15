@@ -98,6 +98,9 @@ PROG += Usb2FSLSTb
 PROG += Usb2PktProcFSLSTb
 PROG += Usb2ExtractMacAddrTb
 PROG += Usb2StrmBufTb
+# This needs an AppCfgPkgBody.vhd tailored to the
+# functions one wants to test.
+# PROG += Usb2DescPkgTb
 
 all: test
 
@@ -187,6 +190,9 @@ Usb2PktProcFSLSTb.o: UlpiPkg.o Usb2Pkg.o Usb2PrivPkg.o Usb2UtilPkg.o Usb2TstPkg.
 
 UlpiFSLSEmul.o: UlpiPkg.o Usb2UtilPkg.o Usb2FSLSRx.o Usb2FSLSTx.o Usb2CCSync.o
 
+AppCfgPkgBody.o: Usb2AppCfgPkg.o
+Usb2DescPkgTb.o: Usb2DescPkg.o Usb2AppCfgPkg.o AppCfgPkgBody.o
+
 NCMInpTst.txt: NCMOutCmp.txt
 	cp $^ $@
 
@@ -209,3 +215,4 @@ clean:
 	$(RM) $(SRCS:%.vhd=%.o) work-*.cf ulpiiotb e~*.o $(PROG) dump.ghw
 	$(RM) NCMOutTst.txt NCMOutCmp.txt
 	$(RM) NCMInpTst.txt NCMInpCmp.txt
+	$(RM) AppCfgPkgBody.o
