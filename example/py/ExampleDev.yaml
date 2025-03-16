@@ -1,0 +1,56 @@
+"deviceDesc" :
+  "idVendor"                : 0x1209
+  "idProduct"               : 0x0001
+  "speeds"                  : "dual"
+  "iProduct"                : ""
+  "iSerialNumber"           : ""
+  "iManufacturer"           : ""
+  "configurationDesc" :
+    "remoteWakeup"            : true
+    "iConfiguration"          : ""
+    "functionACM" :
+      "enabled"                 : true
+      "iFunction"               : ""
+      "iInterfaceCtrl"          : ""
+      "iInterfaceData"          : ""
+      "maxPktSizeIN"            : 0
+      "maxPktSizeOUT"           : 0
+      "haveSendBreak"           : true
+      "haveLineState"           : true
+    "functionECM" :
+      "enabled"                 : false
+      "iFunction"               : ""
+      "iInterfaceCtrl"          : ""
+      "iInterfaceData"          : ""
+      "maxPktSizeIN"            : 0
+      "maxPktSizeOUT"           : 0
+      "iMACAddress"             : "123456789abc"
+    "functionNCM" :
+      "enabled"                 : true
+      "iFunction"               : ""
+      "iInterfaceCtrl"          : ""
+      "iInterfaceData"          : ""
+      "maxPktSizeIN"            : 0
+      "maxPktSizeOUT"           : 0
+      "iMACAddress"             : "123456789abc"
+      "numMulticastFilters"     : 0x0000
+      "haveDynamicMACAddress"   : false
+    "functionUAC2I2SOutput" :
+      "enabled"                 : true
+      "iFunction"               : ""
+      "iInterfaceCtrl"          : ""
+      "iInterfaceData"          : ""
+      "numChannels"             : 2
+      "numBits"                 : 24
+      "maxSamplingFrequency"    : 48000
+      "iOutputTerminal"         : ""
+    "functionUAC2Input"     :
+      "enabled"                 : false
+      "iFunction"               : ""
+      "iInterfaceCtrl"          : ""
+      "iInterfaceData"          : ""
+      "numChannels"             : 1
+      "numBits"                 : 16
+      "maxSamplingFrequency"    : 48000
+      "iInputTerminal"          : [ "Input1", "Input2" ]
+      "iSelector"               : "InputSelector"
