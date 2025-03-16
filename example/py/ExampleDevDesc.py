@@ -8,63 +8,45 @@
 import Usb2Desc
 
 def mkExampleDevDescriptors(
-  # Vendor and Product Info
-  idVendor, idProduct,
-  iProduct            = None,
-  iSerial             = None,
-  # Speed Options
-  hiSpeed             = True,
-  dualSpeed           = False,
+  # Configuation YAML
+  yml,
   # Interface and Endpoint Details
   ifcNumber           = 0,
   epAddr              = 1,
-  epPktSize           = None,
-  ## Features/Functions
-  # ACM Function
-  haveACM             = True,
-  haveACMLineState    = True,
-  haveACMLineBreak    = True,
-  # ECM Function
-  iECMMACAddr         = None,
-  # NCM Function
-  iNCMMACAddr         = None,
-  haveNCMDynAddr      = False,
-  numNCMMcFilters     = -1,
-  # Sound Function
-  uacProto            = "UAC2Spkr",
-  uacNumBits          = 24,
-  uacNumChannels      = 2,
-    # max. sampling freq. defines maxPktSize of endpoint
-  uacMaxSmplFreq      = 48000,
   # Wrap up the descriptors
   doWrap              = True
   ):
+  ymlDev = yml['deviceDesc']
   remWake = True
   c  = Usb2Desc.Usb2DescContext()
   d  = c.Usb2DeviceDesc()
   d.bMaxPacketSize0( 64 )
-  d.idVendor( idVendor )
-  d.idProduct( idProduct )
+  d.idVendor( ymlDev.get('idVendor', 0x1209) )
+  d.idProduct( ymlDev['idProduct'] )
   d.bcdDevice( 0x0100 )
-  if not iProduct is None:
-    d.iProduct( iProduct )
-  if not iSerial  is None:
-    d.iSerialNumber( iSerial )
+  d.iProduct( ymlDev.get("iProduct") )
+  d.iSerialNumber( ymlDev.get("iSerialNumber") )
+  d.iManufacturer( ymlDev.get("iManufacturer") )
   d.setIADMultiFunction()
   devd = d
-  
-  d = c.Usb2ConfigurationDesc()
-  d.bMaxPower(0x32)
-  if ( remWake ):
-    d.bmAttributes( d.CONF_ATT_REMOTE_WAKEUP )
-  cnfd = d
 
-  if ( dualSpeed ):
+  speedStr = ymlDev.get("speeds", "dual")
+
+  if ( speedStr == "dual" ):
     speeds = [ False, True ]
-  elif ( hiSpeed ):
+  elif ( speedStr == "high" ):
     speeds = [ True ]
   else:
     speeds = [ False ]
+
+  ymlCfg = ymlDev['configurationDesc']
+
+  d = c.Usb2ConfigurationDesc()
+  d.bMaxPower(0x32)
+  if ( ymlCfg.get('remoteWakeup', True) ):
+    d.bmAttributes( d.CONF_ATT_REMOTE_WAKEUP )
+  d.iConfiguration( ymlCfg.get("iConfiguration") )
+  cnfd = d
 
   for i in range(len(speeds)):
     speed = speeds[i]
@@ -72,35 +54,62 @@ def mkExampleDevDescriptors(
     ifcNumber_ = ifcNumber
     epAddr_    = epAddr
 
-    if ( haveACM ):
-      ifs, eps = Usb2Desc.addBasicACM(c, ifcNumber_, epAddr_, epPktSize, sendBreak=haveACMLineBreak, lineState=haveACMLineState, hiSpeed = speed, fcnTitle = "Mecatica ACM")
+    ymlFun     = ymlCfg.get("functionACM")
+    # function is enabled by default; using default settings
+    if ( ymlFun is None ):
+      ymlFun = dict()
+      ymlFun['enabled'] = True
+    try:
+      ymlFun['iFunction']
+    except KeyError:
+      ymlFun['iFunction'] = 'Mecatica ACM'
+    if ( ymlFun.get("enabled", True) ):
+      ifs, eps = Usb2Desc.addBasicACM(c, ymlFun, ifcNumber_, epAddr_, hiSpeed = speed)
       ifcNumber_ += ifs
       epAddr_    += eps
 
-    if ( uacProto is None ):
-      pass
-    elif ( uacProto == "UAC2Spkr" ):
-      ifs, eps = Usb2Desc.addUAC2Speaker( c, ifcNumber_, epAddr_, hiSpeed = speed, numBits = uacNumBits, isAsync = True,  fcnTitle = "Mecatica UAC2 Speaker", numChannels = uacNumChannels, maxSmplFreq = uacMaxSmplFreq)
-      ifcNumber_ += ifs
-      epAddr_    += eps
-    elif ( uacProto == "UAC2Micr" ):
-      ifs, eps = Usb2Desc.addUAC2Microphone( c, ifcNumber_, epAddr_, hiSpeed = speed, numBits = uacNumBits, isAsync = True, fcnTitle = "Mecatica UAC2 Microphone", numChannels = uacNumChannels, maxSmplFreq = uacMaxSmplFreq)
-      ifcNumber_ += ifs
-      epAddr_    += eps
-    elif ( uacProto == "UAC3Spkr" ):
-      ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, numBits = uacNumBits, isAsync = True, fcnTitle = "Mecatica UAC3 Speaker", numChannels = uacNumChannels, maxSmplFreq = uacMaxSmplFreq)
-      ifcNumber_ += ifs
-      epAddr_    += eps
-    else:
-      raise RuntimeError("Unsupported uacProto argument")
-
-    if not iECMMACAddr is None:
-      ifs, eps = Usb2Desc.addBasicECM( c, ifcNumber_, epAddr_, iMACAddr = iECMMACAddr, hiSpeed = speed, fcnTitle = "Mecatica ECM")
+    ymlFun     = ymlCfg.get('functionUAC2I2SOutput')
+    if ( not ymlFun is None and ymlFun.get('enabled', True) ):
+      try:
+        ymlFun['iFunction']
+      except KeyError:
+        ymlFun['iFunction'] = "Mecatica UAC2 Speaker"
+      ifs, eps = Usb2Desc.addUAC2Speaker( c, ymlFun, ifcNumber_, epAddr_, hiSpeed = speed, isAsync = True )
       ifcNumber_ += ifs
       epAddr_    += eps
 
-    if not iNCMMACAddr is None:
-      ifs, eps = Usb2Desc.addBasicNCM( c, ifcNumber_, epAddr_, iMACAddr = iNCMMACAddr, hiSpeed = speed, fcnTitle = "Mecatica NCM", dynAddr = haveNCMDynAddr, numMCFilters = numNCMMcFilters)
+    ymlFun     = ymlCfg.get('functionUAC2Input')
+    if ( not ymlFun is None and ymlFun.get('enabled', True) ):
+      try:
+        ymlFun['iFunction']
+      except KeyError:
+        ymlFun['iFunction'] = "Mecatica UAC2 Microphone"
+      ifs, eps = Usb2Desc.addUAC2Microphone( c, ymlFun, ifcNumber_, epAddr_, hiSpeed = speed, isAsync = True )
+      ifcNumber_ += ifs
+      epAddr_    += eps
+
+    # BADD from yaml not supported ATM
+    # ifs, eps = Usb2Desc.addBADDSpeaker( c, ifcNumber_, epAddr_, hiSpeed = speed, numBits = uacNumBits, isAsync = True, fcnTitle = "Mecatica UAC3 Speaker", numChannels = uacNumChannels, maxSmplFreq = uacMaxSmplFreq)
+    # ifcNumber_ += ifs
+    # epAddr_    += eps
+
+    ymlFun     = ymlCfg.get('functionECM')
+    if ( not ymlFun is None and ymlFun.get('enabled', True) ):
+      try:
+        ymlFun['iFunction']
+      except KeyError:
+        ymlFun['iFunction'] = "Mecatica ECM"
+      ifs, eps = Usb2Desc.addBasicECM( c, ymlFun, ifcNumber_, epAddr_, hiSpeed = speed )
+      ifcNumber_ += ifs
+      epAddr_    += eps
+
+    ymlFun     = ymlCfg.get('functionNCM')
+    if ( not ymlFun is None and ymlFun.get('enabled', True) ):
+      try:
+        ymlFun['iFunction']
+      except KeyError:
+        ymlFun['iFunction'] = "Mecatica NCM"
+      ifs, eps = Usb2Desc.addBasicNCM( c, ymlFun, ifcNumber_, epAddr_, hiSpeed = speed )
       ifcNumber_ += ifs
       epAddr_    += eps
 

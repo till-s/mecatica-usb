@@ -13,6 +13,7 @@ import os
 import io
 import getopt
 import re
+import yaml
 
 here=os.path.abspath(os.path.dirname(__file__))
 
@@ -25,136 +26,59 @@ if __name__ == "__main__":
 
   fnam                = here + '/../hdl/AppCfgPkgBody.vhd'
 
-  idVendor            = 0x1209
-  idProduct           = None
   iProduct            = "Till's Mecatica USB Example Device"
-  iSerial             = None
-  uacProto            = "UAC2Spkr"
-  uacNumBits          = 24
-  uacNumChannels      = 2
-  uacMaxSmplFreq      = 48000
-  uacConfig           = None
-  # one MAC address is patched by the firmware using DeviceDNA
-  iECMMACAddr         = None
-  iNCMMACAddr         = None
-  haveNCMDynAddr      = False
-  haveACM             = True
-  haveACMLineBreak    = True
-  haveACMLineState    = True
-  dualSpeed           = True
-  hiSpeed             = True
-  numNCMMcFilters     = -1
 
-  cmdline             = os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:])
-
-  (opt, args) = getopt.getopt(sys.argv[1:], "hv:p:f:d:s:FSN:E:AL:am:U:")
+  (opt, args) = getopt.getopt(sys.argv[1:], "hf:d:s:FSN:E:AL:am:U:")
   for o in opt:
     if o[0] in ("-h"):
-       print("usage: {} [-h] [-v <vendor_id>] [-f <output_file>] -p <product_id>".format(sys.argv[0]))
+       print("usage: {} [-h] [-f <output_file>] <config_yaml_file>".format(sys.argv[0]))
        print("          -h               : this message")
-       print("          -v vendor_id     : vendor_id (hex), defaults to 0x{:04x}".format(idVendor))
-       print("          -p product_id    : product_id (use 0x0001 for private testing *only*)")
        print("          -f file_name     : output file name, defaults to '{}'".format(fnam))
-       print("          -s serial_number : (string) goes into the device descriptor")
-       print("          -d description   : product description (iProduct string); goes into the device descriptor")
-       print("          -F               : Full-speed only")
-       print("          -S               : Disable sound function")
-       print("          -U uac_config    : Configure sound function; uac_config is a comma-separated string with")
-       print("                             four fields: <protocol>,<numBits>,<numChannels>,<maxSampleRate>")
-       print("                                 protocol   : 'UAC2Spkr', 'UAC2Micr' or 'UAC3Spkr'")
-       print("                                 numBits    : size of an audio sample")
-       print("                                 numChannels: how many channels to support")
-       print("                                 maxSmplFreq: max. sampling Frequency [Hz] (definex max. EP packet size)")
-       print("          -E macAddr       : Enable ECM ethernet function; mac-addr in hex, e.g., 02deadbeef33")
-       print("          -N macAddr       : Enable NCM ethernet function; mac-addr in hex, e.g., 02deadbeef33")
-       print("          -a               : Enable support for SET_NET_ADDRESS (NCM only)")
-       print("          -m numMcFilters  : Set wNumberMCFilters (NCM only, bit 15 indicates that filtering is imperfect\n")
-       print("                             -m 0x8000 disables support for setting MC filters\n")
-       print("          -A               : Disable ACM function")
-       print("          -L break         : Disable ACM line-break support")
-       print("          -L state         : Disable ACM line-state support")
+       print("          config_yaml_file : YAML file with configuration settings")
        sys.exit(0)
-    elif o[0] in ("-v"):
-       idVendor          = int(o[1], 0)
-    elif o[0] in ("-p"):
-       idProduct         = int(o[1], 0)
     elif o[0] in ("-f"):
        fnam              = o[1]
-    elif o[0] in ("-s"):
-       iSerial           = o[1]
-    elif o[0] in ("-d"):
-       iProduct          = o[1]
-       if ( len(iProduct) == 0 ):
-         iProduct = None
-    elif o[0] in ("-S"):
-       uacProto          = None
-    elif o[0] in ("-E"):
-       iECMMACAddr       = o[1]
-    elif o[0] in ("-N"):
-       iNCMMACAddr       = o[1]
-    elif o[0] in ("-A"):
-       haveACM           = False
-    elif o[0] in ("-F"):
-       hiSpeed           = False
-       dualSpeed         = False
-    elif o[0] in ("-L"):
-       arg = o[1].upper()
-       if   arg[0] == 'B':
-         haveACMLineBreak = False
-       elif arg[0] == 'S':
-         haveACMLineState = False
-       else:
-         raise RuntimeError("invalid argument to '-L' option")
-    elif o[0] in ("-a"):
-       haveNCMDynAddr     = True
-    elif o[0] in ("-m"):
-       numNCMMcFilters = int(o[1],0)
-       if ( numNCMMcFilters < 0 or numNCMMcFilters > 65535 ):
-         raise RuntimeError("invalid argument to '-m' option (0 <= val <= 65535)")
-    elif o[0] in ("-U"):
-       uacConfig = o[1].split(',')
 
-  if idProduct is None:
+  if ( len(args) < 1 ):
+    raise RuntimeError("Need a YAML configuration file")
+
+  yamlFileName = args[0]
+
+  with io.open(yamlFileName) as f:
+    yml = yaml.safe_load( f )
+
+  schema = None
+  try:
+    import json
+    import jsonschema
+    with io.open(here + '/schema.json') as f:
+      schema = json.load( f )
+    jsonschema.validate(yml, schema=schema)
+  except jsonschema.exceptions.ValidationError as e:
+    print("Schema validation of YAML file failed: {}".format(e.message))
+    print(" - from: {}".format(list(e.path)))
+    sys.exit(1)
+  except BaseException as e:
+    print("Warning: unable to validate YAML against schema: ", e.message)
+
+  if yml['deviceDesc']['idProduct'] is None:
     raise RuntimeError(
-            "A hex product id *must* be specified!\n" +
+            "A hex product id *must* be specified in the YAML!\n" +
             "for **private testing only** you may\n\n" +
-            "use -p 0x0001\n\n" +
+            "use 0x0001\n\n" +
             "see https://pid.codes/1209/0001/")
 
-  if not uacConfig is None:
-    if len(uacConfig) != 4:
-       raise RuntimeError(
-            "-U arg. must have 4 comma-separated fields")
-    if ( uacConfig[0] not in ["UAC2Spkr", "UAC3Spkr", "UAC2Micr"] ):
-       raise RuntimeError(
-            "-U - invalid protocol: " + uacConfig[0])
-    uacProto = uacConfig[0]
-    uacNumBits = int(uacConfig[1])
-    uacNumChannels = int(uacConfig[2])
-    uacMaxSmplFreq = int(uacConfig[3])
+  if yml['deviceDesc'].get('iProduct') is None:
+    yml['deviceDesc']['iProduct'] = iProduct
 
   ctxt = ExampleDevDesc.mkExampleDevDescriptors(
-              idVendor=idVendor,
-              idProduct=idProduct,
+              yml,
               ifcNumber=0,
               epAddr=1,
-              iECMMACAddr=iECMMACAddr,
-              iNCMMACAddr=iNCMMACAddr,
-              dualSpeed=dualSpeed,
-              hiSpeed=hiSpeed,
-              iProduct=iProduct,
-              iSerial=iSerial,
-              uacProto=uacProto,
-              uacNumBits=uacNumBits,
-              uacNumChannels=uacNumChannels,
-              uacMaxSmplFreq=uacMaxSmplFreq,
-              haveACM=haveACM,
-              haveACMLineState=haveACMLineState,
-              haveACMLineBreak=haveACMLineBreak,
-              haveNCMDynAddr=haveNCMDynAddr,
-              numNCMMcFilters=numNCMMcFilters
   )
 
-  comment = 'Generated with: {}'.format(cmdline)
+  ymlstr =  yaml.dump( yml, default_flow_style=False ).replace('\n', '\n-- ')
+
+  comment = "Generated from: '{}':\n--\n-- {}".format( os.path.basename( yamlFileName ), ymlstr )
   with io.open( fnam, 'x' ) as f:
     ctxt.genAppCfgPkgBody( f, comment )

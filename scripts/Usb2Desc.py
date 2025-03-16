@@ -131,6 +131,8 @@ class Usb2DescContext(list):
   def addString(self, s):
     if ( self.wrapped ):
       raise RuntimeError("Nothing can be added to the context once it is wrapped")
+    if ( s is None or 0 == len(s) ):
+      return 0
     try:
       return self.strtbl_.index(s) + 1
     except ValueError:
@@ -1107,22 +1109,19 @@ class SingleCfgDevice(Usb2DescContext):
   def configurationDesc(self):
     return self.configurationDesc_
 
-def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True, fcnTitle=None):
+def addBasicECM(ctxt, yml, ifcNumber, epAddr, hiSpeed=True):
   numIfcs = 0
   numEPPs = 0
-  if epPktSize is None:
-    if ( hiSpeed ):
-      epPktSize = 512
-    else:
-      epPktSize = 64
+
+  epPktSizeIn, epPktSizeOut = getMaxPktSize( yml, hiSpeed )
+
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bFirstInterface( ifcNumber )
   d.bInterfaceCount( 2 )
   d.bFunctionClass( d.DSC_IFC_CLASS_CDC )
   d.bFunctionSubClass( d.DSC_CDC_SUBCLASS_ECM )
   d.bFunctionProtocol( d.DSC_CDC_PROTOCOL_NONE )
-  if not fcnTitle is None:
-    d.iFunction( fcnTitle )
+  d.iFunction( yml.get('iFunction') )
 
   # interface 0
   d = ctxt.Usb2InterfaceDesc()
@@ -1131,6 +1130,7 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   d.bInterfaceClass( d.DSC_IFC_CLASS_CDC )
   d.bInterfaceSubClass( d.DSC_CDC_SUBCLASS_ECM )
   d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
+  d.iInterface( yml.get( 'iInterfaceCtrl' ) )
 
   # functional descriptors; header
   d = ctxt.Usb2CDCFuncHeaderDesc()
@@ -1142,7 +1142,7 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
 
   # functional descriptors; ethernet
   d = ctxt.Usb2CDCFuncEthernetDesc()
-  d.iMACAddress( iMACAddr )
+  d.iMACAddress( yml.get('iMACAddress') )
 
   # endpoint 2, IRQ IN
   d = ctxt.Usb2EndpointDesc()
@@ -1165,6 +1165,7 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
   d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
   d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
+  d.iInterface( yml.get( 'iInterfaceData' ) )
 
   # interface 1 - alt 1
   d = ctxt.Usb2InterfaceDesc()
@@ -1173,19 +1174,20 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
   d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
   d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
+  d.iInterface( yml.get( 'iInterfaceData' ) )
 
   # endpoint 1, BULK IN
   d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_IN | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
-  d.wMaxPacketSize(epPktSize)
+  d.wMaxPacketSize(epPktSizeIn)
   d.bInterval(0)
 
   # endpoint 1, BULK OUT
   d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
-  d.wMaxPacketSize(epPktSize)
+  d.wMaxPacketSize(epPktSizeOut)
   d.bInterval(0)
 
   numEPPs += 1
@@ -1193,22 +1195,19 @@ def addBasicECM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
-def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True, fcnTitle=None, dynAddr=False, numMCFilters=-1):
+def addBasicNCM(ctxt, yml, ifcNumber, epAddr, hiSpeed=True):
   numIfcs = 0
   numEPPs = 0
-  if epPktSize is None:
-    if ( hiSpeed ):
-      epPktSize = 512
-    else:
-      epPktSize = 64
+
+  epPktSizeIn, epPktSizeOut = getMaxPktSize( yml, hiSpeed )
+
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bFirstInterface( ifcNumber )
   d.bInterfaceCount( 2 )
   d.bFunctionClass( d.DSC_IFC_CLASS_CDC )
   d.bFunctionSubClass( d.DSC_CDC_SUBCLASS_NCM )
   d.bFunctionProtocol( d.DSC_CDC_PROTOCOL_NONE )
-  if not fcnTitle is None:
-    d.iFunction( fcnTitle )
+  d.iFunction( yml.get( 'iFunction' ) )
 
   # interface 0
   d = ctxt.Usb2InterfaceDesc()
@@ -1217,6 +1216,7 @@ def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   d.bInterfaceClass( d.DSC_IFC_CLASS_CDC )
   d.bInterfaceSubClass( d.DSC_CDC_SUBCLASS_NCM )
   d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
+  d.iInterface( yml.get( 'iInterfaceCtrl' ) )
 
   # functional descriptors; header
   d = ctxt.Usb2CDCFuncHeaderDesc()
@@ -1228,13 +1228,12 @@ def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
 
   # functional descriptors; ethernet
   d = ctxt.Usb2CDCFuncEthernetDesc()
-  d.iMACAddress( iMACAddr )
-  if ( numMCFilters >= 0 and numMCFilters <= 65535 ):
-    d.wNumberMCFilters( numMCFilters )
+  d.iMACAddress( yml.get( 'iMACAddress' ) )
+  d.wNumberMCFilters( yml.get( 'numMulticastFilters', 0 ) )
 
   # functional descriptors; NCM
   d = ctxt.Usb2CDCFuncNCMDesc()
-  if ( dynAddr ):
+  if ( yml.get( 'haveDynamicMACAddress', False ) ):
     d.bmNetworkCapabilities( d.bmNetworkCapabilities() | d.DSC_NCM_SUP_NET_ADDRESS )
 
   # endpoint 2, IRQ IN
@@ -1258,6 +1257,7 @@ def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
   d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
   d.bInterfaceProtocol( d.DSC_DAT_PROTOCOL_NCM )
+  d.iInterface( yml.get( 'iInterfaceData' ) )
 
   # interface 1 - alt 1
   d = ctxt.Usb2InterfaceDesc()
@@ -1266,19 +1266,20 @@ def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
   d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
   d.bInterfaceProtocol( d.DSC_DAT_PROTOCOL_NCM )
+  d.iInterface( yml.get( 'iInterfaceData' ) )
 
   # endpoint 1, BULK IN
   d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_IN | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
-  d.wMaxPacketSize(epPktSize)
+  d.wMaxPacketSize(epPktSizeIn)
   d.bInterval(0)
 
   # endpoint 1, BULK OUT
   d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
-  d.wMaxPacketSize(epPktSize)
+  d.wMaxPacketSize(epPktSizeOut)
   d.bInterval(0)
 
   numEPPs += 1
@@ -1286,26 +1287,40 @@ def addBasicNCM(ctxt, ifcNumber, epAddr, iMACAddr, epPktSize=None, hiSpeed=True,
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
+def getMaxPktSize(yml, hiSpeed):
+  maxPktSizeIn  = yml.get('maxPktSizeIN', None)
+  maxPktSizeOut = yml.get('maxPktSizeOUT', None)
+  if ( hiSpeed ):
+    dfltSize = 512
+  else:
+    dfltSize = 64
+  if ( maxPktSizeIn is None ):
+    if ( maxPktSizeOut is None ):
+      return dfltSize, dfltSize
+    else:
+      return maxPktSizeOut, maxPktSizeOut
+  else:
+    if ( maxPktSizeOut is None ):
+      return maxPktSizeIn, maxPktSizeIn
+  return maxPktSizeIn, maxPktSizeOut
 
 # epPktSize None selects the max. allowed for the selected speed
 # ifcNum defines the index of the first of two interfaces used by
 # this class
-def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineState=False, hiSpeed=True, fcnTitle = None):
+def addBasicACM(ctxt, yml, ifcNumber, epAddr, hiSpeed):
   numIfcs = 0
   numEPPs = 0
-  if epPktSize is None:
-    if ( hiSpeed ):
-      epPktSize = 512
-    else:
-      epPktSize = 64
+  epPktSizeIn, epPktSizeOut = getMaxPktSize( yml, hiSpeed )
+  sendBreak = yml.get('haveSendBreak', True)
+  lineState = yml.get('haveLineState', True)
+
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bFirstInterface( ifcNumber )
   d.bInterfaceCount( 2 )
   d.bFunctionClass( d.DSC_IFC_CLASS_CDC )
   d.bFunctionSubClass( d.DSC_CDC_SUBCLASS_ACM )
   d.bFunctionProtocol( d.DSC_CDC_PROTOCOL_NONE )
-  if not fcnTitle is None:
-    d.iFunction( fcnTitle )
+  d.iFunction( yml.get('iFunction') )
 
   # interface 0
   d = ctxt.Usb2InterfaceDesc()
@@ -1314,6 +1329,7 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineSt
   d.bInterfaceClass( d.DSC_IFC_CLASS_CDC )
   d.bInterfaceSubClass( d.DSC_CDC_SUBCLASS_ACM )
   d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
+  d.iInterface( yml.get('iInterfaceCtrl') )
 
   # functional descriptors; header
   d = ctxt.Usb2CDCFuncHeaderDesc()
@@ -1363,19 +1379,20 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineSt
   d.bInterfaceClass( d.DSC_IFC_CLASS_DAT )
   d.bInterfaceSubClass( d.DSC_DAT_SUBCLASS_NONE )
   d.bInterfaceProtocol( d.DSC_CDC_PROTOCOL_NONE )
+  d.iInterface( yml.get('iInterfaceData') )
 
   # endpoint 1, BULK IN
   d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_IN | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
-  d.wMaxPacketSize(epPktSize)
+  d.wMaxPacketSize(epPktSizeIn)
   d.bInterval(0)
 
   # endpoint 1, BULK OUT
   d = ctxt.Usb2EndpointDesc()
   d.bEndpointAddress( d.ENDPOINT_OUT | epAddr )
   d.bmAttributes( d.ENDPOINT_TT_BULK )
-  d.wMaxPacketSize(epPktSize)
+  d.wMaxPacketSize(epPktSizeOut)
   d.bInterval(0)
 
   numEPPs += 1
@@ -1383,13 +1400,13 @@ def addBasicACM(ctxt, ifcNumber, epAddr, epPktSize=None, sendBreak=False, lineSt
   # return number of interfaces and endpoint pairs used
   return numIfcs, numEPPs
 
-def addUAC2Speaker(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsync = True, fcnTitle=None, numChannels=2, maxSmplFreq=48000):
-  return addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed, numBits, isAsync, fcnTitle, numChannels, maxSmplFreq, True)
+def addUAC2Speaker(ctxt, yml, ifcNumber, epAddr, hiSpeed = True, isAsync = True):
+  return addUAC2Function(ctxt, yml, ifcNumber, epAddr, hiSpeed, isAsync, True)
 
-def addUAC2Microphone(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsync = True, fcnTitle=None, numChannels=2, maxSmplFreq=48000):
-  return addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed, numBits, isAsync, fcnTitle, numChannels, maxSmplFreq, False)
+def addUAC2Microphone(ctxt, yml, ifcNumber, epAddr, hiSpeed = True, isAsync = True):
+  return addUAC2Function(ctxt, yml, ifcNumber, epAddr, hiSpeed, isAsync, False)
 
-def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsync = True, fcnTitle=None, numChannels=2, maxSmplFreq=48000, spkrNotMic=True):
+def addUAC2Function(ctxt, yml, ifcNumber, epAddr, hiSpeed = True, isAsync = True, spkrNotMic=True):
   numIfcs = 0
   numEPPs = 0
 
@@ -1402,14 +1419,17 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   haveLRMute       = True
   haveLRVolume     = True
 
+  numChannels      = yml.get('numChannels',  2)
+  numBits          = yml.get('numBits'    , 24)
+  maxSmplFreq      = yml.get('maxSamplingFrequency', 48000)
+
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bFirstInterface( ifcNumber )
   d.bInterfaceCount( 2 )
   d.bFunctionClass( d.DSC_IFC_CLASS_AUDIO )
   d.bFunctionSubClass( d.DSC_FCN_SUBCLASS_AUDIO_UNDEFINED )
   d.bFunctionProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC2 )
-  if not fcnTitle is None:
-    d.iFunction( fcnTitle )
+  d.iFunction( yml.get('iFunction') )
 
   # AC (audio-control) interface
   d = ctxt.Usb2InterfaceDesc()
@@ -1418,6 +1438,7 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
   d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_CONTROL )
   d.bInterfaceProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC2 )
+  d.iInterface( yml.get('iInterfaceCtrl') )
 
   # no endpoints (optional interrupt endpoint omitted)
 
@@ -1439,6 +1460,9 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   inTID = 0x01
   ftrID = 0x02
   ouTID = 0x03
+  scTID = 0x0f
+  # additional input terminals
+  alTID = 0x10
 
   d = ctxt.Usb2UAC2ClockSourceDesc()
   d.bClockID( clkID )
@@ -1446,6 +1470,14 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   d.bmControls( d.DSC_CLK_SRC_CTL_FREQ_RO )
   d.bAssocTerminal( 0x00 )
   totl += d.size
+
+  inputTerminalNames = yml.get('iInputTerminal')
+  if ( isinstance(inputTerminalNames, list) ):
+    firstTerminalName = inputTerminalNames[0]
+  else:
+    # includes the case when inputTerminalNames is None
+    # which can be propagated to the first name
+    firstTerminalName = inputTerminalNames
 
   d = ctxt.Usb2UAC2InputTerminalDesc()
   d.bTerminalID( inTID )
@@ -1461,34 +1493,44 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   else:
     channelConfig = 0x4 # front center
   d.bmChannelConfig( channelConfig )
+  d.iTerminal( firstTerminalName )
   totl += d.size
 
-  # TEST START ========================
-  if ( not spkrNotMic ):
-    d = ctxt.Usb2UAC2InputTerminalDesc()
-    d.bTerminalID( 0x10 )
-    d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_INP_MICROPHONE )
-    d.bAssocTerminal( 0x00 )
-    d.bCSourceID( clkID )
-    d.bNrChannels( numChannels )
-    if ( 2 == numChannels ):
-      channelConfig = 0x3 # front left right
-    else:
-      channelConfig = 0x4 # front center
-    d.bmChannelConfig( channelConfig )
-    d.iTerminal("BarInp");
-    totl += d.size
+  numInputs = 1
+  if ( isinstance( inputTerminalNames, list ) ):
+    numInputs = len( inputTerminalNames )
+
+  lastTID = inTID
+
+  if ( not spkrNotMic and numInputs > 1 ):
+    tid = alTID
+    tids = [ inTID ]
+    for terminalName in inputTerminalNames[1:]:
+      d = ctxt.Usb2UAC2InputTerminalDesc()
+      d.bTerminalID( tid )
+      d.wTerminalType( d.DSC_AUDIO_TERMINAL_TYPE_INP_MICROPHONE )
+      d.bAssocTerminal( 0x00 )
+      d.bCSourceID( clkID )
+      d.bNrChannels( numChannels )
+      if ( 2 == numChannels ):
+        channelConfig = 0x3 # front left right
+      else:
+        channelConfig = 0x4 # front center
+      d.bmChannelConfig( channelConfig )
+      d.iTerminal( terminalName )
+      tids.append( tid )
+      tid  += 1
+      totl += d.size
 
     d = ctxt.Usb2UAC2SelectorUnitDesc()
-    d.bUnitID( 0x20 )
-    d.bNrInPins( 2 )
-    d.baSourceID( bytearray([inTID, 0x10]) )
+    d.bUnitID( scTID )
+    d.bNrInPins( numInputs )
+    d.baSourceID( bytearray(tids) )
     d.bmControls(3)
-    d.iSelector("MySel")
+    d.iSelector( yml.get( 'iSelector' ) )
     totl += d.size
 
-  # TEST END   ========================
-
+    lastTID = scTID
 
   if ( 2 == numChannels ):
     d = ctxt.Usb2UAC2StereoFeatureUnitDesc()
@@ -1496,8 +1538,7 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
     d = ctxt.Usb2UAC2MonoFeatureUnitDesc()
 
   d.bUnitID( ftrID )
-# TEST d.bSourceID( inTID )
-  d.bSourceID( 0x20 )
+  d.bSourceID( lastTID )
 
   ctls = 0
   if ( haveMasterMute ):
@@ -1526,6 +1567,7 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   d.bSourceID( ftrID )
   d.bCSourceID( clkID )
   d.bmControls( 0x0000 )
+  d.iTerminal( yml.get('iOutputTerminal') )
   totl += d.size
 
   hdr.wTotalLength( totl )
@@ -1538,6 +1580,7 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
   d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_STREAMING )
   d.bInterfaceProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC2 )
+  d.iInterface( yml.get('iInterfaceData') )
 
   # AS (audio-streaming interface)
   d = ctxt.Usb2InterfaceDesc()
@@ -1547,6 +1590,7 @@ def addUAC2Function(ctxt, ifcNumber, epAddr, hiSpeed = True, numBits = 24, isAsy
   d.bInterfaceClass( d.DSC_IFC_CLASS_AUDIO )
   d.bInterfaceSubClass( d.DSC_IFC_SUBCLASS_AUDIO_STREAMING )
   d.bInterfaceProtocol( d.DSC_FCN_PROTOCOL_AUDIO_UAC2 )
+  d.iInterface( yml.get('iInterfaceData') )
 
   # AS CS-specific interface
   d = ctxt.Usb2UAC2ClassSpecificASInterfaceDesc()

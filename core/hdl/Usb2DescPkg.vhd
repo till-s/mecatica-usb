@@ -795,7 +795,7 @@ report "Proceeding scanning for CS from " & integer'image(x);
       x := i;
       x := usb2NextCsUAC2(d, x, USB2_CS_DESC_SUBTYPE_AUDIO_GENERAL_C, STREAMING_IFC_C, a);
       assert x >= 0 report "No audio class-specific interface general descriptor found" severity failure;
-      
+
       return to_integer( unsigned( d(x + IDX_NUM_CHNS_C) ) );
    end function usb2GetUAC2NumChannels;
 
@@ -811,7 +811,7 @@ report "Proceeding scanning for CS from " & integer'image(x);
       x := i;
       x := usb2NextCsUAC2(d, x, USB2_CS_DESC_SUBTYPE_AUDIO_FORMAT_C, STREAMING_IFC_C, a);
       assert x >= 0 report "No audio class-specific interface format descriptor found" severity failure;
-      
+
       return to_integer( unsigned( d(x + IDX_SUBSLOTSZ_C) ) );
    end function usb2GetUAC2SubSlotSize;
 
