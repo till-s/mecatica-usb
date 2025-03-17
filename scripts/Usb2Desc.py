@@ -1555,7 +1555,7 @@ def addUAC2Function(ctxt, yml, ifcNumber, epAddr, hiSpeed = True, isAsync = True
       ctls |= 0xc
     d.bmaControls1( ctls )
     d.bmaControls2( ctls )
-    totl += d.size
+  totl += d.size
 
   d = ctxt.Usb2UAC2OutputTerminalDesc()
   d.bTerminalID( ouTID )
