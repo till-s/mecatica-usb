@@ -1288,19 +1288,19 @@ def addBasicNCM(ctxt, yml, ifcNumber, epAddr, hiSpeed=True):
   return numIfcs, numEPPs
 
 def getMaxPktSize(yml, hiSpeed):
-  maxPktSizeIn  = yml.get('maxPktSizeIN', None)
-  maxPktSizeOut = yml.get('maxPktSizeOUT', None)
+  maxPktSizeIn  = yml.get('maxPktSizeIN', 0)
+  maxPktSizeOut = yml.get('maxPktSizeOUT', 0)
   if ( hiSpeed ):
     dfltSize = 512
   else:
     dfltSize = 64
-  if ( maxPktSizeIn is None ):
-    if ( maxPktSizeOut is None ):
+  if ( 0 == maxPktSizeIn ):
+    if ( 0 == maxPktSizeOut ):
       return dfltSize, dfltSize
     else:
       return maxPktSizeOut, maxPktSizeOut
   else:
-    if ( maxPktSizeOut is None ):
+    if ( 0 == maxPktSizeOut ):
       return maxPktSizeIn, maxPktSizeIn
   return maxPktSizeIn, maxPktSizeOut
 
@@ -1311,6 +1311,7 @@ def addBasicACM(ctxt, yml, ifcNumber, epAddr, hiSpeed):
   numIfcs = 0
   numEPPs = 0
   epPktSizeIn, epPktSizeOut = getMaxPktSize( yml, hiSpeed )
+  print("ACM hi speed", hiSpeed, epPktSizeIn, epPktSizeOut)
   sendBreak = yml.get('haveSendBreak', True)
   lineState = yml.get('haveLineState', True)
 

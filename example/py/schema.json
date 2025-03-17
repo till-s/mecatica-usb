@@ -46,7 +46,7 @@
           "properties"            : {
             "remoteWakeup" : {
               "description" : "Support USB remote wakeup feature",
-              "default" : "true",
+              "default" : true,
               "type"    : "boolean"
             },
             "iConfiguration" : {
@@ -87,13 +87,13 @@
                 "maxPktSizeIN" : {
                   "description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
                   "type"    : "integer",
-                  "minimum" : 1,
+                  "minimum" : 0,
                   "maximum" : 512
                 },
                 "maxPktSizeOUT" : {
                   "description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
                   "type"    : "integer",
-                  "minimum" : 1,
+                  "minimum" : 0,
                   "maximum" : 512
                 }
               }
@@ -126,13 +126,13 @@
                 "maxPktSizeIN" : {
                   "description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
                   "type"    : "integer",
-                  "minimum" : 1,
+                  "minimum" : 0,
                   "maximum" : 512
                 },
                 "maxPktSizeOUT" : {
                   "description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
                   "type"    : "integer",
-                  "minimum" : 1,
+                  "minimum" : 0,
                   "maximum" : 512
                 }
               }
@@ -165,13 +165,13 @@
                 "maxPktSizeIN" : {
                   "description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
                   "type"    : "integer",
-                  "minimum" : 1,
+                  "minimum" : 0,
                   "maximum" : 512
                 },
                 "maxPktSizeOUT" : {
                   "description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
                   "type"    : "integer",
-                  "minimum" : 1,
+                  "minimum" : 0,
                   "maximum" : 512
                 },
                 "numMulticastFilters" : {

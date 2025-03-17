@@ -1050,10 +1050,14 @@ number of parameters. Many of these influence the instantiation of
 subcomponents in the "Example Device" and can be used to "prune"
 functionality in order to save resources.
 
+The configuration of the Example Device is defined by the user
+in a YAML file; consult the example file for all the possible
+options.
+
 Finally, there is the `example/py/genAppCfgPkgBody.py` script which is
 a CLI-style driver for `ExampleDevDesc.py`. It can be executed from a
-shell and accepts options (use `-h` for help) that are translated
-into parameters which are passed to `ExampleDevDesc.py`.
+shell and accepts options (use `-h` for help) and a YAML file from
+which all configurable parameters are extracted.
 
 Note that the default output file path is set such that the generated
 VHDL ends up as `<script_location>/../example/hdl/AppCfgPkgBody.vhd`.
@@ -1069,6 +1073,9 @@ Use
       example/py/genAppCfgPkgBody.py -h
 
 for a summary of the available options.
+
+The user's YAML file is validated against a JSON schema (schema.json)
+in order to catch typing errors and missing parameters.
 
 </details>
 
@@ -1110,18 +1117,13 @@ Usb descriptors for the project.
      **_You may use the [0x0001](https://pid.codes/1209/0001/) for private testing
      only. Do not redistribute hardware/firmware using this ID!_**
 
-         py/genAppCfgPkgBody.py -p 0x0001
+         py/genAppCfgPkgBody.py ExampleDevice.yaml
 
      The tool supports a number of other options (use `-h` for help). In particular,
      you may disable individual functions (and reduce the amount of resources used).
      The VHDL code extracts all the necessary information from the descriptors and
      configures itself to support only the functions and features present in the
-     descriptors:
-
-       - `-S` disables the sound (ISO) function.
-       - `-E <macAddr>` enables the CDC ECM ethernet function
-       - `-N <macAddr>` enables the CDC NCM ethernet function
-       - `-A` disables the CDC ACM function
+     descriptors.
 
 #### Generate the Vivado Project
 
