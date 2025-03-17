@@ -1051,8 +1051,8 @@ subcomponents in the "Example Device" and can be used to "prune"
 functionality in order to save resources.
 
 The configuration of the Example Device is defined by the user
-in a YAML file; consult the example file for all the possible
-options.
+in a YAML file; consult the example file and the JSON schema file
+(schema.json) for all available options.
 
 Finally, there is the `example/py/genAppCfgPkgBody.py` script which is
 a CLI-style driver for `ExampleDevDesc.py`. It can be executed from a
@@ -1117,7 +1117,7 @@ Usb descriptors for the project.
      **_You may use the [0x0001](https://pid.codes/1209/0001/) for private testing
      only. Do not redistribute hardware/firmware using this ID!_**
 
-         py/genAppCfgPkgBody.py ExampleDevice.yaml
+         py/genAppCfgPkgBody.py py/ExampleDev.yaml
 
      The tool supports a number of other options (use `-h` for help). In particular,
      you may disable individual functions (and reduce the amount of resources used).
@@ -1133,7 +1133,7 @@ the example design.
   1. chdir to the `example` directory.
   2. run vivado in batch mode using the script:
 
-         vivado -mode tcl -source tcl/Usb2Example.tcl -tclargs --ulpi-clk-mode-inp 0
+         vivado -mode tcl -source tcl/Usb2Example.tcl -tclargs --ulpi_clk_mode_inp 0
 
      this will create the project for the ULPI output-clock mode (which is also the
      default).

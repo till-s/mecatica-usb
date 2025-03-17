@@ -225,9 +225,9 @@ architecture Impl of X7Wrapper is
    constant LD_NCM_RAM_DEPTH_OUT_C             : natural := 12;
 
    constant ECM_MAC_IDX_C                      : integer :=
-      usb2EthMacAddrStringDescriptor( USB2_APP_DESCRIPTORS_C, USB2_IFC_SUBCLASS_CDC_ECM_C );
+      usb2EthMacAddrStringDescriptor( USB2_APP_DESCRIPTORS_C, 0, USB2_IFC_SUBCLASS_CDC_ECM_C );
    constant NCM_MAC_IDX_C                      : integer :=
-      usb2EthMacAddrStringDescriptor( USB2_APP_DESCRIPTORS_C, USB2_IFC_SUBCLASS_CDC_NCM_C );
+      usb2EthMacAddrStringDescriptor( USB2_APP_DESCRIPTORS_C, 0, USB2_IFC_SUBCLASS_CDC_NCM_C );
    constant USE_MAC_IDX_C                      : integer := ite( NCM_MAC_IDX_C < 0, ECM_MAC_IDX_C, NCM_MAC_IDX_C );
 
    signal acmFifoTimer                         : unsigned(31 downto 0) := (others => '0');

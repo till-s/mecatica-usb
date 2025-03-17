@@ -4,8 +4,9 @@
   "additionalProperties" : false,
   "properties"           : {
     "deviceDesc" : {
+      "description"           : "Top-level dictionary",
       "type"                  : "object",
-      "required"              : [ "idProduct", "configurationDesc" ],
+      "required"              : [ "idProduct" ],
       "additionalProperties"  : false,
       "properties"            : {
         "idVendor" :  {
@@ -22,14 +23,17 @@
           "maximum" : 65535
         },
         "iProduct" : {
-          "description" : "Product name",
+          "description" : "Product name in device descriptor",
+          "default" : "Till's Mecatica USB Example Device",
           "type"    : "string"
         },
         "iSerialNumber" : {
+          "description" : "Product serial number in device descriptor",
           "default" : "",
           "type"    : "string"
         },
         "iManufacturer" : {
+          "description" : "Product manufacturer in device descriptor",
           "default" : "",
           "type"    : "string"
         },
@@ -50,12 +54,12 @@
               "type"    : "boolean"
             },
             "iConfiguration" : {
-              "description" : "Name (in configuration descriptor)",
+              "description" : "Name (in Configuration descriptor)",
               "default" : "",
               "type"    : "string"
             },
             "functionACM" : {
-              "description" : "CDC ACM Function Support",
+              "description" : "CDC ACM Function Support (enabled by default if this key is not present)",
               "type"                  :"object",
               "additionalProperties"  : false,
               "properties"            : {
@@ -66,12 +70,17 @@
                 },
                 "iFunction" : {
                   "description" : "Function Name",
+                  "default" : "Mecatica ACM",
                   "type"    : "string"
                 },
                 "iInterfaceCtrl" : {
+                  "description" : "Name of Control Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "iInterfaceData" : {
+                  "description" : "Name of Data Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "haveSendBreak" : {
@@ -86,12 +95,14 @@
                 },
                 "maxPktSizeIN" : {
                   "description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
+                  "default" : 0,
                   "type"    : "integer",
                   "minimum" : 0,
                   "maximum" : 512
                 },
                 "maxPktSizeOUT" : {
                   "description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
+                  "default" : 0,
                   "type"    : "integer",
                   "minimum" : 0,
                   "maximum" : 512
@@ -99,38 +110,47 @@
               }
             },
             "functionECM" : {
-              "description" : "CDC ECM Networking Function Support",
+              "description" : "CDC ECM Networking Function Support (disabled if this key is not present)",
               "type"                  :"object",
               "required"              : [ "iMACAddress" ],
               "additionalProperties"  : false,
               "properties"            : {
                 "enabled"   : {
                   "description" : "Enable/disable the ECM Function",
+                  "default" : true,
                   "type"    : "boolean"
                 },
                 "iFunction" : {
                   "description" : "Function Name",
+                  "default" : "Mecatica ECM",
                   "type"    : "string"
                 },
                 "iInterfaceCtrl" : {
+                  "description" : "Name of Control Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "iInterfaceData" : {
+                  "description" : "Name of Data Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "iMACAddress" : {
                   "description" : "MAC Address (12 hex characters as string)",
+                  "default" : "",
                   "type"    : "string",
                   "pattern" : "^[0-9a-fA-F]{12}$"
                 },
                 "maxPktSizeIN" : {
                   "description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
+                  "default" : 0,
                   "type"    : "integer",
                   "minimum" : 0,
                   "maximum" : 512
                 },
                 "maxPktSizeOUT" : {
                   "description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
+                  "default" : 0,
                   "type"    : "integer",
                   "minimum" : 0,
                   "maximum" : 512
@@ -138,38 +158,47 @@
               }
             },
             "functionNCM" : {
-              "description" : "CDC NCM Networking Function Support",
+              "description" : "CDC NCM Networking Function Support (disabled if this key is not present)",
               "type"                  :"object",
               "required"              : [ "iMACAddress" ],
               "additionalProperties"  : false,
               "properties"            : {
                 "enabled"   : {
                   "description" : "Enable/disable the NCM Function",
+                  "default" : true,
                   "type"    : "boolean"
                 },
                 "iFunction" : {
                   "description" : "Function Name",
+                  "default" : "Mecatica NCM",
                   "type"    : "string"
                 },
                 "iInterfaceCtrl" : {
+                  "description" : "Name of Control Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "iInterfaceData" : {
+                  "description" : "Name of Data Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "iMACAddress" : {
                   "description" : "MAC Address (12 hex characters as string)",
+                  "default" : "",
                   "type"    : "string",
                   "pattern" : "^[0-9a-fA-F]{12}$"
                 },
                 "maxPktSizeIN" : {
                   "description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
+                  "default" : 0,
                   "type"    : "integer",
                   "minimum" : 0,
                   "maximum" : 512
                 },
                 "maxPktSizeOUT" : {
                   "description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
+                  "default" : 0,
                   "type"    : "integer",
                   "minimum" : 0,
                   "maximum" : 512
@@ -189,32 +218,40 @@
               }
             },
             "functionUAC2Input" : {
-              "description" : "UAC2 Audio Input Streaming Function",
+              "description" : "UAC2 Audio Input Streaming Function (disabled if this key is not present)",
               "type"                  :"object",
               "unevaluatedProperties" : false,
               "properties"            : {
                 "enabled"   : {
                   "description" : "Enable/disable the UAC2 ISO Input Streaming Function",
+                  "default" : true,
                   "type"    : "boolean"
                 },
                 "iFunction" : {
                   "description" : "Function Name",
+                  "default" : "Mecatica UAC2 Microphone",
                   "type"    : "string"
                 },
                 "iInterfaceCtrl" : {
+                  "description" : "Name of Control Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "iInterfaceData" : {
+                  "description" : "Name of Data Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "numChannels" : {
                   "description" : "Number of audio channels (mono/stereo)",
+                  "default" : 2,
                   "type"    : "integer",
                   "minimum" : 1,
                   "maximum" : 2
                 },
                 "numBits" : {
                   "description" : "Number of bits per audio sample per channel",
+                  "default" : 24,
                   "type"    : "integer",
                   "minimum" : 1,
                   "maximum" : 32
@@ -228,6 +265,7 @@
                 },
                 "iInputTerminal" : {
                   "description" : "Name(s) of input terminals; if there is more than one then a Selector Unit will be enabled",
+                  "default" : [ "" ],
                   "type"    : "array",
                   "items"   : {
                     "type" : "string"
@@ -246,38 +284,48 @@
               "then" : {
                 "properties" : {
                   "iSelector" : {
-                    "type" : "string"
+                    "description" : "Name of UAC2 Selector Unit",
+                    "default" : "",
+                    "type"    : "string"
                   }
                 }
               }
             },
             "functionUAC2I2SOutput" : {
-              "description" : "UAC2 Audio Output Streaming (to I2S) Function",
+              "description" : "UAC2 Audio Output Streaming (to I2S) Function (disabled if this key is not present)",
               "type"                  :"object",
               "additionalProperties"  : false,
               "properties"            : {
                 "enabled"   : {
                   "description" : "Enable/disable the UAC2 ISO Output to I2S Streaming Function",
+                  "default" : true,
                   "type"    : "boolean"
                 },
                 "iFunction" : {
                   "description" : "Function Name",
+                  "default" : "Mecatica UAC2 Speaker",
                   "type"    : "string"
                 },
                 "iInterfaceCtrl" : {
+                  "description" : "Name of Control Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "iInterfaceData" : {
+                  "description" : "Name of Data Interface",
+                  "default" : "",
                   "type"    : "string"
                 },
                 "numChannels" : {
                   "description" : "Number of audio channels (mono/stereo)",
+                  "default" : 2,
                   "type"    : "integer",
                   "minimum" : 1,
                   "maximum" : 2
                 },
                 "numBits" : {
                   "description" : "Number of bits per audio sample per channel",
+                  "default" : 24,
                   "type"    : "integer",
                   "minimum" : 1,
                   "maximum" : 32
@@ -291,6 +339,7 @@
                 },
                 "iOutputTerminal" : {
                   "description" : "Name of Output Terminal",
+                  "default" : "",
                   "type"    : "string"
                 }
               }

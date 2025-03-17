@@ -1,0 +1,17 @@
+# Mecatica ExampleDevice Descriptor Example for a Configuration
+# that enables just the CDC-ACM function:
+# 
+# All supported settings are documented in schema.json
+"deviceDesc" :
+  # USE idProduct 0x0001 FOR TESTING ONLY, see https::/pid.codes
+  "idProduct"         : 0x0001
+  "configurationDesc" :
+    "functionACM"       :
+      # whether to enable the send-break control request.
+      # Makes the break signal available to user logic.
+      "haveSendBreak"     : false
+      # whether to enable the line-state control request.
+      # Makes signals such as DTR, speed etc. available to
+      # user logic. Also enables notifications such as ring-
+      # or break-detect.
+      "haveLineState"     : false

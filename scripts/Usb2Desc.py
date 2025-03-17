@@ -1311,7 +1311,6 @@ def addBasicACM(ctxt, yml, ifcNumber, epAddr, hiSpeed):
   numIfcs = 0
   numEPPs = 0
   epPktSizeIn, epPktSizeOut = getMaxPktSize( yml, hiSpeed )
-  print("ACM hi speed", hiSpeed, epPktSizeIn, epPktSizeOut)
   sendBreak = yml.get('haveSendBreak', True)
   lineState = yml.get('haveLineState', True)
 

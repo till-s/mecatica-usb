@@ -39,7 +39,7 @@ def mkExampleDevDescriptors(
   else:
     speeds = [ False ]
 
-  ymlCfg = ymlDev['configurationDesc']
+  ymlCfg = ymlDev.get('configurationDesc',dict())
 
   d = c.Usb2ConfigurationDesc()
   d.bMaxPower(0x32)
