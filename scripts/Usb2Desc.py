@@ -975,7 +975,7 @@ class Usb2DescContext(list):
   @factory
   class Usb2UAC2MonoFeatureUnitDesc(Usb2UAC2Desc.clazz):
     def __init__(self):
-      super().__init__(10, self.DSC_TYPE_CS_INTERFACE)
+      super().__init__(14, self.DSC_TYPE_CS_INTERFACE)
       self.bDescriptorSubtype( self.DSC_SUBTYPE_FEATURE_UNIT )
 
     @acc(3)
