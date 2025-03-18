@@ -987,7 +987,10 @@ class Usb2DescContext(list):
     @acc(5, 4)
     def bmaControls0(self, v): return v
 
-    @acc(9)
+    @acc(9, 4)
+    def bmaControls1(self, v): return v
+
+    @acc(13)
     def iFeature(self,v): return self.cvtString(v)
 
   @factory
@@ -1423,6 +1426,11 @@ def addUAC2Function(ctxt, yml, ifcNumber, epAddr, hiSpeed = True, isAsync = True
   numBits          = yml.get('numBits'    , 24)
   maxSmplFreq      = yml.get('maxSamplingFrequency', 48000)
 
+  if ( 2 == numChannels ):
+    channelConfig = 0x3 # front left right
+  else:
+    channelConfig = 0x4 # front center
+
   d = ctxt.Usb2InterfaceAssociationDesc()
   d.bFirstInterface( ifcNumber )
   d.bInterfaceCount( 2 )
@@ -1488,10 +1496,6 @@ def addUAC2Function(ctxt, yml, ifcNumber, epAddr, hiSpeed = True, isAsync = True
   d.bAssocTerminal( 0x00 )
   d.bCSourceID( clkID )
   d.bNrChannels( numChannels )
-  if ( 2 == numChannels ):
-    channelConfig = 0x3 # front left right
-  else:
-    channelConfig = 0x4 # front center
   d.bmChannelConfig( channelConfig )
   d.iTerminal( firstTerminalName )
   totl += d.size
@@ -1512,10 +1516,6 @@ def addUAC2Function(ctxt, yml, ifcNumber, epAddr, hiSpeed = True, isAsync = True
       d.bAssocTerminal( 0x00 )
       d.bCSourceID( clkID )
       d.bNrChannels( numChannels )
-      if ( 2 == numChannels ):
-        channelConfig = 0x3 # front left right
-      else:
-        channelConfig = 0x4 # front center
       d.bmChannelConfig( channelConfig )
       d.iTerminal( terminalName )
       tids.append( tid )
@@ -1548,12 +1548,12 @@ def addUAC2Function(ctxt, yml, ifcNumber, epAddr, hiSpeed = True, isAsync = True
   d.bmaControls0( ctls )
 
   ctls = 0
+  if ( haveLRMute ):
+    ctls |= 3
+  if ( haveLRVolume ):
+    ctls |= 0xc
+  d.bmaControls1( ctls )
   if ( 2 == numChannels ):
-    if ( haveLRMute ):
-      ctls |= 3
-    if ( haveLRVolume ):
-      ctls |= 0xc
-    d.bmaControls1( ctls )
     d.bmaControls2( ctls )
   totl += d.size
 
