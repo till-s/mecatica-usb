@@ -197,7 +197,9 @@ architecture Impl of Usb2EpAudioCtl is
       muteLeft        => '0',
       muteRight       => '0',
       powerState      => to_unsigned(1, 2),
-      selectorSel     => (others => '0'),
+      -- UAC2 says the selector value runs from 1 to N pins; windows driver
+      -- complained about illegal result from ctl req. (c0440028).
+      selectorSel     => to_unsigned(1, 8),
       buf             => BUF_INIT_C,
       len             => (others => '1')
    );
