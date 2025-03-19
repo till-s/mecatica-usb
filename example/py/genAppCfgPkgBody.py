@@ -28,6 +28,9 @@ if __name__ == "__main__":
 
   iProduct            = "Till's Mecatica USB Example Device"
 
+
+  cmdline             = os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:])
+
   (opt, args) = getopt.getopt(sys.argv[1:], "hf:d:s:FSN:E:AL:am:U:")
   for o in opt:
     if o[0] in ("-h"):
@@ -78,7 +81,11 @@ if __name__ == "__main__":
   )
 
   ymlstr =  yaml.dump( yml, default_flow_style=False ).replace('\n', '\n-- ')
+  # strip trailing whitespace
+  end = len(ymlstr)
+  while ( (end > 0) and (' ' == ymlstr[end-1]) ):
+    end -= 1
 
-  comment = "Generated from: '{}':\n--\n-- {}".format( os.path.basename( yamlFileName ), ymlstr )
+  comment = "Generated with: '{}':\n--\n-- {}".format( cmdline, ymlstr[:end] )
   with io.open( fnam, 'x' ) as f:
     ctxt.genAppCfgPkgBody( f, comment )
