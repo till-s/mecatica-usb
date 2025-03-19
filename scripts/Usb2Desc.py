@@ -987,6 +987,9 @@ class Usb2DescContext(list):
     @acc(5, 4)
     def bmaControls0(self, v): return v
 
+    # mono unit still *must* have bmaControls
+    # (1..number of channels)! The actual
+    # bitmask may be 0, of course.
     @acc(9, 4)
     def bmaControls1(self, v): return v
 
