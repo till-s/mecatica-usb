@@ -51,7 +51,7 @@ entity Usb2EpAudioInpStrm is
       usb2EpOb            : out Usb2EndpPairIbType;
       usb2DevStatus       : in  Usb2DevStatusType;
 
-      -- Speaker control
+      -- Volume control
       volMaster           : out signed(15 downto 0);
       volLeft             : out signed(15 downto 0);
       volRight            : out signed(15 downto 0);
@@ -70,29 +70,32 @@ entity Usb2EpAudioInpStrm is
       -- one slot (little-endian, lowest channel index -> lowest vector idx)
       epData              : in  std_logic_vector(Usb2ByteType'length * NUM_CHANNELS_G * SAMPLE_SIZE_G - 1 downto 0) := (others => '0');
       -- handshake
-      epDataVld           : in  std_logic := '0';
-      epDataRdy           : out std_logic := '1'
+      epDataVld           : in  std_logic := '0'
    );
 end entity Usb2EpAudioInpStrm;
 
 architecture Impl of Usb2EpAudioInpStrm is
-   signal fifoDat        : Usb2ByteType    := (others => '0');
+   signal fifoDatOut     : std_logic_vector(epData'range);
    signal fifoWen        : std_logic       := '0';
+   signal fifoRen        : std_logic       := '0';
    signal fifoFull       : std_logic       := '0';
+   signal fifoEmpty      : std_logic       := '0';
    signal epRstLoc       : std_logic;
+
+   signal haltedInp      : std_logic       := '1';
+   signal haltedInpEpClk : std_logic       := '1';
+
+   signal mstInpVld      : std_logic       := '0';
+   signal mstInpDat      : std_logic_vector(7 downto 0) := (others => '0');
 
    type   RegType        is record
       delay              : std_logic_vector(NUM_CHANNELS_G*SAMPLE_SIZE_G - 1 downto 0);
       shiftReg           : std_logic_vector(epData'range);
-      rdy                : std_logic;
-      wen                : std_logic;
    end record RegType;
 
    constant REG_INIT_C   : RegType := (
       delay              => (others => '0'),
-      shiftReg           => (others => '0'),
-      rdy                => '1',
-      wen                => '0'
+      shiftReg           => (others => '0')
    );
 
    signal r              : RegType := REG_INIT_C;
@@ -101,45 +104,52 @@ architecture Impl of Usb2EpAudioInpStrm is
 begin
 
    G_NO_SHIFTER : if ( epData'length <= Usb2ByteType'length ) generate
-      fifoDat   <= std_logic_vector(resize( unsigned(epData), fifoDat'length ));
-      epDataRdy <= not fifoFull;
-      fifoWen   <= epDataVld;
+      mstInpDat <= std_logic_vector(resize( unsigned(epData), mstInpDat'length ));
+      mstInpVld <= epDataVld;
    end generate G_NO_SHIFTER;
 
    G_SHIFTER : if ( epData'length > Usb2ByteType'length ) generate
 
-      P_COMB : process ( r, epData, epDataVld ) is
+      -- See Frmts20:
+      -- Audio frames must not be fragmented across VFP (virtual frame packets
+      -- which are packets except for high-speed, high-bandwidth transactions
+      -- with multiple transactions per microframe).
+      -- Thus, we ship frames through the Usb2Fifo (see below) and make
+      -- sure we have an entire frame before handing to the packet engine.
+
+      P_COMB : process ( r, usb2EpIb, fifoEmpty, fifoDatOut, mstInpVld ) is
          variable v : RegType;
       begin
          v := r;
 
-         -- shift the delay line and data
-         v.delay    := std_logic_vector(shift_right(unsigned(r.delay   ), 1));
-         v.shiftReg := std_logic_vector(shift_right(unsigned(r.shiftReg), 8));
+         fifoRen <= '0';
 
-         -- if the last byte is being written we become ready
-         if ( r.delay(1) = '1' ) then
-            v.rdy := '1';
-         end if;
-         if ( r.delay(0) = '1' ) then
-            v.wen := '0';
+         if ( ( mstInpVld and usb2EpIb.subInp.rdy ) = '1' ) then
+            -- shift the delay line and data
+            v.delay    := std_logic_vector(shift_right(unsigned(r.delay   ), 1));
+            v.shiftReg := std_logic_vector(shift_right(unsigned(r.shiftReg), 8));
+            -- if shiftReg is about to become empty try to load the next word
+            -- from the fifo
+            if ( (r.delay(1) = '0') and (fifoEmpty = '0') ) then
+               fifoRen    <= '1';
+               v.shiftReg := fifoDatOut;
+               v.delay    := (others => '1');
+            end if;
          end if;
 
-         -- consume the next sample set if possible
-         if ( (epDataVld and r.rdy) = '1' ) then
-            v.delay(v.delay'left) := '1';
-            v.rdy                 := '0';
-            v.wen                 := '1';
-            v.shiftReg            := epData;
+         if ( (mstInpVld = '0') and (fifoEmpty = '0') ) then
+            fifoRen    <= '1';
+            v.shiftReg := fifoDatOut;
+            v.delay    := (others => '1');
          end if;
 
          rin <= v;
       end process P_COMB;
 
-      P_SEQ : process ( epClk ) is
+      P_SEQ : process ( usb2Clk ) is
       begin
-         if ( rising_edge( epClk ) ) then
-            if ( epRstLoc = '1' ) then
+         if ( rising_edge( usb2Clk ) ) then
+            if ( usb2Rst = '1' ) then
                r <= REG_INIT_C;
 	    else
                r <= rin;
@@ -147,9 +157,9 @@ begin
          end if;
       end process P_SEQ;
 
-      fifoDat   <= r.shiftReg(fifoDat'range);
-      fifoWen   <= r.wen;
-      epDataRdy <= r.rdy;
+      mstInpVld <= r.delay(r.delay'right);
+      mstInpDat <= r.shiftReg(mstInpDat'range);
+
    end generate G_SHIFTER;
 
    U_BADD_CTL : entity work.Usb2EpAudioCtl
@@ -179,50 +189,61 @@ begin
          selectorSel         => selectorSel
       );
 
-   U_FIFO : entity work.Usb2FifoEp
+   U_FIFO : entity work.Usb2Fifo
       generic map (
-         LD_FIFO_DEPTH_INP_G          => LD_FIFO_DEPTH_INP_G,
-         LD_FIFO_DEPTH_OUT_G          => 0,
-         ASYNC_G                      => ASYNC_G
+         DATA_WIDTH_G                 => epData'length,
+         LD_DEPTH_G                   => LD_FIFO_DEPTH_INP_G,
+         ASYNC_G                      => ASYNC_G,
+         LD_TIMER_G                   => 1
       )
       port map (
-         usb2Clk                      => usb2Clk,
-         usb2Rst                      => usb2Rst,
-         usb2RstOut                   => open,
-   
-         -- Endpoint Interface
-         usb2EpOb                     => usb2EpOb,
-         usb2EpIb                     => usb2EpIb,
-   
-         minFillInp                   => open,
-         timeFillInp                  => open,
-   
-         epClk                        => epClk,
+         wrClk                        => epCLk,
          -- reset received from USB or endpoint not active in current alt-setting
-         epRstOut                     => epRstLoc,
-   
-         -- FIFO Interface IN (to USB); epClk domain
-   
-         datInp                       => fifoDat,
-         -- End of frame ('don'); data shipped during the cycle when EOF is
-         -- asserted are ignored (i.e., not forwarded to USB)!
-         -- Note: a single cycle with 'eofInp' asserted (w/o preceding data
-         -- cycles) is sent as a zero-length frame!
-         -- This is only relevant if framing is enabled (LD_MAX_NUM_FRAMES_G > 0).
-         donInp                       => open,
-         wenInp                       => fifoWen,
-         filledInp                    => open,
-         fullInp                      => fifoFull,
-   
-         -- FIFO Interface OUT (from USB); UNUSED/DISABLED
-         datOut                       => open,
-         donOut                       => open,
-         renOut                       => open,
-         filledOut                    => open,
-         framesOut                    => open,
-         emptyOut                     => open
+         wrRstOut                     => epRstLoc,
+
+         din                          => epData,
+         wen                          => fifoWen,
+
+         full                         => fifoFull,
+
+         rdClk                        => usb2Clk,
+         rdRst                        => usb2Rst,
+
+         dou                          => fifoDatOut,
+         ren                          => fifoRen,
+         empty                        => fifoEmpty
       );
 
-   epRstOut <= epRstLoc;
+   epRstOut   <= epRstLoc;
+
+   haltedInp  <= usb2EpIb.haltedInp;
+   fifoWen    <= epDataVld and not haltedInpEpClk and not fifoFull;
+
+   G_SYNC : if ( not ASYNC_G ) generate
+   begin
+      haltedInpEpClk <= haltedInp;
+   end generate G_SYNC;
+
+   G_ASYNC : if ( ASYNC_G ) generate 
+   begin
+      U_SYNC_HALT_INP : entity work.Usb2CCSync 
+         port map (             
+            clk => epClk,       
+            d   => haltedInp,   
+            q   => haltedInpEpClk 
+         );
+   end generate G_ASYNC;
+
+
+   P_ASSGN : process ( mstInpVld, haltedInp, mstInpDat ) is
+   begin
+      usb2EpOb            <= USB2_ENDP_PAIR_IB_INIT_C;
+      usb2EpOb.mstInp.vld <= mstInpVld;
+      usb2EpOb.stalledInp <= haltedInp;
+      usb2EpOb.bFramedInp <= '1';
+      usb2EpOb.mstInp.err <= '0';
+      usb2EpOb.mstInp.don <= '0';
+      usb2EpOb.mstInp.dat <= mstInpDat;
+   end process P_ASSGN;
    
 end architecture Impl;

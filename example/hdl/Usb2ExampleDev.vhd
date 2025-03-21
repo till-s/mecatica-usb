@@ -245,7 +245,6 @@ entity Usb2ExampleDev is
       -- defined by the descriptors.
       audioInpFifoDat      : in  std_logic_vector(47 downto 0) := (others => '0');
       audioInpFifoVld      : in  std_logic := '0';
-      audioInpFifoRdy      : out std_logic := '1';
 
       -- always in the usb clock domain!
       audioInpVolMaster    : out signed(15 downto 0)  := (others => '0');
@@ -771,8 +770,7 @@ begin
             epClk                     => audioInpFifoClk,
             epRstOut                  => audioInpFifoRstOut,
             epData                    => audioInpFifoDat(NUM_CHANNELS_C*SAMPLE_SIZE_C*8 - 1 downto 0),
-            epDataVld                 => audioInpFifoVld,
-            epDataRdy                 => audioInpFifoRdy
+            epDataVld                 => audioInpFifoVld
          );
    end generate G_EP_ISO_MICR;
 
