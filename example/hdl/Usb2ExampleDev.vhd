@@ -46,9 +46,17 @@ entity Usb2ExampleDev is
       -- asynchronous EP clock for audio IN (dev->host) interface
       AUD_INP_ASYNC_G                    : boolean         := false;
       LD_AUD_INP_FIFO_DEPTH_G            : natural         := 8;
+      AUD_INP_VOL_RNG_MIN_G              : integer         := -127*256;
+      AUD_INP_VOL_RNG_MAX_G              : integer         :=  127*256;
+      AUD_INP_VOL_RNG_RES_G              : integer         :=    1*256;
       -- cannot be read from descriptors but must be such that the
       -- endpoint max. packet size is not overflown.
       AUD_INP_SAMPLE_FREQ_G              : natural         := 48000;
+
+      -- BADD Speaker volume range
+      BADD_VOL_RNG_MIN_G                 : integer         := -127*256;
+      BADD_VOL_RNG_MAX_G                 : integer         := +127*256;
+      BADD_VOL_RNG_RES_G                 : integer         :=    1*256;
 
       -- external control-endpoint agents
       CTL_EP0_AGENTS_CONFIG_G            : Usb2CtlEpAgentConfigArray := USB2_CTL_EP_AGENT_CONFIG_EMPTY_C;
@@ -684,6 +692,9 @@ begin
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(SPKR_CTL_IFC_NUM_C),
             SAMPLE_SIZE_G             => SAMPLE_SIZE_C,
             NUM_CHANNELS_G            => NUM_CHANNELS_C,
+            VOL_RNG_MIN_G             => BADD_VOL_RNG_MIN_G,
+            VOL_RNG_MAX_G             => BADD_VOL_RNG_MAX_G,
+            VOL_RNG_RES_G             => BADD_VOL_RNG_RES_G,
             SAMPLING_FREQ_G           => 48000, -- must be 48k for BADD/UAC3
             MARK_DEBUG_G              => MARK_DEBUG_SND_G,
             MARK_DEBUG_BCLK_G         => false
@@ -737,6 +748,9 @@ begin
             AC_IFC_NUM_G              => toUsb2InterfaceNumType(MICR_CTL_IFC_NUM_C),
             SAMPLE_SIZE_G             => SAMPLE_SIZE_C,
             NUM_CHANNELS_G            => NUM_CHANNELS_C,
+            VOL_RNG_MIN_G             => AUD_INP_VOL_RNG_MIN_G,
+            VOL_RNG_MAX_G             => AUD_INP_VOL_RNG_MAX_G,
+            VOL_RNG_RES_G             => AUD_INP_VOL_RNG_RES_G,
             SEL_RNG_MAX_G             => SEL_RNG_MAX_C,
             AUDIO_FREQ_G              => AUD_INP_SAMPLE_FREQ_G,
             ASYNC_G                   => AUD_INP_ASYNC_G,

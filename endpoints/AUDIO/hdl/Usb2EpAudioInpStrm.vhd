@@ -16,8 +16,8 @@ entity Usb2EpAudioInpStrm is
       -- Interface number of control interface
       AC_IFC_NUM_G        : Usb2InterfaceNumType;
       -- volume range and resolution
-      VOL_RNG_MIN_G       : integer range -32767 to 32767 := -32767; -- -128 + 1/156 db
-      VOL_RNG_MAX_G       : integer range -32767 to 32767 := +32767; -- +128 - 1/156 db
+      VOL_RNG_MIN_G       : integer range -32767 to 32767 := -127*256; -- -128 + 1/156 db
+      VOL_RNG_MAX_G       : integer range -32767 to 32767 := +127*256; -- +128 - 1/156 db
       VOL_RNG_RES_G       : integer range      1 to 32767 := 256;    --    1         db
       SEL_RNG_MAX_G       : integer range      0 to 255   :=   0;
       -- audio sample size in byte (per channel)

@@ -256,6 +256,26 @@
                   "minimum" : 1,
                   "maximum" : 32
                 },
+                "haveMasterVolume" : {
+                  "description" : "Enable Master Volume Control in Feature Unit",
+                  "default" : true,
+                  "type"    : "boolean"
+                },
+                "haveChannelVolume" : {
+                  "description" : "Enable L/R Channel Volume Control in Feature Unit",
+                  "default" : true,
+                  "type"    : "boolean"
+                },
+                "haveMasterMute" : {
+                  "description" : "Enable Master Mute Control in Feature Unit",
+                  "default" : true,
+                  "type"    : "boolean"
+                },
+                "haveChannelMute" : {
+                  "description" : "Enable L/R Channel Mute Control in Feature Unit",
+                  "default" : true,
+                  "type"    : "boolean"
+                },
                 "maxSamplingFrequency" : {
                   "description" : "Max. Frequency in Hz. required to calculate max. endpoint packet size",
                   "default" : 48000,
@@ -329,6 +349,26 @@
                   "type"    : "integer",
                   "minimum" : 1,
                   "maximum" : 32
+                },
+                "haveMasterVolume" : {
+                  "description" : "Enable Master Volume Control in Feature Unit",
+                  "default" : true,
+                  "type"    : "boolean"
+                },
+                "haveChannelVolume" : {
+                  "description" : "Enable L/R Channel Volume Control in Feature Unit",
+                  "default" : true,
+                  "type"    : "boolean"
+                },
+                "haveMasterMute" : {
+                  "description" : "Enable Master Mute Control in Feature Unit",
+                  "default" : true,
+                  "type"    : "boolean"
+                },
+                "haveChannelMute" : {
+                  "description" : "Enable L/R Channel Mute Control in Feature Unit",
+                  "default" : true,
+                  "type"    : "boolean"
                 },
                 "maxSamplingFrequency" : {
                   "description" : "Max. Frequency in Hz. required to calculate max. endpoint packet size",
