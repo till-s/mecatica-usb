@@ -1419,11 +1419,11 @@ def addUAC2Function(ctxt, yml, ifcNumber, epAddr, hiSpeed = True, isAsync = True
   # MacOS would mute the device if they found that we support
   # no controls. Thus, enable them. The related control requests
   # are supported anyways; just no i2c implementation...
-  haveMasterMute   = ymlGet('haveMasterMute',    True)
-  haveMasterVolume = ymlGet('haveMasterVolume',  True)
+  haveMasterMute   = yml.get('haveMasterMute',    True)
+  haveMasterVolume = yml.get('haveMasterVolume',  True)
 
-  haveLRMute       = ymlGet('haveChannelMute',   True)
-  haveLRVolume     = ymlGet('haveChannelVolume', True)
+  haveLRMute       = yml.get('haveChannelMute',   True)
+  haveLRVolume     = yml.get('haveChannelVolume', True)
 
   numChannels      = yml.get('numChannels',  2)
   numBits          = yml.get('numBits'    , 24)
