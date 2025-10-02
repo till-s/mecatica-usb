@@ -50,11 +50,12 @@ if __name__ == "__main__":
   yamlFileName = args[0]
 
   # try to stat; raises exception if file does not exist
-  fst = os.stat(yamlFileName)
+  fst          = os.stat(yamlFileName)
+  dfltName     = 'AppCfgPkgBody.vhd'
 
   if ( fnam is None ):
     if ( here == os.path.abspath(os.path.dirname(yamlFileName))):
-      fnam                = here + '/../hdl/AppCfgPkgBody.vhd'
+      fnam                = here + '/../hdl/' + dfltName
       print("No output file specified; using: {}".format(fnam))
     else:
       raise RuntimeError("No output file specified; use -f")
@@ -62,11 +63,10 @@ if __name__ == "__main__":
   try:
     fst = os.stat(fnam)
     if ( stat.S_ISDIR(fst.st_mode) ):
-      dfltNam = "AppConfigPkgBody.vhd"
       if ( fnam[-1] != '/' ):
           fnam += '/'
-      print("Generating {} in: {}".format(dfltNam, fnam))
-      fnam += dfltNam
+      print("Generating {} in: {}".format(dfltName, fnam))
+      fnam += dfltName
   except FileNotFoundError:
     # they want to generate it, after all
     pass
