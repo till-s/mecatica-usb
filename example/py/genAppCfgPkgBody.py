@@ -10,6 +10,7 @@
 
 import sys
 import os
+import stat
 import io
 import getopt
 import re
@@ -17,14 +18,13 @@ import yaml
 
 here=os.path.abspath(os.path.dirname(__file__))
 
-sys.path.append( here + '/../../scripts' )
+sys.path.append(here + '/../../scripts')
 
 import Usb2Desc
 import ExampleDevDesc
 
 if __name__ == "__main__":
-
-  fnam                = here + '/../hdl/AppCfgPkgBody.vhd'
+  fnam                = None
 
   iProduct            = "Till's Mecatica USB Example Device"
 
@@ -34,9 +34,11 @@ if __name__ == "__main__":
   (opt, args) = getopt.getopt(sys.argv[1:], "hf:d:s:FSN:E:AL:am:U:")
   for o in opt:
     if o[0] in ("-h"):
-       print("usage: {} [-h] [-f <output_file>] <config_yaml_file>".format(sys.argv[0]))
+       print("usage: {} [-h] -f <output_file_or_dir> <config_yaml_file>".format(sys.argv[0]))
        print("          -h               : this message")
-       print("          -f file_name     : output file name, defaults to '{}'".format(fnam))
+       print("          -f file_name     : output file name. If this points to a")
+       print("                             directory then the file 'AppCfgPkgBody.vhd'")
+       print("                             is generated in this directory.")
        print("          config_yaml_file : YAML file with configuration settings")
        sys.exit(0)
     elif o[0] in ("-f"):
@@ -47,8 +49,32 @@ if __name__ == "__main__":
 
   yamlFileName = args[0]
 
+  # try to stat; raises exception if file does not exist
+  fst = os.stat(yamlFileName)
+
+  if ( fnam is None ):
+    if ( here == os.path.abspath(os.path.dirname(yamlFileName))):
+      fnam                = here + '/../hdl/AppCfgPkgBody.vhd'
+      print("No output file specified; using: {}".format(fnam))
+    else:
+      raise RuntimeError("No output file specified; use -f")
+
+  try:
+    fst = os.stat(fnam)
+    if ( stat.S_ISDIR(fst.st_mode) ):
+      dfltNam = "AppConfigPkgBody.vhd"
+      if ( fnam[-1] != '/' ):
+          fnam += '/'
+      print("Generating {} in: {}".format(dfltNam, fnam))
+      fnam += dfltNam
+  except FileNotFoundError:
+    # they want to generate it, after all
+    pass
+      
+
+
   with io.open(yamlFileName) as f:
-    yml = yaml.safe_load( f )
+    yml = yaml.safe_load(f)
 
   schema = None
   try:
