@@ -109,7 +109,7 @@ architecture Impl of Usb2EpGenericCtl is
    );
 
    signal r       : RegType := REG_INIT_C;
-   signal rin     : RegType := REG_INIT_C;
+   signal rin     : RegType;
 
 begin
 
