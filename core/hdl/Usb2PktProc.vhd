@@ -258,10 +258,10 @@ architecture Impl of Usb2PktProc is
    signal rd                                    : BufReaderType := BUF_READER_INIT_C;
    signal rdin                                  : BufReaderType;
 
-   signal bufWrEna                              : std_logic := '0';
-   signal bufReadbackInp                        : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
-   signal bufReadOut                            : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
-   signal bufWriteInp                           : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
+   signal bufWrEna                              : std_logic;
+   signal bufReadbackInp                        : std_logic_vector(BUF_WIDTH_C - 1 downto 0);
+   signal bufReadOut                            : std_logic_vector(BUF_WIDTH_C - 1 downto 0);
+   signal bufWriteInp                           : std_logic_vector(BUF_WIDTH_C - 1 downto 0);
    signal epConfigDbg                           : Usb2EndpPairConfigArray(epConfig'range);
    signal epIbDbg                               : Usb2EndpPairIbType;
    signal epObDbg                               : Usb2EndpPairObType;
