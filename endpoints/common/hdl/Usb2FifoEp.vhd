@@ -106,20 +106,20 @@ end entity Usb2FifoEp;
 
 architecture Impl of Usb2FifoEp is
 
-   signal haltedInp             : std_logic := '1';
-   signal haltedOut             : std_logic := '1';
-   signal haltedInpEpClk        : std_logic := '1';
-   signal haltedOutEpClk        : std_logic := '1';
-   signal mstInpVld             : std_logic := '0';
-   signal mstInpDon             : std_logic := '0';
-   signal mstInpDat             : std_logic_vector(7 downto 0) := (others => '0');
-   signal bFramedInp            : std_logic := '0';
-   signal subOutRdy             : std_logic := '0';
-   signal epRstOutLoc           : std_logic := '0';
-   signal obFifoRstUsbClk       : std_logic := '0';
-   signal ibFifoRstUsbClk       : std_logic := '0';
-   signal obFifoRstEpClk        : std_logic := '0';
-   signal ibFifoRstEpClk        : std_logic := '0';
+   signal haltedInp             : std_logic;
+   signal haltedOut             : std_logic;
+   signal haltedInpEpClk        : std_logic;
+   signal haltedOutEpClk        : std_logic;
+   signal mstInpVld             : std_logic;
+   signal mstInpDon             : std_logic;
+   signal mstInpDat             : std_logic_vector(7 downto 0);
+   signal bFramedInp            : std_logic;
+   signal subOutRdy             : std_logic;
+   signal epRstOutLoc           : std_logic;
+   signal obFifoRstUsbClk       : std_logic;
+   signal ibFifoRstUsbClk       : std_logic;
+   signal obFifoRstEpClk        : std_logic;
+   signal ibFifoRstEpClk        : std_logic;
 
    type EpDirType is ( DIR_INP, DIR_OUT );
 
@@ -173,11 +173,9 @@ begin
       signal fifoEmpty    : std_logic;
       signal fifoDin      : std_logic_vector(FIFO_WIDTH_F(DIR_INP) - 1 downto 0);
       signal fifoDou      : std_logic_vector(FIFO_WIDTH_F(DIR_INP) - 1 downto 0);
-      signal numFramesInp : unsigned(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
-      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
-      signal numFramesOut : unsigned(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
+      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_INP_G downto 0);
       signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_INP_G downto 0);
-      signal haveAFrame   : std_logic := '1';
+      signal haveAFrame   : std_logic;
       signal usb2RstLoc   : std_logic;
       signal epRunning    : std_logic;
       signal donDly       : std_logic := '0';
@@ -201,6 +199,9 @@ begin
       fifoWen             <= wenInp and not haltedInpEpClk and not fifoFull;
 
       G_FRAMED : if ( LD_MAX_FRAMES_INP_G > 0 ) generate
+         signal numFramesInp : unsigned(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
+         signal numFramesOut : unsigned(LD_MAX_FRAMES_INP_G downto 0) := (others => '0');
+      begin
          fifoDin    <= donInp & datInp;
          bFramedInp <= '0'; -- support framing
 
@@ -272,6 +273,7 @@ begin
          mstInpDon  <= '0'; -- no framing
          bFramedInp <= '1'; -- no framing
          haveAFrame <= '1';
+         donDly     <= '0';
       end generate G_UNFRAMED;
 
       U_FIFO : entity work.Usb2Fifo
@@ -310,6 +312,17 @@ begin
 
    end generate G_INP_FIFO;
 
+   G_NO_INP_FIFO : if ( LD_FIFO_DEPTH_INP_G <= 0 ) generate
+   begin
+      haltedInp           <= '1';
+      mstInpVld           <= '0';
+      mstInpDon           <= '0';
+      mstInpDat           <= (others => '0');
+      bFramedInp          <= '1';
+      ibFifoRstUsbClk     <= '0';
+      ibFifoRstEpClk      <= '0';
+   end generate G_NO_INP_FIFO;
+
    G_OUT_FIFO : if ( LD_FIFO_DEPTH_OUT_G > 0 ) generate
       signal fifoWen      : std_logic;
       signal fifoRen      : std_logic;
@@ -320,11 +333,8 @@ begin
       signal lastWen      : std_logic := '0';
       signal fifoDin      : std_logic_vector(FIFO_WIDTH_F(DIR_OUT) - 1 downto 0);
       signal fifoDou      : std_logic_vector(FIFO_WIDTH_F(DIR_OUT) - 1 downto 0);
-      signal fifoDon      : std_logic := '0';
       signal maxPktSz     : Usb2PktSizeType;
-      signal numFramesInp : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
-      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
-      signal numFramesOut : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
+      signal xtraInp      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0);
       signal xtraOut      : std_logic_vector(LD_MAX_FRAMES_OUT_G downto 0);
       signal epRunning    : std_logic;
       signal usb2RstLoc   : std_logic;
@@ -357,7 +367,10 @@ begin
       --       packet.
 
       G_FRAMED : if ( LD_MAX_FRAMES_OUT_G > 0 ) generate
-         signal fifoLst      : std_logic    := '1';
+         signal fifoDon      : std_logic;
+         signal fifoLst      : std_logic                              := '1';
+         signal numFramesInp : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
+         signal numFramesOut : unsigned(LD_MAX_FRAMES_OUT_G downto 0) := (others => '0');
       begin
 
          G_DONFLG : if ( not DON_IS_LAST_G ) generate
@@ -373,6 +386,7 @@ begin
                if ( rising_edge( usb2Clk ) ) then
                   if    ( usb2RstLoc = '1' ) then
                      fifoLst <= '1';
+                     fifoDly <= (others => '0');
                   elsif ( (usb2EpIb.mstOut.vld or usb2EpIb.mstOut.don) = '1' ) then
                      fifoDly <= usb2EpIb.mstOut.dat;
                      fifoLst <= usb2EpIb.mstOut.don;
@@ -422,8 +436,9 @@ begin
       end generate G_FRAMED;
 
       G_UNFRAMED : if ( LD_MAX_FRAMES_OUT_G = 0 ) generate
-         fifoDin <= usb2EpIb.mstOut.dat;
-         fifoWen <= usb2EpIb.mstOut.vld and not fifoFull;
+         fifoDin      <= usb2EpIb.mstOut.dat;
+         fifoWen      <= usb2EpIb.mstOut.vld and not fifoFull;
+         xtraInp      <= (others => '0');
       end generate G_UNFRAMED;
 
       P_SEQ : process ( usb2Clk ) is
@@ -498,6 +513,14 @@ begin
          );
 
    end generate G_OUT_FIFO;
+
+   G_NO_OUT_FIFO : if ( LD_FIFO_DEPTH_OUT_G <= 0 ) generate
+      haltedOut           <= '1';
+      subOutRdy           <= '0';
+      obFifoRstUsbClk     <= '0';
+      obFifoRstEpClk      <= '0';
+   end generate G_NO_OUT_FIFO;
+
 
    P_COMB : process ( mstInpVld, haltedInp, mstInpDat, bFramedInp, mstInpDon, haltedOut, subOutRdy ) is
    begin
