@@ -43,6 +43,7 @@ entity Usb2EpCDCACMCtl is
       dataBits        : out unsigned( 4 downto 0) := (others => '0');
 
       epClk           : in  std_logic := '0';
+      epRst           : in  std_logic := '0';
 
       lineBreak       : out std_logic;
       DTR             : out std_logic := '0';
@@ -188,6 +189,7 @@ begin
          U_SYNC : entity work.Usb2CCSync
             port map (
                clk => epClk,
+               rst => epRst,
                d   => r.timer(r.timer'left),
                q   => lineBreak
             );
@@ -214,12 +216,14 @@ begin
          U_SYNC_RTS : entity work.Usb2CCSync
             port map (
                clk => epClk,
+               rst => epRst,
                d   => r.DTR,
                q   => DTR
             );
          U_SYNC_DTR : entity work.Usb2CCSync
             port map (
                clk => epClk,
+               rst => epRst,
                d   => r.RTS,
                q   => RTS
             );

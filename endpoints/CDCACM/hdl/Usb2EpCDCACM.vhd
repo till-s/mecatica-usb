@@ -131,7 +131,10 @@ entity Usb2EpCDCACM is
 end entity Usb2EpCDCACM;
 
 architecture Impl of Usb2EpCDCACM is
+   signal epRstLoc : std_logic;
 begin
+
+   epRstOut <= epRstLoc;
 
    G_LINE_BREAK : if ( ENBL_LINE_BREAK_G or ENBL_LINE_STATE_G ) generate
    begin
@@ -155,6 +158,7 @@ begin
             dataBits                    => dataBits,
 
             epClk                       => epClk,
+            epRst                       => epRstLoc,
             lineBreak                   => lineBreak,
             DTR                         => DTR,
             RTS                         => RTS
@@ -205,7 +209,7 @@ begin
             timeFillInp                 => fifoTimeFillInp,
             
             epClk                       => epClk,
-            epRstOut                    => epRstOut,
+            epRstOut                    => epRstLoc,
 
             datInp                      => fifoDataInp,
             wenInp                      => fifoWenaInp,

@@ -244,6 +244,7 @@ begin
       U_S2U_FIL_SYNC : entity work.Usb2CCSync
          port map (
             clk => usb2Clk,
+            rst => usb2Rst,
             d   => fifoMinFill,
             tgl => open,
             q   => fifoMinFillUsb2
@@ -253,6 +254,7 @@ begin
          generic map ( STAGES_G => 3 )
          port map (
             clk => usb2Clk,
+            rst => usb2Rst,
             d   => s2uRenTgl,
             tgl => s2uRenTglOut,
             q   => open

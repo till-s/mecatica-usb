@@ -122,6 +122,7 @@ begin
          )
          port map (
             clk    => usb2Clk,
+            rst    => usb2Rst,
             d      => carrier,
             q      => carrierLoc
          );

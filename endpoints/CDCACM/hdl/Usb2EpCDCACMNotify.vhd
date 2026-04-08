@@ -115,6 +115,7 @@ begin
             )
             port map (
                clk    => usb2Clk,
+               rst    => usb2Rst,
                d      => din(i),
                q      => dou(i)
             );

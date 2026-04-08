@@ -152,6 +152,7 @@ begin
       U_SYNC_HALT_INP : entity work.Usb2CCSync
          port map (
             clk => epClk,
+            rst => epRstOutLoc,
             d   => haltedInp,
             q   => haltedInpEpClk
          );
@@ -159,6 +160,7 @@ begin
       U_SYNC_HALT_OUT : entity work.Usb2CCSync
          port map (
             clk => epClk,
+            rst => epRstOutLoc,
             d   => haltedOut,
             q   => haltedOutEpClk
          );
