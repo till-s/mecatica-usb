@@ -21,6 +21,7 @@ entity UlpiLogger is
    );
    port (
       ulpiClk        : in  std_logic;
+      ulpiRst        : in  std_logic := '0';
       ulpiRx         : in  UlpiRxType;
       -- assert for 1 cycle to halt logging
       -- memory contents are then streamed out;
@@ -91,19 +92,20 @@ architecture rtl of UlpiLogger is
 
    signal memory : MemArray  := (others => (others => '0'));
 
-   signal rdDat  : MemWord   := (others => '0');
+   signal rdDat  : MemWord;
    signal wrPtr  : unsigned(LD_MEM_DEPTH_G - 1 downto 0);
    signal rdClk  : std_logic;
+   signal rdRst  : std_logic;
    signal wrDat  : MemWord;
-   signal memWen : std_logic := '1';
+   signal memWen : std_logic;
 
    signal reqTgl : std_logic;
    signal repTgl : std_logic;
 
    signal rWr    : WrRegType   := WR_REG_INIT_C;
-   signal rWrIn  : WrRegType   := WR_REG_INIT_C;
+   signal rWrIn  : WrRegType;
    signal rRd    : RdRegType   := RD_REG_INIT_C;
-   signal rRdIn  : RdRegType   := RD_REG_INIT_C;
+   signal rRdIn  : RdRegType;
 
    attribute MARK_DEBUG of rWr    : signal is MARK_DEBUG_C;
    attribute MARK_DEBUG of memWen : signal is MARK_DEBUG_C;
@@ -114,6 +116,7 @@ begin
    G_SYNC : if ( not ASYNC_READ_G ) generate
    begin
       rdClk  <= ulpiClk;
+      rdRst  <= ulpiRst;
       reqTgl <= rWr.reqTgl;
       wrPtr  <= rWr.wptr;
       repTgl <= rRd.repTgl;
@@ -262,7 +265,11 @@ begin
    P_WR_SEQ : process ( ulpiClk ) is
    begin
       if ( rising_edge( ulpiClk ) ) then
-         rWr <= rWrIn;
+         if ( ulpiRst = '1' ) then
+            rWr <= WR_REG_INIT_C;
+         else
+            rWr <= rWrIn;
+         end if;
       end if;
    end process P_WR_SEQ;
 
@@ -308,7 +315,11 @@ begin
    P_RD_SEQ : process ( rdClk ) is
    begin
       if ( rising_edge( rdClk ) ) then
-         rRd <= rRdIn;
+         if ( rdRst = '1' ) then
+            rRd <= RD_REG_INIT_C;
+         else
+            rRd <= rRdIn;
+         end if;
       end if;
    end process P_RD_SEQ;
 

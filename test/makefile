@@ -16,6 +16,7 @@ SRCS+= Usb2TstPkg.vhd
 SRCS+= Usb2AppCfgPkg.vhd
 SRCS+= Usb2DescPkg.vhd
 SRCS+= UlpiIO.vhd UlpiIOTb.vhd
+SRCS+= UlpiLogger.vhd
 SRCS+= Usb2PktRx.vhd UsbCrcTbl.vhd UsbCrcTblTb.vhd
 SRCS+= Usb2PktTx.vhd
 SRCS+= Usb2PktProc.vhd
@@ -189,6 +190,8 @@ Usb2FSLSTb.o: UlpiPkg.o Usb2FSLSRx.o Usb2FSLSTx.o
 Usb2PktProcFSLSTb.o: UlpiPkg.o Usb2Pkg.o Usb2PrivPkg.o Usb2UtilPkg.o Usb2TstPkg.o UlpiFSLSEmul.o Usb2PktRx.o Usb2PktTx.o Usb2PktProc.o
 
 UlpiFSLSEmul.o: UlpiPkg.o Usb2UtilPkg.o Usb2FSLSRx.o Usb2FSLSTx.o Usb2CCSync.o
+
+UlpiLogger.o: Usb2Bram.o
 
 AppCfgPkgBody.o: Usb2AppCfgPkg.o
 Usb2DescPkgTb.o: Usb2DescPkg.o Usb2AppCfgPkg.o AppCfgPkgBody.o
