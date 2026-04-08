@@ -22,11 +22,13 @@ entity Usb2MboxSync is
    );
    port (
       clkA     : in  std_logic;
+      rstA     : in  std_logic := '0';
       cenA     : out std_logic;
       dinA     : in  std_logic_vector(DWIDTH_A2B_G - 1 downto 0) := (others => '0');
       douA     : out std_logic_vector(DWIDTH_B2A_G - 1 downto 0);
 
       clkB     : in  std_logic;
+      rstB     : in  std_logic := '0';
       cenB     : out std_logic;
       dinB     : in  std_logic_vector(DWIDTH_B2A_G - 1 downto 0) := (others => '0');
       douB     : out std_logic_vector(DWIDTH_A2B_G - 1 downto 0)
@@ -70,6 +72,7 @@ begin
          )
          port map (
             clk      => clkB,
+            rst      => rstB,
             d        => trigA,
             q        => monB
          );
@@ -80,6 +83,7 @@ begin
          )
          port map (
             clk      => clkA,
+            rst      => rstA,
             d        => trigB,
             q        => monA
          );
@@ -90,12 +94,19 @@ begin
       P_A : process ( clkA ) is
       begin
          if ( rising_edge( clkA ) ) then
-            trigA     <= monA;
-            if ( cenALoc = '1' ) then
-               a2bData <= dinA;
-               douA_r  <= b2aData;
+            if ( rstA = '1' ) then
+               trigA     <= '0';
+               douA_r    <= (others => '0');
+               cenA_r    <= '0';
+               a2bData   <= (others => '0');
+            else
+               trigA     <= monA;
+               if ( cenALoc = '1' ) then
+                  a2bData <= dinA;
+                  douA_r  <= b2aData;
+               end if;
+               cenA_r <= cenALoc;
             end if;
-            cenA_r <= cenALoc;
          end if;
       end process P_A;
 
@@ -112,12 +123,19 @@ begin
       P_B : process ( clkB ) is
       begin
          if ( rising_edge( clkB ) ) then
-            trigB     <= not monB;
-            if ( cenBLoc = '1' ) then
-               b2aData <= dinB;
-               douB_r  <= a2bData;
+            if ( rstB = '1' ) then
+               trigB     <= '0';
+               douB_r    <= (others => '0');
+               cenB_r    <= '0';
+               b2aData   <= (others => '0');
+            else
+               trigB     <= not monB;
+               if ( cenBLoc = '1' ) then
+                  b2aData <= dinB;
+                  douB_r  <= a2bData;
+               end if;
+               cenB_r <= cenBLoc;
             end if;
-            cenB_r <= cenBLoc;
          end if;
       end process P_B;
 
