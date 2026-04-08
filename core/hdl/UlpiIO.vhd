@@ -92,6 +92,7 @@ architecture Impl of UlpiIO is
    signal txSta         : std_logic := '0';
    signal txNxt         : std_logic := '0';
    signal ulpiRxLoc     : UlpiRxType;
+   signal forceStpLoc   : std_logic;
 
    attribute MARK_DEBUG of  txVld          : signal is toStr( MARK_DEBUG_G );
    attribute MARK_DEBUG of  txDat          : signal is toStr( MARK_DEBUG_G );
@@ -118,7 +119,7 @@ begin
          genStp          => rTx.genStp,
          regOpr          => rTx.regOpr,
          waiNxt          => rTx.stpWaiNxt,
-         frcStp          => forceStp,
+         frcStp          => forceStpLoc,
 
          txVld           => txVld,
          txDat           => txDat,
@@ -259,6 +260,9 @@ begin
          end if;
       end if;
    end process P_SEQ_TX;
+
+   -- hold the ulpi bus in STP while reset is active
+   forceStpLoc   <= forceStp or ulpiRst;
 
    regRep        <= rTx.rep;
 
