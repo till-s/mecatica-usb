@@ -49,6 +49,8 @@ begin
          if ( rst = '1' ) then
             bufVld <= '0';
             tmpVld <= '0';
+            buf    <= (others => '0');
+            tmp    <= (others => '0');
          else
             if ( rdyIbLoc = '1' ) then
                -- buffer data
