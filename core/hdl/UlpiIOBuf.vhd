@@ -27,6 +27,7 @@ entity UlpiIOBuf is
    );
    port (
       ulpiClk    : in  std_logic;
+      ulpiRst    : in  std_logic := '0';
 
       -- whether to generate a stop after transmitting
       -- (must be suppressed in the case of a register read)
@@ -97,9 +98,9 @@ architecture rtl of UlpiIOBuf is
    signal nxt_r : std_logic                    := '0';
    signal stp_i : std_logic                    := '0';
    signal stp_r : std_logic                    := '1';
-   signal stpin : std_logic                    := '0';
    signal dou_r : std_logic_vector(7 downto 0) := (others => '0');
-   signal douin : std_logic_vector(7 downto 0) := (others => '0');
+   signal stpin : std_logic;
+   signal douin : std_logic_vector(7 downto 0);
 
    attribute IOB of stp_r  : signal is "TRUE";
    attribute IOB of dou_r  : signal is "TRUE";
@@ -266,13 +267,23 @@ begin
    P_SEQ : process ( ulpiClk ) is
    begin
       if ( rising_edge( ulpiClk ) ) then
-         r     <= rin;
-         din_r <= ulpiIb.dat;
-         nxt_r <= ulpiIb.nxt;
-         stp_i <= ulpiIb.stp;
-         dir_r <= ulpiIb.dir;
-         dou_r <= douin;
-         stp_r <= stpin;
+         if ( ulpiRst = '1' ) then
+            r     <= REG_INIT_C;
+            din_r <= (others => '0');
+            nxt_r <= '0';
+            stp_i <= '0';
+            dir_r <= '1';
+            dou_r <= (others => '0');
+            stp_r <= '1';
+         else
+            r     <= rin;
+            din_r <= ulpiIb.dat;
+            nxt_r <= ulpiIb.nxt;
+            stp_i <= ulpiIb.stp;
+            dir_r <= ulpiIb.dir;
+            dou_r <= douin;
+            stp_r <= stpin;
+         end if;
       end if;
    end process P_SEQ;
 
