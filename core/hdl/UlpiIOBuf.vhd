@@ -96,7 +96,7 @@ architecture rtl of UlpiIOBuf is
    signal dir_r : std_logic                    := '1';
    signal nxt_r : std_logic                    := '0';
    signal stp_i : std_logic                    := '0';
-   signal stp_r : std_logic                    := '0';
+   signal stp_r : std_logic                    := '1';
    signal stpin : std_logic                    := '0';
    signal dou_r : std_logic_vector(7 downto 0) := (others => '0');
    signal douin : std_logic_vector(7 downto 0) := (others => '0');
