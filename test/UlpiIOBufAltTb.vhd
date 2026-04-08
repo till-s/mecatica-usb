@@ -163,43 +163,48 @@ begin
       variable s2 : positive := 666;
       variable rn : real;
    begin
-      if ( rising_edge( clk ) and ( 0 = phase ) ) then
+      if ( rising_edge( clk ) ) then
+         if    ( 0 = phase ) then
+            -- wait for STP to deassert
+            if ( stp = '0' ) then
+               phase <= 1;
+            end if;
+         elsif ( 1 = phase ) then
+            if ( cnt = 1 ) then
+               txVld0 <= '1';
+            end if;
 
-         if ( cnt = 1 ) then
-            txVld0 <= '1';
-         end if;
+            if ( (txVld0 and txRdy) = '1' ) then
+               cnt <= cnt + 1;
+               if ( cnt = 100 ) then
+                  txVld0 <= '0';
+               end if;
+            end if;
 
-         if ( (txVld0 and txRdy) = '1' ) then
-            cnt <= cnt + 1;
-            if ( cnt = 100 ) then
+            if ( dou /= x"00" ) then
+               uniform(s1, s2 ,rn);
+               if ( rn > 0.5 ) then
+                  nxt0 <= not nxt0;
+               end if;
+            end if;
+
+            if ( nxt0 = '1' ) then
+               assert to_integer( unsigned(dou) ) = cmp report "data mismatch" severity failure;
+               if ( cmp = 100 ) then
+                  nxt0 <= '0';
+               end if;
+               cmp <= cmp + 1;
+            end if;
+
+            if ( stp = '1' ) then
+               assert ( cmp = 101 ) report "end count mismatch" severity failure;
+               phase  <= phase + 1;
                txVld0 <= '0';
+               nxt0   <= '0';
+               -- pulls txDat0 to all-zeros
+               cnt    <= 0;
             end if;
          end if;
-
-         if ( dou /= x"00" ) then
-            uniform(s1, s2 ,rn);
-            if ( rn > 0.5 ) then
-               nxt0 <= not nxt0;
-            end if;
-         end if;
-
-         if ( nxt0 = '1' ) then
-            assert to_integer( unsigned(dou) ) = cmp report "data mismatch" severity failure;
-            if ( cmp = 100 ) then
-               nxt0 <= '0';
-            end if;
-            cmp <= cmp + 1;
-         end if;
-
-         if ( stp = '1' ) then
-            assert ( cmp = 101 ) report "end count mismatch" severity failure;
-            phase  <= phase + 1;
-            txVld0 <= '0';
-            nxt0   <= '0';
-            -- pulls txDat0 to all-zeros
-            cnt    <= 0;
-         end if;
-
       end if;
    end process P_DRV;
 
@@ -280,7 +285,7 @@ begin
  
    P_RXCMD_TEST : process is
    begin
-      while ( phase = 0 ) loop
+      while ( phase < 2 ) loop
          tick;
       end loop;
       tick;
@@ -344,7 +349,7 @@ begin
    dou        <= ulpiOb.dat;
 
    txVld      <= txVld0 or txVld1;
-   txDat      <= txDat0 when phase = 0 else txDat1;
+   txDat      <= txDat0 when phase < 2 else txDat1;
 
    U_DUT : entity work.UlpiIOBuf
       port map (
