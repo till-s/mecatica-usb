@@ -127,38 +127,38 @@ architecture Impl of Usb2Core is
 
    constant NUM_ENDPOINTS_C : natural         := usb2AppGetMaxEndpointAddr(DESCRIPTORS_G);
 
-   signal ulpiRxLoc         : UlpiRxType      := ULPI_RX_INIT_C;
-   signal usb2RxLoc         : Usb2RxType      := USB2_RX_INIT_C;
-   signal ulpiTxReq         : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
-   signal ulpiPktTxReq      : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
-   signal ulpiLineTxReq     : UlpiTxReqType   := ULPI_TX_REQ_INIT_C;
+   signal ulpiRxLoc         : UlpiRxType;
+   signal usb2RxLoc         : Usb2RxType;
+   signal ulpiTxReq         : UlpiTxReqType;
+   signal ulpiPktTxReq      : UlpiTxReqType;
+   signal ulpiLineTxReq     : UlpiTxReqType;
    signal ulpiTxRep         : UlpiTxRepType;
 
-   signal regReq            : UlpiRegReqType  := ULPI_REG_REQ_INIT_C;
-   signal regRep            : UlpiRegRepType  := ULPI_REG_REP_ERR_C;
+   signal regReq            : UlpiRegReqType;
+   signal regRep            : UlpiRegRepType;
 
    signal lineStateRegReq   : UlpiRegReqType;
-   signal lineStateRegRep   : UlpiRegRepType  := ULPI_REG_REP_ERR_C;
+   signal lineStateRegRep   : UlpiRegRepType;
 
    signal rstReq            : std_logic;
    signal suspend           : std_logic;
    signal isHiSpeed         : std_logic;
-   signal isHiSpeedNego     : std_logic       := '0';
+   signal isHiSpeedNego     : std_logic;
 
-   signal txDataMst         : Usb2StrmMstType := USB2_STRM_MST_INIT_C;
-   signal txDataSub         : Usb2PkTxSubType := USB2_PKTX_SUB_INIT_C;
+   signal txDataMst         : Usb2StrmMstType;
+   signal txDataSub         : Usb2PkTxSubType;
 
-   signal devStatus         : Usb2DevStatusType := USB2_DEV_STATUS_INIT_C;
-   signal epConfig          : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_CONFIG_INIT_C);
+   signal devStatus         : Usb2DevStatusType;
+   signal epConfig          : Usb2EndpPairConfigArray(0 to NUM_ENDPOINTS_C - 1);
 
-   signal epIb              : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
-   signal epOb              : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1) := (others => USB2_ENDP_PAIR_OB_INIT_C);
+   signal epIb              : Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_C - 1);
+   signal epOb              : Usb2EndpPairObArray(0 to NUM_ENDPOINTS_C - 1);
 
    type RegMuxState is (IDLE, LINESTATE, EXT);
 
    signal regMux            : RegMuxState := IDLE;
    signal regMuxIn          : RegMuxState;
-   signal regWake           : std_logic   := '0';
+   signal regWake           : std_logic;
 
 --   attribute MARK_DEBUG    of regMux : signal is "TRUE";
 
@@ -320,6 +320,8 @@ begin
             usb2Suspend        => suspend
          );
       ulpiLineTxReq <= ulpiPktTxReq;
+      regRep        <= ULPI_REG_REP_ERR_C;
+      isHiSpeedNego <= '0';
    end generate G_FSLS;
 
    U_PKT_RX : entity work.Usb2PktRx
