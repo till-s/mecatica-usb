@@ -369,57 +369,29 @@ architecture Impl of Usb2ExampleDev is
    constant EXT_EP0_AGENTS_IDX_C               : natural := CDC_NCM_EP0_AGENT_IDX_C + ite( HAVE_NCM_C,        1, 0 );
    constant NUM_EP0_AGENTS_C                   : natural := EXT_EP0_AGENTS_IDX_C    + CTL_EP0_AGENTS_CONFIG_G'length;
 
-   signal acmFifoDatInp                        : Usb2ByteType := (others => '0');
-   signal acmFifoWenInp                        : std_logic    := '0';
-   signal acmFifoFullInp                       : std_logic    := '0';
-   signal acmFifoFilledInp                     : unsigned(LD_ACM_FIFO_DEPTH_INP_G downto 0) := (others => '0');
-   signal acmFifoDatOut                        : Usb2ByteType := (others => '0');
-   signal acmFifoRenOut                        : std_logic    := '0';
-   signal acmFifoEmptyOut                      : std_logic    := '0';
-   signal acmFifoFilledOut                     : unsigned(LD_ACM_FIFO_DEPTH_OUT_G downto 0) := (others => '0');
-   signal acmFifoBlast                         : std_logic    := '0';
-   signal acmFifoLoopback                      : std_logic    := '0';
-
-   signal ecmFifoFilledInp                     : unsigned(LD_ECM_FIFO_DEPTH_INP_G downto 0) := (others => '0');
-   signal ecmFifoFilledOut                     : unsigned(LD_ECM_FIFO_DEPTH_OUT_G downto 0) := (others => '0');
-   signal ecmFifoFramesOut                     : unsigned(LD_ECM_FIFO_DEPTH_OUT_G downto 0) := (others => '0');
-
-   signal ncmFifoAvailInp                      : signed(LD_NCM_RAM_DEPTH_INP_G downto 0) := (others => '1');
-   signal ncmFifoEmptyOut                      : std_logic;
-
    signal usb2RstLoc                           : std_logic;
 
    signal usb2Ep0ReqParamIn                    : Usb2CtlReqParamType;
-   signal usb2Ep0ReqParamLoc                   : Usb2CtlReqParamArray( 0 to NUM_EP0_AGENTS_C - 1 ) := (
-         others => USB2_CTL_REQ_PARAM_INIT_C
-      );
+   signal usb2Ep0ReqParamLoc                   : Usb2CtlReqParamArray( 0 to NUM_EP0_AGENTS_C - 1 );
 
-   signal usb2Ep0CtlExtLoc                     : Usb2CtlExtType      := USB2_CTL_EXT_NAK_C;
+   signal usb2Ep0CtlExtLoc                     : Usb2CtlExtType;
 
-   signal usb2Ep0CtlExtArr                     : Usb2CtlExtArray(0 to NUM_EP0_AGENTS_C - 1)     := ( others => USB2_CTL_EXT_NAK_C );
-   signal usb2Ep0CtlEpExt                      : Usb2EndpPairIbType                             := USB2_ENDP_PAIR_IB_INIT_C;
-   signal usb2Ep0CtlEpExtArr                   : Usb2EndpPairIbArray(0 to NUM_EP0_AGENTS_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
+   signal usb2Ep0CtlExtArr                     : Usb2CtlExtArray(0 to NUM_EP0_AGENTS_C - 1);
+   signal usb2Ep0CtlEpExtArr                   : Usb2EndpPairIbArray(0 to NUM_EP0_AGENTS_C - 1);
 
    signal usb2DevStatusLoc                     : Usb2DevStatusType;
 
-   signal macAddrPatchDone                     : std_logic := '1';
-
-   signal gnd                                  : std_logic := '0';
-
    signal usb2Rx                               : Usb2RxType;
 
-   signal DTR, RTS                             : std_logic;
-
-   signal usb2EpIb                             : Usb2EndpPairIbArray(0 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_IB_INIT_C );
+   signal usb2EpIb                             : Usb2EndpPairIbArray(0 to N_EP_C - 1);
 
    -- note EP0 output can be observed here; an external agent extending EP0 functionality
    -- needs to listen to this.
-   signal usb2EpOb                             : Usb2EndpPairObArray(0 to N_EP_C - 1) := ( others => USB2_ENDP_PAIR_OB_INIT_C );
+   signal usb2EpOb                             : Usb2EndpPairObArray(0 to N_EP_C - 1);
 
 
    attribute MARK_DEBUG                        of usb2Ep0ReqParamLoc: signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
    attribute MARK_DEBUG                        of usb2Ep0CtlExtLoc  : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
-   attribute MARK_DEBUG                        of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
 
 begin
 
@@ -428,12 +400,6 @@ begin
    usb2RstLoc      <= usb2DevStatusLoc.usb2Rst or ulpiRst or usb2Rst;
    usb2RstOut      <= usb2DevStatusLoc.usb2Rst;
    usb2DevStatus   <= usb2DevStatusLoc;
-
-   acmDTR          <= DTR;
-   acmRTS          <= RTS;
-
-   acmFifoLoopback <= DTR;
-   acmFifoBlast    <= not acmFifoLoopback;
 
    -- USB2 Core
 
@@ -492,6 +458,12 @@ begin
          descRWOb                     => usb2DescRWOb
       );
 
+   G_NO_EP0_MUX : if ( NUM_EP0_AGENTS_C = 0 ) generate
+   begin
+      usb2Ep0CtlExtLoc                <= USB2_CTL_EXT_NAK_C;
+      usb2EpIb(0)                     <= USB2_ENDP_PAIR_IB_INIT_C;
+   end generate G_NO_EP0_MUX;
+
    G_EP0_MUX : if ( NUM_EP0_AGENTS_C > 0 ) generate
 
       function cat(
@@ -510,6 +482,10 @@ begin
          ite( HAVE_NCM_C      , usb2CtlEpMkCsIfcAgentConfig( CDC_NCM_CTL_IFC_NUM_C ) ) &
          CTL_EP0_AGENTS_CONFIG_G 
       );
+
+      signal usb2Ep0CtlEpExt  : Usb2EndpPairIbType;
+
+      attribute MARK_DEBUG    of usb2Ep0CtlEpExt   : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
 
   begin
 
@@ -554,7 +530,21 @@ begin
       signal acmEp0CtlExt        : Usb2CtlExtType;
       signal acmEp0ObExt         : Usb2EndpPairIbType;
       signal acmEp0ReqParam      : Usb2CtlReqParamType;
+      signal acmFifoDatInp       : Usb2ByteType;
+      signal acmFifoWenInp       : std_logic;
+      signal acmFifoFullInp      : std_logic;
+      signal acmFifoFilledInp    : unsigned(LD_ACM_FIFO_DEPTH_INP_G downto 0);
+      signal acmFifoDatOut       : Usb2ByteType;
+      signal acmFifoRenOut       : std_logic;
+      signal acmFifoEmptyOut     : std_logic;
+      signal acmFifoFilledOut    : unsigned(LD_ACM_FIFO_DEPTH_OUT_G downto 0);
+      signal acmFifoBlast        : std_logic;
+      signal acmFifoLoopback     : std_logic;
+      signal DTR, RTS            : std_logic;
    begin
+
+      acmFifoLoopback <= DTR;
+      acmFifoBlast    <= not acmFifoLoopback;
 
       G_ACM_CTL_EXT : if ( HAVE_ACM_AGENT_C ) generate
          usb2Ep0CtlExtArr( CDC_ACM_EP0_AGENT_IDX_C )   <= acmEp0CtlExt;
@@ -673,6 +663,8 @@ begin
       acmFifoOutDat   <= acmFifoDatOut;
       acmFifoOutFill  <= resize( acmFifoFilledOut, acmFifoOutFill'length );
       acmFifoInpFill  <= resize( acmFifoFilledInp, acmFifoInpFill'length );
+      acmDTR          <= DTR;
+      acmRTS          <= RTS;
    end generate G_EP_CDCACM;
 
    G_EP_ISO_SPKR : if ( HAVE_SPKR_C ) generate
@@ -790,6 +782,9 @@ begin
 
 
    G_EP_CDCECM : if ( HAVE_ECM_C ) generate
+      signal ecmFifoFilledInp          : unsigned(LD_ECM_FIFO_DEPTH_INP_G downto 0);
+      signal ecmFifoFilledOut          : unsigned(LD_ECM_FIFO_DEPTH_OUT_G downto 0);
+      signal ecmFifoFramesOut          : unsigned(LD_ECM_FIFO_DEPTH_OUT_G downto 0);
    begin
 
       U_CDCECM : entity work.Usb2EpCDCECM
@@ -855,6 +850,10 @@ begin
 
       constant SET_MC_FILT_C  : boolean          := (usb2GetNumMCFilters( DESCRIPTORS_G, NCM_IFC_ASSOC_IDX_C, USB2_IFC_SUBCLASS_CDC_NCM_C ) > 0);
       constant SET_NET_ADDR_C : boolean          := ( BM_NET_CAPA_C(1) = '1');
+
+      signal ncmFifoAvailInp  : signed(LD_NCM_RAM_DEPTH_INP_G downto 0);
+      signal ncmFifoEmptyOut  : std_logic;
+
    begin
 
       assert NCM_MAC_ADDR_C'length = 6 report "No NCM MAC Address found in descriptors" severity failure;
