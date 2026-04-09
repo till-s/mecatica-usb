@@ -66,7 +66,7 @@ architecture Impl of Usb2EpCDCACMNotify is
 
    constant IFC_NUM_C      : Usb2ByteType := Usb2ByteType( toUsb2InterfaceNumType( CTL_IFC_NUM_G ) );
 
-   signal din             : std_logic_vector(6 downto 0) := (others => '0');
+   signal din             : std_logic_vector(6 downto 0);
    signal dou             : std_logic_vector(din'range);
 
 
@@ -99,13 +99,17 @@ architecture Impl of Usb2EpCDCACMNotify is
 
 begin
 
-   din(6) <= overRun;
-   din(5) <= parityError;
-   din(4) <= framingError;
-   din(3) <= ringDetected;
-   din(2) <= breakState;
-   din(1) <= txCarrier;
-   din(0) <= rxCarrier;
+   P_DIN : process ( overRun, parityError, framingError, ringDetected, breakState, txCarrier, rxCarrier ) is
+   begin
+      din    <= (others => '0');
+      din(6) <= overRun;
+      din(5) <= parityError;
+      din(4) <= framingError;
+      din(3) <= ringDetected;
+      din(2) <= breakState;
+      din(1) <= txCarrier;
+      din(0) <= rxCarrier;
+   end process P_DIN;
 
    G_ASYNC : if ( ASYNC_G ) generate
       G_CC_SYNC : for i in din'range generate
@@ -126,7 +130,7 @@ begin
       dou <= din;
    end generate G_SYNC;
 
-   P_COMB_NOTE : process (r, dou, usb2NotifyEpIb ) is
+   P_COMB_NOTE : process ( r, dou, usb2NotifyEpIb ) is
       variable v : RegType;
    begin
 
