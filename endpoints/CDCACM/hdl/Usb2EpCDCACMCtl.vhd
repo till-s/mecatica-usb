@@ -103,8 +103,8 @@ architecture Impl of Usb2EpCDCACMCtl is
    signal rin        : RegType;
 
    signal ctlReqVld  : std_logic_vector( HANDLE_REQUESTS_C'range );
-   signal ctlReqAck  : std_logic := '0';
-   signal ctlReqErr  : std_logic := '1';
+   signal ctlReqAck  : std_logic;
+   signal ctlReqErr  : std_logic;
    signal parmsOb    : Usb2ByteArray( 0 to LCODING_SZ_C - 1 );
 
 begin
