@@ -203,9 +203,6 @@ architecture Impl of Usb2EpI2SPlayback is
    signal rusb2           : Usb2RegType := USB2_REG_INIT_C;
    signal rinusb2         : Usb2RegType;
 
-   signal u2sUpdTgl       : std_logic := '0';
-   signal u2sUpdTglOut    : std_logic;
-
    signal s2uRenTgl       : std_logic := '0';
    signal s2uRenTglOut    : std_logic;
 
@@ -219,7 +216,7 @@ architecture Impl of Usb2EpI2SPlayback is
    signal fifoFull        : std_logic;
    signal fifoAlmostEmpty : std_logic;
    signal fifoAlmostFull  : std_logic;
-   signal fifoResetting   : std_logic := '0';
+   signal fifoResetting   : std_logic;
    signal rdFilled        : unsigned(LD_FIFO_DEPTH_C downto 0);
    signal wrFilled        : unsigned(LD_FIFO_DEPTH_C downto 0);
 
@@ -346,12 +343,13 @@ begin
    begin
       if ( rising_edge( i2sBCLK ) ) then
          if ( fifoResetting = '1' ) then
-            r <= REG_INIT_C;
+            r         <= REG_INIT_C;
+            s2uRenTgl <= '0';
          else
             r <= rin;
-         end if;
-         if ( fifoRen = '1' ) then
-            s2uRenTgl <= not s2uRenTgl;
+            if ( fifoRen = '1' ) then
+               s2uRenTgl <= not s2uRenTgl;
+            end if;
          end if;
       end if;
    end process P_I2S_SEQ;
