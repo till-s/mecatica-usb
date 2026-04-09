@@ -146,9 +146,9 @@ architecture Impl of Usb2EpCDCNCMOut is
    );
 
    signal rRd        : RdRegType := RD_REG_INIT_C;
-   signal rInRd      : RdRegType := RD_REG_INIT_C;
+   signal rInRd      : RdRegType;
    signal rWr        : WrRegType := WR_REG_INIT_C;
-   signal rInWr      : WrRegType := WR_REG_INIT_C;
+   signal rInWr      : WrRegType;
 
    signal rdData     : Usb2ByteType;
    signal wrData     : Usb2ByteType;
