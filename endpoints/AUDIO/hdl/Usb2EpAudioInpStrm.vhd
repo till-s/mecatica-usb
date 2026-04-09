@@ -75,18 +75,13 @@ entity Usb2EpAudioInpStrm is
 end entity Usb2EpAudioInpStrm;
 
 architecture Impl of Usb2EpAudioInpStrm is
-   signal fifoDatOut     : std_logic_vector(epData'range);
-   signal fifoWen        : std_logic       := '0';
-   signal fifoRen        : std_logic       := '0';
-   signal fifoFull       : std_logic       := '0';
-   signal fifoEmpty      : std_logic       := '0';
    signal epRstLoc       : std_logic;
 
-   signal haltedInp      : std_logic       := '1';
-   signal haltedInpEpClk : std_logic       := '1';
+   signal haltedInp      : std_logic;
+   signal haltedInpEpClk : std_logic;
 
-   signal mstInpVld      : std_logic       := '0';
-   signal mstInpDat      : std_logic_vector(7 downto 0) := (others => '0');
+   signal mstInpVld      : std_logic;
+   signal mstInpDat      : std_logic_vector(7 downto 0);
 
    type   RegType        is record
       delay              : std_logic_vector(NUM_CHANNELS_G*SAMPLE_SIZE_G - 1 downto 0);
@@ -109,6 +104,12 @@ begin
    end generate G_NO_SHIFTER;
 
    G_SHIFTER : if ( epData'length > Usb2ByteType'length ) generate
+      signal fifoDatOut     : std_logic_vector(epData'range);
+      signal fifoWen        : std_logic;
+      signal fifoRen        : std_logic;
+      signal fifoFull       : std_logic;
+      signal fifoEmpty      : std_logic;
+   begin
 
       -- See Frmts20:
       -- Audio frames must not be fragmented across VFP (virtual frame packets
@@ -159,6 +160,32 @@ begin
 
       mstInpVld <= r.delay(r.delay'right);
       mstInpDat <= r.shiftReg(mstInpDat'range);
+      fifoWen   <= epDataVld and not haltedInpEpClk and not fifoFull;
+
+      U_FIFO : entity work.Usb2Fifo
+         generic map (
+            DATA_WIDTH_G                 => epData'length,
+            LD_DEPTH_G                   => LD_FIFO_DEPTH_INP_G,
+            ASYNC_G                      => ASYNC_G,
+            LD_TIMER_G                   => 1
+         )
+         port map (
+            wrClk                        => epCLk,
+            -- reset received from USB or endpoint not active in current alt-setting
+            wrRstOut                     => epRstLoc,
+   
+            din                          => epData,
+            wen                          => fifoWen,
+   
+            full                         => fifoFull,
+   
+            rdClk                        => usb2Clk,
+            rdRst                        => usb2Rst,
+   
+            dou                          => fifoDatOut,
+            ren                          => fifoRen,
+            empty                        => fifoEmpty
+         );
 
    end generate G_SHIFTER;
 
@@ -189,35 +216,9 @@ begin
          selectorSel         => selectorSel
       );
 
-   U_FIFO : entity work.Usb2Fifo
-      generic map (
-         DATA_WIDTH_G                 => epData'length,
-         LD_DEPTH_G                   => LD_FIFO_DEPTH_INP_G,
-         ASYNC_G                      => ASYNC_G,
-         LD_TIMER_G                   => 1
-      )
-      port map (
-         wrClk                        => epCLk,
-         -- reset received from USB or endpoint not active in current alt-setting
-         wrRstOut                     => epRstLoc,
-
-         din                          => epData,
-         wen                          => fifoWen,
-
-         full                         => fifoFull,
-
-         rdClk                        => usb2Clk,
-         rdRst                        => usb2Rst,
-
-         dou                          => fifoDatOut,
-         ren                          => fifoRen,
-         empty                        => fifoEmpty
-      );
-
    epRstOut   <= epRstLoc;
 
    haltedInp  <= usb2EpIb.haltedInp;
-   fifoWen    <= epDataVld and not haltedInpEpClk and not fifoFull;
 
    G_SYNC : if ( not ASYNC_G ) generate
    begin
