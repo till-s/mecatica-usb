@@ -166,15 +166,15 @@ architecture Impl of Usb2EpCDCNCMInp is
    );
 
    signal rWr        : WrRegType := WR_REG_INIT_C;
-   signal rInWr      : WrRegType := WR_REG_INIT_C;
+   signal rInWr      : WrRegType;
 
    signal rRd        : RdRegType := RD_REG_INIT_C;
-   signal rInRd      : RdRegType := RD_REG_INIT_C;
+   signal rInRd      : RdRegType;
 
    signal rdData     : std_logic_vector(8 downto 0);
    signal wrData     : std_logic_vector(8 downto 0);
 
-   signal rdAddr     : RamIdxType := (others => '0');
+   signal rdAddr     : RamIdxType;
    signal empty      : std_logic;
    signal avail      : signed(RamIdxType'range);
    signal full       : std_logic;
@@ -183,8 +183,6 @@ architecture Impl of Usb2EpCDCNCMInp is
 
    signal ramRen     : std_logic;
    signal ramWen     : std_logic;
-
-   signal vldInp     : std_logic  := '0';
 
    function toRamIdxType(constant a, b : Usb2ByteType) return RamIdxType is
       variable v : RamIdxType;
