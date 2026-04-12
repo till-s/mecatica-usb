@@ -66,9 +66,9 @@ package Usb2DescPkg is
    --      ...
    --      SENTINEL
    --      HS-device descriptor
-   --      FS-device qualifier
-   --      FS-config
-   --      FS-interfaces
+   --      HS-device qualifier
+   --      HS-config
+   --      HS-interfaces
    --      string-descriptors
    --      SENTINEL
    --
