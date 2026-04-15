@@ -82,6 +82,7 @@ static void usage(const char *nm, int lvl)
     printf("  -H <len>     : fill the first <len> bytes with 0xff, the rest with 0x00\n");
     printf("                 (For specialized testing/debugging.)\n");
     printf("  -V<idVendor> : use vendor ID <idVendor> (default: 0x%04x)\n", ID_VEND);
+    printf("  -L           : don't try to drop DTR (if firmware was configured w/o line-state support\n");
 	}
 }
 
@@ -115,22 +116,24 @@ int                                              timeout_sec = 1000;
 unsigned long                                    tot, totl   = 0;
 unsigned long                                   *l_p;
 enum libusb_speed                                spd;
+int                                              leave_linestate = 0;
 int                                              claimed_intf[2];
 int                                              num_claimed_intf = 0;
 
-	while ( (opt = getopt(argc, argv, "l:f:1:H:t:whV:P:")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "Ll:f:1:H:t:whV:P:")) > 0 ) {
 		i_p = 0;
 		l_p = 0;
 		switch (opt)  {
-            case 'h':  help++;        break;
-			case 'H':  i_p = &head;   break;
-			case '1':  i_p = &oneo;   break;
-			case 'f':  i_p = &fill;   break;
-			case 'l':  i_p = &len;    break;
-            case 't':  l_p = &totl;   break;
-            case 'V':  i_p = &vid ;   break;
-            case 'P':  i_p = &pid ;   break;
-            case 'w':  wr  = 1;       break;
+            case 'h':  help++;              break;
+			case 'H':  i_p = &head;         break;
+			case '1':  i_p = &oneo;         break;
+			case 'f':  i_p = &fill;         break;
+			case 'l':  i_p = &len;          break;
+            case 't':  l_p = &totl;         break;
+            case 'V':  i_p = &vid ;         break;
+            case 'P':  i_p = &pid ;         break;
+            case 'w':  wr  = 1;             break;
+            case 'L':  leave_linestate = 1; break;
 			default:
 				fprintf(stderr, "Error: Unknown option -%c\n", opt);
                 usage( argv[0], 0 );
@@ -250,14 +253,16 @@ int                                              num_claimed_intf = 0;
 	}
 	claimed_intf[num_claimed_intf++] = CTRL_INTF_NUMBER;
 
-    /* ensure modem control lines are clear (asserting DTR
-	 * switches from 'blast' mode which we exercise here to
-	 * loopback mode).
-	 */
-	st = setLineState( devh, 0, 0 );
-	if ( st ) {
-		fprintf(stderr, "Control transfer to reset DTR failed: %i\n", st);
-		goto bail;
+	if ( ! leave_linestate ) {
+		/* ensure modem control lines are clear (asserting DTR
+		 * switches from 'blast' mode which we exercise here to
+		 * loopback mode).
+		 */
+		st = setLineState( devh, 0, 0 );
+		if ( st ) {
+			fprintf(stderr, "Control transfer to reset DTR failed: %i\n", st);
+			goto bail;
+		}
 	}
 
     /* CDC Data */
