@@ -91,7 +91,6 @@ main(int argc, char **argv)
 libusb_device_handle                            *devh  = 0;
 libusb_context                                  *ctx   = 0;
 int                                              rv    = 1;
-int                                              intf  = -1;
 int                                              st;
 struct libusb_config_descriptor                 *cfg   = 0;
 const struct libusb_endpoint_descriptor         *e     = 0;
@@ -116,6 +115,8 @@ int                                              timeout_sec = 1000;
 unsigned long                                    tot, totl   = 0;
 unsigned long                                   *l_p;
 enum libusb_speed                                spd;
+int                                              claimed_intf[2];
+int                                              num_claimed_intf = 0;
 
 	while ( (opt = getopt(argc, argv, "l:f:1:H:t:whV:P:")) > 0 ) {
 		i_p = 0;
@@ -247,6 +248,7 @@ enum libusb_speed                                spd;
 		fprintf(stderr, "libusb_claim_interface: %i\n", st);
 		goto bail;
 	}
+	claimed_intf[num_claimed_intf++] = CTRL_INTF_NUMBER;
 
     /* ensure modem control lines are clear (asserting DTR
 	 * switches from 'blast' mode which we exercise here to
@@ -269,6 +271,7 @@ enum libusb_speed                                spd;
 		fprintf(stderr, "libusb_claim_interface: %i\n", st);
 		goto bail;
 	}
+	claimed_intf[num_claimed_intf++] = DATA_INTF_NUMBER;
 
 	e = cfg->interface[DATA_INTF_NUMBER].altsetting[0].endpoint;
 	for ( i = 0; i < cfg->interface[DATA_INTF_NUMBER].altsetting[0].bNumEndpoints; i++, e++ ) {
@@ -325,8 +328,8 @@ bail:
 		libusb_free_config_descriptor( cfg );
 	}
 	if ( devh ) {
-		if ( intf >= 0 ) {
-			libusb_release_interface( devh, intf );
+        for ( i = 0; i < num_claimed_intf; ++i ) {
+			libusb_release_interface( devh, claimed_intf[i] );
 		}
 		libusb_close( devh );
 	}
