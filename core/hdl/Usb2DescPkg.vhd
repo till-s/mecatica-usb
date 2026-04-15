@@ -341,7 +341,7 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       constant t : Usb2ByteType;
       constant o : natural;
       constant b : natural
-   ) return natural is
+   ) return integer is
       variable highest   : integer := -1;
       variable i         : integer := 0;
       variable thisone   : natural;
