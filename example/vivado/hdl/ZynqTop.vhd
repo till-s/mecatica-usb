@@ -20,6 +20,10 @@ use work.UlpiPkg.all;
 use work.Usb2UtilPkg.all;
 use work.Usb2Pkg.all;
 
+-- AXI 43C01000: ACM
+-- AXI 43C02000: ECM
+-- AXI 43C03000: NCM
+
 entity ZynqTop is
    generic (
       -- ulpi 'INPUT clock mode is when the link generates the clock'
