@@ -317,7 +317,7 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       variable  x : integer;
    begin
       x := i;
-      assert d(x + USB2_DESC_IDX_TYPE_C) = pt report "usb2CsNextCsDescriptor() must start searching at an Interface/Endpoint descriptor." severity failure;
+      assert d(x + USB2_DESC_IDX_TYPE_C) = pt report "usb2CsNextCsDescriptor() must start searching at an Interface/Endpoint descriptor (@" & integer'image(x) & ")." severity failure;
       x := usb2NextDescriptor(d, x, a);
       while ( x >= 0 ) loop
          if ( d(x + USB2_DESC_IDX_TYPE_C) = USB2_DESC_TYPE_ENDPOINT_C ) then
