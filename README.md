@@ -1268,6 +1268,10 @@ it is supported by the same `drv_fifo_eth.ko` demo driver and works exactly the
 same way as the ECM device. On the host, NCM is supported by linux, windows and
 macos.
 
+The NCM device is mapped to the AXI address range
+
+     0x43c03000..0x43c03fff
+
 #### Testing the BADD Speaker Device
 
 The BADD Speaker device implements a simple audio device that follows the
