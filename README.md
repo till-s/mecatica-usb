@@ -1084,9 +1084,9 @@ Example Design
 #### Extension Board
 
 The hardware design of a simple extension board for the ZYBO (v1) is
-available in the `kicad` subdirectory. The extension board hosts a
-USB3340 ULPI PHY, a clock and a micro-USB connector. It connects to
-three PMOD sites on the ZYBO (JB, JC and JD). The board can be configured
+available [here](git@github.com:till-s/kicad-pmod-ulpi-test.git).
+The extension board hosts a USB3340 ULPI PHY, a clock and a micro-USB connector.
+It connects to three PMOD sites on the ZYBO (JB, JC and JD). The board can be configured
 for UPLI input-clock or output-clock mode. Note that [problems](./doc/PROBLEMS.md)
 with input-clock mode which disappeared when I populated the clock
 generator and strapped the board for clock-output mode.
