@@ -1059,14 +1059,8 @@ a CLI-style driver for `ExampleDevDesc.py`. It can be executed from a
 shell and accepts options (use `-h` for help) and a YAML file from
 which all configurable parameters are extracted.
 
-Note that the default output file path is set such that the generated
-VHDL ends up as `<script_location>/../example/hdl/AppCfgPkgBody.vhd`.
-Thus, unless you plan to create the Zynq example design you must make
-sure to use `-f` to generate the file in the desired location and with
+You must use `-f` to generate the file in the desired location and with
 the desired name.
-
-Note also that you *must* provide a suitable vendor/product ID; the
-tool has not set a default.
 
 Use
 
@@ -1075,7 +1069,9 @@ Use
 for a summary of the available options.
 
 The user's YAML file is validated against a JSON schema (schema.json)
-in order to catch typing errors and missing parameters.
+in order to catch typing errors and missing parameters. The validation
+is only available if the `json` and `jsonschema` modules can successfully
+be imported.
 
 </details>
 
@@ -1127,13 +1123,13 @@ Usb descriptors for the project.
 
 #### Generate the Vivado Project
 
-A [tcl script](./example/tcl/Usb2Example.tcl) creates the Vivado project for
+A [tcl script](./example/vivado/tcl/Usb2Example.tcl) creates the Vivado project for
 the example design.
 
-  1. chdir to the `example` directory.
+  1. chdir to the `example/vivado` directory.
   2. run vivado in batch mode using the script:
 
-         vivado -mode tcl -source tcl/Usb2Example.tcl -tclargs --ulpi_clk_mode_inp 0
+         vivado -mode batch -script tcl/Usb2Example.tcl -tclargs --ulpi_clk_mode_inp 0
 
      this will create the project for the ULPI output-clock mode (which is also the
      default).

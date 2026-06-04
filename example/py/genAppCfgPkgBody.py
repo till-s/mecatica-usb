@@ -83,12 +83,14 @@ if __name__ == "__main__":
     with io.open(here + '/schema.json') as f:
       schema = json.load( f )
     jsonschema.validate(yml, schema=schema)
+  except ModuleNotFoundError as e:
+    print("Warning: unable to validate YAML against schema: ", e)
   except jsonschema.exceptions.ValidationError as e:
     print("Schema validation of YAML file failed: {}".format(e.message))
     print(" - from: {}".format(list(e.path)))
     sys.exit(1)
   except BaseException as e:
-    print("Warning: unable to validate YAML against schema: ", e.message)
+    print("Warning: unable to validate YAML against schema: ", e)
 
   if yml['deviceDesc']['idProduct'] is None:
     raise RuntimeError(
