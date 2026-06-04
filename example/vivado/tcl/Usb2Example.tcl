@@ -165,7 +165,6 @@ set proj_dir [get_property directory [current_project]]
 
 # Set project properties
 set obj [current_project]
-#set_property -name "board_part_repo_paths" -value "[file normalize "$origin_dir/../../../../../../../../vivado/board_files"]" -objects $obj
 set_property -name "default_lib" -value "xil_defaultlib" -objects $obj
 set_property -name "enable_vhdl_2008" -value "1" -objects $obj
 set_property -name "ip_cache_permissions" -value "read write" -objects $obj
@@ -420,6 +419,7 @@ set_property set_report_strategy_name 0 $obj
 if { [ string equal [get_report_configs -of_objects [get_runs synth_1] synth_1_synth_report_utilization_0] "" ] } {
   create_report_config -report_name synth_1_synth_report_utilization_0 -report_type report_utilization:1.0 -steps synth_design -runs synth_1
 }
+set_property STEPS.SYNTH_DESIGN.ARGS.ASSERT true [get_runs synth_1]
 set obj [get_report_configs -of_objects [get_runs synth_1] synth_1_synth_report_utilization_0]
 if { $obj != "" } {
 
