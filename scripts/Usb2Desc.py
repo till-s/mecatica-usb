@@ -267,7 +267,7 @@ class Usb2DescContext(list):
       else:
         print(file = f)
 
-  def genAppCfgPkgBody(self, f = sys.stdout, comment = ''):
+  def genAppCfgPkgBody(self, f = sys.stdout, comment = '', pkgName = 'Usb2AppCfgPkg'):
     print("-- Copyright Till Straumann, 2023. Licensed under the EUPL-1.2 or later.", file=f)
     print("-- You may obtain a copy of the license at", file=f)
     print("--   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12", file=f)
@@ -282,7 +282,7 @@ class Usb2DescContext(list):
     print("", file=f)
     print("use     work.Usb2Pkg.all;", file=f)
     print("", file=f)
-    print("package body Usb2AppCfgPkg is", file=f)
+    print("package body {} is".format(pkgName), file=f)
     print("   function usb2AppGetDescriptors return Usb2ByteArray is", file=f)
     print("      constant c : Usb2ByteArray := (", file=f)
     self.emitVhdlByteArray( f )
@@ -293,7 +293,7 @@ class Usb2DescContext(list):
     print("", file=f)
     print("   constant USB2_APP_DESCRIPTORS_C : Usb2ByteArray := usb2AppGetDescriptors;", file=f)
     print("", file=f)
-    print("end package body Usb2AppCfgPkg;", file=f)
+    print("end package body {};".format(pkgName), file=f)
 
   # the 'factory' decorator converts local classes
   # to factory methods of the context class. Subclasses
