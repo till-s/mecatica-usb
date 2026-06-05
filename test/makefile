@@ -110,7 +110,7 @@ PROG += Usb2ExtractMacAddrTb
 PROG += Usb2StrmBufTb
 # This needs an AppCfgPkgBody.vhd tailored to the
 # functions one wants to test.
-# PROG += Usb2DescPkgTb
+PROG += Usb2DescPkgTb
 
 all: test
 
@@ -211,7 +211,12 @@ Usb2EpBADDSpkr.o: Usb2EpI2SPlayback.o Usb2EpAudioCtl.o
 Usb2ExampleDev.o: Usb2Core.o Usb2MuxEpCtl.o Usb2EpCDCACM.o Usb2EpCDCECM.o Usb2EpCDCNCM.o Usb2EpBADDSpkr.o Usb2EpAudioInpStrm.o
 
 AppCfgPkgBody.o: Usb2AppCfgPkg.o
-Usb2DescPkgTb.o: Usb2DescPkg.o Usb2AppCfgPkg.o AppCfgPkgBody.o
+
+Usb2DescCfgPkgTest.vhd: ../example/py/ExampleDev.yaml
+	../example/py/genAppCfgPkgBody.py -f $@ -p $(@:%.vhd=%) $^
+
+Usb2DescPkgTb.o: Usb2DescPkg.o Usb2ExampleDev.o Usb2DescPkgTb.vhd Usb2DescCfgPkgTest.vhd
+	ghdl -a $(filter %.vhd, $^)
 
 NCMInpTst.txt: NCMOutCmp.txt
 	cp $^ $@
@@ -236,3 +241,4 @@ clean:
 	$(RM) NCMOutTst.txt NCMOutCmp.txt
 	$(RM) NCMInpTst.txt NCMInpCmp.txt
 	$(RM) AppCfgPkgBody.o
+	$(RM) Usb2DescCfgPkgTest.vhd
