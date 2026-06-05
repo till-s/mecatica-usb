@@ -330,11 +330,12 @@ architecture Impl of Usb2ExampleDev is
       variable v                     : Usb2ByteType := (others => '0');
       constant IDX_BM_CAPABILITIES_C : natural      := 3;
    begin
-      i := usb2NextCsDescriptor(DESCRIPTORS_G, ACM_IFC_ASSOC_IDX_C, USB2_CS_DESC_SUBTYPE_CDC_ACM_C);
+      -- skip the interface association descriptor; usb2NextCsDescriptor() expects
+      -- to start at an interface or endpoint desc.
+      i := usb2NextDescriptor(DESCRIPTORS_G, ACM_IFC_ASSOC_IDX_C);
+      i := usb2NextCsDescriptor(DESCRIPTORS_G, i, USB2_CS_DESC_SUBTYPE_CDC_ACM_C);
       assert i >= 0 report "CDCACM functional descriptor not found" severity failure;
-      if ( i >= 0 ) then
-         v := DESCRIPTORS_G( i + IDX_BM_CAPABILITIES_C );
-      end if;
+      v := DESCRIPTORS_G( i + IDX_BM_CAPABILITIES_C );
       return v;
    end function acmCapabilities;
 
