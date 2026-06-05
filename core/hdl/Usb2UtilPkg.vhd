@@ -15,8 +15,13 @@ package Usb2UtilPkg is
 
    function toStr(constant x : in boolean) return string;
 
+   function toChar(constant x : in std_logic) return character;
+
    function toStr(constant x : in unsigned) return string;
+   -- converts std_logic_vector to an integer number (13)
    function toStr(constant x : in std_logic_vector) return string;
+   -- print a bit-string (1101)
+   function toBitStr(constant x : in std_logic_vector) return string;
    function toStr(constant x : in signed) return string;
 
    function toSl(constant x : in boolean) return std_logic;
@@ -121,5 +126,35 @@ package body Usb2UtilPkg is
    begin
       return integer'image(to_integer(x));
    end function toStr;
+
+   function toChar(constant x : in std_logic) return character is
+   begin
+      -- there seems to be no other way :-(. Synopsis generated
+      -- shorter strings than ghdl (which has quotes around std_logic
+      -- values); found no way to use std_logic'image().
+      case x is
+         when 'U' => return 'U';
+         when 'X' => return 'X';
+         when '0' => return '0';
+         when '1' => return '1';
+         when 'Z' => return 'Z';
+         when 'W' => return 'W';
+         when 'L' => return 'L';
+         when 'H' => return 'H';
+         when others =>
+      end case;
+         return '-';
+   end function;
+
+   function toBitStr(constant x : in std_logic_vector) return string is
+      variable s      : string(1 to x'length);
+      variable b      : std_logic;
+      variable c      : character;
+   begin
+      for i in x'left downto x'right loop
+         s(x'left - i + 1) := toChar(x(i));
+      end loop;
+      return s;
+   end function toBitStr;
 
 end package body Usb2UtilPkg;
