@@ -15,6 +15,8 @@ SRCS+= UlpiPkg.vhd Usb2Pkg.vhd Usb2PrivPkg.vhd
 SRCS+= Usb2TstPkg.vhd
 SRCS+= Usb2AppCfgPkg.vhd
 SRCS+= Usb2DescPkg.vhd
+SRCS+= Usb2MuxEpCtlPkg.vhd
+SRCS+= Usb2EpGenericCtlPkg.vhd
 SRCS+= UlpiIO.vhd UlpiIOTb.vhd
 SRCS+= UlpiLogger.vhd
 SRCS+= Usb2PktRx.vhd UsbCrcTbl.vhd UsbCrcTblTb.vhd
@@ -34,6 +36,7 @@ SRCS+= Usb2FifoEp.vhd
 SRCS+= Usb2FifoEpTb.vhd
 SRCS+= Usb2FifoEpFrmdTb.vhd
 SRCS+= Usb2EpCDCACM.vhd
+SRCS+= Usb2EpCDCECM.vhd
 SRCS+= Usb2EpCDCACMCtl.vhd
 SRCS+= Usb2EpCDCACMNotify.vhd
 SRCS+= UlpiLineState.vhd
@@ -52,7 +55,6 @@ SRCS += Usb2EpI2SPlaybackTb.vhd
 endif
 SRCS += OthSpeedCfgTb.vhd
 SRCS += Usb2EpCDCEtherNotify.vhd
-SRCS += Usb2EpGenericCtlPkg.vhd
 SRCS += Usb2EpGenericCtl.vhd
 SRCS += Usb2EpCDCNCM.vhd
 SRCS += Usb2EpCDCNCMOut.vhd
@@ -71,7 +73,14 @@ SRCS += Usb2PktProcFSLSTb.vhd
 SRCS += Usb2ExtractMacAddrTb.vhd
 SRCS += Usb2StrmBuf.vhd
 SRCS += Usb2StrmBufTb.vhd
-
+SRCS += Usb2MuxEpCtl.vhd
+SRCS += Usb2EpCDCACM.vhd
+SRCS += Usb2EpAudioCtl.vhd
+SRCS += Usb2EpAudioInpStrm.vhd
+SRCS += Usb2EpBADDSpkr.vhd
+SRCS += Usb2EpBADDSpkrCtl.vhd
+SRCS += Usb2EpI2SPlayback.vhd
+SRCS += Usb2ExampleDev.vhd
 
 PROG+=UlpiIOTb
 PROG+=UsbCrcTblTb
@@ -124,7 +133,7 @@ build: $(PROG)
 $(PROG): %Tb : %Tb.o
 	$(GHDL) -e $(GHDLFLAGS) $($(@:%.o=%)_GHDLFLAGS) -o $@ -Wl,-no-pie $@
 
-$(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o Usb2PrivPkg.o UlpiPkg.o Usb2UtilPkg.o Usb2DescPkg.o
+$(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o Usb2PrivPkg.o UlpiPkg.o Usb2UtilPkg.o Usb2DescPkg.o Usb2MuxEpCtlPkg.o
 
 Usb2DescPkg.o: Usb2AppCfgPkg.o Usb2UtilPkg.o
 Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
@@ -176,6 +185,8 @@ Usb2EpCDCNCMInpTb.o: Usb2EpCDCNCMInp.o
 Usb2EpCDCNCMOutTb: NCMOutTst.txt NCMOutCmp.txt
 Usb2EpCDCNCMInpTb: NCMInpTst.txt
 
+Usb2EpCDCECM.o: Usb2EpCDCEtherNotify.o
+
 Usb2Ep0StringTb.o: Usb2Core.o
 Usb2CDCACMTb.o: Usb2Core.o Usb2EpCDCACM.o
 
@@ -192,6 +203,12 @@ Usb2PktProcFSLSTb.o: UlpiPkg.o Usb2Pkg.o Usb2PrivPkg.o Usb2UtilPkg.o Usb2TstPkg.
 UlpiFSLSEmul.o: UlpiPkg.o Usb2UtilPkg.o Usb2FSLSRx.o Usb2FSLSTx.o Usb2CCSync.o
 
 UlpiLogger.o: Usb2Bram.o
+
+Usb2EpAudioInpStrm.o: Usb2CCSync.o Usb2Fifo.o Usb2EpAudioCtl.o
+Usb2EpI2SPlayback.o: Usb2Fifo.o
+Usb2EpBADDSpkr.o: Usb2EpI2SPlayback.o Usb2EpAudioCtl.o
+
+Usb2ExampleDev.o: Usb2Core.o Usb2MuxEpCtl.o Usb2EpCDCACM.o Usb2EpCDCECM.o Usb2EpCDCNCM.o Usb2EpBADDSpkr.o Usb2EpAudioInpStrm.o
 
 AppCfgPkgBody.o: Usb2AppCfgPkg.o
 Usb2DescPkgTb.o: Usb2DescPkg.o Usb2AppCfgPkg.o AppCfgPkgBody.o
