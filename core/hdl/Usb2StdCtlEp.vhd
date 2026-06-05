@@ -79,13 +79,9 @@ architecture Impl of Usb2StdCtlEp is
    alias DSC_C : Usb2ByteArray is DESCRIPTORS_G;
 
    procedure pr(constant x: Usb2ByteArray) is
-      variable s : string(1 to 8);
    begin
       for i in x'range loop
-         for j in x(i)'left downto x(i)'right loop
-            s(8-j) := std_logic'image(x(i)(j))(2);
-         end loop;
-         report "D[" & integer'image(i) & "]  => " & s;
+         report "D[" & integer'image(i) & "]  => " & toBitStr(x(i));
       end loop;
    end procedure pr;
 
