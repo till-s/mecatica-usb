@@ -1,0 +1,45 @@
+# Test board connections
+#
+#
+# PMOD0_1 ulpiStp
+ldc_set_location -site {D10} [get_ports ulpiStp]
+# PMOD0_2 ulpiRst (DNL)
+# PMOD0_3 ulpiDir
+ldc_set_location -site {D7} [get_ports ulpiDir]
+# PMOD0_7 ulpiClk
+ldc_set_location -site {D6} [get_ports ulpiClk]
+# PMOD0_9 ulpiNxt
+ldc_set_location -site {D4} [get_ports ulpiNxt]
+# PMOD1_1 ulpiDat[0]
+ldc_set_location -site {E10} [get_ports {ulpiDat[0]}]
+# PMOD1_3 ulpiDat[2]
+ldc_set_location -site {E7} [get_ports {ulpiDat[2]}]
+# PMOD1_7 ulpiDat[1]
+ldc_set_location -site {E4} [get_ports {ulpiDat[1]}]
+# PMOD1_9 ulpiDat[3]
+ldc_set_location -site {E2} [get_ports {ulpiDat[3]}]
+# PMOD2_1 ulpiDat[5]
+ldc_set_location -site {J2} [get_ports {ulpiDat[5]}]
+# PMOD2_3 ulpiDat[7]
+ldc_set_location -site {K2} [get_ports {ulpiDat[7]}]
+# PMOD2_7 ulpiDat[4]
+ldc_set_location -site {K3} [get_ports {ulpiDat[4]}]
+# PMOD2_9 ulpiDat[6]
+ldc_set_location -site {D17} [get_ports {ulpiDat[6]}]
+ldc_set_location -site {L13} [get_ports clk]
+ldc_set_location -site {E17} [get_ports {LED[0]}]
+ldc_set_location -site {F13} [get_ports {LED[1]}]
+ldc_set_location -site {G13} [get_ports {LED[2]}]
+ldc_set_location -site {F14} [get_ports {LED[3]}]
+ldc_set_location -site {L16} [get_ports {LED[4]}]
+ldc_set_location -site {L15} [get_ports {LED[5]}]
+ldc_set_location -site {L20} [get_ports {LED[6]}]
+ldc_set_location -site {L19} [get_ports {LED[7]}]
+ldc_set_location -site {R17} [get_ports {LED[8]}]
+ldc_set_location -site {R18} [get_ports {LED[9]}]
+ldc_set_location -site {U20} [get_ports {LED[10]}]
+ldc_set_location -site {T20} [get_ports {LED[11]}]
+ldc_set_location -site {W20} [get_ports {LED[12]}]
+ldc_set_location -site {V20} [get_ports {LED[13]}]
+ldc_set_location -site {G14} [get_ports {BUTTON[0]}]
+ldc_set_location -site {G15} [get_ports {BUTTON[1]}]
