@@ -1,1 +1,4 @@
 config-local.mk
+blktst
+ssm2603
+zynq-demo
