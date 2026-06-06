@@ -18,7 +18,14 @@ foreach fil ${example_common_src_files} {
 }
 
 prj_add_source "${origin_dir}/../hdl/Usb2Example.vhd"
-prj_add_source "${origin_dir}/../hdl/Usb2AppCfgPkgBody.vhd"
+
+set pkg_body_src "${proj_dir}/Usb2AppCfgPkgBody.vhd"
+
+if { ![file isfile "${pkg_body_src}"] } {
+  exec  "${origin_dir}/../../py/genAppCfgPkgBody.py" -f "${pkg_body_src}" "${origin_dir}/../../py/ExampleDevOnlyACM.yaml"
+}
+
+prj_add_source "${pkg_body_src}"
 
 prj_add_source "${origin_dir}/../pdc/clock.sdc"
 prj_enable_source "${origin_dir}/../pdc/clock.sdc"
