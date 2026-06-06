@@ -9,9 +9,9 @@
     "functionACM"       :
       # whether to enable the send-break control request.
       # Makes the break signal available to user logic.
-      "haveSendBreak"     : false
+      "haveSendBreak"     : true
       # whether to enable the line-state control request.
       # Makes signals such as DTR, speed etc. available to
       # user logic. Also enables notifications such as ring-
       # or break-detect.
-      "haveLineState"     : false
+      "haveLineState"     : true
