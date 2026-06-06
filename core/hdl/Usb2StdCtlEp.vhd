@@ -336,18 +336,18 @@ architecture Impl of Usb2StdCtlEp is
       v.devStatus.haltedOut(0) := x;
    end procedure setProtoStall;
 
-   function isProtoStalled( constant c : in RegType ) return boolean is
+   impure function isProtoStalled( constant c : in RegType ) return boolean is
    begin
       return c.devStatus.haltedInp(0) = '1';
    end function isProtoStalled;
 
-   function hasHaltInp   (constant x : in RegType; constant o : std_logic_vector)
+   impure function hasHaltInp   (constant x : in RegType; constant o : std_logic_vector)
    return boolean is
    begin
       return x.epConfig( to_integer( unsigned( o ) ) ).hasHaltInp;
    end function hasHaltInp;
 
-   function hasHaltOut   (constant x : in RegType; constant o : std_logic_vector)
+   impure function hasHaltOut   (constant x : in RegType; constant o : std_logic_vector)
    return boolean is
    begin
       return x.epConfig( to_integer( unsigned( o ) ) ).hasHaltOut;
