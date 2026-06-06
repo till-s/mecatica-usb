@@ -1,4 +1,4 @@
-set lib_vhdl_files [list \
+set example_common_src_files [list \
  [file normalize "${origin_dir}/../../../core/hdl/Usb2Pkg.vhd"] \
  [file normalize "${origin_dir}/../../../core/hdl/Usb2PrivPkg.vhd"] \
  [file normalize "${origin_dir}/../../../core/hdl/UlpiPkg.vhd"] \
