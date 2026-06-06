@@ -198,51 +198,16 @@ if { ![file isfile "${pkg_body_src}"] } {
   exec  "${origin_dir}/../../py/genAppCfgPkgBody.py" -f "${pkg_body_src}" "${origin_dir}/../../py/ExampleDev.yaml"
 }
 
+source "${origin_dir}/../../tcl/srcs_common.tcl"
+add_files -norecurse -fileset ${obj} ${example_common_src_files}
+
 set vhdl_files [list \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2Pkg.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2PrivPkg.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/UlpiPkg.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2UtilPkg.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2AppCfgPkg.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2DescPkg.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/UlpiIOBuf.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/UlpiIO.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/UlpiLineState.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2Bram.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2CCSync.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2MboxSync.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/UsbCrcTbl.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2PktRx.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2PktTx.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2PktProc.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2StdCtlEp.vhd"] \
- [file normalize "${origin_dir}/../../../core/hdl/Usb2Core.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/common/hdl/Usb2Fifo.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/common/hdl/Usb2FifoEp.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/common/hdl/Usb2EpCDCEtherNotify.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/common/hdl/Usb2EpGenericCtlPkg.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/common/hdl/Usb2EpGenericCtl.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/common/hdl/Usb2MuxEpCtlPkg.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/common/hdl/Usb2MuxEpCtl.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/CDCACM/hdl/Usb2EpCDCACMCtl.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/CDCACM/hdl/Usb2EpCDCACMNotify.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/CDCACM/hdl/Usb2EpCDCACM.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/AUDIO/hdl/Usb2EpAudioCtl.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/AUDIO/hdl/Usb2EpI2SPlayback.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/AUDIO/hdl/Usb2EpBADDSpkr.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/CDCECM/hdl/Usb2EpCDCECM.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/CDCNCM/hdl/Usb2EpCDCNCMCtl.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/CDCNCM/hdl/Usb2EpCDCNCMInp.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/CDCNCM/hdl/Usb2EpCDCNCMOut.vhd"] \
- [file normalize "${origin_dir}/../../../endpoints/CDCNCM/hdl/Usb2EpCDCNCM.vhd"] \
- [file normalize "${origin_dir}/../../hdl/StdLogPkg.vhd"] \
- [file normalize "${origin_dir}/../../hdl/Usb2ExampleDev.vhd"] \
  [file normalize "${origin_dir}/../hdl/Ps7Pkg.vhd"] \
  [file normalize "${origin_dir}/../hdl/X7Wrapper.vhd"] \
  [file normalize "${origin_dir}/../hdl/ZynqTop.vhd"] \
  "${pkg_body_src}" \
 ]
-add_files -norecurse -fileset $obj $vhdl_files
+add_files -norecurse -fileset ${obj} ${vhdl_files}
 
 # Set 'sources_1' fileset file properties for remote files
 foreach file $vhdl_files {
