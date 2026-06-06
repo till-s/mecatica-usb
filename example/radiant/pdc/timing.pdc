@@ -1,9 +1,0 @@
-ldc_set_attribute {USE_PRIMARY=TRUE} [get_nets ulpiClk_c]
-
-set_input_delay -clock [get_clocks ulpiClk] -min -add_delay 1.5 [get_ports {ulpiDat[0] ulpiDat[7] ulpiDat[6] ulpiDat[5] ulpiDat[4] ulpiDat[2] ulpiDat[1] ulpiDat[3] ulpiNxt ulpiDir}]
-set_input_delay -clock [get_clocks ulpiClk] -max -add_delay 6.35 [get_ports {ulpiDat[0] ulpiDat[1] ulpiDat[2] ulpiDat[3] ulpiDat[4] ulpiDat[5] ulpiDat[6] ulpiDir ulpiDat[7] ulpiNxt}]
-set_output_delay -clock [get_clocks ulpiClk] -min -add_delay 0 [get_ports {ulpiDat[0] ulpiDat[1] ulpiDat[2] ulpiDat[3] ulpiDat[4] ulpiDat[5] ulpiDat[6] ulpiDat[7] ulpiStp}]
-set_output_delay -clock [get_clocks ulpiClk] -max -add_delay 6.1 [get_ports {ulpiDat[0] ulpiDat[1] ulpiDat[2] ulpiDat[3] ulpiDat[4] ulpiDat[5] ulpiDat[6] ulpiDat[7] ulpiStp}]
-
-set_multicycle_path -from [get_ports ulpiDir] -to [get_ports -regexp {ulpiDat[[].]}] -through [get_pins -regexp {G_ULPI_BUF.*U_ULPI_BUF[^/]*[/]T}] -setup 2
-set_multicycle_path -from [get_ports ulpiDir] -to [get_ports -regexp {ulpiDat[[].]}] -through [get_pins -regexp {G_ULPI_BUF.*U_ULPI_BUF[^/]*[/]T}] -hold -end 1
