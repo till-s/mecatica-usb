@@ -1,3 +1,8 @@
+# Copyright Till Straumann, 2026. Licensed under the EUPL-1.2 or later.
+# You may obtain a copy of the license at
+#   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+# This notice must not be removed.
+
 set common_srcs_dir [file dir [info script]]
 
 set example_common_src_files [list \

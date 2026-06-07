@@ -1,3 +1,8 @@
+-- Copyright Till Straumann, 2026. Licensed under the EUPL-1.2 or later.
+-- You may obtain a copy of the license at
+--   https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+-- This notice must not be removed.
+
 library ieee;
 use     ieee.std_logic_1164.all;
 use     ieee.numeric_std.all;
@@ -25,9 +30,6 @@ entity Usb2Example is
 end entity Usb2Example;
 
 architecture rtl of Usb2Example is
-   constant USE_PLL_C : boolean := true;
-
-   signal cnt : unsigned(CNT_LEN_G - 1 downto 0) := (others => '0');
 
    component UlpiPLL is
       port (
@@ -54,6 +56,8 @@ architecture rtl of Usb2Example is
         O : out   std_logic
       );
    end component BB;
+
+   signal cnt : unsigned(CNT_LEN_G - 1 downto 0) := (others => '0');
 
    signal ulpiClkBuffered : std_logic;
    signal ulpiClkLoc      : std_logic;
@@ -97,8 +101,24 @@ architecture rtl of Usb2Example is
    signal ncmCarrier      : std_logic;
 
    type   ProgArray is array(natural range <>) of std_logic_vector(14 downto 0);
-  
 
+   -- DEBUG STATE MACHINE
+   -- At some point I observed strange behavior (device not recognized by host)
+   -- then hooked up a logic analyzer which indicated faulty communication with
+   -- the ulpi PHY.
+   -- To verify this state machine was added; it reads the ID registers,
+   -- writes '1' and reads back each bit in the scratch register and dumps
+   -- the function and interface control registers. When the device was
+   -- malfunctioning all readback values were 0x24 (= vendor-id low contents).
+   -- As verified by ILA.
+   --
+   -- Later the behavior was no longer reproducible.
+   -- I found an article that claims PLL will have to be held in reset
+   -- for several milli-seconds or the relative phase of outputs will be
+   -- random. This could explain the strange behavior as we clock from
+   -- clkos_o. Worth a try if this manifests itself again.
+   --
+   -- read-flag, 6-bit address, write-data
    constant prog          : ProgArray := (
       ("1" & "00" & "0000" & x"00"),
       ("1" & "00" & "0001" & x"00"),
@@ -158,6 +178,7 @@ begin
    ulpiIb.nxt            <= ulpiNxt;
    ulpiIb.stp            <= '0';
 
+   -- use named buffer so we can ID them for constraints
    G_ULPI_BUF : for i in ulpiDat'range generate
       U_ULPI_BUF : component BB
          port map (
@@ -174,8 +195,6 @@ begin
 	 O => ulpiClkBuffered
       );
 
-   G_PLL : if (USE_PLL_C) generate
-
    U_PLL : component UlpiPLL
       port map (
          clki_i     => ulpiClkBuffered,
@@ -185,12 +204,6 @@ begin
          lock_o     => ulpiPllLocked
       );
 
-   end generate G_PLL;
-
-   G_NO_PLL : if (not USE_PLL_C) generate
-      ulpiClkLoc <= ulpiClkBuffered;
-   end generate G_NO_PLL;
-
    U_USB2_DEV : entity work.Usb2ExampleDev
       generic map (
          DESCRIPTORS_G       => USB2_APP_DESCRIPTORS_C
@@ -199,16 +212,16 @@ begin
          usb2Clk             => ulpiClkLoc,
          usb2Rst             => usb2Rst,
          ulpiRst             => ulpiRst,
-	 ulpiIb              => ulpiIb,
-	 ulpiOb              => ulpiOb,
-	 ulpiForceStp        => ulpiForceStp,
+         ulpiIb              => ulpiIb,
+         ulpiOb              => ulpiOb,
+         ulpiForceStp        => ulpiForceStp,
 
          ulpiRegReq          => ulpiRegReq,
          ulpiRegRep          => ulpiRegRep,
 
-	 acmFifoClk          => ulpiClkLoc,
-	 acmLineBreak        => acmLineBreak,
-	 acmDCD              => acmDCD,
+         acmFifoClk          => ulpiClkLoc,
+         acmLineBreak        => acmLineBreak,
+         acmDCD              => acmDCD,
 
          ecmFifoClk          => ulpiClkLoc,
 
@@ -241,9 +254,10 @@ begin
 
       );
 
+   -- Loopback wiring ECM <=> NCM; may be useful for some tests?
+
    ecmFifoInpDat       <= ncmFifoOutDat;
    ecmFifoInpLast      <= ncmFifoOutLast;
-
    ecmFifoInpWen       <= not ncmFifoOutEmpty;
    ncmFifoOutRen       <= not ecmFifoInpFull;
 
@@ -251,10 +265,13 @@ begin
 
    ncmFifoInpDat       <= ecmFifoOutDat;
    ncmFifoInpLast      <= ecmFifoOutLast;
-   ecmFifoOutRen       <= not ncmFifoInpBusy and not ncmFifoInpFull;
    ncmFifoInpWen       <= not ecmFifoOutEmpty;
+   ecmFifoOutRen       <= not ncmFifoInpBusy and not ncmFifoInpFull;
 
    ncmCarrier          <= '1';
+
+   -- reset generator (cannot reset the PLL from here;
+   -- would need a separate clock!)
 
    P_RST : process ( ulpiClkLoc ) is
    begin
@@ -284,6 +301,8 @@ begin
    end process P_LED;
 
    acmDCD <= BUTTON(0);
+
+   -- the register exercising FSM; started by button-1 press
 
    ulpiRegReq.addr  <= "00" & prog(r.pc)(13 downto 8);
    ulpiRegReq.wdat  <=        prog(r.pc)( 7 downto 0);
