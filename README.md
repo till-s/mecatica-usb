@@ -49,8 +49,11 @@ MacOS.
 
 ## Language and Hardware
 
-Mecatica is written in VHDL and has been tested with Xilinx and Efinix tools
-and hardware. The code is hardware-agnostic and should be portable to other
+Mecatica is written in VHDL and has been tested with Xilinx, Efinix and
+Lattice (radiant) tools and hardware (7-series, Trion, CrossLink-NX,
+respectively).
+
+The code is hardware-agnostic and should be portable to other
 FPGA families (might need some tweaking so that RAM is properly inferred).
 
 ## Performance and Resource Consumption
@@ -1097,31 +1100,18 @@ the clock which will cause Vivado to complain. I didn't experience
 problems (60MHz is not that high of a frequency) but I did have to do
 some phase shifting in a MMCM.
 
-### Device Functions
+#### Device Functions
 
-### Building the Example Design
+The example device instantiates
 
-#### Generate the Descriptors
+ - CDC ACM
+ - CDC ECM
+ - CDC NCM
+ - Audio i2s interface to ssm2306 chip
 
-As a first step you must generate the VHDL package body which defines the
-Usb descriptors for the project.
+#### Building the Example Design
 
-  1. chdir to the `example` subdirectory
-  2. run the python script providing a Usb product ID and optionally a
-     vendor id (by default the [0x1209](https://pid.codes) vendor ID is used).
-
-     **_You may use the [0x0001](https://pid.codes/1209/0001/) for private testing
-     only. Do not redistribute hardware/firmware using this ID!_**
-
-         py/genAppCfgPkgBody.py py/ExampleDev.yaml
-
-     The tool supports a number of other options (use `-h` for help). In particular,
-     you may disable individual functions (and reduce the amount of resources used).
-     The VHDL code extracts all the necessary information from the descriptors and
-     configures itself to support only the functions and features present in the
-     descriptors.
-
-#### Generate the Vivado Project
+##### Generate the Vivado Project
 
 A [tcl script](./example/vivado/tcl/Usb2Example.tcl) creates the Vivado project for
 the example design.
@@ -1137,6 +1127,11 @@ the example design.
 Once the project has been created you may start vivado in GUI mode, navigate to the
 project and open it. Proceed to synthesizing, implementing and eventually producing a
 bit-file which should be loaded on the target via JTAG or linux on the Zynq target.
+
+### CrossLink-NX Evaluation Board with Example Device
+
+On this board - by default - only the ACM function is instantiated. Consult
+the dedicated [README](example/radiant/README.md) for details.
 
 ### Test Software
 
