@@ -8,7 +8,8 @@
 #
 # PMOD0_1 ulpiStp
 ldc_set_location -site {D10} [get_ports ulpiStp]
-# PMOD0_2 ulpiRst (DNL)
+# PMOD0_2 ulpiPhyRstb (DNL)
+ldc_set_location -site {D9} [get_ports ulpiPhyRstb]
 # PMOD0_3 ulpiDir
 ldc_set_location -site {D7} [get_ports ulpiDir]
 # PMOD0_7 ulpiClk

@@ -19,17 +19,39 @@ entity Usb2Example is
       CNT_LEN_G  : natural := 22
    );
    port (
-      ulpiClk : in     std_logic;
-      ulpiNxt : in     std_logic;
-      ulpiDir : in     std_logic;
-      ulpiStp : out    std_logic;
-      ulpiDat : inout  std_logic_vector(7 downto 0);
-      LED     : out    std_logic_vector(NUM_LEDS_G - 1 downto 0);
-      BUTTON  : in     std_logic_vector(NUM_BUTS_G - 1 downto 0)
+      ulpiClk     : in     std_logic;
+      -- ulpiClk STOPS while ulpiPhyRstb is asserted!
+      ulpiPhyRstb : out    std_logic := '1';
+      ulpiNxt     : in     std_logic;
+      ulpiDir     : in     std_logic;
+      ulpiStp     : out    std_logic;
+      ulpiDat     : inout  std_logic_vector(7 downto 0);
+      LED         : out    std_logic_vector(NUM_LEDS_G - 1 downto 0);
+      BUTTON      : in     std_logic_vector(NUM_BUTS_G - 1 downto 0)
    );
 end entity Usb2Example;
 
 architecture rtl of Usb2Example is
+
+   -- there seems no official library with these declarations
+   component OSCA is
+      generic (
+         -- who would have guessed these were strings? Freq. came out massively wrong when using integer...
+         HF_CLK_DIV      : string  := "1";
+         HF_SED_SEC_DIV  : string  := "1";
+         HF_OSC_EN       : string  := "ENABLED";
+         LF_OUTPUT_EN    : string  := "DISABLED"
+      );
+      port (
+         HFOUTEN         : in     std_logic;
+         HFSDSCEN        : in     std_logic;
+
+         HFCLKOUT        : out    std_logic;
+         LFCLKOUT        : out    std_logic;
+         HFCLKCFG        : out    std_logic;
+         HFSDCOUT        : out    std_logic
+      );
+   end component OSCA;
 
    component UlpiPLL is
       port (
@@ -57,7 +79,9 @@ architecture rtl of Usb2Example is
       );
    end component BB;
 
-   signal cnt : unsigned(CNT_LEN_G - 1 downto 0) := (others => '0');
+   signal rstCnt          : unsigned(21 downto 0) := (others => '0');
+   signal rstClk          : std_logic;
+   signal cnt             : unsigned(CNT_LEN_G - 1 downto 0) := (others => '0');
 
    signal ulpiClkBuffered : std_logic;
    signal ulpiClkLoc      : std_logic;
@@ -65,11 +89,14 @@ architecture rtl of Usb2Example is
    signal ulpiIb          : UlpiIbType;
    signal ulpiOb          : UlpiObType;
 
+   signal ulpiRstb        : std_logic := '0';
    signal ulpiRst         : std_logic;
    signal usb2Rst         : std_logic;
    signal ulpiForceStp    : std_logic;
 
    signal ulpiPllLocked   : std_logic;
+   signal ulpiPllRstb     : std_logic;
+   signal ulpiPhyRstbLoc  : std_logic := '0';
    signal ledLoc          : std_logic_vector(NUM_LEDS_G - 1 downto 0);
 
    signal acmLineBreak    : std_logic;
@@ -113,10 +140,15 @@ architecture rtl of Usb2Example is
    -- As verified by ILA.
    --
    -- Later the behavior was no longer reproducible.
-   -- I found an article that claims PLL will have to be held in reset
+   -- I found an article
+   --
+   --   https://github.com/jhallen/FPGA-notes
+   --
+   -- that claims PLL will have to be held in reset
    -- for several milli-seconds or the relative phase of outputs will be
    -- random. This could explain the strange behavior as we clock from
    -- clkos_o. Worth a try if this manifests itself again.
+   -- UPDATE: problem reoccurred after introducing (long) PLL reset.
    --
    -- read-flag, 6-bit address, write-data
    constant prog          : ProgArray := (
@@ -172,7 +204,14 @@ architecture rtl of Usb2Example is
 
 begin
 
-   ulpiStp               <= ulpiOb.stp;
+   P_HIZ_STOP : process ( ulpiRstb ) is
+   begin
+      if ( ulpiRstb = '0' ) then
+         ulpiStp <= 'Z';
+      else
+         ulpiStp <= ulpiOb.stp;
+      end if;
+   end process P_HIZ_STOP;
 
    ulpiIb.dir            <= ulpiDir;
    ulpiIb.nxt            <= ulpiNxt;
@@ -198,8 +237,9 @@ begin
    U_PLL : component UlpiPLL
       port map (
          clki_i     => ulpiClkBuffered,
-         rstn_i     => '1',
+         rstn_i     => ulpiPllRstb,
          clkop_o    => open,
+         -- could use phase shift on secondary out if necessary for timing
          clkos_o    => ulpiClkLoc,
          lock_o     => ulpiPllLocked
       );
@@ -279,10 +319,10 @@ begin
 	 if ( cnt(cnt'left) = '0' ) then
             cnt     <= cnt +1;
 	    if ( cnt < 1000000 ) then
-               ulpiRst      <= '1';
+               ulpiRstb     <= '0';
 	       ulpiForceStp <= '1';
 	    else
-               ulpiRst <= '0';
+               ulpiRstb <= '1';
             end if;
          else
             ulpiForceStp <= '0';
@@ -290,14 +330,50 @@ begin
       end if;
    end process P_RST;
 
-   usb2Rst <= ulpiRst;
+   U_RST_OSC : component OSCA
+      generic map (
+         HF_CLK_DIV      => "225"
+      )
+      port map (
+         HFOUTEN     => '1',
+         HFSDSCEN    => '0',
 
-   P_LED : process (ulpiPllLocked, cnt, acmLineBreak) is
+         HFCLKOUT    => rstClk,
+         LFCLKOUT    => open,
+         HFCLKCFG    => open,
+         HFSDCOUT    => open
+      );
+
+   P_RST_PLL : process ( rstClk ) is
+   begin
+      if ( rising_edge( rstClk ) ) then
+         if ( rstCnt(rstCnt'left) = '0' ) then
+            rstCnt <= rstCnt + 1;
+            if ( rstCnt(rstCnt'left - 1) = '1' ) then
+               ulpiPhyRstbLoc <= '1';
+            end if;
+         end if;
+      end if;
+   end process P_RST_PLL;
+
+   ulpiPllRstb <= rstCnt(rstCnt'left);
+   ulpiPhyRstb <= ulpiPhyRstbLoc;
+
+   ulpiRst     <= not ulpiRstb;
+   usb2Rst     <= ulpiRst;
+
+   P_LED : process (ulpiPllLocked, cnt, acmLineBreak, ulpiPhyRstbLoc, ulpiPllRstb, ulpiRstb, ulpiForceStp) is
    begin
       ledLoc     <= (others => '0');
       ledLoc(0)  <= ulpiPllLocked;
       ledLoc(1)  <= acmLineBreak;
       ledLoc(2)  <= cnt(cnt'left);
+
+      ledLoc( 9) <= not ulpiPhyRstbLoc;
+      ledLoc(10) <= not ulpiPllRstb;
+      ledLoc(11) <= not ulpiRstb;
+      ledLoc(12) <= ulpiForceStp;
+      ledLoc(13) <= '1';
    end process P_LED;
 
    acmDCD <= BUTTON(0);
