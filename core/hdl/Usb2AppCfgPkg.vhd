@@ -14,7 +14,7 @@ package Usb2AppCfgPkg is
    -- GHDL 2.0 doesn't like an array constant being defined in the
    -- package body -- I got 'NULL access dereferenced' errors.
    -- Therefore, the application (which must supply the body of this
-   -- package as to define this function which just returns a local
+   -- package has to define this function which just returns a local
    -- constant)
    function usb2AppGetDescriptors return Usb2ByteArray;
 

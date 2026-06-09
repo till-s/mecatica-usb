@@ -84,13 +84,13 @@ architecture Impl of UlpiIO is
    signal rTx           : TxRegType := TX_REG_INIT_C;
    signal rinTx         : TxRegType;
 
-   signal txVld         : std_logic := '0';
-   signal txDat         : std_logic_vector(7 downto 0) := (others => '0');
+   signal txVld         : std_logic;
+   signal txDat         : std_logic_vector(7 downto 0);
    signal txRdy         : std_logic;
    signal txDon         : std_logic;
    signal txErr         : std_logic;
-   signal txSta         : std_logic := '0';
-   signal txNxt         : std_logic := '0';
+   signal txSta         : std_logic;
+   signal txNxt         : std_logic;
    signal ulpiRxLoc     : UlpiRxType;
    signal forceStpLoc   : std_logic;
 
@@ -113,6 +113,7 @@ begin
       )
       port map (
          ulpiClk         => ulpiClk,
+         ulpiRst         => ulpiRst,
          ulpiIb          => ulpiIb,
          ulpiOb          => ulpiOb,
 

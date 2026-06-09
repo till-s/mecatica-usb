@@ -79,13 +79,9 @@ architecture Impl of Usb2StdCtlEp is
    alias DSC_C : Usb2ByteArray is DESCRIPTORS_G;
 
    procedure pr(constant x: Usb2ByteArray) is
-      variable s : string(1 to 8);
    begin
       for i in x'range loop
-         for j in x(i)'left downto x(i)'right loop
-            s(8-j) := std_logic'image(x(i)(j))(2);
-         end loop;
-         report "D[" & integer'image(i) & "]  => " & s;
+         report "D[" & integer'image(i) & "]  => " & toBitStr(x(i));
       end loop;
    end procedure pr;
 
@@ -311,13 +307,13 @@ architecture Impl of Usb2StdCtlEp is
    -- a vivado work-around. Vivado complained about a index expression (when NUM_ENDPOINTS_G = 0) but
    -- failed to realize that the case could be optimized away (if unsigned < NUM_ENDPONTS and unsigned > 0)
    -- therefore we introduce a dummy signal array that is never empty.
-   signal allEpIb: Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_G - 1) := (others => USB2_ENDP_PAIR_IB_INIT_C);
+   signal allEpIb: Usb2EndpPairIbArray(0 to NUM_ENDPOINTS_G - 1);
 
    signal r                 : RegType := REG_INIT_C;
    signal rin               : RegType;
 
-   signal ramDatA           : Usb2ByteType := (others => '0');
-   signal ramRenA           : std_logic    := '0';
+   signal ramDatA           : Usb2ByteType;
+   signal ramRenA           : std_logic;
 
    procedure READ_TBL( variable v : inout RegType ) is
    begin
@@ -340,18 +336,18 @@ architecture Impl of Usb2StdCtlEp is
       v.devStatus.haltedOut(0) := x;
    end procedure setProtoStall;
 
-   function isProtoStalled( constant c : in RegType ) return boolean is
+   impure function isProtoStalled( constant c : in RegType ) return boolean is
    begin
       return c.devStatus.haltedInp(0) = '1';
    end function isProtoStalled;
 
-   function hasHaltInp   (constant x : in RegType; constant o : std_logic_vector)
+   impure function hasHaltInp   (constant x : in RegType; constant o : std_logic_vector)
    return boolean is
    begin
       return x.epConfig( to_integer( unsigned( o ) ) ).hasHaltInp;
    end function hasHaltInp;
 
-   function hasHaltOut   (constant x : in RegType; constant o : std_logic_vector)
+   impure function hasHaltOut   (constant x : in RegType; constant o : std_logic_vector)
    return boolean is
    begin
       return x.epConfig( to_integer( unsigned( o ) ) ).hasHaltOut;

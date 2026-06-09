@@ -30,8 +30,9 @@ if __name__ == "__main__":
 
 
   cmdline             = os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:])
+  pkgname             = None
 
-  (opt, args) = getopt.getopt(sys.argv[1:], "hf:d:s:FSN:E:AL:am:U:")
+  (opt, args) = getopt.getopt(sys.argv[1:], "hf:p:")
   for o in opt:
     if o[0] in ("-h"):
        print("usage: {} [-h] -f <output_file_or_dir> <config_yaml_file>".format(sys.argv[0]))
@@ -39,10 +40,14 @@ if __name__ == "__main__":
        print("          -f file_name     : output file name. If this points to a")
        print("                             directory then the file 'AppCfgPkgBody.vhd'")
        print("                             is generated in this directory.")
+       print("          -p package_name  : Change package name (default: Usb2AppCfgPkg - used by test suite).")
+       print("                             Donw't use this option unless you know what you are doing.")
        print("          config_yaml_file : YAML file with configuration settings")
        sys.exit(0)
     elif o[0] in ("-f"):
        fnam              = o[1]
+    elif o[0] in ("-p"):
+       pkgname           = o[1]
 
   if ( len(args) < 1 ):
     raise RuntimeError("Need a YAML configuration file")
@@ -83,12 +88,14 @@ if __name__ == "__main__":
     with io.open(here + '/schema.json') as f:
       schema = json.load( f )
     jsonschema.validate(yml, schema=schema)
+  except ModuleNotFoundError as e:
+    print("Warning: unable to validate YAML against schema: ", e)
   except jsonschema.exceptions.ValidationError as e:
     print("Schema validation of YAML file failed: {}".format(e.message))
     print(" - from: {}".format(list(e.path)))
     sys.exit(1)
   except BaseException as e:
-    print("Warning: unable to validate YAML against schema: ", e.message)
+    print("Warning: unable to validate YAML against schema: ", e)
 
   if yml['deviceDesc']['idProduct'] is None:
     raise RuntimeError(
@@ -114,4 +121,7 @@ if __name__ == "__main__":
 
   comment = "Generated with: '{}':\n--\n-- {}".format( cmdline, ymlstr[:end] )
   with io.open( fnam, 'x' ) as f:
-    ctxt.genAppCfgPkgBody( f, comment )
+    if not pkgname is None:
+      ctxt.genAppCfgPkgBody( f, comment, pkgname )
+    else:
+      ctxt.genAppCfgPkgBody( f, comment )

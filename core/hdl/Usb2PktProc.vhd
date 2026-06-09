@@ -56,21 +56,6 @@ architecture Impl of Usb2PktProc is
       return Usb2TimerType(to_signed(v, Usb2TimerType'length));
    end function simt;
 
-   function toStr(constant x : std_logic_vector) return string is
-      variable s : string(1 to x'length);
-   begin
-      for j in x'left downto x'right loop
-         s(x'length - j) := std_logic'image(x(j))(2);
-      end loop;
-      return s;
-   end function toStr;
-
-   function toStr(constant x : unsigned) return string is
-   begin
-      return toStr( std_logic_vector( x ) );
-   end function toStr;
-
-
    -- NOTE: there is a 1 clock delay in the receive path due to IO buffering
    --                  1 clock delay after EOP to pktHdr.vld
    --                  TIME_DATA_TX_C clocks to get out of WAIT_TX state
@@ -258,10 +243,10 @@ architecture Impl of Usb2PktProc is
    signal rd                                    : BufReaderType := BUF_READER_INIT_C;
    signal rdin                                  : BufReaderType;
 
-   signal bufWrEna                              : std_logic := '0';
-   signal bufReadbackInp                        : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
-   signal bufReadOut                            : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
-   signal bufWriteInp                           : std_logic_vector(BUF_WIDTH_C - 1 downto 0) := (others => '0');
+   signal bufWrEna                              : std_logic;
+   signal bufReadbackInp                        : std_logic_vector(BUF_WIDTH_C - 1 downto 0);
+   signal bufReadOut                            : std_logic_vector(BUF_WIDTH_C - 1 downto 0);
+   signal bufWriteInp                           : std_logic_vector(BUF_WIDTH_C - 1 downto 0);
    signal epConfigDbg                           : Usb2EndpPairConfigArray(epConfig'range);
    signal epIbDbg                               : Usb2EndpPairIbType;
    signal epObDbg                               : Usb2EndpPairObType;

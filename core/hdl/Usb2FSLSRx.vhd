@@ -93,14 +93,18 @@ architecture rtl of Usb2FSLSRx is
    signal rxErr        : std_logic;
    signal lineState    : std_logic_vector(1 downto 0);
    signal rxDat        : std_logic_vector(7 downto 0);
-   signal rxCmdLoc     : std_logic_vector(7 downto 0) := (others => '0');
+   signal rxCmdLoc     : std_logic_vector(7 downto 0);
    signal nxt          : std_logic;
 
 begin
 
-   rxCmdLoc( ULPI_RXCMD_RX_ACTIVE_BIT_C ) <= rxActBlanked;
-   rxCmdLoc( ULPI_RXCMD_RX_ERROR_BIT_C  ) <= rxErr and not r.errFlagged;
-   rxCmdLoc( 1 downto 0                 ) <= lineState;
+   P_RX_CMD : process (rxActBlanked, rxErr, r, lineState) is
+   begin
+      rxCmdLoc                               <= (others => '0');
+      rxCmdLoc( ULPI_RXCMD_RX_ACTIVE_BIT_C ) <= rxActBlanked;
+      rxCmdLoc( ULPI_RXCMD_RX_ERROR_BIT_C  ) <= rxErr and not r.errFlagged;
+      rxCmdLoc( 1 downto 0                 ) <= lineState;
+   end process P_RX_CMD;
 
    P_COMB : process ( r, remWake, txActive, rxAct, rxErr, rxVld, rxCmdLoc, nxt ) is
       variable v           : RegType;

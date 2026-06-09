@@ -278,15 +278,6 @@ package body Usb2DescPkg is
       return x;
    end function usb2NextDescriptor;
 
-   function toStr(constant x : std_logic_vector) return string is
-      variable s : string(1 to x'length);
-   begin
-      for i in x'left downto x'right loop
-         s(x'left - i + 1) := std_logic'image(x(i))(2);
-      end loop;
-      return s;
-   end function toStr;
-
    -- find next descriptor of a certain type starting at index s; returns -1 if none is found
    function usb2NextDescriptor(
       constant d: Usb2ByteArray;
@@ -297,7 +288,7 @@ package body Usb2DescPkg is
       variable x : integer;
    begin
       x := i;
-report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " & toStr(d(x+USB2_DESC_IDX_TYPE_C));
+report "i: " & integer'image(x) & " t " & toBitStr(std_logic_vector(t)) & " tbl " & toBitStr(d(x+USB2_DESC_IDX_TYPE_C));
       while ( x >= 0 and d(x + USB2_DESC_IDX_TYPE_C) /= Usb2ByteType(t) ) loop
          x := usb2NextDescriptor(d, x, a);
       end loop;
@@ -317,7 +308,7 @@ report "i: " & integer'image(x) & " t " & toStr(std_logic_vector(t)) & " tbl " &
       variable  x : integer;
    begin
       x := i;
-      assert d(x + USB2_DESC_IDX_TYPE_C) = pt report "usb2CsNextCsDescriptor() must start searching at an Interface/Endpoint descriptor." severity failure;
+      assert d(x + USB2_DESC_IDX_TYPE_C) = pt report "usb2CsNextCsDescriptor() must start searching at an Interface/Endpoint descriptor (@" & integer'image(x) & ")." severity failure;
       x := usb2NextDescriptor(d, x, a);
       while ( x >= 0 ) loop
          if ( d(x + USB2_DESC_IDX_TYPE_C) = USB2_DESC_TYPE_ENDPOINT_C ) then

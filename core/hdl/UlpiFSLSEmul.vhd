@@ -82,7 +82,7 @@ architecture rtl of UlpiFSLSEmul is
    signal   txActive         : std_logic;
    signal   txData           : std_logic_vector(7 downto 0);
    signal   txNxt            : std_logic;
-   signal   txStp            : std_logic := '0';
+   signal   txStp            : std_logic;
    signal   rxActive         : std_logic;
    signal   rxValid          : std_logic;
    signal   txOE             : std_logic;

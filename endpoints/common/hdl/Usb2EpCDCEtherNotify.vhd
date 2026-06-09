@@ -109,8 +109,6 @@ architecture Impl of Usb2EpCDCEtherNotify is
    signal r               : RegType   := REG_INIT_C;
    signal rin             : RegType;
 
-   signal cen             : std_logic := '0';
-
    signal carrierLoc      : std_logic;
 
    attribute MARK_DEBUG   of r : signal is toStr( MARK_DEBUG_G );
@@ -124,6 +122,7 @@ begin
          )
          port map (
             clk    => usb2Clk,
+            rst    => usb2Rst,
             d      => carrier,
             q      => carrierLoc
          );

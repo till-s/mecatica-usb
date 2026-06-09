@@ -117,7 +117,7 @@ architecture Impl of Usb2EpCDCECM is
 
    constant IFC_NUM_C      : Usb2ByteType := Usb2ByteType( toUsb2InterfaceNumType( CTL_IFC_NUM_G ) );
 
-   signal cen             : std_logic := '0';
+   signal cen             : std_logic;
    signal usb2EpRst       : std_logic;
 
    signal epRstLoc        : std_logic;

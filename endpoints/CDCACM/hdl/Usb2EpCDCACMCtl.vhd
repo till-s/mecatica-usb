@@ -43,6 +43,7 @@ entity Usb2EpCDCACMCtl is
       dataBits        : out unsigned( 4 downto 0) := (others => '0');
 
       epClk           : in  std_logic := '0';
+      epRst           : in  std_logic := '0';
 
       lineBreak       : out std_logic;
       DTR             : out std_logic := '0';
@@ -102,8 +103,8 @@ architecture Impl of Usb2EpCDCACMCtl is
    signal rin        : RegType;
 
    signal ctlReqVld  : std_logic_vector( HANDLE_REQUESTS_C'range );
-   signal ctlReqAck  : std_logic := '0';
-   signal ctlReqErr  : std_logic := '1';
+   signal ctlReqAck  : std_logic;
+   signal ctlReqErr  : std_logic;
    signal parmsOb    : Usb2ByteArray( 0 to LCODING_SZ_C - 1 );
 
 begin
@@ -188,6 +189,7 @@ begin
          U_SYNC : entity work.Usb2CCSync
             port map (
                clk => epClk,
+               rst => epRst,
                d   => r.timer(r.timer'left),
                q   => lineBreak
             );
@@ -214,12 +216,14 @@ begin
          U_SYNC_RTS : entity work.Usb2CCSync
             port map (
                clk => epClk,
+               rst => epRst,
                d   => r.DTR,
                q   => DTR
             );
          U_SYNC_DTR : entity work.Usb2CCSync
             port map (
                clk => epClk,
+               rst => epRst,
                d   => r.RTS,
                q   => RTS
             );

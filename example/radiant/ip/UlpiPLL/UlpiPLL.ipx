@@ -1,0 +1,10 @@
+<?xml version="1.0" ?>
+<RadiantModule architecture="je5d00" date="2026 06 06 21:46:23" device="LIFCL-40" device_int="je5d30" display_module="PLL" display_vendor="latticesemi.com" family="LIFCL" gen_platform="Radiant" gen_platform_version="2025.2.0.48.0" generator="ipgen" library="module" module="pll" name="UlpiPLL" operation="Commercial" package="CABGA400" package_int="CABGA400" partnumber="LIFCL-40-9BG400C" source_format="Verilog" speed="9_High-Performance_1.0V" speed_int="12" vendor="latticesemi.com" version="1.9.1">
+ <Package>
+  <File modified="2026 06 06 21:46:23" name="UlpiPLL.cfg" type="cfg"/>
+  <File modified="2026 06 06 21:46:23" name="rtl/UlpiPLL.v" type="top_level_verilog"/>
+  <File modified="2026 06 06 21:46:23" name="constraints/UlpiPLL.ldc" type="timing_constraints"/>
+  <File modified="2026 06 06 21:46:23" name="component.xml" type="IP-XACT_component"/>
+  <File modified="2026 06 06 21:46:23" name="design.xml" type="IP-XACT_design"/>
+ </Package>
+</RadiantModule>

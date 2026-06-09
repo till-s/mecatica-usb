@@ -49,8 +49,11 @@ MacOS.
 
 ## Language and Hardware
 
-Mecatica is written in VHDL and has been tested with Xilinx and Efinix tools
-and hardware. The code is hardware-agnostic and should be portable to other
+Mecatica is written in VHDL and has been tested with Xilinx, Efinix and
+Lattice (radiant) tools and hardware (7-series, Trion, CrossLink-NX,
+respectively).
+
+The code is hardware-agnostic and should be portable to other
 FPGA families (might need some tweaking so that RAM is properly inferred).
 
 ## Performance and Resource Consumption
@@ -1059,14 +1062,8 @@ a CLI-style driver for `ExampleDevDesc.py`. It can be executed from a
 shell and accepts options (use `-h` for help) and a YAML file from
 which all configurable parameters are extracted.
 
-Note that the default output file path is set such that the generated
-VHDL ends up as `<script_location>/../example/hdl/AppCfgPkgBody.vhd`.
-Thus, unless you plan to create the Zynq example design you must make
-sure to use `-f` to generate the file in the desired location and with
+You must use `-f` to generate the file in the desired location and with
 the desired name.
-
-Note also that you *must* provide a suitable vendor/product ID; the
-tool has not set a default.
 
 Use
 
@@ -1075,7 +1072,9 @@ Use
 for a summary of the available options.
 
 The user's YAML file is validated against a JSON schema (schema.json)
-in order to catch typing errors and missing parameters.
+in order to catch typing errors and missing parameters. The validation
+is only available if the `json` and `jsonschema` modules can successfully
+be imported.
 
 </details>
 
@@ -1088,9 +1087,9 @@ Example Design
 #### Extension Board
 
 The hardware design of a simple extension board for the ZYBO (v1) is
-available in the `kicad` subdirectory. The extension board hosts a
-USB3340 ULPI PHY, a clock and a micro-USB connector. It connects to
-three PMOD sites on the ZYBO (JB, JC and JD). The board can be configured
+available [here](git@github.com:till-s/kicad-pmod-ulpi-test.git).
+The extension board hosts a USB3340 ULPI PHY, a clock and a micro-USB connector.
+It connects to three PMOD sites on the ZYBO (JB, JC and JD). The board can be configured
 for UPLI input-clock or output-clock mode. Note that [problems](./doc/PROBLEMS.md)
 with input-clock mode which disappeared when I populated the clock
 generator and strapped the board for clock-output mode.
@@ -1101,39 +1100,26 @@ the clock which will cause Vivado to complain. I didn't experience
 problems (60MHz is not that high of a frequency) but I did have to do
 some phase shifting in a MMCM.
 
-### Device Functions
+#### Device Functions
 
-### Building the Example Design
+The example device instantiates
 
-#### Generate the Descriptors
+ - CDC ACM
+ - CDC ECM
+ - CDC NCM
+ - Audio i2s interface to ssm2306 chip
 
-As a first step you must generate the VHDL package body which defines the
-Usb descriptors for the project.
+#### Building the Example Design
 
-  1. chdir to the `example` subdirectory
-  2. run the python script providing a Usb product ID and optionally a
-     vendor id (by default the [0x1209](https://pid.codes) vendor ID is used).
+##### Generate the Vivado Project
 
-     **_You may use the [0x0001](https://pid.codes/1209/0001/) for private testing
-     only. Do not redistribute hardware/firmware using this ID!_**
-
-         py/genAppCfgPkgBody.py py/ExampleDev.yaml
-
-     The tool supports a number of other options (use `-h` for help). In particular,
-     you may disable individual functions (and reduce the amount of resources used).
-     The VHDL code extracts all the necessary information from the descriptors and
-     configures itself to support only the functions and features present in the
-     descriptors.
-
-#### Generate the Vivado Project
-
-A [tcl script](./example/tcl/Usb2Example.tcl) creates the Vivado project for
+A [tcl script](./example/vivado/tcl/Usb2Example.tcl) creates the Vivado project for
 the example design.
 
-  1. chdir to the `example` directory.
+  1. chdir to the `example/vivado` directory.
   2. run vivado in batch mode using the script:
 
-         vivado -mode tcl -source tcl/Usb2Example.tcl -tclargs --ulpi_clk_mode_inp 0
+         vivado -mode batch -script tcl/Usb2Example.tcl -tclargs --ulpi_clk_mode_inp 0
 
      this will create the project for the ULPI output-clock mode (which is also the
      default).
@@ -1141,6 +1127,11 @@ the example design.
 Once the project has been created you may start vivado in GUI mode, navigate to the
 project and open it. Proceed to synthesizing, implementing and eventually producing a
 bit-file which should be loaded on the target via JTAG or linux on the Zynq target.
+
+### CrossLink-NX Evaluation Board with Example Device
+
+On this board - by default - only the ACM function is instantiated. Consult
+the dedicated [README](example/radiant/README.md) for details.
 
 ### Test Software
 
@@ -1271,6 +1262,10 @@ The NCM device is supported by the standard linux `cdc_ncm` driver. On the Zynq
 it is supported by the same `drv_fifo_eth.ko` demo driver and works exactly the
 same way as the ECM device. On the host, NCM is supported by linux, windows and
 macos.
+
+The NCM device is mapped to the AXI address range
+
+     0x43c03000..0x43c03fff
 
 #### Testing the BADD Speaker Device
 

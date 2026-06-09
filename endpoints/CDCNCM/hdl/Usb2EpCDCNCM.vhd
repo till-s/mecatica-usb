@@ -186,12 +186,12 @@ architecture Impl of Usb2EpCDCNCM is
 
    constant TIMEOUT_INP_TICKS_C           : unsigned           := TIMEOUT_INP_TICKS_F;
 
-   signal epRstLoc                        : std_logic          := '0';
-   signal usb2EpRstLoc                    : std_logic          := '0';
+   signal epRstLoc                        : std_logic;
+   signal usb2EpRstLoc                    : std_logic;
    signal usb2EpRst                       : std_logic;
 
-   signal epOut                           : usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
-   signal epInp                           : usb2EndpPairIbType := USB2_ENDP_PAIR_IB_INIT_C;
+   signal epOut                           : usb2EndpPairIbType;
+   signal epInp                           : usb2EndpPairIbType;
 
    signal usb2RamWrPtrOut                 : unsigned(LD_RAM_DEPTH_OUT_G downto 0);
    signal usb2RamRdPtrOut                 : unsigned(LD_RAM_DEPTH_OUT_G downto 0);

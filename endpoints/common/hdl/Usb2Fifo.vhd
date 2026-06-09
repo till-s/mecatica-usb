@@ -123,8 +123,8 @@ architecture Impl of Usb2Fifo is
       len       => ( others => '0' )
    );
 
-   signal wrPtrOut              : IdxType := (others => '0');
-   signal rdPtrOut              : IdxType := (others => '0');
+   signal wrPtrOut              : IdxType;
+   signal rdPtrOut              : IdxType;
 
    function occupied(constant x : in RdRegType; constant wp : in IdxType) return IdxType is
    begin
@@ -171,11 +171,10 @@ architecture Impl of Usb2Fifo is
    signal fifoWrAddr        : unsigned(LD_DEPTH_G - 1 downto 0);
    signal advanceReg        : std_logic;
    signal advanceMem        : std_logic;
-   signal fifoWBsy          : std_logic := '0';
 
-   signal timerStrobe       : std_logic := '0';
+   signal timerStrobe       : std_logic;
 
-   signal fillOff           : IdxType   := (others => '0');
+   signal fillOff           : IdxType;
 
    signal wrRstLoc          : std_logic;
    signal rdRstLoc          : std_logic;
@@ -209,11 +208,11 @@ begin
       signal cenA             : std_logic;
       signal cenB             : std_logic;
       signal dinA             : std_logic_vector(A_W_C - 1 downto 0);
-      signal douA             : std_logic_vector(B_W_C - 1 downto 0) := (others => '0');
+      signal douA             : std_logic_vector(B_W_C - 1 downto 0);
 
       signal dinB             : std_logic_vector(B_W_C - 1 downto 0);
-      signal douB             : std_logic_vector(A_W_C - 1 downto 0) := (others => '0');
-      signal wrPtrInp         : IdxType := (others => '0');
+      signal douB             : std_logic_vector(A_W_C - 1 downto 0);
+      signal wrPtrInp         : IdxType;
 
       -- signal an initial reset to make sure any side waits for the other one
       signal resettingA       : std_logic := '1'; -- hold reset state triggered by reset on A side
@@ -232,6 +231,8 @@ begin
       G_NFRMD : if ( not FRAMED_G ) generate
          wrPtrInp <= rWr.wrPtr;
       end generate G_NFRMD;
+
+      timerStrobe  <= '0';
 
       dinA         <= wrXtraInp & rstBSeenAtA & resettingA & std_logic_vector( wrPtrInp  );
       dinB         <= rdXtraInp & rstASeenAtB & resettingB & std_logic_vector( rRd.rdPtr );
@@ -321,6 +322,10 @@ begin
          fillOff <= v;
       end process P_FILL_OFF;
    end generate G_THR_EXACT;
+
+   G_THR_NOT_EXACT : if ( not EXACT_THR_G ) generate
+      fillOff <= (others => '0');
+   end generate G_THR_NOT_EXACT;
 
    P_RD_COMB : process ( rRd, minFill, fillOff, timer, advanceReg, advanceMem, wrPtrOut, timerStrobe ) is
       variable v : RdRegType;
