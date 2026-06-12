@@ -9,6 +9,13 @@
       "required"              : [ "idProduct" ],
       "additionalProperties"  : false,
       "properties"            : {
+        "bcdDevice" : {
+          "description" : "Device release number",
+          "default" : 0,
+          "type"    : "integer",
+          "minimum" : 0,
+          "maximum" : 9999
+        },
         "idVendor" :  {
           "description" : "USB Vendor ID; defaults to 0x1209 (PID Codes)",
           "default" : 4617,

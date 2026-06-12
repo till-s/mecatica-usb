@@ -31,19 +31,23 @@ if __name__ == "__main__":
 
   cmdline             = os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:])
   pkgname             = None
+  allowOverWrite      = False
 
-  (opt, args) = getopt.getopt(sys.argv[1:], "hf:p:")
+  (opt, args) = getopt.getopt(sys.argv[1:], "hFf:p:")
   for o in opt:
     if o[0] in ("-h"):
-       print("usage: {} [-h] -f <output_file_or_dir> <config_yaml_file>".format(sys.argv[0]))
+       print("usage: {} [-hF] -f <output_file_or_dir> <config_yaml_file>".format(sys.argv[0]))
        print("          -h               : this message")
        print("          -f file_name     : output file name. If this points to a")
        print("                             directory then the file 'AppCfgPkgBody.vhd'")
        print("                             is generated in this directory.")
+       print("          -F               : allow overwriting an existing output file.")
        print("          -p package_name  : Change package name (default: Usb2AppCfgPkg - used by test suite).")
        print("                             Donw't use this option unless you know what you are doing.")
        print("          config_yaml_file : YAML file with configuration settings")
        sys.exit(0)
+    elif o[0] in ("-F"):
+       allowOverWrite = True
     elif o[0] in ("-f"):
        fnam              = o[1]
     elif o[0] in ("-p"):
@@ -75,8 +79,6 @@ if __name__ == "__main__":
   except FileNotFoundError:
     # they want to generate it, after all
     pass
-      
-
 
   with io.open(yamlFileName) as f:
     yml = yaml.safe_load(f)
@@ -120,7 +122,11 @@ if __name__ == "__main__":
     end -= 1
 
   comment = "Generated with: '{}':\n--\n-- {}".format( cmdline, ymlstr[:end] )
-  with io.open( fnam, 'x' ) as f:
+  if (allowOverWrite):
+    omode = 'w'
+  else:
+    omode = 'x'
+  with io.open( fnam, omode ) as f:
     if not pkgname is None:
       ctxt.genAppCfgPkgBody( f, comment, pkgname )
     else:
