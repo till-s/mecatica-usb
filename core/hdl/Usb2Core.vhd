@@ -98,8 +98,12 @@ entity Usb2Core is
       -- signal remote-wakeup (requires remote wakeup to be enabled by the host
       -- and in the currently active configuration descriptor)
       usb2RemoteWake               : in    std_logic          := '0';
-      --    indicate whether the device is currently self-powered (for USB GET_STATUS req.)
+      -- indicate whether the device is currently self-powered (for USB GET_STATUS req.)
       usb2SelfPowered              : in    std_logic          := '0';
+      -- request device disconnect - will reset all endpoints and the core; requires
+      -- ulpiRst to get out of this state!
+      usb2DisconnectReq            : in    std_logic          := '0';
+      usb2DisconnectAck            : out   std_logic          := '0';
 
       -- Endpoints are attached here (1 and up)
       usb2EpIb                     : in    Usb2EndpPairIbArray(0 to usb2AppGetMaxEndpointAddr(DESCRIPTORS_G) - 1)
@@ -247,51 +251,53 @@ begin
 
    U_ULPI_IO : entity work.UlpiIO
    generic map (
-      MARK_DEBUG_G    => MARK_DEBUG_ULPI_IO_G,
-      ULPI_NXT_IOB_G  => ULPI_NXT_IOB_G,
-      ULPI_DIR_IOB_G  => ULPI_DIR_IOB_G,
-      ULPI_DIN_IOB_G  => ULPI_DIN_IOB_G
+      MARK_DEBUG_G         => MARK_DEBUG_ULPI_IO_G,
+      ULPI_NXT_IOB_G       => ULPI_NXT_IOB_G,
+      ULPI_DIR_IOB_G       => ULPI_DIR_IOB_G,
+      ULPI_DIN_IOB_G       => ULPI_DIN_IOB_G
    )
    port map (
-      ulpiClk         => ulpiClk,
-      ulpiRst         => ulpiRst,
+      ulpiClk              => ulpiClk,
+      ulpiRst              => ulpiRst,
 
-      ulpiIb          => ulpiIb,
-      ulpiOb          => ulpiOb,
+      ulpiIb               => ulpiIb,
+      ulpiOb               => ulpiOb,
 
-      forceStp        => ulpiForceStp,
+      forceStp             => ulpiForceStp,
 
-      ulpiRx          => ulpiRxLoc,
-      ulpiTxReq       => ulpiTxReq,
-      ulpiTxRep       => ulpiTxRep,
+      ulpiRx               => ulpiRxLoc,
+      ulpiTxReq            => ulpiTxReq,
+      ulpiTxRep            => ulpiTxRep,
 
-      regReq          => regReq,
-      regRep          => regRep
+      regReq               => regReq,
+      regRep               => regRep
    );
 
    U_LINE_STATE : entity work.UlpiLineState
       generic map (
-         MARK_DEBUG_G => MARK_DEBUG_ULPI_LINE_STATE_G
+         MARK_DEBUG_G      => MARK_DEBUG_ULPI_LINE_STATE_G
       )
       port map (
-         clk          => ulpiClk,
-         rst          => ulpiRst,
+         clk               => ulpiClk,
+         rst               => ulpiRst,
 
-         ulpiRx       => ulpiRxLoc,
+         ulpiRx            => ulpiRxLoc,
 
-         ulpiRegReq   => lineStateRegReq,
-         ulpiRegRep   => lineStateRegRep,
+         ulpiRegReq        => lineStateRegReq,
+         ulpiRegRep        => lineStateRegRep,
 
-         ulpiTxReq    => ulpiLineTxReq,
-         ulpiTxRep    => ulpiTxRep,
+         ulpiTxReq         => ulpiLineTxReq,
+         ulpiTxRep         => ulpiTxRep,
 
-         usb2HiSpeedEn=> usb2HiSpeedEn,
+         usb2HiSpeedEn     => usb2HiSpeedEn,
 
-         usb2Rst      => rstReq,
-         usb2Suspend  => suspend,
-         usb2HiSpeed  => isHiSpeedNego,
+         usb2Rst           => rstReq,
+         usb2Suspend       => suspend,
+         usb2HiSpeed       => isHiSpeedNego,
+         usb2DisconnectReq => usb2DisconnectReq,
+         usb2DisconnectAck => usb2DisconnectAck,
 
-         usb2RemWake  => regWake
+         usb2RemWake       => regWake
       );
 
    end generate G_ULPI;

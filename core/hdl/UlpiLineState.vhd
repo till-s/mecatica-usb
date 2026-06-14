@@ -24,29 +24,38 @@ entity UlpiLineState is
       MARK_DEBUG_G   : boolean := false
    );
    port (
-      clk            : in  std_logic;
-      rst            : in  std_logic := '0';
+      clk                    : in  std_logic;
+      rst                    : in  std_logic := '0';
 
       -- ULPI
-      ulpiRx         : in  UlpiRxType;
+      ulpiRx                 : in  UlpiRxType;
 
       -- ULPI register access
-      ulpiRegReq     : out UlpiRegReqType;
-      ulpiRegRep     : in  UlpiRegRepType;
+      ulpiRegReq             : out UlpiRegReqType;
+      ulpiRegRep             : in  UlpiRegRepType;
 
       -- ULPI packet TX
-      ulpiTxReq      : out UlpiTxReqType;
-      ulpiTxRep      : in  UlpiTxRepType;
+      ulpiTxReq              : out UlpiTxReqType;
+      ulpiTxRep              : in  UlpiTxRepType;
 
-      usb2HiSpeedEn  : in  std_logic := '0';
+      usb2HiSpeedEn          : in  std_logic := '0';
+
+      -- request a USB device disconnect
+      --   - disconnect terminations
+      --   - assert usb2Rst output
+      --   - will remain in this state until 'rst'
+      --     is asserted.
+      --   - may monitor
+      usb2DisconnectReq      : in  std_logic := '0';
+      usb2DisconnectAck      : out std_logic;
 
       -- generated control signals
-      usb2Rst        : out std_logic;
-      usb2Suspend    : out std_logic;
+      usb2Rst                : out std_logic;
+      usb2Suspend            : out std_logic;
       -- usb2HiSpeed remains asserted while suspended
-      usb2HiSpeed    : out std_logic;
+      usb2HiSpeed            : out std_logic;
 
-      usb2RemWake    : in  std_logic := '0'
+      usb2RemWake            : in  std_logic := '0'
    );
 end entity UlpiLineState;
 
@@ -176,7 +185,8 @@ architecture Impl of UlpiLineState is
       WAKEUP,
       DRIVE_K,
       WAIT_K_DON,
-      WRITE_REG
+      WRITE_REG,
+      DISCONNECTED
    );
 
    type RegType   is record
@@ -199,6 +209,7 @@ architecture Impl of UlpiLineState is
       se0Seen     : boolean;
       kSeen       : boolean;
       jSeen       : boolean;
+      disconn     : std_logic;
    end record RegType;
 
    constant REG_INIT_C : RegType := (
@@ -220,7 +231,8 @@ architecture Impl of UlpiLineState is
       count       => (others => '0'),
       se0Seen     => false,
       kSeen       => false,
-      jSeen       => false
+      jSeen       => false,
+      disconn     => '0'
    );
 
    signal r                  : RegType := REG_INIT_C;
@@ -279,7 +291,15 @@ begin
    remWakeDbg   <= usb2RemWake;
    hiSpeedEnDbg <= usb2HiSpeedEn;
 
-   P_COMB : process ( r, ulpiRx, ulpiTxRep, ulpiRegRep, usb2RemWake, usb2HiSpeedEn ) is
+   P_COMB : process (
+      r,
+      ulpiRx,
+      ulpiTxRep,
+      ulpiRegRep,
+      usb2RemWake,
+      usb2HiSpeedEn,
+      usb2DisconnectReq
+   ) is
       variable v : RegType;
 
       variable start20   : boolean;
@@ -288,13 +308,13 @@ begin
       variable start3060 : boolean;
       variable start5060 : boolean;
    begin
-      v            := r;
+      v                 := r;
 
-      start20      := false;
-      start120     := false;
-      start1200    := false;
-      start3060    := false;
-      start5060    := false;
+      start20           := false;
+      start120          := false;
+      start1200         := false;
+      start3060         := false;
+      start5060         := false;
 
       -- get the line state
       if ( ulpiIsRxCmd( ulpiRx ) ) then
@@ -558,6 +578,10 @@ begin
                v.regReq.vld   := '0';
                v.state        := r.nxtState;
             end if;
+
+         when DISCONNECTED =>
+            v.disconn         := '1';
+            v.usb2Rst         := '1';
       end case;
 
       if ( r.txReq.vld = '1' and expiredTimer( r.time1200 ) and ( ulpiTxRep.nxt = '1' ) ) then
@@ -582,6 +606,13 @@ begin
          loadTimer( v.time5060, PERIOD_5060_C );
       end if;
 
+      -- if write_reg is already ongoing we delay disconnect request; also, if v.state = DISCONNECTED (e.g., 
+      -- when returning from the very write below) we don't want to write again!
+      if ( usb2DisconnectReq = '1' and v.txReq.vld = '0' and v.state /= WRITE_REG and v.state /= DISCONNECTED ) then
+         writeReg(v, ULPI_REG_FUN_CTL_C, ULPI_FUN_CTL_REINI_C);
+         v.nxtState := DISCONNECTED;
+      end if;
+
       rin <= v;
    end process P_COMB;
 
@@ -596,11 +627,12 @@ begin
       end if;
    end process P_SEQ;
 
-   ulpiRegReq      <= r.regReq;
-   ulpiTxReq       <= r.txReq;
+   ulpiRegReq        <= r.regReq;
+   ulpiTxReq         <= r.txReq;
 
-   usb2Rst         <= r.usb2Rst;
-   usb2Suspend     <= r.usb2Suspend;
-   usb2hiSpeed     <= r.usb2hiSpeed;
+   usb2DisconnectAck <= r.disconn;
+   usb2Rst           <= r.usb2Rst;
+   usb2Suspend       <= r.usb2Suspend;
+   usb2hiSpeed       <= r.usb2hiSpeed;
 
 end architecture Impl;

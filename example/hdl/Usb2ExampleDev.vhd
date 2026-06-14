@@ -105,6 +105,18 @@ entity Usb2ExampleDev is
       usb2RemoteWake       : in  std_logic := '0';
       usb2HiSpeedEn        : in  std_logic := '1';
 
+      -- initiate a device disconnect from USB; once the USB interface is
+      -- physically disconnected
+      --    - usb2Rst is asserted internally (reflected in usb2DevStatus.usb2Rst)
+      --    - usb2DisconnectAck is asserted (needed because usb2Rst could also
+      --      be caused by a reset from the host)
+      --    - core and endpoints remain in reset until ulpiRst is pulsed; this
+      --      will restart everything.
+      -- NOTE: not supported for the FSLS/emulation mode because the core
+      --       has no control over the FS/LS pull-ups.
+      usb2DisconnectReq    : in  std_logic := '0';
+      usb2DisconnectAck    : out std_logic := '0';
+
       ulpiRegReq           : in  UlpiRegReqType                                 := ULPI_REG_REQ_INIT_C;
       ulpiRegRep           : out UlpiRegRepType;
 
@@ -440,6 +452,9 @@ begin
          ulpiRegRep                   => ulpiRegRep,
 
          ulpiForceStp                 => ulpiForceStp,
+
+         usb2DisconnectReq            => usb2DisconnectReq,
+         usb2DisconnectAck            => usb2DisconnectAck,
 
          usb2DevStatus                => usb2DevStatusLoc,
 
