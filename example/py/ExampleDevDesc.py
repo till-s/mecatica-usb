@@ -23,7 +23,7 @@ def mkExampleDevDescriptors(
   d.bMaxPacketSize0( 64 )
   d.idVendor( ymlDev.get('idVendor', 0x1209) )
   d.idProduct( ymlDev['idProduct'] )
-  d.bcdDevice( ymlDev['bcdDevice'] )
+  d.bcdDevice( ymlDev.get('bcdDevice', 0x0000) )
   d.iProduct( ymlDev.get("iProduct") )
   d.iSerialNumber( ymlDev.get("iSerialNumber") )
   d.iManufacturer( ymlDev.get("iManufacturer") )
