@@ -59,14 +59,17 @@ def mkExampleDevDescriptors(
     if ( ymlFun is None ):
       ymlFun = dict()
       ymlFun['enabled'] = True
-    try:
-      ymlFun['iFunction']
-    except KeyError:
-      ymlFun['iFunction'] = 'Mecatica ACM'
-    if ( ymlFun.get("enabled", True) ):
-      ifs, eps = Usb2Desc.addBasicACM(c, ymlFun, ifcNumber_, epAddr_, hiSpeed = speed)
-      ifcNumber_ += ifs
-      epAddr_    += eps
+    if ( isinstance(ymlFun, dict) ):
+      ymlFun = [ ymlFun ]
+    for acmYmlFun in ymlFun:
+      try:
+        acmYmlFun['iFunction']
+      except KeyError:
+        acmYmlFun['iFunction'] = 'Mecatica ACM'
+      if ( acmYmlFun.get("enabled", True) ):
+        ifs, eps = Usb2Desc.addBasicACM(c, acmYmlFun, ifcNumber_, epAddr_, hiSpeed = speed)
+        ifcNumber_ += ifs
+        epAddr_    += eps
 
     ymlFun     = ymlCfg.get('functionUAC2I2SOutput')
     if ( not ymlFun is None and ymlFun.get('enabled', True) ):

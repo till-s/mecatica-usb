@@ -200,6 +200,15 @@ package Usb2DescPkg is
       constant s : Usb2ByteType := USB2_IFC_SUBCLASS_CDC_NCM_C
    ) return boolean;
 
+   function usb2GetIfcAssocDescriptors(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant c : Usb2ByteType;
+      constant s : Usb2ByteType;
+      constant p : Usb2ByteType := (others => 'X');
+      constant a : boolean      := true
+   ) return Usb2DescIdxArray;
+
    function usb2NextIfcAssocDescriptor(
       constant d : Usb2ByteArray;
       constant i : integer;
@@ -558,6 +567,54 @@ report "i: " & integer'image(x) & " t " & toBitStr(std_logic_vector(t)) & " tbl 
       return usb2NthStringDescriptor( d, si );
 
    end function usb2EthMacAddrStringDescriptor;
+
+   function usb2GetIfcAssocDescriptorsInternal(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant c : Usb2ByteType;
+      constant s : Usb2ByteType;
+      constant p : Usb2ByteType := (others => 'X');
+      -- n < 0 means count is not known
+      constant n : integer;
+      constant a : boolean      := true
+   ) return Usb2DescIdxArray is
+      variable count : integer;
+      variable x     : integer;
+      variable rv    : Usb2DescIdxArray(0 to ite(n >= 0, n - 1, 0));
+   begin
+      count := 0;
+      x     := i;
+      L : while ( x >= 0 ) loop
+         x := usb2NextIfcAssocDescriptor(d, x, c, s, p, a);
+         if ( x < 0 ) then
+            exit L;
+         end if;
+         if ( n > 0 ) then
+            rv(count) := x;
+         end if;
+         count := count + 1;
+         -- skip this one
+         x := usb2NextDescriptor(d, x, a);
+      end loop;
+      if ( n < 0 ) then
+         rv(0) := count;
+      end if;
+      return rv;
+   end function usb2GetIfcAssocDescriptorsInternal;
+
+   function usb2GetIfcAssocDescriptors(
+      constant d : Usb2ByteArray;
+      constant i : integer;
+      constant c : Usb2ByteType;
+      constant s : Usb2ByteType;
+      constant p : Usb2ByteType := (others => 'X');
+      constant a : boolean      := true
+   ) return Usb2DescIdxArray is
+      variable r : Usb2DescIdxArray(0 to 0);
+   begin
+      r := usb2GetIfcAssocDescriptorsInternal(d, i, c, s, p, -1, a);
+      return usb2GetIfcAssocDescriptorsInternal(d, i, c, s, p, r(0), a);
+   end function Usb2GetIfcAssocDescriptors;
 
    function usb2NextIfcAssocDescriptor(
       constant d : Usb2ByteArray;

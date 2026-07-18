@@ -1,4 +1,56 @@
 {
+  "$defs" : {
+    "functionACM" : {
+      "type"                  :"object",
+      "additionalProperties"  : false,
+      "properties"            : {
+        "enabled"   : {
+          "description" : "Enable/disable the ACM Function",
+          "default" : true,
+          "type"    : "boolean"
+        },
+        "iFunction" : {
+          "description" : "Function Name",
+          "default" : "Mecatica ACM",
+          "type"    : "string"
+        },
+        "iInterfaceCtrl" : {
+          "description" : "Name of Control Interface",
+          "default" : "",
+          "type"    : "string"
+        },
+        "iInterfaceData" : {
+          "description" : "Name of Data Interface",
+          "default" : "",
+          "type"    : "string"
+        },
+        "haveSendBreak" : {
+          "description" : "Support the 'Send Break' control request",
+          "default" : true,
+          "type"    : "boolean"
+        },
+        "haveLineState" : {
+          "description" : "Support the 'Line State' control request",
+          "default" : true,
+          "type"    : "boolean"
+        },
+        "maxPktSizeIN" : {
+          "description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
+          "default" : 0,
+          "type"    : "integer",
+          "minimum" : 0,
+          "maximum" : 512
+        },
+        "maxPktSizeOUT" : {
+          "description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
+          "default" : 0,
+          "type"    : "integer",
+          "minimum" : 0,
+          "maximum" : 512
+        }
+      }
+    }
+  },
   "type"                 : "object",
   "required"             : [ "deviceDesc" ],
   "additionalProperties" : false,
@@ -67,54 +119,19 @@
             },
             "functionACM" : {
               "description" : "CDC ACM Function Support (enabled by default if this key is not present)",
-              "type"                  :"object",
-              "additionalProperties"  : false,
-              "properties"            : {
-                "enabled"   : {
-                  "description" : "Enable/disable the ACM Function",
-                  "default" : true,
-                  "type"    : "boolean"
+              "oneOf" : [ 
+                {
+                  "$ref" : "#/$defs/functionACM"
                 },
-                "iFunction" : {
-                  "description" : "Function Name",
-                  "default" : "Mecatica ACM",
-                  "type"    : "string"
-                },
-                "iInterfaceCtrl" : {
-                  "description" : "Name of Control Interface",
-                  "default" : "",
-                  "type"    : "string"
-                },
-                "iInterfaceData" : {
-                  "description" : "Name of Data Interface",
-                  "default" : "",
-                  "type"    : "string"
-                },
-                "haveSendBreak" : {
-                  "description" : "Support the 'Send Break' control request",
-                  "default" : true,
-                  "type"    : "boolean"
-                },
-                "haveLineState" : {
-                  "description" : "Support the 'Line State' control request",
-                  "default" : true,
-                  "type"    : "boolean"
-                },
-                "maxPktSizeIN" : {
-                  "description" : "Max. packet size on IN endpoint; setting to 0 picks a reasonable default based on speed",
-                  "default" : 0,
-                  "type"    : "integer",
-                  "minimum" : 0,
-                  "maximum" : 512
-                },
-                "maxPktSizeOUT" : {
-                  "description" : "Max. packet size on OUT endpoint; setting to 0 picks a reasonable default based on speed",
-                  "default" : 0,
-                  "type"    : "integer",
-                  "minimum" : 0,
-                  "maximum" : 512
-                }
-              }
+                {
+                  "type"     : "array",
+                  "minItems" : 1,
+                  "maxItems" : 15,
+                  "items"    : {
+                    "$ref"   : "#/$defs/functionACM"
+                  }
+                } 
+              ]
             },
             "functionECM" : {
               "description" : "CDC ECM Networking Function Support (disabled if this key is not present)",
