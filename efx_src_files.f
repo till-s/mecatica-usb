@@ -44,4 +44,6 @@ endpoints/common/hdl/Usb2Fifo.vhd
 endpoints/common/hdl/Usb2MuxEpCtlPkg.vhd
 endpoints/common/hdl/Usb2MuxEpCtl.vhd
 example/hdl/StdLogPkg.vhd
+example/hdl/Usb2ExamplePkg.vhd
+example/hdl/Usb2ExampleMultiAcmDev.vhd
 example/hdl/Usb2ExampleDev.vhd

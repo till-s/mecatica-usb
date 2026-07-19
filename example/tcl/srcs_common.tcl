@@ -48,6 +48,8 @@ set example_common_src_files [list \
  [file normalize "${common_srcs_dir}/../../endpoints/CDCNCM/hdl/Usb2EpCDCNCMOut.vhd"] \
  [file normalize "${common_srcs_dir}/../../endpoints/CDCNCM/hdl/Usb2EpCDCNCM.vhd"] \
  [file normalize "${common_srcs_dir}/../hdl/StdLogPkg.vhd"] \
+ [file normalize "${common_srcs_dir}/../hdl/Usb2ExamplePkg.vhd"] \
+ [file normalize "${common_srcs_dir}/../hdl/Usb2ExampleMultiAcmDev.vhd"] \
  [file normalize "${common_srcs_dir}/../hdl/Usb2ExampleDev.vhd"] \
 ]
 
