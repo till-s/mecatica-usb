@@ -652,7 +652,7 @@ begin
             usb2NotifyEpIb             => usb2EpOb(CDC_ACM_IRQ_EP_IDX_C + unit*CDC_ACM_NUM_EPS_C),
             usb2NotifyEpOb             => usb2EpIb(CDC_ACM_IRQ_EP_IDX_C + unit*CDC_ACM_NUM_EPS_C),
 
-            fifoMinFillInp             => acmFifoIbExtra(unit).inpMinFill,
+            fifoMinFillInp             => acmFifoIbExtra(unit).inpMinFill(ACM_FIFO_CONFIG_G(unit).ldFifoDepthInp - 1 downto 0),
             fifoTimeFillInp            => acmFifoIbExtra(unit).inpTimer,
 
             rate                       => acmFifoOb(unit).bitRate,

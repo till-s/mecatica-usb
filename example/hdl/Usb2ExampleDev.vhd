@@ -328,7 +328,7 @@ begin
    acmFifoIb(0).ringDetect            <= acmRingDetect;
    acmFifoIb(0).breakState            <= acmBreakState;
 
-   acmFifoIbExtra(0).inpMinFill       <= acmFifoInpMinFill;
+   acmFifoIbExtra(0).inpMinFill       <= resize( acmFifoInpMinFill, acmFifoIbExtra(0).inpMinFill'length );
    acmFifoIbExtra(0).inpTimer         <= acmFifoInpTimer;
  
    U_DEV : entity work.Usb2ExampleMultiAcmDev

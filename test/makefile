@@ -17,6 +17,7 @@ SRCS+= Usb2AppCfgPkg.vhd
 SRCS+= Usb2DescPkg.vhd
 SRCS+= Usb2MuxEpCtlPkg.vhd
 SRCS+= Usb2EpGenericCtlPkg.vhd
+SRCS+= Usb2ExamplePkg.vhd
 SRCS+= UlpiIO.vhd UlpiIOTb.vhd
 SRCS+= UlpiLogger.vhd
 SRCS+= Usb2PktRx.vhd UsbCrcTbl.vhd UsbCrcTblTb.vhd
@@ -81,6 +82,7 @@ SRCS += Usb2EpBADDSpkr.vhd
 SRCS += Usb2EpBADDSpkrCtl.vhd
 SRCS += Usb2EpI2SPlayback.vhd
 SRCS += Usb2ExampleDev.vhd
+SRCS += Usb2ExampleMultiAcmDev.vhd
 
 PROG+=UlpiIOTb
 PROG+=UsbCrcTblTb
@@ -133,7 +135,7 @@ build: $(PROG)
 $(PROG): %Tb : %Tb.o
 	$(GHDL) -e $(GHDLFLAGS) $($(@:%.o=%)_GHDLFLAGS) -o $@ -Wl,-no-pie $@
 
-$(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o Usb2PrivPkg.o UlpiPkg.o Usb2UtilPkg.o Usb2DescPkg.o Usb2MuxEpCtlPkg.o
+$(patsubst %.vhd,%.o,$(filter-out %Pkg.vhd, $(SRCS))): Usb2Pkg.o Usb2PrivPkg.o UlpiPkg.o Usb2UtilPkg.o Usb2DescPkg.o Usb2MuxEpCtlPkg.o Usb2ExamplePkg.o
 
 Usb2DescPkg.o: Usb2AppCfgPkg.o Usb2UtilPkg.o
 Usb2AppCfgPkg.o Usb2DescPkg.o: Usb2Pkg.o
@@ -208,7 +210,9 @@ Usb2EpAudioInpStrm.o: Usb2CCSync.o Usb2Fifo.o Usb2EpAudioCtl.o
 Usb2EpI2SPlayback.o: Usb2Fifo.o
 Usb2EpBADDSpkr.o: Usb2EpI2SPlayback.o Usb2EpAudioCtl.o
 
-Usb2ExampleDev.o: Usb2Core.o Usb2MuxEpCtl.o Usb2EpCDCACM.o Usb2EpCDCECM.o Usb2EpCDCNCM.o Usb2EpBADDSpkr.o Usb2EpAudioInpStrm.o
+Usb2ExampleMultiAcmDev.o: Usb2ExamplePkg.o Usb2Core.o Usb2MuxEpCtl.o Usb2EpCDCACM.o Usb2EpCDCECM.o Usb2EpCDCNCM.o Usb2EpBADDSpkr.o Usb2EpAudioInpStrm.o
+
+Usb2ExampleDev.o: Usb2ExampleMultiAcmDev.o
 
 AppCfgPkgBody.o: Usb2AppCfgPkg.o
 
