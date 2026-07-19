@@ -14,7 +14,7 @@ use     work.Usb2Pkg.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2DescPkg.all;
 
-package Usb2MultiAcmPkg is
+package Usb2ExamplePkg is
 
    type Usb2MultiAcmCfgType is record
       ldFifoDepthInp        : natural;
@@ -108,9 +108,9 @@ package Usb2MultiAcmPkg is
       constant i : integer := 0
    ) return Usb2DescIdxArray;
 
-end package Usb2MultiAcmPkg;
+end package Usb2ExamplePkg;
 
-package body Usb2MultiAcmPkg is
+package body Usb2ExamplePkg is
 
    function usb2GetCdcAcmIfcAssocDescriptors(
       constant d : Usb2ByteArray;
@@ -126,4 +126,4 @@ package body Usb2MultiAcmPkg is
       );
    end function usb2GetCdcAcmIfcAssocDescriptors;
 
-end package body Usb2MultiAcmPkg;
+end package body Usb2ExamplePkg;

@@ -14,7 +14,7 @@ use     work.Usb2Pkg.all;
 use     work.Usb2UtilPkg.all;
 use     work.Usb2DescPkg.all;
 use     work.Usb2MuxEpCtlPkg.all;
-use     work.Usb2MultiAcmPkg.all;
+use     work.Usb2ExamplePkg.all;
 
 entity Usb2ExampleMultiAcmDev is
    generic (
