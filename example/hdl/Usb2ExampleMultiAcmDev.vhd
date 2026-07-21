@@ -587,6 +587,7 @@ begin
 
       P_COMB : process (
          acmFifoIb,
+         acmFifoIbLineState,
          acmFifoDatOut,
          acmFifoBlast,
          acmFifoLoopback,
