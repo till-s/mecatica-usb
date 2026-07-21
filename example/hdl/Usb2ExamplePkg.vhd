@@ -58,6 +58,9 @@ package Usb2ExamplePkg is
       outRen                : std_logic;
       inpDat                : Usb2ByteType;
       inpWen                : std_logic;
+   end record Usb2AcmFifoIbType;
+
+   type Usb2AcmFifoIbLineStateType is record
       -- functionality of the ACM interface; Fifo interface
       -- to this entity is only active if this input is de-asserted.
       -- Otherwise 'blast' or 'loopback' mode are active.
@@ -71,12 +74,15 @@ package Usb2ExamplePkg is
       framingError          : std_logic;
       ringDetect            : std_logic;
       breakState            : std_logic;
-   end record Usb2AcmFifoIbType;
+   end record Usb2AcmFifoIbLineStateType;
 
    constant USB2_ACM_FIFO_IB_INIT_C : Usb2AcmFifoIbType := (
       outRen                => '1',
       inpDat                => (others => '0'),
-      inpWen                => '0',
+      inpWen                => '0'
+   );
+
+   constant USB2_ACM_FIFO_IB_LINE_STATE_INIT_C : Usb2AcmFifoIbLineStateType := (
       loopback              => '0',
       DCD                   => '0',
       DSR                   => '0',
@@ -86,8 +92,6 @@ package Usb2ExamplePkg is
       ringDetect            => '0',
       breakState            => '0'
    );
-
-   type Usb2AcmFifoIbArray is array (natural range <>) of Usb2AcmFifoIbType;
 
    -- rarely used extra signals (can be tied to defaults)
    type Usb2AcmFifoIbExtraType  is record
@@ -100,7 +104,9 @@ package Usb2ExamplePkg is
       inpTimer              => (others => '0')
    );
 
-   type Usb2AcmFifoIbExtraArray is array (natural range <>) of Usb2AcmFifoIbExtraType;
+   type Usb2AcmFifoIbArray          is array (natural range <>) of Usb2AcmFifoIbType;
+   type Usb2AcmFifoIbLineStateArray is array (natural range <>) of Usb2AcmFifoIbLineStateType;
+   type Usb2AcmFifoIbExtraArray     is array (natural range <>) of Usb2AcmFifoIbExtraType;
 
    -- find all ACM interface association descriptors
    function usb2GetCdcAcmIfcAssocDescriptors(

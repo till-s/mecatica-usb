@@ -293,10 +293,11 @@ architecture Impl of Usb2ExampleDev is
       return v;
    end function ACM_CFG_F;
 
-   signal acmFifoClkLoc   : std_logic_vector(0 downto 0);
-   signal acmFifoOb       : Usb2AcmFifoObArray(0 to 0);
-   signal acmFifoIb       : Usb2AcmFifoIbArray(0 to 0);
-   signal acmFifoIbExtra  : Usb2AcmFifoIbExtraArray(0 to 0);
+   signal acmFifoClkLoc      : std_logic_vector(0 downto 0);
+   signal acmFifoOb          : Usb2AcmFifoObArray(0 to 0);
+   signal acmFifoIb          : Usb2AcmFifoIbArray(0 to 0);
+   signal acmFifoIbLineState : Usb2AcmFifoIbLineStateArray(0 to 0);
+   signal acmFifoIbExtra     : Usb2AcmFifoIbExtraArray(0 to 0);
 
 begin
 
@@ -319,14 +320,14 @@ begin
    acmFifoIb(0).outRen                <= acmFifoOutRen;
    acmFifoIb(0).inpDat                <= acmFifoInpDat;
    acmFifoIb(0).inpWen                <= acmFifoInpWen;
-   acmFifoIb(0).loopback              <= not acmFifoLocal;
-   acmFifoIb(0).DCD                   <= acmDCD;
-   acmFifoIb(0).DSR                   <= acmDSR;
-   acmFifoIb(0).overRun               <= acmOverRun;
-   acmFifoIb(0).parityError           <= acmParityError;
-   acmFifoIb(0).framingError          <= acmFramingError;
-   acmFifoIb(0).ringDetect            <= acmRingDetect;
-   acmFifoIb(0).breakState            <= acmBreakState;
+   acmFifoIbLineState(0).loopback     <= not acmFifoLocal;
+   acmFifoIbLineState(0).DCD          <= acmDCD;
+   acmFifoIbLineState(0).DSR          <= acmDSR;
+   acmFifoIbLineState(0).overRun      <= acmOverRun;
+   acmFifoIbLineState(0).parityError  <= acmParityError;
+   acmFifoIbLineState(0).framingError <= acmFramingError;
+   acmFifoIbLineState(0).ringDetect   <= acmRingDetect;
+   acmFifoIbLineState(0).breakState   <= acmBreakState;
 
    acmFifoIbExtra(0).inpMinFill       <= resize( acmFifoInpMinFill, acmFifoIbExtra(0).inpMinFill'length );
    acmFifoIbExtra(0).inpTimer         <= acmFifoInpTimer;

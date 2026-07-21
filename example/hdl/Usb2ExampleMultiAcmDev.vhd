@@ -136,6 +136,7 @@ entity Usb2ExampleMultiAcmDev is
       acmFifoClk           : in  std_logic_vector(ACM_FIFO_CONFIG_G'range) := (others => '0');
       acmFifoOb            : out Usb2AcmFifoObArray(ACM_FIFO_CONFIG_G'range);
       acmFifoIb            : in  Usb2AcmFifoIbArray(ACM_FIFO_CONFIG_G'range)      := (others => USB2_ACM_FIFO_IB_INIT_C);
+      acmFifoIbLineState   : in  Usb2AcmFifoIbLineStateArray(ACM_FIFO_CONFIG_G'range) := (others => USB2_ACM_FIFO_IB_LINE_STATE_INIT_C);
       acmFifoIbExtra       : in  Usb2AcmFifoIbExtraArray(ACM_FIFO_CONFIG_G'range) := (others => USB2_ACM_FIFO_IB_EXTRA_INIT_C);
 
       baddVolMaster        : out signed(15 downto 0)  := (others => '0');
@@ -601,7 +602,7 @@ begin
          acmFifoOb(unit).outDat   <= acmFifoDatOut;
          wen                      := not acmFifoFullInp;
          ren                      := not acmFifoEmptyOut;
-         if ( acmFifoIb(unit).loopback = '0' ) then
+         if ( acmFifoIbLineState(unit).loopback = '0' ) then
             acmFifoDatInp             <= acmFifoIb(unit).inpDat;
             acmFifoOb(unit).outEmpty  <= acmFifoEmptyOut;
             acmFifoOb(unit).inpFull   <= acmFifoFullInp;
@@ -675,13 +676,13 @@ begin
             lineBreak                  => acmFifoOb(unit).lineBreak,
             DTR                        => DTR,
             RTS                        => acmFifoOb(unit).RTS,
-            rxCarrier                  => acmFifoIb(unit).DCD,
-            txCarrier                  => acmFifoIb(unit).DSR,
-            overRun                    => acmFifoIb(unit).overRun,
-            parityError                => acmFifoIb(unit).parityError,
-            framingError               => acmFifoIb(unit).framingError,
-            ringDetected               => acmFifoIb(unit).ringDetect,
-            breakState                 => acmFifoIb(unit).breakState
+            rxCarrier                  => acmFifoIbLineState(unit).DCD,
+            txCarrier                  => acmFifoIbLineState(unit).DSR,
+            overRun                    => acmFifoIbLineState(unit).overRun,
+            parityError                => acmFifoIbLineState(unit).parityError,
+            framingError               => acmFifoIbLineState(unit).framingError,
+            ringDetected               => acmFifoIbLineState(unit).ringDetect,
+            breakState                 => acmFifoIbLineState(unit).breakState
          );
 
       acmFifoOb(unit).outFill <= resize(acmFifoFilledOut, acmFifoOb(unit).outFill'length);
