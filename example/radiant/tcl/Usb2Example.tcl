@@ -40,4 +40,6 @@ prj_enable_source "${origin_dir}/../pdc/Usb2Example.pdc"
 
 prj_add_source "${origin_dir}/../ip/UlpiPLL/UlpiPLL.ipx"
 
+prj_set_impl_opt -impl "impl_1" {top} {Usb2Example}
+
 prj_save
