@@ -43,7 +43,14 @@ package Usb2DescPkg is
 
 --   function Usb2AppGetNumConfigurations(constant d: Usb2ByteArray) return integer;
 
-   function usb2AppGetMaxEndpointAddr(constant d: Usb2ByteArray) return positive;
+   -- usb2AppGetHighestEndpointAddr() identifies the max. endpoint address.
+   -- The legacy 'usb2AppGetMaxEndpointAddr' function was renamed to
+   -- 'usb2AppGetNumEndpoints() since it returned the highest address + 1 and
+   -- it's name was misleading. We abandon the old name to avoid providing
+   -- new semantics with the old name.
+   function usb2AppGetHighestEndpointAddr(constant d: Usb2ByteArray) return positive;
+
+   function usb2AppGetNumEndpoints(constant d: Usb2ByteArray) return positive;
 
    -- max. number of interfaces among all configurations
    -- e.g., if config 1 has 1 interface and config 2 has
@@ -351,7 +358,7 @@ report "i: " & integer'image(x) & " t " & toBitStr(std_logic_vector(t)) & " tbl 
       return highest;
    end function findMax;
 
-   function usb2AppGetMaxEndpointAddr(constant d: Usb2ByteArray)
+   function usb2AppGetHighestEndpointAddr(constant d: Usb2ByteArray)
    return positive is
       variable v : integer;
    begin
@@ -359,10 +366,15 @@ report "i: " & integer'image(x) & " t " & toBitStr(std_logic_vector(t)) & " tbl 
       if ( v < 0 ) then
          v := 0; -- EP 0 has no descriptor
       end if;
-      v := v + 1; -- num endpoints = max addr + 1
-      report integer'image(v) & " endpoints";
+      report "Highest endpoint address: " & integer'image(v);
       return v;
-   end function usb2AppGetMaxEndpointAddr;
+   end function usb2AppGetHighestEndpointAddr;
+
+   function usb2AppGetNumEndpoints(constant d: Usb2ByteArray)
+   return positive is
+   begin
+      return usb2AppGetHighestEndpointAddr(d) + 1;
+   end function usb2AppGetNumEndpoints;
 
    function usb2AppGetMaxInterfaces(constant d: Usb2ByteArray)
    return natural is

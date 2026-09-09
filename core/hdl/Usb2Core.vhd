@@ -106,11 +106,11 @@ entity Usb2Core is
       usb2DisconnectAck            : out   std_logic          := '0';
 
       -- Endpoints are attached here (1 and up)
-      usb2EpIb                     : in    Usb2EndpPairIbArray(0 to usb2AppGetMaxEndpointAddr(DESCRIPTORS_G) - 1)
+      usb2EpIb                     : in    Usb2EndpPairIbArray(0 to usb2AppGetNumEndpoints(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_IB_INIT_C );
       -- note EP0 output can be observed here; an external agent extending EP0 functionality
       -- needs to listen to usb2EpOb(0).
-      usb2EpOb                     : out   Usb2EndpPairObArray(0 to usb2AppGetMaxEndpointAddr(DESCRIPTORS_G) - 1)
+      usb2EpOb                     : out   Usb2EndpPairObArray(0 to usb2AppGetNumEndpoints(DESCRIPTORS_G) - 1)
                                            := ( others => USB2_ENDP_PAIR_OB_INIT_C );
 
       -- access to descriptors in memory (only if DESCRIPTOR_BRAM_G is true)
@@ -129,7 +129,7 @@ end entity Usb2Core;
 
 architecture Impl of Usb2Core is
 
-   constant NUM_ENDPOINTS_C : natural         := usb2AppGetMaxEndpointAddr(DESCRIPTORS_G);
+   constant NUM_ENDPOINTS_C : natural         := usb2AppGetNumEndpoints(DESCRIPTORS_G);
 
    signal ulpiRxLoc         : UlpiRxType;
    signal usb2RxLoc         : Usb2RxType;

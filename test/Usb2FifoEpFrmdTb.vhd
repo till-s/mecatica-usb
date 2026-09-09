@@ -179,7 +179,7 @@ architecture sim of Usb2FifoEpFrmdTb is
    constant CONFIG_INDEX_C         : std_logic_vector(7 downto 0) := x"00";
    constant CONFIG_BAD_VALUE_C     : std_logic_vector(7 downto 0) := x"02";
 
-   constant NUM_ENDPOINTS_C        : natural                      := usb2AppGetMaxEndpointAddr(USB2_APP_DESCRIPTORS_C);
+   constant NUM_ENDPOINTS_C        : natural                      := usb2AppGetNumEndpoints(USB2_APP_DESCRIPTORS_C);
 
    constant EP0_SZ_C               : Usb2ByteType           := usb2AppGetDescriptors(USB2_DEV_DESC_IDX_MAX_PKT_SIZE0_C); 
    constant EP1_SZ_C               : natural                := 8; -- must match value in descriptor

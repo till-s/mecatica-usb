@@ -351,7 +351,7 @@ architecture Impl of Usb2ExampleDev is
       return v;
    end function acmCapabilities;
 
-   constant N_EP_C                             : natural := usb2AppGetMaxEndpointAddr(DESCRIPTORS_G);
+   constant N_EP_C                             : natural := usb2AppGetNumEndpoints(DESCRIPTORS_G);
 
    constant CDC_ACM_BULK_EP_IDX_C              : natural := 0                       + ite( HAVE_ACM_C,  1, 0 );
    constant CDC_ACM_IRQ_EP_IDX_C               : natural := CDC_ACM_BULK_EP_IDX_C   + ite( HAVE_ACM_C,  1, 0 );
