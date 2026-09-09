@@ -203,7 +203,8 @@ architecture Impl of Usb2StdCtlEp is
    -- vivado complains that the v.ifcIdx := r.ifcIdx + 1 violates the range
    -- but is not smart enough to see that this can never be executed.
    subtype IfcIdxType    is natural range 0 to MAX_INTERFACES_C  + 1;
-   subtype EpIdxType     is natural range 0 to NUM_ENDPOINTS_G;
+   subtype EpIdxType     is natural range 0 to NUM_ENDPOINTS_G - 1;
+   subtype EpNumType     is natural range 0 to NUM_ENDPOINTS_G;
    subtype CfgIdxType    is natural range 0 to max(numConfigs(true), numConfigs(false));
 
    type    AltSetArray   is array(IfcIdxType) of AltSetIdxType;
@@ -216,7 +217,11 @@ architecture Impl of Usb2StdCtlEp is
       ifc         => 0
    );
 
-   type EndpAssocArray is array (natural range 1 to NUM_ENDPOINTS_G - 1) of EndpAssocType;
+   -- include EP 0 ; radiant crashed for certain configurations not realizing that
+   -- the EndpAssocArray cannot be read for index 0 (DEACT_IFC state can only be
+   -- reached with r.epIdx >= 1 and <= EndpAssocArray'high).
+   -- Thus adding a dummy entry at 0 does no harm...
+   type EndpAssocArray is array (natural range 0 to NUM_ENDPOINTS_G - 1) of EndpAssocType;
 
    type RegType   is record
       state       : StateType;
@@ -248,7 +253,7 @@ architecture Impl of Usb2StdCtlEp is
       numIfc      : IfcIdxType;
       epIdx       : EpIdxType;
       epIsInp     : boolean;
-      numEp       : EpIdxType;
+      numEp       : EpNumType;
       descType    : Usb2ByteType;
       size2B      : boolean;
       sizeMatch   : boolean;
@@ -709,7 +714,7 @@ begin
                      v.state    := STATUS;
 
                   when USB2_REQ_STD_SET_CONFIGURATION_C =>
-                     for i in 1 to v.epConfig'length - 1 loop
+                     for i in 1 to v.epConfig'high loop
                         v.epConfig(i).maxPktSizeInp := (others => '0');
                         v.epConfig(i).maxPktSizeOut := (others => '0');
                         -- SET_CONFIGURATION clears halt 9.4.5
@@ -804,15 +809,15 @@ begin
             end if;
 
          when DEACT_IFC =>
-            if ( r.epIdx > r.epAssocInp'high ) then
+            if ( r.epAssocInp( r.epIdx ).ifc = r.ifcIdx ) then
+               v.epConfig( r.epIdx ).maxPktSizeInp := (others => '0');
+            end if;
+            if ( r.epAssocOut( r.epIdx ).ifc = r.ifcIdx ) then
+               v.epConfig( r.epIdx ).maxPktSizeOut := (others => '0');
+            end if;
+            if ( r.epIdx = r.epAssocInp'high ) then
                v.state := LOAD_ALT;
             else
-               if ( r.epAssocInp( r.epIdx ).ifc = r.ifcIdx ) then
-                  v.epConfig( r.epIdx ).maxPktSizeInp := (others => '0');
-               end if;
-               if ( r.epAssocOut( r.epIdx ).ifc = r.ifcIdx ) then
-                  v.epConfig( r.epIdx ).maxPktSizeOut := (others => '0');
-               end if;
                v.epIdx := r.epIdx + 1;
             end if;
 

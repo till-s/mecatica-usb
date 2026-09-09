@@ -32,6 +32,14 @@ begin
    P_TEST : process is
    begin
       report "Example Descriptors successfully instantiated";
+      wait for 8.3 ns;
+      usb2Clk <= '1';
+      wait for 8.3 ns;
+      usb2Clk <= '0';
+      wait for 8.3 ns;
+      usb2Clk <= '1';
+      wait for 8.3 ns;
+      usb2Clk <= '0';
       wait;
    end process P_TEST;
 
