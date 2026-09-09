@@ -342,7 +342,7 @@ architecture Impl of Usb2ExampleMultiAcmDev is
       return v;
    end function acmAgentIndices;
 
-   constant N_EP_C                             : natural := usb2AppGetMaxEndpointAddr(DESCRIPTORS_G);
+   constant N_EP_C                             : natural := usb2AppGetNumEndpoints(DESCRIPTORS_G);
 
    constant CDC_ACM_BULK_EP_IDX_C              : natural := 1;
    constant CDC_ACM_IRQ_EP_IDX_C               : natural := CDC_ACM_BULK_EP_IDX_C   + 1;
@@ -398,6 +398,8 @@ architecture Impl of Usb2ExampleMultiAcmDev is
    attribute MARK_DEBUG                        of usb2Ep0CtlExtLoc  : signal is toStr(MARK_DEBUG_EP0_CTL_MUX_G);
 
 begin
+
+   assert CDC_ACM_NUM_UNITS_C = ACM_FIFO_CONFIG_G'length report "Number of ACM devices in descriptors does not match ACM_FIFO_CONFIG_G" severity failure;
 
    -- Output assignments
 
